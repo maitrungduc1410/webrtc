@@ -374,14 +374,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
     candidates_removed_callback_ = std::move(callback);
   }
 
-  // Deprecated by PacketTransportInternal::SignalNetworkRouteChanged.
-  // This signal occurs when there is a change in the way that packets are
-  // being routed, i.e. to a different remote location. The candidate
-  // indicates where and how we are currently sending media.
-  // TODO(zhihuang): Update the Chrome remoting to use the new
-  // SignalNetworkRouteChanged.
-  sigslot::signal2<IceTransportInternal*, const Candidate&> SignalRouteChange;
-
   void SetCandidatePairChangeCallback(
       absl::AnyInvocable<void(const CandidatePairChangeEvent&)> callback) {
     RTC_DCHECK(!candidate_pair_change_callback_);
