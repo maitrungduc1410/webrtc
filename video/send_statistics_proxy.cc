@@ -804,6 +804,9 @@ VideoSendStream::Stats SendStatisticsProxy::GetStats() {
 void SendStatisticsProxy::SetStats(const VideoSendStream::Stats& stats) {
   MutexLock lock(&mutex_);
   stats_ = stats;
+  quality_limitation_reason_tracker_.SetReason(stats.quality_limitation_reason);
+  quality_limitation_reason_tracker_.SetDurationMs(
+      stats.quality_limitation_durations_ms);
 }
 
 void SendStatisticsProxy::PurgeOldStats() {
