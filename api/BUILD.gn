@@ -208,6 +208,7 @@ rtc_library("candidate") {
     "../rtc_base:crypto_random",
     "../rtc_base:ip_address",
     "../rtc_base:logging",
+    "../rtc_base:net_helper",
     "../rtc_base:network_constants",
     "../rtc_base:socket_address",
     "../rtc_base:stringutils",

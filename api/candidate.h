@@ -206,6 +206,14 @@ class RTC_EXPORT Candidate {
 
   std::string ToSensitiveString() const { return ToStringInternal(true); }
 
+  // Returns the `candidate-attribute` as described in:
+  // https://www.rfc-editor.org/rfc/rfc5245#section-15.1
+  // The returned string will start with "candidate:", not "a=candidate:" and
+  // will not end with "\r\n".
+  // include_ufrag: Controls whether or not the username is included in the
+  // returned string.
+  std::string ToCandidateAttribute(bool include_ufrag) const;
+
   uint32_t GetPriority(uint32_t type_preference,
                        int network_adapter_preference,
                        int relay_preference,

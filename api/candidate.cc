@@ -21,6 +21,7 @@
 #include "rtc_base/crc32.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/ip_address.h"
+#include "rtc_base/net_helper.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/strings/string_builder.h"
@@ -28,6 +29,68 @@
 using webrtc::IceCandidateType;
 
 namespace webrtc {
+namespace {
+constexpr char kAttributeCandidate[] = "candidate";
+constexpr char kAttributeCandidateTyp[] = "typ";
+constexpr char kAttributeCandidateRaddr[] = "raddr";
+constexpr char kAttributeCandidateRport[] = "rport";
+constexpr char kAttributeCandidateUfrag[] = "ufrag";
+constexpr char kAttributeCandidateGeneration[] = "generation";
+constexpr char kAttributeCandidateNetworkId[] = "network-id";
+constexpr char kAttributeCandidateNetworkCost[] = "network-cost";
+constexpr absl::string_view kSdpDelimiterColon = ":";
+constexpr char kTcpCandidateType[] = "tcptype";
+
+// Returns the `candidate-attribute` as described in:
+// https://www.rfc-editor.org/rfc/rfc5245#section-15.1
+std::string BuildCandidate(const Candidate& candidate, bool include_ufrag) {
+  StringBuilder os;
+  os << kAttributeCandidate;
+
+  absl::string_view type = candidate.type_name();
+  os << kSdpDelimiterColon << candidate.foundation() << " "
+     << candidate.component() << " " << candidate.protocol() << " "
+     << candidate.priority() << " "
+     << (candidate.address().ipaddr().IsNil()
+             ? candidate.address().hostname()
+             : candidate.address().ipaddr().ToString())
+     << " " << candidate.address().PortAsString() << " "
+     << kAttributeCandidateTyp << " " << type << " ";
+
+  // Related address
+  if (!candidate.related_address().IsNil()) {
+    os << kAttributeCandidateRaddr << " "
+       << candidate.related_address().ipaddr().ToString() << " "
+       << kAttributeCandidateRport << " "
+       << candidate.related_address().PortAsString() << " ";
+  }
+
+  // Note that we allow the tcptype to be missing, for backwards
+  // compatibility; the implementation treats this as a passive candidate.
+  // TODO(bugs.webrtc.org/11466): Treat a missing tcptype as an error?
+  if (candidate.protocol() == TCP_PROTOCOL_NAME &&
+      !candidate.tcptype().empty()) {
+    os << kTcpCandidateType << " " << candidate.tcptype() << " ";
+  }
+
+  // Extensions
+  os << kAttributeCandidateGeneration << " " << candidate.generation();
+  if (include_ufrag && !candidate.username().empty()) {
+    os << " " << kAttributeCandidateUfrag << " " << candidate.username();
+  }
+  if (candidate.network_id() > 0) {
+    os << " " << kAttributeCandidateNetworkId << " " << candidate.network_id();
+  }
+  if (candidate.network_cost() > 0) {
+    os << " " << kAttributeCandidateNetworkCost << " "
+       << candidate.network_cost();
+  }
+
+  return os.str();
+}
+
+}  // namespace
+
 absl::string_view IceCandidateTypeToString(IceCandidateType type) {
   switch (type) {
     case IceCandidateType::kHost:
@@ -40,9 +103,6 @@ absl::string_view IceCandidateTypeToString(IceCandidateType type) {
       return "relay";
   }
 }
-}  // namespace webrtc
-
-namespace webrtc {
 
 Candidate::Candidate()
     : id_(CreateRandomString(8)),
@@ -133,6 +193,10 @@ std::string Candidate::ToStringInternal(bool sensitive) const {
       << related_address << ":" << username_ << ":" << password_ << ":"
       << network_id_ << ":" << network_cost_ << ":" << generation_ << "]";
   return ost.Release();
+}
+
+std::string Candidate::ToCandidateAttribute(bool include_ufrag) const {
+  return BuildCandidate(*this, include_ufrag);
 }
 
 uint32_t Candidate::GetPriority(uint32_t type_preference,

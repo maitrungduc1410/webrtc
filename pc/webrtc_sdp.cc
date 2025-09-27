@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -997,7 +998,16 @@ void BuildCandidate(const std::vector<Candidate>& candidates,
          << candidate.network_cost();
     }
 
-    AddLine(os.str(), message);
+    const std::string& line = os.str();
+#if RTC_DCHECK_IS_ON
+    // TODO: webrtc:12330 - While moving this functionality into the Candidate
+    // class itself, verify that what this loop produces, is identical to what
+    // the SdpSerialize() method returns.
+    std::string compare = candidate.ToCandidateAttribute(include_ufrag);
+    // Note that SdpSerialize will not return the "a=" part.
+    RTC_DCHECK_EQ(line.substr(2), compare);
+#endif
+    AddLine(line, message);
   }
 }
 
@@ -3339,6 +3349,7 @@ std::string SdpSerializeCandidate(const Candidate& candidate) {
   message.erase(0, 2);
   RTC_DCHECK(message.find(kLineBreak) == message.size() - 2);
   message.resize(message.size() - 2);
+  RTC_DCHECK_EQ(candidate.ToCandidateAttribute(true), message);
   return message;
 }
 

@@ -10,15 +10,27 @@
 
 #include "api/candidate.h"
 
+#include <cstdint>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "p2p/base/p2p_constants.h"
 #include "rtc_base/socket_address.h"
 #include "test/gtest.h"
 
-using webrtc::IceCandidateType;
-
 namespace webrtc {
+namespace {
+constexpr absl::string_view kRawCandidate =
+    "candidate:a0+B/1 1 udp 2130706432 192.168.1.5 1234 typ host generation 2";
+constexpr absl::string_view kRawHostnameCandidate =
+    "candidate:a0+B/1 1 udp 2130706432 a.test 1234 typ host generation 2";
+constexpr char kSdpTcpActiveCandidate[] =
+    "candidate:a0+B/1 1 tcp 2130706432 192.168.1.5 9 typ host "
+    "tcptype active generation 2";
+constexpr uint32_t kCandidatePriority = 2130706432U;  // pref = 1.0
+constexpr uint32_t kCandidateGeneration = 2;
+constexpr char kCandidateFoundation1[] = "a0+B/1";
+}  // namespace
 
 TEST(CandidateTest, Id) {
   Candidate c;
@@ -98,6 +110,52 @@ TEST(CandidateTest, Foundation) {
   ASSERT_NE(prev_protocol, c.relay_protocol());
   c.ComputeFoundation(c.address(), 1);
   EXPECT_NE(foundation1, c.foundation());
+}
+
+TEST(CandidateTest, ToCandidateAttribute) {
+  SocketAddress address("192.168.1.5", 1234);
+  Candidate candidate(ICE_CANDIDATE_COMPONENT_RTP, "udp", address,
+                      kCandidatePriority, "", "", IceCandidateType::kHost,
+                      kCandidateGeneration, kCandidateFoundation1);
+
+  EXPECT_EQ(candidate.ToCandidateAttribute(true), kRawCandidate);
+
+  Candidate candidate_with_ufrag(candidate);
+  candidate_with_ufrag.set_username("ABC");
+  EXPECT_EQ(candidate_with_ufrag.ToCandidateAttribute(true),
+            std::string(kRawCandidate) + " ufrag ABC");
+  EXPECT_EQ(candidate_with_ufrag.ToCandidateAttribute(false), kRawCandidate);
+
+  Candidate candidate_with_network_info(candidate);
+  candidate_with_network_info.set_network_id(1);
+  EXPECT_EQ(candidate_with_network_info.ToCandidateAttribute(true),
+            std::string(kRawCandidate) + " network-id 1");
+  candidate_with_network_info.set_network_cost(999);
+  EXPECT_EQ(candidate_with_network_info.ToCandidateAttribute(true),
+            std::string(kRawCandidate) + " network-id 1 network-cost 999");
+}
+
+TEST(CandidateTest, ToCandidateAttributeHostnameCandidate) {
+  SocketAddress address("a.test", 1234);
+  Candidate candidate(ICE_CANDIDATE_COMPONENT_RTP, "udp", address,
+                      kCandidatePriority, "", "", IceCandidateType::kHost,
+                      kCandidateGeneration, kCandidateFoundation1);
+  EXPECT_EQ(candidate.ToCandidateAttribute(true), kRawHostnameCandidate);
+}
+
+TEST(CandidateTest, ToCandidateAttributeTcpCandidates) {
+  // TODO: webrtc:12330 - This constant is currently defined in port.h
+  // as `TCPTYPE_ACTIVE_STR`. Remove this test only constant and use the
+  // main definition instead when the circular dependency problem has been
+  // fixed.
+  constexpr char TCPTYPE_ACTIVE_STR[] = "active";
+
+  Candidate candidate(ICE_CANDIDATE_COMPONENT_RTP, "tcp",
+                      SocketAddress("192.168.1.5", 9), kCandidatePriority, "",
+                      "", IceCandidateType::kHost, kCandidateGeneration,
+                      kCandidateFoundation1);
+  candidate.set_tcptype(TCPTYPE_ACTIVE_STR);
+  EXPECT_EQ(candidate.ToCandidateAttribute(true), kSdpTcpActiveCandidate);
 }
 
 }  // namespace webrtc
