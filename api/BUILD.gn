@@ -1671,6 +1671,7 @@ if (rtc_include_tests) {
       "../rtc_base:task_queue_for_test",
       "../rtc_base/containers:flat_set",
       "../rtc_base/synchronization:sequence_checker_internal",
+      "../rtc_base/system:unused",
       "../test:fileutils",
       "../test:test_support",
       "audio_codecs/opus:unittests",
