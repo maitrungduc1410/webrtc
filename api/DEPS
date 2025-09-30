@@ -101,6 +101,7 @@ specific_include_rules = {
 
   "datagram_connection_factory\.h": [
     "+p2p/base/port_allocator.h",
+    "+rtc_base/rtc_certificate.h",
   ],
 
   "dtls_transport_interface\.h": [

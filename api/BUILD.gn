@@ -1066,6 +1066,7 @@ rtc_library("datagram_connection") {
     "../rtc_base/system:rtc_export",
     "environment",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -1077,12 +1078,16 @@ rtc_library("datagram_connection_factory") {
   ]
   deps = [
     ":datagram_connection",
+    ":make_ref_counted",
     ":ref_count",
+    ":scoped_refptr",
     "../p2p:port_allocator",
     "../pc:datagram_connection_internal",
     "../rtc_base:macromagic",
+    "../rtc_base:ssl",
     "../rtc_base/system:rtc_export",
     "environment",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
