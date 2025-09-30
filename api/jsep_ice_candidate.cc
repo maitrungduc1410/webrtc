@@ -110,4 +110,8 @@ void IceCandidateCollection::RelinquishThreadOwnership() {
   sequence_checker_.Detach();
 }
 
+std::string IceCandidate::ToString() const {
+  return candidate_.ToCandidateAttribute(true);
+}
+
 }  // namespace webrtc

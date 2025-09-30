@@ -934,80 +934,15 @@ void BuildCandidate(const std::vector<Candidate>& candidates,
                     bool include_ufrag,
                     std::string* message) {
   StringBuilder os;
-
   for (const Candidate& candidate : candidates) {
     // RFC 5245
     // a=candidate:<foundation> <component-id> <transport> <priority>
     // <connection-address> <port> typ <candidate-types>
     // [raddr <connection-address>] [rport <port>]
     // *(SP extension-att-name SP extension-att-value)
-    std::string type;
-    // Map the cricket candidate type to "host" / "srflx" / "prflx" / "relay"
-    if (candidate.is_local()) {
-      type = kCandidateHost;
-    } else if (candidate.is_stun()) {
-      type = kCandidateSrflx;
-    } else if (candidate.is_relay()) {
-      type = kCandidateRelay;
-    } else if (candidate.is_prflx()) {
-      type = kCandidatePrflx;
-      // Peer reflexive candidate may be signaled for being removed.
-    } else {
-      RTC_DCHECK_NOTREACHED();
-      // Never write out candidates if we don't know the type.
-      continue;
-    }
-
-    InitAttrLine(kAttributeCandidate, &os);
-    os << kSdpDelimiterColon << candidate.foundation() << " "
-       << candidate.component() << " " << candidate.protocol() << " "
-       << candidate.priority() << " "
-       << (candidate.address().ipaddr().IsNil()
-               ? candidate.address().hostname()
-               : candidate.address().ipaddr().ToString())
-       << " " << candidate.address().PortAsString() << " "
-       << kAttributeCandidateTyp << " " << type << " ";
-
-    // Related address
-    if (!candidate.related_address().IsNil()) {
-      os << kAttributeCandidateRaddr << " "
-         << candidate.related_address().ipaddr().ToString() << " "
-         << kAttributeCandidateRport << " "
-         << candidate.related_address().PortAsString() << " ";
-    }
-
-    // Note that we allow the tcptype to be missing, for backwards
-    // compatibility; the implementation treats this as a passive candidate.
-    // TODO(bugs.webrtc.org/11466): Treat a missing tcptype as an error?
-    if (candidate.protocol() == TCP_PROTOCOL_NAME &&
-        !candidate.tcptype().empty()) {
-      os << kTcpCandidateType << " " << candidate.tcptype() << " ";
-    }
-
-    // Extensions
-    os << kAttributeCandidateGeneration << " " << candidate.generation();
-    if (include_ufrag && !candidate.username().empty()) {
-      os << " " << kAttributeCandidateUfrag << " " << candidate.username();
-    }
-    if (candidate.network_id() > 0) {
-      os << " " << kAttributeCandidateNetworkId << " "
-         << candidate.network_id();
-    }
-    if (candidate.network_cost() > 0) {
-      os << " " << kAttributeCandidateNetworkCost << " "
-         << candidate.network_cost();
-    }
-
-    const std::string& line = os.str();
-#if RTC_DCHECK_IS_ON
-    // TODO: webrtc:12330 - While moving this functionality into the Candidate
-    // class itself, verify that what this loop produces, is identical to what
-    // the SdpSerialize() method returns.
-    std::string compare = candidate.ToCandidateAttribute(include_ufrag);
-    // Note that SdpSerialize will not return the "a=" part.
-    RTC_DCHECK_EQ(line.substr(2), compare);
-#endif
-    AddLine(line, message);
+    InitLine(kLineTypeAttributes, candidate.ToCandidateAttribute(include_ufrag),
+             &os);
+    AddLine(os.str(), message);
   }
 }
 
@@ -3340,17 +3275,7 @@ std::string SdpSerializeCandidate(const IceCandidate& candidate) {
 
 // Serializes a cricket Candidate.
 std::string SdpSerializeCandidate(const Candidate& candidate) {
-  std::string message;
-  std::vector<Candidate> candidates(1, candidate);
-  BuildCandidate(candidates, true, &message);
-  // From WebRTC draft section 4.8.1.1 candidate-attribute will be
-  // just candidate:<candidate> not a=candidate:<blah>CRLF
-  RTC_DCHECK(message.find("a=") == 0);
-  message.erase(0, 2);
-  RTC_DCHECK(message.find(kLineBreak) == message.size() - 2);
-  message.resize(message.size() - 2);
-  RTC_DCHECK_EQ(candidate.ToCandidateAttribute(true), message);
-  return message;
+  return candidate.ToCandidateAttribute(true);
 }
 
 std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(

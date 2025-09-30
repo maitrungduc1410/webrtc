@@ -71,8 +71,4 @@ IceCandidateCollection IceCandidateCollection::Clone() const {
   return new_collection;
 }
 
-std::string IceCandidate::ToString() const {
-  return SdpSerializeCandidate(*this);
-}
-
 }  // namespace webrtc
