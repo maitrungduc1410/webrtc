@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '7902a7b4c06dcae122b28c7eed2cb4283a6b8402',
+  'chromium_revision': '322e6dc39ae902c15822575dad639fad5e13f3ec',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,22 +69,22 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@045565e91c7360951bddbd0618a20ea59cdd31f3',
+    'https://chromium.googlesource.com/chromium/src/build@3593a1fdf6594626182e5d8e1725db6448c6a0c3',
   'src/buildtools':
-    'https://chromium.googlesource.com/chromium/src/buildtools@3e6e75d1961a90054ee0e3030ee66b6a04164c10',
+    'https://chromium.googlesource.com/chromium/src/buildtools@c79eaa6eb2732865706ca6f4381260ba14cdbb4d',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
   'src/examples/androidtests/third_party/gradle': {
     'url': 'https://chromium.googlesource.com/external/github.com/gradle/gradle.git@f2d1fb54a951d8b11d25748e4711bec8d128d7e3',
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@646283dd73b863e4d91455406d8a2af0fe6a5010',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@7ded5f4b9beb66371ac0e3dd8be847308eb19dab',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@692e152d21e97c14d27191a507f7f62b33b9341c',
+    'https://chromium.googlesource.com/chromium/src/testing@8585e705bbb2423fec75d70680777c5d307546f0',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@cac38268a6ba3e5a01ef3c8de5bf29445d4e1930',
+    'https://chromium.googlesource.com/chromium/src/third_party@1aba99cc500b89a05291b8baa121d88fc8e168a0',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -457,7 +457,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/lint',
-               'version': '2tl7Wkl-h3xQcHYGcsqwSrIQpyLSlBLjBl36vQwV8VgC',
+               'version': '8LWaxlDPUdoe_fYqlHBXPmwm6aQsqP8Mi4kxGFFmfmkC',
           },
       ],
       'condition': 'checkout_android and non_git_source',
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@1c514626e83c20fffa8557e75641848e1e15cd5e',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@835d394034060002262ab4e404e552ac0393a1a1',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@2cda2886803d867578c93adb2d297c068d47a36d',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@f5bb0360094316548de8a94e3fee76f88001a908',
+    'https://chromium.googlesource.com/chromium/src/tools@4a9c5ba37fb26faf6f7554e068ba717987787cec',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'hML1ABSlva8e9Qc6sAm_Y3u0ZpLqETEbUHwMV-YUpPwC',
+          'version': 'AxpwTgcuf88RHqtEUhC38zqtYAY5UDVI-xHzJ3F-yiIC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
@@ -718,7 +718,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/manifest_merger',
-               'version': 'dOI-ntBgO0MZG3WmKK37I1njjcGALsDJc00mVeoSfVUC',
+               'version': 'n1GI7ejyMFXpOv359jDyoMovbtfsy1R4zjVCEDPp8CQC',
           },
       ],
       'condition': 'checkout_android',
