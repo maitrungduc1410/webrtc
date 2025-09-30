@@ -80,12 +80,6 @@ const int kPortTimeoutDelay = STUN_TOTAL_TIMEOUT + 5000;
 
 }  // namespace
 
-// RFC 6544, TCP candidate encoding rules.
-const int DISCARD_PORT = 9;
-const char TCPTYPE_ACTIVE_STR[] = "active";
-const char TCPTYPE_PASSIVE_STR[] = "passive";
-const char TCPTYPE_SIMOPEN_STR[] = "so";
-
 Port::Port(const PortParametersRef& args, IceCandidateType type)
     : Port(args, type, 0, 0, true) {}
 

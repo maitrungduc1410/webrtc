@@ -52,12 +52,6 @@
 
 namespace webrtc {
 
-// RFC 6544, TCP candidate encoding rules.
-extern const int DISCARD_PORT;
-extern const char TCPTYPE_ACTIVE_STR[];
-extern const char TCPTYPE_PASSIVE_STR[];
-extern const char TCPTYPE_SIMOPEN_STR[];
-
 enum class MdnsNameRegistrationStatus {
   // IP concealment with mDNS is not enabled or the name registration process is
   // not started yet.

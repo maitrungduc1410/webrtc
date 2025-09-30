@@ -38,6 +38,12 @@ RTC_EXPORT absl::string_view IceCandidateTypeToString(IceCandidateType);
 [[deprecated("Use IceCandidateType")]] static constexpr char RELAY_PORT_TYPE[] =
     "relay";
 
+// RFC 6544, TCP candidate encoding rules.
+static constexpr int DISCARD_PORT = 9;
+static constexpr char TCPTYPE_ACTIVE_STR[] = "active";
+static constexpr char TCPTYPE_PASSIVE_STR[] = "passive";
+static constexpr char TCPTYPE_SIMOPEN_STR[] = "so";
+
 // TURN servers are limited to 32 in accordance with
 // https://w3c.github.io/webrtc-pc/#dom-rtcconfiguration-iceservers
 static constexpr size_t kMaxTurnServers = 32;

@@ -144,12 +144,6 @@ TEST(CandidateTest, ToCandidateAttributeHostnameCandidate) {
 }
 
 TEST(CandidateTest, ToCandidateAttributeTcpCandidates) {
-  // TODO: webrtc:12330 - This constant is currently defined in port.h
-  // as `TCPTYPE_ACTIVE_STR`. Remove this test only constant and use the
-  // main definition instead when the circular dependency problem has been
-  // fixed.
-  constexpr char TCPTYPE_ACTIVE_STR[] = "active";
-
   Candidate candidate(ICE_CANDIDATE_COMPONENT_RTP, "tcp",
                       SocketAddress("192.168.1.5", 9), kCandidatePriority, "",
                       "", IceCandidateType::kHost, kCandidateGeneration,
