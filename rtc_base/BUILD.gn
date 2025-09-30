@@ -1263,7 +1263,7 @@ rtc_library("net_helper") {
   ]
   deps = [
     "system:rtc_export",
-    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/strings",
   ]
 }
 
