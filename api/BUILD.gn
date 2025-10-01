@@ -1809,19 +1809,3 @@ rtc_library("frame_transformer_factory") {
     "video:video_frame_metadata",
   ]
 }
-
-rtc_library("ice_server_parsing") {
-  visibility = [ "*" ]
-  sources = [
-    "ice_server_parsing.cc",
-    "ice_server_parsing.h",
-  ]
-  deps = [
-    ":libjingle_peerconnection_api",
-    ":rtc_error",
-    "../p2p:port_allocator",
-    "../pc:ice_server_parsing",
-    "../rtc_base:socket_address",
-    "../rtc_base/system:rtc_export",
-  ]
-}
