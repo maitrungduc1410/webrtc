@@ -95,6 +95,7 @@
 #ifdef WEBRTC_WIN
 #include "modules/audio_device/include/audio_device_factory.h"
 #endif
+#include "test/testsupport/y4m_frame_generator.h"
 #include "test/video_test_constants.h"
 #include "video/config/encoder_stream_factory.h"
 
@@ -1068,9 +1069,21 @@ VideoQualityTest::CreateFrameGenerator(size_t video_idx) {
         params_.screenshare[video_idx].slide_change_interval *
             params_.video[video_idx].fps);
   } else if (!params_.video[video_idx].clip_path.empty()) {
-    frame_generator = test::CreateFromYuvFileFrameGenerator(
-        {params_.video[video_idx].clip_path}, params_.video[video_idx].width,
-        params_.video[video_idx].height, 1);
+    RTC_CHECK_GE(params_.video[video_idx].clip_path.size(), 4)
+        << "Clip path must have a three letter file ending.";
+    std::string file_ending = params_.video[video_idx].clip_path.substr(
+        params_.video[video_idx].clip_path.size() - 4);
+    if (file_ending == ".yuv") {
+      frame_generator = test::CreateFromYuvFileFrameGenerator(
+          {params_.video[video_idx].clip_path}, params_.video[video_idx].width,
+          params_.video[video_idx].height, 1);
+    } else if (file_ending == ".y4m") {
+      frame_generator = std::make_unique<test::Y4mFrameGenerator>(
+          params_.video[video_idx].clip_path,
+          test::Y4mFrameGenerator::RepeatMode::kPingPong);
+    } else {
+      RTC_DCHECK_NOTREACHED() << "Unsupported file format: " << file_ending;
+    }
   } else {
     std::vector<std::string> slides = params_.screenshare[video_idx].slides;
     if (slides.empty()) {
@@ -1148,12 +1161,21 @@ void VideoQualityTest::CreateCapturers() {
             std::nullopt);
       }
     } else {
-      frame_generator = test::CreateFromYuvFileFrameGenerator(
-          {params_.video[video_idx].clip_path}, params_.video[video_idx].width,
-          params_.video[video_idx].height, 1);
-      ASSERT_TRUE(frame_generator) << "Could not create capturer for "
-                                   << params_.video[video_idx].clip_path
-                                   << ".yuv. Is this file present?";
+      RTC_CHECK_GE(params_.video[video_idx].clip_path.size(), 4)
+          << "Clip path must have a three letter file ending.";
+      std::string file_ending = params_.video[video_idx].clip_path.substr(
+          params_.video[video_idx].clip_path.size() - 4);
+      if (file_ending == ".yuv") {
+        frame_generator = test::CreateFromYuvFileFrameGenerator(
+            {params_.video[video_idx].clip_path},
+            params_.video[video_idx].width, params_.video[video_idx].height, 1);
+      } else if (file_ending == ".y4m") {
+        frame_generator = std::make_unique<test::Y4mFrameGenerator>(
+            params_.video[video_idx].clip_path,
+            test::Y4mFrameGenerator::RepeatMode::kPingPong);
+      } else {
+        RTC_DCHECK_NOTREACHED() << "Unsupported file format: " << file_ending;
+      }
     }
     ASSERT_TRUE(frame_generator);
     auto frame_generator_capturer =

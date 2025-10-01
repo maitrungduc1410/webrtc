@@ -637,6 +637,7 @@ if (rtc_include_tests) {
         "../test:test_support_test_artifacts",
         "../test:video_frame_writer",
         "../test:video_test_constants",
+        "../test:y4m_frame_generator",
         "../test/network:simulated_network",
         "config:encoder_config",
         "config:streams_config",
