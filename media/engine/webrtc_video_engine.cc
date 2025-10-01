@@ -2347,6 +2347,11 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::CreateVideoEncoderConfig(
       encoder_config.simulcast_layers[i].num_temporal_layers =
           *rtp_parameters_.encodings[i].num_temporal_layers;
     }
+    if (rtp_parameters_.encodings[i].codec) {
+      encoder_config.simulcast_layers[i].video_format =
+          SdpVideoFormat(rtp_parameters_.encodings[i].codec->name,
+                         rtp_parameters_.encodings[i].codec->parameters);
+    }
     encoder_config.simulcast_layers[i].scale_resolution_down_to =
         rtp_parameters_.encodings[i].scale_resolution_down_to;
   }
