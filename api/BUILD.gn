@@ -202,6 +202,7 @@ rtc_library("candidate") {
     "candidate.h",
   ]
   deps = [
+    ":rtc_error",
     "../p2p:p2p_constants",
     "../rtc_base:checks",
     "../rtc_base:crc32",

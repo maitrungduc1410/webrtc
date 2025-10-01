@@ -11,11 +11,15 @@
 #include "api/candidate.h"
 
 #include <algorithm>  // IWYU pragma: keep
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "api/rtc_error.h"
 #include "p2p/base/p2p_constants.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/crc32.h"
@@ -24,12 +28,14 @@
 #include "rtc_base/net_helper.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/socket_address.h"
+#include "rtc_base/string_encode.h"
 #include "rtc_base/strings/string_builder.h"
 
 using webrtc::IceCandidateType;
 
 namespace webrtc {
 namespace {
+constexpr char kLineTypeAttributes = 'a';
 constexpr char kAttributeCandidate[] = "candidate";
 constexpr char kAttributeCandidateTyp[] = "typ";
 constexpr char kAttributeCandidateRaddr[] = "raddr";
@@ -38,8 +44,32 @@ constexpr char kAttributeCandidateUfrag[] = "ufrag";
 constexpr char kAttributeCandidateGeneration[] = "generation";
 constexpr char kAttributeCandidateNetworkId[] = "network-id";
 constexpr char kAttributeCandidateNetworkCost[] = "network-cost";
+constexpr char kAttributeCandidatePwd[] = "pwd";
+
 constexpr absl::string_view kSdpDelimiterColon = ":";
+constexpr char kSdpDelimiterColonChar = kSdpDelimiterColon[0];
+constexpr char kSdpDelimiterSpaceChar = ' ';
+constexpr char kSdpDelimiterEqualChar = '=';
+constexpr char kNewLineChar = '\n';
+constexpr char kReturnChar = '\r';
+
+constexpr char kCandidateHost[] = "host";
+constexpr char kCandidateSrflx[] = "srflx";
+constexpr char kCandidatePrflx[] = "prflx";
+constexpr char kCandidateRelay[] = "relay";
+// Backwards compatibility.
 constexpr char kTcpCandidateType[] = "tcptype";
+
+absl::string_view TrimReturnChar(absl::string_view line) {
+  if (!line.empty() && line.back() == kReturnChar) {
+    line.remove_suffix(1);
+  }
+  return line;
+}
+
+bool IsValidPort(int port) {
+  return port >= 0 && port <= 65535;
+}
 
 // Returns the `candidate-attribute` as described in:
 // https://www.rfc-editor.org/rfc/rfc5245#section-15.1
@@ -89,19 +119,219 @@ std::string BuildCandidate(const Candidate& candidate, bool include_ufrag) {
   return os.str();
 }
 
+// From WebRTC draft section 4.8.1.1 candidate-attribute should be
+// candidate:<candidate> when trickled.
+RTCErrorOr<Candidate> ParseCandidate(absl::string_view message) {
+  // Makes sure `message` contains only one line.
+  absl::string_view first_line;
+  size_t line_end = message.find(kNewLineChar);
+  if (line_end == absl::string_view::npos) {
+    first_line = message;
+  } else if (line_end + 1 == message.size()) {
+    first_line = message.substr(0, line_end);
+  } else {
+    return RTCError(RTCErrorType::INVALID_PARAMETER, "Expect one line only");
+  }
+
+  // For backwards compatibility, don't fail if the supplied string is in the
+  // form of "a=candidate...". If we encounter that, ignore the first 2
+  // characters and continue.
+  if (first_line.length() > 2 && first_line[0] == kLineTypeAttributes &&
+      first_line[1] == kSdpDelimiterEqualChar) {
+    first_line = first_line.substr(2);
+  }
+
+  // Trim return char, if any.
+  first_line = TrimReturnChar(first_line);
+
+  std::string attribute_candidate;
+  std::string candidate_value;
+
+  // `first_line` must be in the form of "candidate:<value>".
+  if (!tokenize_first(first_line, kSdpDelimiterColonChar, &attribute_candidate,
+                      &candidate_value) ||
+      attribute_candidate != kAttributeCandidate) {
+    return RTCError(RTCErrorType::INVALID_PARAMETER,
+                    absl::StrCat("Expected ", kAttributeCandidate, " got ",
+                                 attribute_candidate));
+  }
+
+  std::vector<absl::string_view> fields =
+      split(candidate_value, kSdpDelimiterSpaceChar);
+
+  // RFC 5245
+  // a=candidate:<foundation> <component-id> <transport> <priority>
+  // <connection-address> <port> typ <candidate-types>
+  // [raddr <connection-address>] [rport <port>]
+  // *(SP extension-att-name SP extension-att-value)
+  const size_t expected_min_fields = 8;
+  if (fields.size() < expected_min_fields ||
+      (fields[6] != kAttributeCandidateTyp)) {
+    return RTCError(
+        RTCErrorType::INVALID_PARAMETER,
+        absl::StrCat("Expect at least ", expected_min_fields, " fields."));
+  }
+  const absl::string_view foundation = fields[0];
+
+  int component_id = 0;
+  if (!FromString(fields[1], &component_id)) {
+    return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid component id");
+  }
+  const absl::string_view transport = fields[2];
+  uint32_t priority = 0;
+  if (!FromString(fields[3], &priority)) {
+    return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid priority");
+  }
+  int port = 0;
+  if (!FromString(fields[5], &port) || !IsValidPort(port)) {
+    return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid port");
+  }
+  const absl::string_view connection_address = fields[4];
+  SocketAddress address(connection_address, port);
+
+  std::optional<ProtocolType> protocol = StringToProto(transport);
+  if (!protocol) {
+    return RTCError(RTCErrorType::INVALID_PARAMETER,
+                    "Unsupported transport type");
+  }
+  bool tcp_protocol = false;
+  switch (*protocol) {
+    // Supported protocols.
+    case PROTO_UDP:
+      break;
+    case PROTO_TCP:
+    case PROTO_SSLTCP:
+      tcp_protocol = true;
+      break;
+    default:
+      return RTCError(RTCErrorType::INVALID_PARAMETER, "Unsupported protocol");
+  }
+
+  IceCandidateType candidate_type;
+  const absl::string_view type = fields[7];
+  if (type == kCandidateHost) {
+    candidate_type = IceCandidateType::kHost;
+  } else if (type == kCandidateSrflx) {
+    candidate_type = IceCandidateType::kSrflx;
+  } else if (type == kCandidateRelay) {
+    candidate_type = IceCandidateType::kRelay;
+  } else if (type == kCandidatePrflx) {
+    candidate_type = IceCandidateType::kPrflx;
+  } else {
+    return RTCError(RTCErrorType::INVALID_PARAMETER,
+                    "Unsupported candidate type");
+  }
+
+  size_t current_position = expected_min_fields;
+  SocketAddress related_address;
+  // The 2 optional fields for related address
+  // [raddr <connection-address>] [rport <port>]
+  if (fields.size() >= (current_position + 2) &&
+      fields[current_position] == kAttributeCandidateRaddr) {
+    related_address.SetIP(fields[++current_position]);
+    ++current_position;
+  }
+  if (fields.size() >= (current_position + 2) &&
+      fields[current_position] == kAttributeCandidateRport) {
+    int related_port = 0;
+    if (!FromString(fields[++current_position], &related_port) ||
+        !IsValidPort(related_port)) {
+      return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid port");
+    }
+    related_address.SetPort(related_port);
+    ++current_position;
+  }
+
+  // If this is a TCP candidate, it has additional extension as defined in
+  // RFC 6544.
+  absl::string_view tcptype;
+  if (fields.size() >= (current_position + 2) &&
+      fields[current_position] == kTcpCandidateType) {
+    tcptype = fields[++current_position];
+    ++current_position;
+
+    if (tcptype != TCPTYPE_ACTIVE_STR && tcptype != TCPTYPE_PASSIVE_STR &&
+        tcptype != TCPTYPE_SIMOPEN_STR) {
+      return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid TCP candidate type");
+    }
+
+    if (!tcp_protocol) {
+      return RTCError(RTCErrorType::SYNTAX_ERROR, "Invalid non-TCP candidate");
+    }
+  } else if (tcp_protocol) {
+    // We allow the tcptype to be missing, for backwards compatibility,
+    // treating it as a passive candidate.
+    // TODO(bugs.webrtc.org/11466): Treat a missing tcptype as an error?
+    tcptype = TCPTYPE_PASSIVE_STR;
+  }
+
+  // Extension
+  // Though non-standard, we support the ICE ufrag and pwd being signaled on
+  // the candidate to avoid issues with confusing which generation a candidate
+  // belongs to when trickling multiple generations at the same time.
+  absl::string_view username;
+  absl::string_view password;
+  uint32_t generation = 0;
+  uint16_t network_id = 0;
+  uint16_t network_cost = 0;
+  for (size_t i = current_position; i + 1 < fields.size(); ++i) {
+    // RFC 5245
+    // *(SP extension-att-name SP extension-att-value)
+    if (fields[i] == kAttributeCandidateGeneration) {
+      if (!FromString(fields[++i], &generation)) {
+        return RTCError(
+            RTCErrorType::SYNTAX_ERROR,
+            absl::StrCat("Invalid ", kAttributeCandidateGeneration));
+      }
+    } else if (fields[i] == kAttributeCandidateUfrag) {
+      username = fields[++i];
+    } else if (fields[i] == kAttributeCandidatePwd) {
+      password = fields[++i];
+    } else if (fields[i] == kAttributeCandidateNetworkId) {
+      if (!FromString(fields[++i], &network_id)) {
+        return RTCError(RTCErrorType::SYNTAX_ERROR,
+                        absl::StrCat("Invalid ", kAttributeCandidateNetworkId));
+      }
+    } else if (fields[i] == kAttributeCandidateNetworkCost) {
+      if (!FromString(fields[++i], &network_cost)) {
+        return RTCError(
+            RTCErrorType::SYNTAX_ERROR,
+            absl::StrCat("Invalid ", kAttributeCandidateNetworkCost));
+      }
+      network_cost = std::min(network_cost, kNetworkCostMax);
+    } else {
+      // Skip the unknown extension.
+      ++i;
+    }
+  }
+
+  Candidate candidate(component_id, ProtoToString(*protocol), address, priority,
+                      username, password, candidate_type, generation,
+                      foundation, network_id, network_cost);
+  candidate.set_related_address(related_address);
+  candidate.set_tcptype(tcptype);
+  return candidate;
+}
+
 }  // namespace
 
 absl::string_view IceCandidateTypeToString(IceCandidateType type) {
   switch (type) {
     case IceCandidateType::kHost:
-      return "host";
+      return kCandidateHost;
     case IceCandidateType::kSrflx:
-      return "srflx";
+      return kCandidateSrflx;
     case IceCandidateType::kPrflx:
-      return "prflx";
+      return kCandidatePrflx;
     case IceCandidateType::kRelay:
-      return "relay";
+      return kCandidateRelay;
   }
+}
+
+// static
+RTCErrorOr<Candidate> Candidate::ParseCandidateString(
+    absl::string_view message) {
+  return ParseCandidate(message);
 }
 
 Candidate::Candidate()

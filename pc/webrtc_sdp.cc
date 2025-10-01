@@ -3322,6 +3322,48 @@ bool ParseCandidate(absl::string_view message,
                     bool is_raw) {
   RTC_DCHECK(candidate != nullptr);
 
+  // TODO: https://issues.webrtc.org/42222470 - Remove verification code once
+  // candidate parsing has been moved to the Candidate class. `VerifyResults`:
+  // While candidate parsing is being moved, this class is used to verify that
+  // the parsing functionality in Candidate, performs identically to this
+  // function.
+  class VerifyResults {
+   public:
+    VerifyResults(absl::string_view message, Candidate* c, SdpParseError* e) {
+#if RTC_DCHECK_IS_ON
+      error_ = e;
+      candidate_ = c;
+      cand_ = Candidate::ParseCandidateString(message);
+#endif
+    }
+
+    ~VerifyResults() {
+#if RTC_DCHECK_IS_ON
+      if (success_) {
+        RTC_DCHECK(cand_.ok()) << cand_.error();
+        RTC_DCHECK(cand_.value().IsEquivalent(*candidate_))
+            << "*** Mismatch ***\nParsed candidate (parsed vs webrtc_sdp):\n"
+            << cand_.value().ToString() << "\n"
+            << candidate_->ToString();
+      } else {
+        RTC_DCHECK(!cand_.ok());
+        RTC_DCHECK(!absl::string_view(cand_.error().message()).empty());
+      }
+#endif
+    }
+
+    // Called below when parsing has successfully completed.
+    void set_success() { success_ = true; }
+
+   private:
+    bool success_ = false;
+#if RTC_DCHECK_IS_ON
+    RTCErrorOr<Candidate> cand_;
+    SdpParseError* error_;
+    Candidate* candidate_;
+#endif
+  } verify(message, candidate, error);
+
   // Makes sure `message` contains only one line.
   absl::string_view first_line;
 
@@ -3515,6 +3557,9 @@ bool ParseCandidate(absl::string_view message,
                          generation, foundation, network_id, network_cost);
   candidate->set_related_address(related_address);
   candidate->set_tcptype(tcptype);
+
+  verify.set_success();
+
   return true;
 }
 

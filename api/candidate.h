@@ -17,6 +17,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "api/rtc_error.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/socket_address.h"
@@ -65,6 +66,14 @@ class RTC_EXPORT Candidate {
             uint16_t network_cost = 0);
   Candidate(const Candidate&);
   ~Candidate();
+
+  // Parses the `candidate-attribute` as described in:
+  // https://www.rfc-editor.org/rfc/rfc5245#section-15.1
+  // The `message` string must start with "candidate:", not "a=candidate:" and
+  // contain the candidate description in a single line.
+  // Returns a constructed Candidate instance on success, or error information
+  // if parsing failed.
+  static RTCErrorOr<Candidate> ParseCandidateString(absl::string_view message);
 
   // 8 character long randomized ID string for logging purposes.
   const std::string& id() const { return id_; }
