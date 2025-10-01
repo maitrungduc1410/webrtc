@@ -152,4 +152,20 @@ TEST(CandidateTest, ToCandidateAttributeTcpCandidates) {
   EXPECT_EQ(candidate.ToCandidateAttribute(true), kSdpTcpActiveCandidate);
 }
 
+TEST(CandidateTest, TypeToString) {
+  EXPECT_EQ(IceCandidateTypeToString(IceCandidateType::kHost), "host");
+  EXPECT_EQ(IceCandidateTypeToString(IceCandidateType::kSrflx), "srflx");
+  EXPECT_EQ(IceCandidateTypeToString(IceCandidateType::kPrflx), "prflx");
+  EXPECT_EQ(IceCandidateTypeToString(IceCandidateType::kRelay), "relay");
+}
+
+TEST(CandidateTest, StringToType) {
+  EXPECT_EQ(*StringToIceCandidateType("host"), IceCandidateType::kHost);
+  EXPECT_EQ(*StringToIceCandidateType("srflx"), IceCandidateType::kSrflx);
+  EXPECT_EQ(*StringToIceCandidateType("prflx"), IceCandidateType::kPrflx);
+  EXPECT_EQ(*StringToIceCandidateType("relay"), IceCandidateType::kRelay);
+  EXPECT_FALSE(StringToIceCandidateType("blah"));
+  EXPECT_FALSE(StringToIceCandidateType(""));
+}
+
 }  // namespace webrtc

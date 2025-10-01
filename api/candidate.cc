@@ -328,6 +328,20 @@ absl::string_view IceCandidateTypeToString(IceCandidateType type) {
   }
 }
 
+std::optional<IceCandidateType> StringToIceCandidateType(
+    absl::string_view type) {
+  if (type == kCandidateHost) {
+    return IceCandidateType::kHost;
+  } else if (type == kCandidateSrflx) {
+    return IceCandidateType::kSrflx;
+  } else if (type == kCandidatePrflx) {
+    return IceCandidateType::kPrflx;
+  } else if (type == kCandidateRelay) {
+    return IceCandidateType::kRelay;
+  }
+  return std::nullopt;
+}
+
 // static
 RTCErrorOr<Candidate> Candidate::ParseCandidateString(
     absl::string_view message) {

@@ -14,6 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <string>
 
 #include "absl/strings/string_view.h"
@@ -27,6 +28,8 @@ namespace webrtc {
 
 enum class IceCandidateType : int { kHost, kSrflx, kPrflx, kRelay };
 RTC_EXPORT absl::string_view IceCandidateTypeToString(IceCandidateType);
+RTC_EXPORT std::optional<IceCandidateType> StringToIceCandidateType(
+    absl::string_view);
 
 // TODO(tommi): Remove. No usage in WebRTC now, remove once downstream projects
 // don't have reliance.
