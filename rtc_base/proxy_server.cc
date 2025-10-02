@@ -79,12 +79,14 @@ ProxyBinding::ProxyBinding(AsyncProxyServerSocket* int_socket,
       });
   int_socket_->SignalReadEvent.connect(this, &ProxyBinding::OnInternalRead);
   int_socket_->SignalWriteEvent.connect(this, &ProxyBinding::OnInternalWrite);
-  int_socket_->SignalCloseEvent.connect(this, &ProxyBinding::OnInternalClose);
-  ext_socket_->SignalConnectEvent.connect(this,
-                                          &ProxyBinding::OnExternalConnect);
+  int_socket_->SubscribeCloseEvent(
+      [this](Socket* socket, int error) { OnInternalClose(socket, error); });
+  ext_socket_->SubscribeConnectEvent(
+      [this](Socket* socket) { OnExternalConnect(socket); });
   ext_socket_->SignalReadEvent.connect(this, &ProxyBinding::OnExternalRead);
   ext_socket_->SignalWriteEvent.connect(this, &ProxyBinding::OnExternalWrite);
-  ext_socket_->SignalCloseEvent.connect(this, &ProxyBinding::OnExternalClose);
+  ext_socket_->SubscribeCloseEvent(
+      [this](Socket* socket, int error) { OnExternalClose(socket, error); });
 }
 
 ProxyBinding::~ProxyBinding() = default;

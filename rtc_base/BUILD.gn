@@ -1050,6 +1050,7 @@ rtc_library("async_socket") {
     "async_socket.h",
   ]
   deps = [
+    ":callback_list",
     ":checks",
     ":socket",
     ":socket_address",
@@ -1068,11 +1069,13 @@ rtc_library("socket") {
     ":checks",
     ":ip_address",
     ":net_helpers",
+    ":sigslot_trampoline",
     ":socket_address",
     "../api/transport:ecn_marking",
     "../api/units:timestamp",
     "system:rtc_export",
     "third_party/sigslot",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
   if (is_win) {
     deps += [ ":win32" ]
