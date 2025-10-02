@@ -28,10 +28,38 @@ rtc_library("scream_v2") {
   ]
 }
 
+rtc_library("scream_network_controller") {
+  sources = [
+    "scream_network_controller.cc",
+    "scream_network_controller.h",
+  ]
+  deps = [
+    ":scream_v2",
+    "../../../api:field_trials_view",
+    "../../../api/environment",
+    "../../../api/transport:bandwidth_usage",
+    "../../../api/transport:ecn_marking",
+    "../../../api/transport:network_control",
+    "../../../api/units:data_rate",
+    "../../../api/units:data_size",
+    "../../../api/units:time_delta",
+    "../../../api/units:timestamp",
+    "../../../logging:rtc_event_bwe",
+    "../../../rtc_base:checks",
+    "../../../rtc_base:logging",
+    "../../../rtc_base/experiments:field_trial_parser",
+    "../../../system_wrappers:field_trial",
+  ]
+}
+
 rtc_library("scream_unittests") {
   testonly = true
-  sources = [ "scream_v2_unittest.cc" ]
+  sources = [
+    "scream_network_controller_unittest.cc",
+    "scream_v2_unittest.cc",
+  ]
   deps = [
+    ":scream_network_controller",
     ":scream_v2",
     "../../../api/environment",
     "../../../api/environment:environment_factory",
