@@ -73,8 +73,10 @@ ProxyBinding::ProxyBinding(AsyncProxyServerSocket* int_socket,
       out_buffer_(kBufferSize),
       in_buffer_(kBufferSize),
       destroyed_trampoline_(this) {
-  int_socket_->SignalConnectRequest.connect(this,
-                                            &ProxyBinding::OnConnectRequest);
+  int_socket_->SubscribeConnectRequest(
+      [this](AsyncProxyServerSocket* socket, const SocketAddress& addr) {
+        OnConnectRequest(socket, addr);
+      });
   int_socket_->SignalReadEvent.connect(this, &ProxyBinding::OnInternalRead);
   int_socket_->SignalWriteEvent.connect(this, &ProxyBinding::OnInternalWrite);
   int_socket_->SignalCloseEvent.connect(this, &ProxyBinding::OnInternalClose);

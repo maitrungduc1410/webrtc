@@ -1284,6 +1284,7 @@ rtc_library("socket_adapters") {
     ":stringutils",
     ":zero_memory",
     "../api:array_view",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
