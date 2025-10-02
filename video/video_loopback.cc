@@ -433,7 +433,12 @@ int RunLoopbackTest(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   absl::ParseCommandLine(argc, argv);
 
-  LogMessage::SetLogToStderr(absl::GetFlag(FLAGS_logs));
+  if (absl::GetFlag(FLAGS_logs)) {
+    // Make sure log level is set, otherwise --logs does not work for release
+    // builds.
+    LogMessage::LogToDebug(LoggingSeverity::LS_INFO);
+    LogMessage::SetLogToStderr(true);
+  }
 
   test::RunTest(Loopback);
   return 0;
