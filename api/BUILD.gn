@@ -729,6 +729,7 @@ if (rtc_include_tests) {
       sources = [ "test/video_quality_test_fixture.h" ]
       deps = [
         ":fec_controller_api",
+        ":field_trials",
         ":libjingle_peerconnection_api",
         ":network_state_predictor_api",
         ":rtp_parameters",
