@@ -1082,6 +1082,18 @@ rtc_library("socket") {
   }
 }
 
+if (rtc_include_tests) {
+  rtc_library("mock_socket") {
+    sources = [ "mock_socket.h" ]
+    testonly = true
+    deps = [
+      ":socket",
+      ":socket_address",
+      "../test:test_support",
+    ]
+  }
+}
+
 rtc_library("network_constants") {
   visibility = [ "*" ]
   sources = [
@@ -1403,9 +1415,14 @@ if (rtc_include_tests) {
       ":async_packet_socket",
       ":async_udp_socket",
       ":gunit_helpers",
+      ":mock_socket",
       ":rtc_base_tests_utils",
       ":socket",
       ":socket_address",
+      "../api/environment",
+      "../api/units:time_delta",
+      "../api/units:timestamp",
+      "../system_wrappers",
       "../test:create_test_environment",
       "../test:test_support",
       "network:received_packet",
