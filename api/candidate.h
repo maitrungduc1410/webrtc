@@ -31,17 +31,6 @@ RTC_EXPORT absl::string_view IceCandidateTypeToString(IceCandidateType);
 RTC_EXPORT std::optional<IceCandidateType> StringToIceCandidateType(
     absl::string_view);
 
-// TODO(tommi): Remove. No usage in WebRTC now, remove once downstream projects
-// don't have reliance.
-[[deprecated("Use IceCandidateType")]] static constexpr char LOCAL_PORT_TYPE[] =
-    "local";
-[[deprecated("Use IceCandidateType")]] static constexpr char STUN_PORT_TYPE[] =
-    "stun";
-[[deprecated("Use IceCandidateType")]] static constexpr char PRFLX_PORT_TYPE[] =
-    "prflx";
-[[deprecated("Use IceCandidateType")]] static constexpr char RELAY_PORT_TYPE[] =
-    "relay";
-
 // RFC 6544, TCP candidate encoding rules.
 static constexpr int DISCARD_PORT = 9;
 static constexpr char TCPTYPE_ACTIVE_STR[] = "active";
