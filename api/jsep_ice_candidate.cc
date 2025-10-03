@@ -19,10 +19,12 @@
 #include <utility>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/jsep.h"
+#include "api/rtc_error.h"
 #include "api/sequence_checker.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -40,6 +42,23 @@ int EnsureValidMLineIndex(int sdp_mline_index) {
   return sdp_mline_index;
 }
 }  // namespace
+
+// static
+std::unique_ptr<IceCandidate> IceCandidate::Create(absl::string_view mid,
+                                                   int sdp_mline_index,
+                                                   absl::string_view sdp,
+                                                   SdpParseError* absl_nullable
+                                                       error /*= nullptr*/) {
+  RTCErrorOr<Candidate> c = Candidate::ParseCandidateString(sdp);
+  if (!c.ok()) {
+    if (error) {
+      error->line = sdp;
+      error->description = c.error().message();
+    }
+    return nullptr;
+  }
+  return std::make_unique<IceCandidate>(mid, sdp_mline_index, c.value());
+}
 
 IceCandidate::IceCandidate(absl::string_view sdp_mid,
                            int sdp_mline_index,

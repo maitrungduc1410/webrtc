@@ -14,6 +14,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "api/rtc_error.h"
 #include "p2p/base/p2p_constants.h"
 #include "rtc_base/socket_address.h"
 #include "test/gtest.h"
@@ -166,6 +167,105 @@ TEST(CandidateTest, StringToType) {
   EXPECT_EQ(*StringToIceCandidateType("relay"), IceCandidateType::kRelay);
   EXPECT_FALSE(StringToIceCandidateType("blah"));
   EXPECT_FALSE(StringToIceCandidateType(""));
+}
+
+TEST(CandidateTest, Parse) {
+  constexpr char kCand1[] =
+      "candidate:a0+B/1 1 udp 2130706432 192.168.1.5 1234 typ host "
+      "generation 2";
+  RTCErrorOr<Candidate> ret = Candidate::ParseCandidateString(kCand1);
+  ASSERT_TRUE(ret.ok());
+  Candidate c = ret.MoveValue();
+  EXPECT_FALSE(c.id().empty());
+  EXPECT_EQ(c.foundation(), "a0+B/1");
+  EXPECT_EQ(c.component(), 1);
+  EXPECT_EQ(c.protocol(), "udp");
+  EXPECT_EQ(c.priority(), 2130706432u);  // 0x7F000000
+  EXPECT_EQ(c.address().ToString(), "192.168.1.5:1234");
+  EXPECT_EQ(c.type(), IceCandidateType::kHost);
+  EXPECT_EQ(c.generation(), 2u);
+
+  // Test compatibility with the same string as an attribute line.
+  ret = Candidate::ParseCandidateString(std::string("a=") + kCand1);
+  ASSERT_TRUE(ret.ok());
+  EXPECT_TRUE(ret.value().IsEquivalent(c));
+
+  // Test some bogus strings.
+  EXPECT_FALSE(Candidate::ParseCandidateString("").ok());
+  EXPECT_FALSE(
+      Candidate::ParseCandidateString(std::string("x=") + kCand1).ok());
+  EXPECT_FALSE(Candidate::ParseCandidateString("a=").ok());
+
+  // Run through a few more test strings that should all pass.
+  struct Expectation {
+    absl::string_view candidate_string;
+    IceCandidateType type;
+    absl::string_view foundation;
+    absl::string_view protocol;
+    absl::string_view address_str;
+    absl::string_view related_address_str = "";
+    int component;
+    uint32_t priority;
+    uint32_t generation;
+  } const test_candidates[] = {
+      {.candidate_string =
+           "candidate:a0+B/1 1 udp 2130706432 192.168.1.5 1234 typ host "
+           "generation 2",
+       .type = IceCandidateType::kHost,
+       .foundation = "a0+B/1",
+       .protocol = "udp",
+       .address_str = "192.168.1.5:1234",
+       .component = 1,
+       .priority = 2130706432u,
+       .generation = 2u},
+      {.candidate_string =
+           "candidate:a0+B/1 2 udp 2130706432 192.168.1.5 1235 typ host "
+           "generation 2",
+       .type = IceCandidateType::kHost,
+       .foundation = "a0+B/1",
+       .protocol = "udp",
+       .address_str = "192.168.1.5:1235",
+       .component = 2,
+       .priority = 2130706432u,
+       .generation = 2u},
+      {.candidate_string =
+           "candidate:a0+B/2 1 udp 2130706432 ::1 1238 typ host generation 2",
+       .type = IceCandidateType::kHost,
+       .foundation = "a0+B/2",
+       .protocol = "udp",
+       .address_str = "[::1]:1238",
+       .component = 1,
+       .priority = 2130706432u,
+       .generation = 2u},
+      {.candidate_string =
+           "candidate:a0+B/3 1 udp 2130706432 74.125.127.126 2345 typ srflx "
+           "raddr 192.168.1.5 rport 2346 generation 2",
+       .type = IceCandidateType::kSrflx,
+       .foundation = "a0+B/3",
+       .protocol = "udp",
+       .address_str = "74.125.127.126:2345",
+       .related_address_str = "192.168.1.5:2346",
+       .component = 1,
+       .priority = 2130706432u,
+       .generation = 2u},
+  };
+
+  for (const auto& test : test_candidates) {
+    ret = Candidate::ParseCandidateString(test.candidate_string);
+    ASSERT_TRUE(ret.ok()) << test.candidate_string;
+    c = ret.MoveValue();
+    EXPECT_FALSE(c.id().empty());
+    EXPECT_EQ(c.foundation(), test.foundation);
+    EXPECT_EQ(c.component(), test.component);
+    EXPECT_EQ(c.protocol(), test.protocol);
+    EXPECT_EQ(c.priority(), test.priority);
+    EXPECT_EQ(c.address().ToString(), test.address_str);
+    EXPECT_EQ(c.type(), test.type);
+    EXPECT_EQ(c.generation(), test.generation);
+    if (!test.related_address_str.empty()) {
+      EXPECT_EQ(c.related_address().ToString(), test.related_address_str);
+    }
+  }
 }
 
 }  // namespace webrtc

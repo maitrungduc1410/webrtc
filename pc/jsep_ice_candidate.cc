@@ -13,8 +13,6 @@
 #include <memory>
 #include <string>
 
-#include "absl/base/nullability.h"
-#include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/jsep.h"
 #include "api/sequence_checker.h"
@@ -43,19 +41,6 @@ std::unique_ptr<IceCandidate> CreateIceCandidate(const std::string& sdp_mid,
                                                  int sdp_mline_index,
                                                  const Candidate& candidate) {
   return std::make_unique<IceCandidate>(sdp_mid, sdp_mline_index, candidate);
-}
-
-// static
-std::unique_ptr<IceCandidate> IceCandidate::Create(absl::string_view mid,
-                                                   int sdp_mline_index,
-                                                   absl::string_view sdp,
-                                                   SdpParseError* absl_nullable
-                                                       error /*= nullptr*/) {
-  Candidate candidate;
-  if (!ParseCandidate(sdp, &candidate, error, true)) {
-    return nullptr;
-  }
-  return std::make_unique<IceCandidate>(mid, sdp_mline_index, candidate);
 }
 
 IceCandidateCollection IceCandidateCollection::Clone() const {
