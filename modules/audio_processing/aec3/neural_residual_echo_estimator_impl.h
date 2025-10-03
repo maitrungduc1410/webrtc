@@ -17,6 +17,7 @@
 
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
+#include "api/audio/echo_canceller3_config.h"
 #include "api/audio/neural_residual_echo_estimator.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/neural_feature_extractor.h"
@@ -79,6 +80,8 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
       webrtc::ArrayView<std::array<float, kFftLengthBy2Plus1>> R2,
       webrtc::ArrayView<std::array<float, kFftLengthBy2Plus1>> R2_unbounded)
       override;
+
+  EchoCanceller3Config GetConfiguration(bool multi_channel) const override;
 
  private:
   void DumpInputs();

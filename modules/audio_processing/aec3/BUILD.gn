@@ -314,6 +314,7 @@ if (rtc_enable_protobuf) {
       ":neural_residual_echo_estimator_proto",
       "..:apm_logging",
       "../../../api:array_view",
+      "../../../api/audio:aec3_config",
       "../../../api/audio:neural_residual_echo_estimator_api",
       "../../../common_audio",
       "../../../rtc_base:checks",
@@ -438,6 +439,7 @@ if (rtc_include_tests) {
       deps += [
         ":neural_residual_echo_estimator_impl",
         ":neural_residual_echo_estimator_proto",
+        "../../../test:test_support",
       ]
     }
 

@@ -24,6 +24,7 @@
 
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
+#include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/neural_feature_extractor.h"
 #ifdef WEBRTC_ANDROID_PLATFORM_BUILD
@@ -367,6 +368,27 @@ void NeuralResidualEchoEstimatorImpl::Estimate(
                    [](float power, float mask) { return power * mask; });
     std::copy(R2[ch].begin(), R2[ch].end(), R2_unbounded[ch].begin());
   }
+}
+
+EchoCanceller3Config NeuralResidualEchoEstimatorImpl::GetConfiguration(
+    bool multi_channel) const {
+  EchoCanceller3Config config;
+  EchoCanceller3Config::Suppressor::MaskingThresholds tuning_masking_thresholds(
+      /*enr_transparent=*/0.0f, /*enr_suppress=*/1.0f,
+      /*emr_transparent=*/0.3f);
+  EchoCanceller3Config::Suppressor::Tuning tuning(
+      /*mask_lf=*/tuning_masking_thresholds,
+      /*mask_hf=*/tuning_masking_thresholds, /*max_inc_factor=*/100.0f,
+      /*max_dec_factor_lf=*/0.0f);
+  config.filter.enable_coarse_filter_output_usage = false;
+  config.suppressor.nearend_average_blocks = 1;
+  config.suppressor.normal_tuning = tuning;
+  config.suppressor.nearend_tuning = tuning;
+  config.suppressor.dominant_nearend_detection.enr_threshold = 0.5f;
+  config.suppressor.dominant_nearend_detection.trigger_threshold = 2;
+  config.suppressor.high_frequency_suppression.limiting_gain_band = 24;
+  config.suppressor.high_frequency_suppression.bands_in_limiting_gain = 3;
+  return config;
 }
 
 void NeuralResidualEchoEstimatorImpl::DumpInputs() {
