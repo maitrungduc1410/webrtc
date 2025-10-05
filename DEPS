@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '7c53bc0181370d71e61d7fbd435d340149483a9d',
+  'chromium_revision': 'c8a25703694ddf8953cf61816bcd8356a9e11be9',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -33,7 +33,7 @@ vars = {
 
   # By default, download the fuchsia sdk from the public sdk directory.
   'fuchsia_sdk_cipd_prefix': 'fuchsia/sdk/core/',
-  'fuchsia_version': 'version:29.20250927.0.1',
+  'fuchsia_version': 'version:29.20251004.3.1',
   # By default, download the fuchsia images from the fuchsia GCS bucket.
   'fuchsia_images_bucket': 'fuchsia',
   'checkout_fuchsia': False,
@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@153778fdef706483966b63da24763ecf3ba2468a',
+    'https://chromium.googlesource.com/chromium/src/build@4d06a1da7d3dd500370f0cd5536f0cbfcccfbebb',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@2325cd98715bdbd532669717df8ce48cff9dc407',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@95ae4c7a7bc81aace2da0710cb730eda172c11f7',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@de8630e9891b3fa1f8818e0ffacbe3d2c2d2d01c',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@594fb894a07b17b9aeee8d126e20f32b612c288a',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@cca7f252b922a216b0b4bad2ddbbcd178150bade',
+    'https://chromium.googlesource.com/chromium/src/third_party@0d197a7b0fc84a6cf5c5119c3afedf0b62cf29ec',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -337,7 +337,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@864f61dc9253d56586ada34c388278565ef513f6',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@dba78cfc717fd8070616bab0fe09b589b770162c',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@afad4d47e760ddc610e27653719192415b663798',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@6dc2f29f93268f9a72340c562cb6d714cc8e7e1b',
 
