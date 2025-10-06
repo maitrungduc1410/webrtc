@@ -47,8 +47,8 @@
 
 namespace webrtc {
 namespace {
-using ModelInputEnum = NeuralResidualEchoEstimatorImpl::ModelInputEnum;
-using ModelOutputEnum = NeuralResidualEchoEstimatorImpl::ModelOutputEnum;
+using ModelInputEnum = FeatureExtractor::ModelInputEnum;
+using ModelOutputEnum = FeatureExtractor::ModelOutputEnum;
 
 // A TFLite ErrorReporter that writes its messages to RTC_LOG.
 class LoggingErrorReporter : public tflite::ErrorReporter {
@@ -345,13 +345,15 @@ void NeuralResidualEchoEstimatorImpl::Estimate(
   if (static_cast<int>(input_mic_buffer_.size()) == model_runner_->StepSize()) {
     DumpInputs();
     feature_extractor_->PushFeaturesToModelInput(
-        input_mic_buffer_, model_runner_->GetInput(ModelInputEnum::kMic));
+        input_mic_buffer_, model_runner_->GetInput(ModelInputEnum::kMic),
+        ModelInputEnum::kMic);
     feature_extractor_->PushFeaturesToModelInput(
         input_linear_aec_output_buffer_,
-        model_runner_->GetInput(ModelInputEnum::kLinearAecOutput));
+        model_runner_->GetInput(ModelInputEnum::kLinearAecOutput),
+        ModelInputEnum::kLinearAecOutput);
     feature_extractor_->PushFeaturesToModelInput(
-        input_aec_ref_buffer_,
-        model_runner_->GetInput(ModelInputEnum::kAecRef));
+        input_aec_ref_buffer_, model_runner_->GetInput(ModelInputEnum::kAecRef),
+        ModelInputEnum::kAecRef);
     if (model_runner_->Invoke()) {
       // Downsample output mask to match the AEC3 frequency resolution.
       ArrayView<const float> output_mask = model_runner_->GetOutputEchoMask();

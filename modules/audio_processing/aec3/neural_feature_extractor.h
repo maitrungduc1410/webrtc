@@ -11,22 +11,40 @@
 #ifndef MODULES_AUDIO_PROCESSING_AEC3_NEURAL_FEATURE_EXTRACTOR_H_
 #define MODULES_AUDIO_PROCESSING_AEC3_NEURAL_FEATURE_EXTRACTOR_H_
 
+#include <cstring>
+#include <memory>
 #include <vector>
 
 #include "api/array_view.h"
 #include "third_party/pffft/src/pffft.h"
+
 namespace webrtc {
 
 class FeatureExtractor {
  public:
+  enum class ModelInputEnum {
+    kModelState = 0,
+    kMic = 1,
+    kLinearAecOutput = 2,
+    kAecRef = 3,
+    kNumInputs = 4
+  };
+  enum class ModelOutputEnum {
+    kEchoMask = 0,
+    kModelState = 1,
+    kNumOutputs = 2
+  };
+
   virtual ~FeatureExtractor() = default;
   virtual void PushFeaturesToModelInput(std::vector<float>& frame,
-                                        ArrayView<float> input) = 0;
+                                        ArrayView<float> model_input,
+                                        ModelInputEnum input_enum) = 0;
 };
 
 class TimeDomainFeatureExtractor : public FeatureExtractor {
   void PushFeaturesToModelInput(std::vector<float>& frame,
-                                ArrayView<float> input) override;
+                                ArrayView<float> model_input,
+                                ModelInputEnum input_enum) override;
 };
 
 class FrequencyDomainFeatureExtractor : public FeatureExtractor {
@@ -34,15 +52,29 @@ class FrequencyDomainFeatureExtractor : public FeatureExtractor {
   explicit FrequencyDomainFeatureExtractor(int step_size);
   ~FrequencyDomainFeatureExtractor();
   void PushFeaturesToModelInput(std::vector<float>& frame,
-                                ArrayView<float> input) override;
+                                ArrayView<float> model_input,
+                                ModelInputEnum input_enum) override;
 
  private:
+  class PffftState {
+   public:
+    PffftState(int frame_size)
+        : data_(static_cast<float*>(
+              pffft_aligned_malloc(frame_size * sizeof(float)))) {
+      std::memset(data_, 0, sizeof(float) * frame_size);
+    }
+    float* data() { return data_; }
+    ~PffftState() { pffft_aligned_free(data_); }
+
+   private:
+    float* const data_;
+  };
   const int step_size_;
   const int frame_size_;
   const std::vector<float> sqrt_hanning_;
-  float* const data_;
   float* const spectrum_;
   PFFFT_Setup* pffft_setup_;
+  std::vector<std::unique_ptr<PffftState>> pffft_states_;
 };
 
 }  // namespace webrtc

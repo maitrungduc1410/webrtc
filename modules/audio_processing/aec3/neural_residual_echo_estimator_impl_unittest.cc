@@ -20,6 +20,7 @@
 
 #include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
+#include "modules/audio_processing/aec3/neural_feature_extractor.h"
 #include "modules/audio_processing/test/echo_canceller_test_tools.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/random.h"
@@ -38,8 +39,8 @@ namespace {
 using testing::FloatEq;
 using testing::Not;
 
-using ModelInputEnum = NeuralResidualEchoEstimatorImpl::ModelInputEnum;
-using ModelOutputEnum = NeuralResidualEchoEstimatorImpl::ModelOutputEnum;
+using ModelInputEnum = FeatureExtractor::ModelInputEnum;
+using ModelOutputEnum = FeatureExtractor::ModelOutputEnum;
 
 struct ModelConstants {
   explicit ModelConstants(int frame_size)
@@ -83,8 +84,8 @@ class MockModelRunner : public NeuralResidualEchoEstimatorImpl::ModelRunner {
       case ModelInputEnum::kAecRef:
         return webrtc::ArrayView<float>(input_aec_ref_.data(),
                                         constants_.frame_size);
-      case NeuralResidualEchoEstimatorImpl::ModelInputEnum::kModelState:
-      case NeuralResidualEchoEstimatorImpl::ModelInputEnum::kNumInputs:
+      case ModelInputEnum::kModelState:
+      case ModelInputEnum::kNumInputs:
         RTC_CHECK(false);
         return webrtc::ArrayView<float>();
     }

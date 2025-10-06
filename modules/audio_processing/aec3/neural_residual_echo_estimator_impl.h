@@ -39,18 +39,6 @@ namespace webrtc {
 // that the AEC3 suppressor needs for computing the suppression gains.
 class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
  public:
-  enum class ModelInputEnum {
-    kModelState = 0,
-    kMic = 1,
-    kLinearAecOutput = 2,
-    kAecRef = 3,
-    kNumInputs = 4
-  };
-  enum class ModelOutputEnum {
-    kEchoMask = 0,
-    kModelState = 1,
-    kNumOutputs = 2
-  };
 
   // Executes a residual echo estimation model on given inputs.
   class ModelRunner {
@@ -58,7 +46,8 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
     virtual ~ModelRunner() = default;
 
     virtual int StepSize() const = 0;
-    virtual ArrayView<float> GetInput(ModelInputEnum input_enum) = 0;
+    virtual ArrayView<float> GetInput(
+        FeatureExtractor::ModelInputEnum input_enum) = 0;
     virtual ArrayView<const float> GetOutputEchoMask() = 0;
     virtual const audioproc::ReeModelMetadata& GetMetadata() const = 0;
     virtual bool Invoke() = 0;
