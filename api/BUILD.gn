@@ -1643,6 +1643,7 @@ if (rtc_include_tests) {
       "field_trials_unittest.cc",
       "function_view_unittest.cc",
       "jsep_unittest.cc",
+      "peer_connection_interface_unittest.cc",
       "rtc_error_unittest.cc",
       "rtc_event_log_output_file_unittest.cc",
       "rtp_packet_info_unittest.cc",
