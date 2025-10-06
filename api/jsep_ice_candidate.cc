@@ -111,9 +111,22 @@ bool IceCandidateCollection::HasCandidate(const IceCandidate* candidate) const {
       });
 }
 
-size_t IceCandidateCollection::remove(const IceCandidate* candidate) {
+IceCandidateCollection IceCandidateCollection::Clone() const {
+  IceCandidateCollection new_collection;
   RTC_DCHECK_RUN_ON(&sequence_checker_);
+  RTC_DCHECK_RUN_ON(&new_collection.sequence_checker_);
+  new_collection.candidates_.reserve(candidates_.size());
+  for (const auto& candidate : candidates_) {
+    new_collection.candidates_.push_back(std::make_unique<IceCandidate>(
+        candidate->sdp_mid(), candidate->sdp_mline_index(),
+        candidate->candidate()));
+  }
+  return new_collection;
+}
+
+size_t IceCandidateCollection::remove(const IceCandidate* candidate) {
   RTC_DCHECK(candidate);
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   auto iter =
       absl::c_find_if(candidates_, [&](const std::unique_ptr<IceCandidate>& c) {
         return c->candidate().MatchesForRemoval(candidate->candidate());

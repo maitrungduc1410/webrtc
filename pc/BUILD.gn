@@ -1419,7 +1419,6 @@ rtc_library("webrtc_sdp") {
   visibility = [ "*" ]  # Used by Chrome and more
 
   sources = [
-    "jsep_ice_candidate.cc",
     "jsep_session_description.cc",
     "webrtc_sdp.cc",
     "webrtc_sdp.h",
