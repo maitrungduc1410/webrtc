@@ -783,11 +783,9 @@ rtc_library("session_description") {
   deps = [
     ":media_protocol_names",
     ":simulcast_description",
-    "../api:libjingle_peerconnection_api",
     "../api:rtp_parameters",
     "../api:rtp_transceiver_direction",
     "../media:codec",
-    "../media:media_channel",
     "../media:media_constants",
     "../media:rid_description",
     "../media:stream_params",
@@ -1071,6 +1069,7 @@ rtc_library("sdp_munging_detector") {
   deps = [
     ":session_description",
     "../api:field_trials_view",
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:rtp_parameters",
     "../media:codec",
@@ -1123,6 +1122,7 @@ rtc_library("sdp_offer_answer") {
     "../api:array_view",
     "../api:audio_options_api",
     "../api:candidate",
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:make_ref_counted",
     "../api:media_stream_interface",
@@ -1231,6 +1231,7 @@ rtc_library("peer_connection") {
     "../api:dtls_transport_interface",
     "../api:field_trials_view",
     "../api:ice_transport_interface",
+    "../api:jsep",
     "../api:libjingle_logging_api",
     "../api:libjingle_peerconnection_api",
     "../api:local_network_access_permission",
@@ -1328,6 +1329,7 @@ rtc_library("sdp_utils") {
   ]
   deps = [
     ":session_description",
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../p2p:transport_info",
     "../rtc_base:checks",
@@ -1430,7 +1432,7 @@ rtc_library("webrtc_sdp") {
     ":simulcast_description",
     ":simulcast_sdp_serializer",
     "../api:candidate",
-    "../api:libjingle_peerconnection_api",
+    "../api:jsep",
     "../api:rtc_error",
     "../api:rtp_parameters",
     "../api:rtp_transceiver_direction",
@@ -1480,6 +1482,7 @@ rtc_library("webrtc_session_description_factory") {
     ":sdp_state_provider",
     ":session_description",
     "../api:field_trials_view",
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:rtc_error",
     "../api:scoped_refptr",
@@ -1659,6 +1662,7 @@ rtc_library("rtp_transceiver") {
     ":session_description",
     "../api:array_view",
     "../api:audio_options_api",
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:rtc_error",
     "../api:rtp_parameters",
@@ -1891,6 +1895,7 @@ rtc_source_set("sdp_state_provider") {
   visibility = [ ":*" ]
   sources = [ "sdp_state_provider.h" ]
   deps = [
+    "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../rtc_base:ssl_adapter",
   ]
@@ -2199,6 +2204,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:field_trials_view",
       "../api:ice_transport_factory",
       "../api:ice_transport_interface",
+      "../api:jsep",
       "../api:libjingle_peerconnection_api",
       "../api:make_ref_counted",
       "../api:media_stream_interface",
@@ -2551,6 +2557,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:field_trials",
       "../api:field_trials_view",
       "../api:ice_transport_interface",
+      "../api:jsep",
       "../api:libjingle_logging_api",
       "../api:libjingle_peerconnection_api",
       "../api:make_ref_counted",
@@ -2789,6 +2796,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:field_trials",
       "../api:field_trials_view",
       "../api:ice_transport_interface",
+      "../api:jsep",
       "../api:libjingle_logging_api",
       "../api:libjingle_peerconnection_api",
       "../api:make_ref_counted",
@@ -2928,6 +2936,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:field_trials",
       "../api:field_trials_view",
       "../api:frame_transformer_interface",
+      "../api:jsep",
       "../api:libjingle_logging_api",
       "../api:libjingle_peerconnection_api",
       "../api:make_ref_counted",
