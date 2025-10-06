@@ -73,6 +73,8 @@ rtc_library("scream_unittests") {
     "../../../system_wrappers",
     "../../../test:create_test_environment",
     "../../../test:test_support",
+    "../../../test/network:simulated_network",
     "test:cc_feedback_generator",
+    "//third_party/abseil-cpp/absl/strings",
   ]
 }

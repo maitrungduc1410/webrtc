@@ -9,6 +9,9 @@
  */
 #include "modules/congestion_controller/scream/scream_v2.h"
 
+#include <algorithm>
+
+#include "absl/strings/str_cat.h"
 #include "api/environment/environment.h"
 #include "api/transport/ecn_marking.h"
 #include "api/transport/network_types.h"
@@ -17,9 +20,11 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/congestion_controller/scream/test/cc_feedback_generator.h"
+#include "rtc_base/logging.h"
 #include "system_wrappers/include/clock.h"
 #include "test/create_test_environment.h"
 #include "test/gtest.h"
+#include "test/network/simulated_network.h"
 
 namespace webrtc {
 namespace {
@@ -63,7 +68,7 @@ TEST(ScreamV2Test, TargetRateIncreaseToMaxOnUnConstrainedNetwork) {
   CcFeedbackGenerator feedback_generator(
       {.network_config = {.queue_delay_ms = 25}});
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 100; ++i) {
     TransportPacketsFeedback feedback =
         feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
     send_rate = scream.OnTransportPacketsFeedback(feedback);
@@ -84,7 +89,7 @@ TEST(ScreamV2Test,
   CcFeedbackGenerator feedback_generator(
       {.network_config = {.queue_delay_ms = 25}});
 
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < 70; ++i) {
     TransportPacketsFeedback feedback =
         feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
     send_rate = scream.OnTransportPacketsFeedback(feedback);
@@ -93,7 +98,7 @@ TEST(ScreamV2Test,
 
   // Half the send rate, but the network is still unconstrained.
   send_rate = send_rate / 2;
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < 20; ++i) {
     TransportPacketsFeedback feedback =
         feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
     scream.OnTransportPacketsFeedback(feedback);
@@ -160,7 +165,7 @@ TEST(ScreamV2Test, ReferenceWindowIncreaseTo2xDataInflight) {
                      /*number_of_ect1_packets=*/20,
                      /*number_of_packets_in_flight=*/10);
 
-  while (clock.CurrentTime() < start_time + TimeDelta::Seconds(1)) {
+  while (clock.CurrentTime() < start_time + TimeDelta::Seconds(2)) {
     feedback.feedback_time = clock.CurrentTime();
     scream.OnTransportPacketsFeedback(feedback);
     clock.AdvanceTime(feedback_interval);
@@ -200,6 +205,80 @@ TEST(ScreamV2Test, CalculatesL4sAlpha) {
 
   EXPECT_NEAR(scream.l4s_alpha(), 0.2, 0.01);
 }
+
+struct AdaptsToLinkCapacityParams {
+  SimulatedNetwork::Config network_config;
+  bool send_as_ect1 = true;
+  TimeDelta expected_adaption_time;
+};
+
+class AdaptsToLinkCapacityTest
+    : public TestWithParam<AdaptsToLinkCapacityParams> {};
+
+TEST_P(AdaptsToLinkCapacityTest, AdaptsToLinkCapacity) {
+  const AdaptsToLinkCapacityParams& params = GetParam();
+  const Timestamp kStartTime = Timestamp::Seconds(1'234);
+  SimulatedClock clock(kStartTime);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  ScreamV2 scream(env);
+  CcFeedbackGenerator feedback_generator(
+      {.network_config = params.network_config,
+       .send_as_ect1 = params.send_as_ect1});
+
+  DataRate send_rate = DataRate::KilobitsPerSec(100);
+  while (clock.CurrentTime() < kStartTime + params.expected_adaption_time) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
+    send_rate = scream.OnTransportPacketsFeedback(feedback);
+  }
+
+  EXPECT_LT(send_rate, 1.1 * params.network_config.link_capacity);
+  EXPECT_GT(send_rate, 0.7 * params.network_config.link_capacity);
+
+  DataRate min_rate_after_adaption = send_rate;
+  DataRate max_rate_after_adaption = send_rate;
+  Timestamp time_after_adaption = clock.CurrentTime();
+  while (clock.CurrentTime() < time_after_adaption + TimeDelta::Seconds(5)) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
+    send_rate = scream.OnTransportPacketsFeedback(feedback);
+    min_rate_after_adaption = std::min(min_rate_after_adaption, send_rate);
+    max_rate_after_adaption = std::max(max_rate_after_adaption, send_rate);
+  }
+  EXPECT_LT(max_rate_after_adaption, 1.1 * params.network_config.link_capacity);
+  EXPECT_GT(min_rate_after_adaption, 0.7 * params.network_config.link_capacity);
+
+  RTC_LOG(LS_INFO) << " min_rate_after_adaption: " << min_rate_after_adaption
+                   << " max_rate_after_adaption: " << max_rate_after_adaption;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ScreamV2Test,
+    AdaptsToLinkCapacityTest,
+    testing::Values(
+        // Adapt to link capacity using CE marks.
+        AdaptsToLinkCapacityParams{
+            .network_config = {.queue_delay_ms = 25,
+                               .link_capacity = DataRate::KilobitsPerSec(1000)},
+            .send_as_ect1 = true,
+            .expected_adaption_time = TimeDelta::Seconds(2),
+        },
+        AdaptsToLinkCapacityParams{
+            .network_config = {.queue_delay_ms = 50,
+                               .link_capacity = DataRate::KilobitsPerSec(5000)},
+            .send_as_ect1 = true,
+            .expected_adaption_time = TimeDelta::Seconds(10)}),
+    [](const testing::TestParamInfo<AdaptsToLinkCapacityParams>& info) {
+      const AdaptsToLinkCapacityParams& params = info.param;
+      return absl::StrCat(
+          "LinkCapacity", params.network_config.link_capacity.kbps(),
+          "kbps_Rtt", 2 * params.network_config.queue_delay_ms,
+          "ms_QueueLength",
+          (params.network_config.queue_length_packets == 0)
+              ? "Infinite"
+              : absl::StrCat(params.network_config.queue_length_packets),
+          "_SendAsEct", params.send_as_ect1 ? "1" : "0");
+    });
 
 }  // namespace
 }  // namespace webrtc

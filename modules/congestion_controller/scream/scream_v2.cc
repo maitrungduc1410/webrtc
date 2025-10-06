@@ -59,18 +59,26 @@ ScreamV2::Parameters::Parameters(const FieldTrialsView& trials)
       bytes_in_flight_head_room("BytesInFlightHeadRoom", 2.0),
       post_congestion_delay_rtts("PostCongestionDelayRtts", 100),
       multiplicative_increase_factor("MultiplicativeIncreaseFactor", 0.02),
-      virtual_rtt("VirtualRtt", TimeDelta::Millis(25)) {
-  ParseFieldTrial(
-      {
-          &min_ref_window,
-          &l4s_avg_g,
-          &max_segment_size,
-          &bytes_in_flight_head_room,
-          &post_congestion_delay_rtts,
-          &multiplicative_increase_factor,
-          &virtual_rtt,
-      },
-      trials.Lookup("WebRTC-Bwe-ScreamV2"));
+      virtual_rtt("VirtualRtt", TimeDelta::Millis(25)),
+      // backoff_scale_factor_close_to_ref_window_i is set lower than in the rfc
+      // (8.0). This means that increase/decrease around ref_window_i is slower
+      // in this implementation.
+      backoff_scale_factor_close_to_ref_window_i(
+          "BackoffScaleFactorCloseToRefWindowI",
+          2.0),
+      number_of_rtts_between_ref_window_i_updates(
+          "NumberOfRttsBetweenRefWindowIUpdates",
+          10),
+      number_of_rtts_between_reset_ref_window_i_on_congestion(
+          "NumberOfRttsBetweenResetRefWindowIOnCongestion",
+          100) {
+  ParseFieldTrial({&min_ref_window, &l4s_avg_g, &max_segment_size,
+                   &bytes_in_flight_head_room, &post_congestion_delay_rtts,
+                   &multiplicative_increase_factor, &virtual_rtt,
+                   &backoff_scale_factor_close_to_ref_window_i,
+                   &number_of_rtts_between_ref_window_i_updates,
+                   &number_of_rtts_between_reset_ref_window_i_on_congestion},
+                  trials.Lookup("WebRTC-Bwe-ScreamV2"));
 }
 
 ScreamV2::ScreamV2(const Environment& env)
@@ -133,13 +141,60 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
   double scale_close_to_ref_window_i =
       ref_window_scale_factor_close_to_ref_window_i();
 
-  // TODO: bugs.webrtc.org/447037083 - Implement reference window reduction
-  // according to 4.2.2.1
   bool is_ce = false;
   if (msg.feedback_time - last_reaction_to_congestion_time_ >=
       std::min(msg.smoothed_rtt, params_.virtual_rtt.Get())) {
     is_ce = HasCeMarking(msg);
   }
+
+  // Update `ref_window_i_` if enough time has passed since the last update and
+  // a congestion event is detected.
+  if (is_ce) {
+    if (msg.feedback_time - last_ref_window_i_update_ >
+        params_.number_of_rtts_between_ref_window_i_updates.Get() *
+            msg.smoothed_rtt) {
+      // Additional median filtering over more congestion epochs
+      // may improve accuracy of ref_wnd_i_.
+      last_ref_window_i_update_ = msg.feedback_time;
+      ref_window_i_ = ref_window_;
+    }
+  }
+
+  double backoff = 0.0;
+  if (is_ce) {  // Backoff due to ECN-CE marking
+    backoff = l4s_alpha_ / 2.0;
+    //  Increase stability for very small ref_wnd
+    backoff *= std::max(0.5, 1.0 - ref_window_mss_ratio());
+
+    // Scale down backoff if close to the last known max reference window
+    // This is complemented with a scale down of the reference window increase
+
+    // TODO: bugs.webrtc.org/447037083 - Dont scale down backoff
+    // if queue delay is large.
+    backoff *= std::max(0.25, scale_close_to_ref_window_i);
+
+    if (msg.feedback_time - last_reaction_to_congestion_time_ >
+        params_.number_of_rtts_between_reset_ref_window_i_on_congestion.Get() *
+            std::max(params_.virtual_rtt.Get(), msg.smoothed_rtt)) {
+      // A long time(> 100 RTTs) since last congested because
+      // link throughput exceeds max video bitrate. (or first congestion)
+      // There is a certain risk that ref_wnd has increased way above
+      // bytes in flight, so we reduce it here to get it better on
+      // track and thus the congestion episode is shortened
+      ref_window_i_ = std::min(ref_window_i_, max_data_in_flight_prev_rtt_);
+      // Also, we back off a little extra if needed because alpha is quite
+      // likely very low  This can in some cases be an over - reaction but as
+      // this function should kick in relatively seldom it should not be a too
+      // big concern
+      backoff = std::max(backoff, 0.25);
+      // In addition, bump up l4sAlpha to a more credible value
+      // This may over react but it is better than
+      // excessive queue delay
+      l4s_alpha_ = 0.25;
+    }
+  }  // is_ce
+  ref_window_ = (1.0 - backoff) * ref_window_;
+
   if (is_ce) {
     last_reaction_to_congestion_time_ = msg.feedback_time;
   }
@@ -153,7 +208,7 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
     double rtt_ratio = msg.smoothed_rtt / params_.virtual_rtt.Get();
     increase = increase * (rtt_ratio * rtt_ratio);
   }
-  // Limit reference window increase when close to last the last inflection
+  // Limit reference window increase when close to the last inflection
   // point.
   increase = increase * std::max(0.25, scale_close_to_ref_window_i);
   // Limit reference window increase when the reference window close to
@@ -200,7 +255,7 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
                             min_target_bitrate_, max_target_bitrate_);
 
   RTC_LOG(LS_VERBOSE) << "ScreamV2: "
-                      << " increase=" << increase
+                      << " increase=" << increase << " backoff=" << backoff
                       << " scale_close_to_ref_window_i= "
                       << scale_close_to_ref_window_i
                       << " multiplicative_scalel=" << multiplicative_scale

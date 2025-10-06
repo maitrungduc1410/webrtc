@@ -70,13 +70,26 @@ class ScreamV2 {
     // growth should be cautious.
     FieldTrialParameter<int> post_congestion_delay_rtts;
 
-    // Determines how much (as a fraction of ref_wnd) that the ref_wnd can
+    // Determines how much (as a fraction of ref_window) that the ref_window can
     // increase per RTT.
     FieldTrialParameter<double> multiplicative_increase_factor;
 
     // This mimics Prague's RTT fairness such that flows with RTT below
     // virtual_rtt should get a roughly equal share over an L4S path.
     FieldTrialParameter<TimeDelta> virtual_rtt;
+
+    // Increase and decrease of ref window is slower close to the last
+    // inflection point. Both increase and decrease is scaled by
+    // (backoff_scale_factor_close_to_ref_window_i* (ref_window_i -
+    // ref_window)) / ref_window_i) ^2
+    FieldTrialParameter<double> backoff_scale_factor_close_to_ref_window_i;
+
+    FieldTrialParameter<int> number_of_rtts_between_ref_window_i_updates;
+
+    // If CE is detected and this number of RTTs has passed since last
+    // congestion, ref_window_i will be reset.
+    FieldTrialParameter<int>
+        number_of_rtts_between_reset_ref_window_i_on_congestion;
   };
 
   void UpdateL4SAlpha(const TransportPacketsFeedback& msg);
@@ -84,16 +97,19 @@ class ScreamV2 {
 
   // Ratio between `max_segment_size` and `ref_window_`.
   double ref_window_mss_ratio() const {
-    return ref_window_ / params_.max_segment_size.Get();
+    return params_.max_segment_size.Get() / ref_window_;
   }
 
   // Scaling factor for reference window adjustment
   // when close to the last known inflection point.
   // (4.2.2.1)
   double ref_window_scale_factor_close_to_ref_window_i() const {
-    double scl = ref_window_ > ref_window_i_
-                     ? 8.0 * (ref_window_ - ref_window_i_) / ref_window_i_
-                     : 8.0 * (ref_window_i_ - ref_window_) / ref_window_i_;
+    const double scale_factor =
+        params_.backoff_scale_factor_close_to_ref_window_i.Get();
+    double scl =
+        ref_window_ > ref_window_i_
+            ? scale_factor * (ref_window_ - ref_window_i_) / ref_window_i_
+            : scale_factor * (ref_window_i_ - ref_window_) / ref_window_i_;
     return std::clamp(scl * scl, 0.1, 1.0);
   }
 
@@ -115,8 +131,10 @@ class ScreamV2 {
   // flight (transmitted but not yet acknowledged)
   DataSize ref_window_;
   // Reference window inflection point. I.e, `ref_window_` when congestion was
-  // noticed.
+  // noticed. Increase and decrease of `ref_window_` is scaled down around
+  // `ref_window_i_`.
   DataSize ref_window_i_ = DataSize::Bytes(1);
+  Timestamp last_ref_window_i_update_ = Timestamp::MinusInfinity();
 
   // `l4s_alpha_` tracks the average fraction of ECN-CE marked data units per
   // Round-Trip Time.
