@@ -3248,17 +3248,6 @@ std::string SdpSerialize(const SessionDescriptionInterface& jdesc) {
   return message;
 }
 
-// Serializes the passed in IceCandidate to a SDP string.
-// candidate - The candidate to be serialized.
-std::string SdpSerializeCandidate(const IceCandidate& candidate) {
-  return SdpSerializeCandidate(candidate.candidate());
-}
-
-// Serializes a cricket Candidate.
-std::string SdpSerializeCandidate(const Candidate& candidate) {
-  return candidate.ToCandidateAttribute(true);
-}
-
 std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(
     SdpType sdp_type,
     absl::string_view message,

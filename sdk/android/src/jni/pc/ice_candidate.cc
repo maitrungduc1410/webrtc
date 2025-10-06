@@ -54,7 +54,7 @@ ScopedJavaLocalRef<jobject> NativeToJavaIceCandidate(
     JNIEnv* env,
     absl::string_view mid,
     const Candidate& candidate) {
-  std::string sdp = SdpSerializeCandidate(candidate);
+  std::string sdp = candidate.ToCandidateAttribute(true);
   RTC_CHECK(!sdp.empty()) << "got an empty ICE candidate";
   // sdp_mline_index is not used, pass an invalid value -1.
   return CreateJavaIceCandidate(env, mid, -1 /* sdp_mline_index */, sdp,

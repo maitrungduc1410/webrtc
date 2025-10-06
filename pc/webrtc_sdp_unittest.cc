@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
@@ -36,7 +37,6 @@
 #include "media/base/rid_description.h"
 #include "media/base/stream_params.h"
 #include "p2p/base/p2p_constants.h"
-#include "p2p/base/port.h"
 #include "p2p/base/transport_description.h"
 #include "p2p/base/transport_info.h"
 #include "pc/media_protocol_names.h"
@@ -839,6 +839,15 @@ constexpr int kDummyIndex = 123;
 constexpr SdpType kDummyType = SdpType::kOffer;
 
 // Helper functions
+
+// Serializes a cricket Candidate.
+std::string SdpSerializeCandidate(const Candidate& candidate) {
+  return candidate.ToCandidateAttribute(true);
+}
+
+std::string SdpSerializeCandidate(const IceCandidate& candidate) {
+  return SdpSerializeCandidate(candidate.candidate());
+}
 
 // Creates a new session description with a supplied sdp, of type
 // SdpType::kOffer (kDummyType).

@@ -41,14 +41,6 @@ struct SdpParseError;
 // return - SDP string serialized from the arguments.
 std::string SdpSerialize(const SessionDescriptionInterface& jdesc);
 
-// Serializes the passed in IceCandidate to a SDP string.
-// candidate - The candidate to be serialized.
-std::string SdpSerializeCandidate(const IceCandidate& candidate);
-
-// Serializes a cricket Candidate.
-// candidate - The candidate to be serialized.
-RTC_EXPORT std::string SdpSerializeCandidate(const Candidate& candidate);
-
 // Deserializes the `sdp` to construct a SessionDescriptionInterface object.
 // sdp_type - The type of session description object that should be constructed.
 // sdp - The SDP string to be Deserialized.
