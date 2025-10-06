@@ -741,6 +741,7 @@ if (rtc_include_tests) {
         "../video/config:encoder_config",
         "transport:bitrate_settings",
         "transport:network_control",
+        "video_codecs:scalability_mode",
         "video_codecs:video_codecs_api",
       ]
     }

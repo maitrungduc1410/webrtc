@@ -605,6 +605,7 @@ VideoStream VideoQualityTest::DefaultVideoStream(const Params& params,
   stream.max_qp = kDefaultVideoMaxQpVpx;
   stream.num_temporal_layers = params.video[video_idx].num_temporal_layers;
   stream.active = true;
+  stream.scalability_mode = params.ss[0].scalability_mode;
   return stream;
 }
 
