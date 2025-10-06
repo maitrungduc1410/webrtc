@@ -50,6 +50,15 @@ bool HasCeMarking(const TransportPacketsFeedback& msg) {
   return false;
 }
 
+bool HasLostPackets(const TransportPacketsFeedback& msg) {
+  for (const auto& packet : msg.PacketsWithFeedback()) {
+    if (!packet.IsReceived()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 ScreamV2::Parameters::Parameters(const FieldTrialsView& trials)
@@ -57,6 +66,7 @@ ScreamV2::Parameters::Parameters(const FieldTrialsView& trials)
       l4s_avg_g("L4sAvgG", 1.0 / 16.0),
       max_segment_size("MaxSegmentSize", DataSize::Bytes(1000)),
       bytes_in_flight_head_room("BytesInFlightHeadRoom", 2.0),
+      beta_loss("BetaLoss", 0.7),
       post_congestion_delay_rtts("PostCongestionDelayRtts", 100),
       multiplicative_increase_factor("MultiplicativeIncreaseFactor", 0.02),
       virtual_rtt("VirtualRtt", TimeDelta::Millis(25)),
@@ -73,9 +83,9 @@ ScreamV2::Parameters::Parameters(const FieldTrialsView& trials)
           "NumberOfRttsBetweenResetRefWindowIOnCongestion",
           100) {
   ParseFieldTrial({&min_ref_window, &l4s_avg_g, &max_segment_size,
-                   &bytes_in_flight_head_room, &post_congestion_delay_rtts,
-                   &multiplicative_increase_factor, &virtual_rtt,
-                   &backoff_scale_factor_close_to_ref_window_i,
+                   &bytes_in_flight_head_room, &beta_loss,
+                   &post_congestion_delay_rtts, &multiplicative_increase_factor,
+                   &virtual_rtt, &backoff_scale_factor_close_to_ref_window_i,
                    &number_of_rtts_between_ref_window_i_updates,
                    &number_of_rtts_between_reset_ref_window_i_on_congestion},
                   trials.Lookup("WebRTC-Bwe-ScreamV2"));
@@ -142,14 +152,16 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
       ref_window_scale_factor_close_to_ref_window_i();
 
   bool is_ce = false;
+  bool is_loss = false;
   if (msg.feedback_time - last_reaction_to_congestion_time_ >=
       std::min(msg.smoothed_rtt, params_.virtual_rtt.Get())) {
     is_ce = HasCeMarking(msg);
+    is_loss = HasLostPackets(msg);
   }
 
   // Update `ref_window_i_` if enough time has passed since the last update and
   // a congestion event is detected.
-  if (is_ce) {
+  if (is_loss || is_ce) {
     if (msg.feedback_time - last_ref_window_i_update_ >
         params_.number_of_rtts_between_ref_window_i_updates.Get() *
             msg.smoothed_rtt) {
@@ -158,6 +170,10 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
       last_ref_window_i_update_ = msg.feedback_time;
       ref_window_i_ = ref_window_;
     }
+  }
+  if (is_loss) {
+    ref_window_ = ref_window_ * params_.beta_loss.Get();
+    RTC_LOG(LS_VERBOSE) << "Backoff due to loss: " << ref_window_;
   }
 
   double backoff = 0.0;
@@ -195,7 +211,7 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
   }  // is_ce
   ref_window_ = (1.0 - backoff) * ref_window_;
 
-  if (is_ce) {
+  if (is_ce || is_loss) {
     last_reaction_to_congestion_time_ = msg.feedback_time;
   }
 

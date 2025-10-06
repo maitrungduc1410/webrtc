@@ -267,7 +267,15 @@ INSTANTIATE_TEST_SUITE_P(
             .network_config = {.queue_delay_ms = 50,
                                .link_capacity = DataRate::KilobitsPerSec(5000)},
             .send_as_ect1 = true,
+            .expected_adaption_time = TimeDelta::Seconds(10)},
+        AdaptsToLinkCapacityParams{
+            .network_config = {.queue_length_packets = 3,
+                               .queue_delay_ms = 10,
+                               .link_capacity = DataRate::KilobitsPerSec(5000)},
+            .send_as_ect1 =
+                false,  // Adapt only due to loss when queues overflow.
             .expected_adaption_time = TimeDelta::Seconds(10)}),
+
     [](const testing::TestParamInfo<AdaptsToLinkCapacityParams>& info) {
       const AdaptsToLinkCapacityParams& params = info.param;
       return absl::StrCat(

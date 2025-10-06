@@ -66,6 +66,9 @@ class ScreamV2 {
     // Headroom for bytes in flight when increasing reference window.
     FieldTrialParameter<double> bytes_in_flight_head_room;
 
+    // Reference window scale factor due to loss event.
+    FieldTrialParameter<double> beta_loss;
+
     // Determines how many RTTs after a congestion event the reference window
     // growth should be cautious.
     FieldTrialParameter<int> post_congestion_delay_rtts;
