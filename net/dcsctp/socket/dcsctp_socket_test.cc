@@ -3455,5 +3455,26 @@ TEST_P(DcSctpSocketParametrizedTest, ConnectSocketOutOfBand) {
   MaybeHandoverSocketAndSendMessage(a, std::move(z));
 }
 
+TEST_P(DcSctpSocketParametrizedTest, ConnectSocketOutOfBandInvalidToken) {
+  std::vector<uint8_t> socket_a_data, socket_z_data;
+  {
+    SocketUnderTest a0("A0");
+    socket_a_data = DcSctpSocket::GenerateConnectionToken(
+        kDefaultOptions, [](uint32_t, uint32_t) { return 1; });
+  }
+  {
+    SocketUnderTest z0("Z0");
+    socket_z_data = {0x01, 0x00, 0x00};
+  }
+
+  SocketUnderTest a("A");
+  auto z = std::make_unique<SocketUnderTest>("Z");
+
+  EXPECT_FALSE(
+      a.socket.ConnectWithConnectionToken(socket_a_data, socket_z_data));
+  EXPECT_FALSE(
+      z->socket.ConnectWithConnectionToken(socket_z_data, socket_a_data));
+}
+
 }  // namespace
 }  // namespace dcsctp
