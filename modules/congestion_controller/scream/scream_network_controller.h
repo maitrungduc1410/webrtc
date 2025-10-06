@@ -11,10 +11,14 @@
 #ifndef MODULES_CONGESTION_CONTROLLER_SCREAM_SCREAM_NETWORK_CONTROLLER_H_
 #define MODULES_CONGESTION_CONTROLLER_SCREAM_SCREAM_NETWORK_CONTROLLER_H_
 
+#include <memory>
+
 #include "api/environment/environment.h"
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
+#include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "modules/congestion_controller/scream/scream_v2.h"
 
 namespace webrtc {
@@ -40,10 +44,13 @@ class ScreamNetworkController : public NetworkControllerInterface {
   NetworkControlUpdate OnNetworkStateEstimate(NetworkStateEstimate) override;
 
  private:
+  NetworkControlUpdate CreateUpdate(Timestamp now,
+                                    DataRate target_rate,
+                                    TimeDelta rtt);
   PacerConfig GetPacerConfig(DataRate target_rate) const;
 
   Environment env_;
-  ScreamV2 scream_;
+  std::unique_ptr<ScreamV2> scream_;
   TargetRateConstraints target_rate_constraints_;
 };
 

@@ -31,6 +31,23 @@ TEST(ScreamControllerTest, CanConstruct) {
   ScreamNetworkController scream_controller(config);
 }
 
+TEST(ScreamControllerTest, OnNetworkAvailabilityUpdatesTargetRateAndPacerRate) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  NetworkControllerConfig config(env);
+  config.constraints.starting_rate = DataRate::KilobitsPerSec(123);
+  ScreamNetworkController scream_controller(config);
+
+  NetworkControlUpdate update =
+      scream_controller.OnNetworkAvailability({.network_available = true});
+  ASSERT_TRUE(update.has_updates());
+  ASSERT_TRUE(update.target_rate.has_value());
+  EXPECT_EQ(update.target_rate->target_rate, config.constraints.starting_rate);
+  ASSERT_TRUE(update.pacer_config);
+  EXPECT_EQ(update.pacer_config->data_window,
+            *config.constraints.starting_rate * 1.5 * TimeDelta::Seconds(1));
+}
+
 TEST(ScreamControllerTest,
      OnTransportPacketsFeedbackUpdatesTargetRateAndPacerRate) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
@@ -49,10 +66,46 @@ TEST(ScreamControllerTest,
   ASSERT_TRUE(update.has_updates());
   ASSERT_TRUE(update.target_rate.has_value());
   EXPECT_GT(update.target_rate->target_rate, DataRate::KilobitsPerSec(100));
-
   ASSERT_TRUE(update.pacer_config);
   EXPECT_EQ(update.pacer_config->data_window,
             update.target_rate->target_rate * 1.5 * TimeDelta::Seconds(1));
+}
+
+TEST(ScreamControllerTest,
+     OnNetworkRouteChangeResetsScreamAndUpdatesTargetRate) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  NetworkControllerConfig config(env);
+  config.constraints.starting_rate = DataRate::KilobitsPerSec(50);
+  ScreamNetworkController scream_controller(config);
+
+  CcFeedbackGenerator feedback_generator({});
+  DataRate send_rate = DataRate::KilobitsPerSec(100);
+  for (int i = 0; i < 10; ++i) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
+    NetworkControlUpdate update =
+        scream_controller.OnTransportPacketsFeedback(feedback);
+    if (update.target_rate.has_value()) {
+      send_rate = update.target_rate->target_rate;
+    }
+  }
+  ASSERT_GT(send_rate, DataRate::KilobitsPerSec(50));
+
+  NetworkRouteChange route_change;
+  route_change.constraints.starting_rate = config.constraints.starting_rate =
+      DataRate::KilobitsPerSec(123);
+  route_change.at_time = clock.CurrentTime();
+  NetworkControlUpdate update =
+      scream_controller.OnNetworkRouteChange(route_change);
+  ASSERT_TRUE(update.has_updates());
+  ASSERT_TRUE(update.target_rate.has_value());
+  EXPECT_EQ(update.target_rate->target_rate,
+            route_change.constraints.starting_rate);
+  ASSERT_TRUE(update.pacer_config);
+  EXPECT_EQ(
+      update.pacer_config->data_window,
+      *route_change.constraints.starting_rate * 1.5 * TimeDelta::Seconds(1));
 }
 
 TEST(ScreamControllerTest, TargetRateRampsUptoTargetConstraints) {

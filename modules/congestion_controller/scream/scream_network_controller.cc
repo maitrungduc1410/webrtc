@@ -17,17 +17,21 @@
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
+#include "modules/congestion_controller/scream/scream_v2.h"
 #include "rtc_base/logging.h"
 namespace webrtc {
 
+static constexpr DataRate kDefaultStartRate = DataRate::KilobitsPerSec(300);
+
 ScreamNetworkController::ScreamNetworkController(NetworkControllerConfig config)
     : env_(config.env),
-      scream_(env_),
+      scream_(std::make_unique<ScreamV2>(env_)),
       target_rate_constraints_(config.constraints) {
   if (config.constraints.min_data_rate.has_value() ||
       config.constraints.max_data_rate.has_value()) {
-    scream_.SetTargetBitrateConstraints(
+    scream_->SetTargetBitrateConstraints(
         config.constraints.min_data_rate.value_or(DataRate::Zero()),
         config.constraints.max_data_rate.value_or(DataRate::PlusInfinity()));
   }
@@ -35,12 +39,36 @@ ScreamNetworkController::ScreamNetworkController(NetworkControllerConfig config)
 
 NetworkControlUpdate ScreamNetworkController::OnNetworkAvailability(
     NetworkAvailability msg) {
+  RTC_LOG(LS_INFO) << " OnNetworkAvailability network_available:"
+                   << msg.network_available;
+  if (msg.network_available) {
+    // TODO: bugs.webrtc.org/447037083 - rtt must currently be set on every
+    // update. But here it is not yet known.
+    return CreateUpdate(
+        msg.at_time,
+        target_rate_constraints_.starting_rate.value_or(kDefaultStartRate),
+        /*rtt*/ TimeDelta::Zero());
+  }
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate ScreamNetworkController::OnNetworkRouteChange(
     NetworkRouteChange msg) {
-  return NetworkControlUpdate();
+  RTC_LOG(LS_INFO) << " OnNetworkRouteChange, resetting ScreamV2.";
+  target_rate_constraints_ = msg.constraints;
+  scream_ = std::make_unique<ScreamV2>(env_);
+  // TODO: bugs.webrtc.org/447037083 - We should use the minimum rate from
+  // constraints, REMB and remote network state estimates.
+  scream_->SetTargetBitrateConstraints(
+      target_rate_constraints_.min_data_rate.value_or(DataRate::Zero()),
+      target_rate_constraints_.max_data_rate.value_or(
+          DataRate::PlusInfinity()));
+  // TODO: bugs.webrtc.org/447037083 - rtt must currently be set on every
+  // update. But here it is not yet known.
+  return CreateUpdate(
+      msg.at_time,
+      target_rate_constraints_.starting_rate.value_or(kDefaultStartRate),
+      /*rtt*/ TimeDelta::Zero());
 }
 
 NetworkControlUpdate ScreamNetworkController::OnProcessInterval(
@@ -85,7 +113,7 @@ NetworkControlUpdate ScreamNetworkController::OnTargetRateConstraints(
 
   // TODO: bugs.webrtc.org/447037083 - We should use the minimum rate from
   // constraints, REMB and remote network state estimates.
-  scream_.SetTargetBitrateConstraints(
+  scream_->SetTargetBitrateConstraints(
       target_rate_constraints_.min_data_rate.value_or(DataRate::Zero()),
       target_rate_constraints_.max_data_rate.value_or(
           DataRate::PlusInfinity()));
@@ -107,19 +135,23 @@ NetworkControlUpdate ScreamNetworkController::OnNetworkStateEstimate(
 
 NetworkControlUpdate ScreamNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback msg) {
-  DataRate target_rate = scream_.OnTransportPacketsFeedback(msg);
+  DataRate target_rate = scream_->OnTransportPacketsFeedback(msg);
 
   // TODO: bugs.webrtc.org/447037083 - Should we add separate event for Scream?
   env_.event_log().Log(std::make_unique<RtcEventBweUpdateDelayBased>(
       target_rate.bps(), BandwidthUsage::kBwNormal));
+  return CreateUpdate(msg.feedback_time, target_rate, msg.smoothed_rtt);
+}
 
+NetworkControlUpdate ScreamNetworkController::CreateUpdate(Timestamp now,
+                                                           DataRate target_rate,
+                                                           TimeDelta rtt) {
   TargetTransferRate target_rate_msg;
-  target_rate_msg.at_time = msg.feedback_time;
+  target_rate_msg.at_time = now;
   target_rate_msg.target_rate = target_rate;
 
-  target_rate_msg.network_estimate.at_time = msg.feedback_time;
-  target_rate_msg.network_estimate.round_trip_time = msg.smoothed_rtt;
-
+  target_rate_msg.network_estimate.at_time = now;
+  target_rate_msg.network_estimate.round_trip_time = rtt;
   // TODO: bugs.webrtc.org/447037083 - bwe_period must currently be set but
   // it seems like it is not used for anything sensible. Try to remove it.
   target_rate_msg.network_estimate.bwe_period = TimeDelta::Millis(25);
