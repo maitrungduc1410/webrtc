@@ -25,11 +25,9 @@
 
 #include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
-#include "api/candidate.h"
 #include "api/jsep.h"
 #include "api/rtp_parameters.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 struct SdpParseError;
@@ -50,17 +48,6 @@ absl_nullable std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(
     SdpType sdp_type,
     absl::string_view sdp,
     SdpParseError* absl_nullable error = nullptr);
-
-// Parses `message` according to the grammar defined in RFC 5245, Section 15.1
-// and, if successful, stores the result in `candidate` and returns true.
-// If unsuccessful, returns false and stores error information in `error` if
-// `error` is not null.
-// If `is_raw` is false, `message` is expected to be prefixed with "a=".
-// If `is_raw` is true, no prefix is expected in `messaage`.
-RTC_EXPORT bool ParseCandidate(absl::string_view message,
-                               Candidate* candidate,
-                               SdpParseError* error,
-                               bool is_raw);
 
 // Generates an FMTP line based on `parameters`. Please note that some
 // parameters are not considered to be part of the FMTP line, see the function

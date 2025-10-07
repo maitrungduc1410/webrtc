@@ -2584,17 +2584,17 @@ bool ParseContent(absl::string_view message,
     } else if (HasAttribute(*line, kAttributeBundleOnly)) {
       *bundle_only = true;
     } else if (HasAttribute(*line, kAttributeCandidate)) {
-      Candidate candidate;
-      if (!ParseCandidate(*line, &candidate, error, false)) {
-        return false;
+      RTCErrorOr<Candidate> candidate = Candidate::ParseCandidateString(*line);
+      if (!candidate.ok()) {
+        return ParseFailed(*line, candidate.error().message(), error);
       }
-      // ParseCandidate will parse non-standard ufrag and password attributes,
-      // since it's used for candidate trickling, but we only want to process
-      // the "a=ice-ufrag"/"a=ice-pwd" values in a session description, so
-      // strip them off at this point.
-      candidate.set_username(std::string());
-      candidate.set_password(std::string());
-      candidates_orig.push_back(candidate);
+      // ParseCandidateString will parse non-standard ufrag and password
+      // attributes, since it's used for candidate trickling, but we only want
+      // to process the "a=ice-ufrag"/"a=ice-pwd" values in a session
+      // description, so strip them off at this point.
+      candidate.value().set_username("");
+      candidate.value().set_password("");
+      candidates_orig.push_back(candidate.MoveValue());
     } else if (HasAttribute(*line, kAttributeIceUfrag)) {
       if (!GetValue(*line, kAttributeIceUfrag, &transport->ice_ufrag, error)) {
         return false;
@@ -3286,19 +3286,6 @@ std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(
   }
 
   return description;
-}
-
-bool ParseCandidate(absl::string_view message,
-                    Candidate* candidate,
-                    SdpParseError* error,
-                    bool is_raw) {
-  RTC_DCHECK(candidate != nullptr);
-  RTCErrorOr<Candidate> c = Candidate::ParseCandidateString(message);
-  if (!c.ok()) {
-    return ParseFailed(message, 0, c.error().message(), error);
-  }
-  *candidate = c.MoveValue();
-  return true;
 }
 
 bool WriteFmtpParameters(const CodecParameterMap& parameters,
