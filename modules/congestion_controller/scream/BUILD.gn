@@ -48,33 +48,34 @@ rtc_library("scream_network_controller") {
     "../../../rtc_base:checks",
     "../../../rtc_base:logging",
     "../../../rtc_base/experiments:field_trial_parser",
-    "../../../system_wrappers:field_trial",
   ]
 }
 
-rtc_library("scream_unittests") {
-  testonly = true
-  sources = [
-    "scream_network_controller_unittest.cc",
-    "scream_v2_unittest.cc",
-  ]
-  deps = [
-    ":scream_network_controller",
-    ":scream_v2",
-    "../../../api/environment",
-    "../../../api/environment:environment_factory",
-    "../../../api/transport:ecn_marking",
-    "../../../api/transport:network_control",
-    "../../../api/units:data_rate",
-    "../../../api/units:data_size",
-    "../../../api/units:time_delta",
-    "../../../api/units:timestamp",
-    "../../../rtc_base:logging",
-    "../../../system_wrappers",
-    "../../../test:create_test_environment",
-    "../../../test:test_support",
-    "../../../test/network:simulated_network",
-    "test:cc_feedback_generator",
-    "//third_party/abseil-cpp/absl/strings",
-  ]
+if (rtc_include_tests) {
+  rtc_library("scream_unittests") {
+    testonly = true
+    sources = [
+      "scream_network_controller_unittest.cc",
+      "scream_v2_unittest.cc",
+    ]
+    deps = [
+      ":scream_network_controller",
+      ":scream_v2",
+      "../../../api/environment",
+      "../../../api/environment:environment_factory",
+      "../../../api/transport:ecn_marking",
+      "../../../api/transport:network_control",
+      "../../../api/units:data_rate",
+      "../../../api/units:data_size",
+      "../../../api/units:time_delta",
+      "../../../api/units:timestamp",
+      "../../../rtc_base:logging",
+      "../../../system_wrappers",
+      "../../../test:create_test_environment",
+      "../../../test:test_support",
+      "../../../test/network:simulated_network",
+      "test:cc_feedback_generator",
+      "//third_party/abseil-cpp/absl/strings",
+    ]
+  }
 }

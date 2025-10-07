@@ -43,6 +43,8 @@ class ScreamNetworkController : public NetworkControllerInterface {
       TransportPacketsFeedback msg) override;
   NetworkControlUpdate OnNetworkStateEstimate(NetworkStateEstimate) override;
 
+  bool SupportsEcnAdaptation() const override { return true; }
+
  private:
   NetworkControlUpdate CreateUpdate(Timestamp now,
                                     DataRate target_rate,

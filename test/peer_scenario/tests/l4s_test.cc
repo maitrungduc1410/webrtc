@@ -38,8 +38,10 @@
 #include "test/create_frame_generator_capturer.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/network/network_emulation.h"
 #include "test/peer_scenario/peer_scenario.h"
 #include "test/peer_scenario/peer_scenario_client.h"
+#include "test/peer_scenario/signaling_route.h"
 
 namespace webrtc {
 namespace {
@@ -560,6 +562,44 @@ TEST(L4STest, SendsEct1UntilFirstFeedback) {
   auto packets_sent_with_ect1_stats =
       GetPacketsSentWithEct1(GetStatsAndProcess(s, caller));
   EXPECT_EQ(packets_sent_with_ect1_stats, feedback_counter.ect1());
+}
+
+TEST(L4STest, SendsEct1WithScream) {
+  PeerScenario s(*test_info_);
+  PeerScenarioClient::Config config;
+  config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
+                          "Enabled,offer:true");
+  config.field_trials.Set("WebRTC-Bwe-ScreamV2", "Enabled");
+  config.disable_encryption = true;
+  PeerScenarioClient* caller = s.CreateClient(config);
+  PeerScenarioClient* callee = s.CreateClient(config);
+  EmulatedNetworkNode* caller_to_callee = s.net()->NodeBuilder().Build().node;
+  EmulatedNetworkNode* callee_to_caller = s.net()->NodeBuilder().Build().node;
+  s.net()->CreateRoute(caller->endpoint(), {caller_to_callee},
+                       callee->endpoint());
+  s.net()->CreateRoute(callee->endpoint(), {callee_to_caller},
+                       caller->endpoint());
+  RtcpFeedbackCounter feedback_counter;
+  callee_to_caller->router()->SetWatcher(
+      [&](const EmulatedIpPacket& packet) { feedback_counter.Count(packet); });
+
+  test::SignalingRoute signaling = s.ConnectSignaling(
+      caller, callee, {caller_to_callee}, {callee_to_caller});
+  PeerScenarioClient::VideoSendTrackConfig video_conf;
+  video_conf.generator.squares_video->framerate = 15;
+  caller->CreateVideo("VIDEO_1", video_conf);
+  signaling.StartIceSignaling();
+  std::atomic<bool> offer_exchange_done(false);
+  signaling.NegotiateSdp([&](const SessionDescriptionInterface& answer) {
+    offer_exchange_done = true;
+  });
+
+  s.WaitAndProcess(&offer_exchange_done);
+  s.ProcessMessages(TimeDelta::Seconds(3));
+  EXPECT_EQ(GetPacketsSentWithEct1(GetStatsAndProcess(s, caller)),
+            feedback_counter.ect1());
+  EXPECT_GT(feedback_counter.ect1(), 0);
+  EXPECT_EQ(feedback_counter.not_ect(), 0);
 }
 
 TEST(L4STest, SendsEct1AfterRouteChange) {
