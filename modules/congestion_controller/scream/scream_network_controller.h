@@ -11,7 +11,7 @@
 #ifndef MODULES_CONGESTION_CONTROLLER_SCREAM_SCREAM_NETWORK_CONTROLLER_H_
 #define MODULES_CONGESTION_CONTROLLER_SCREAM_SCREAM_NETWORK_CONTROLLER_H_
 
-#include <memory>
+#include <optional>
 
 #include "api/environment/environment.h"
 #include "api/transport/network_control.h"
@@ -52,7 +52,7 @@ class ScreamNetworkController : public NetworkControllerInterface {
   PacerConfig GetPacerConfig(DataRate target_rate) const;
 
   Environment env_;
-  std::unique_ptr<ScreamV2> scream_;
+  std::optional<ScreamV2> scream_;
   TargetRateConstraints target_rate_constraints_;
 };
 
