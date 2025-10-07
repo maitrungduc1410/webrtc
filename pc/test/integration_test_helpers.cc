@@ -38,7 +38,10 @@
 #include "rtc_base/fake_network.h"
 #include "rtc_base/socket_server.h"
 #include "rtc_base/thread.h"
+#include "test/gmock.h"
 #include "test/gtest.h"
+
+using testing::NotNull;
 
 namespace webrtc {
 
@@ -135,8 +138,11 @@ TimeDelta TaskQueueMetronome::TickPeriod() const {
 void PeerConnectionIntegrationWrapper::StartWatchingDelayStats() {
   // Get the baseline numbers for audio_packets and audio_delay.
   auto received_stats = NewGetStats();
-  auto rtp_stats =
-      received_stats->GetStatsOfType<RTCInboundRtpStreamStats>()[0];
+  ASSERT_THAT(received_stats, NotNull());
+  auto inbound_stats =
+      received_stats->GetStatsOfType<RTCInboundRtpStreamStats>();
+  ASSERT_FALSE(inbound_stats.empty());
+  auto rtp_stats = inbound_stats[0];
   ASSERT_TRUE(rtp_stats->relative_packet_arrival_delay.has_value());
   ASSERT_TRUE(rtp_stats->packets_received.has_value());
   rtp_stats_id_ = rtp_stats->id();
