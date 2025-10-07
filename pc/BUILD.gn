@@ -1075,6 +1075,7 @@ rtc_library("sdp_munging_detector") {
     "../media:codec",
     "../media:media_constants",
     "../media:stream_params",
+    "../p2p:p2p_constants",
     "../p2p:transport_description",
     "../p2p:transport_info",
     "../rtc_base:checks",
