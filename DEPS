@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '41ca7a370b66ff6c5f842b29577e571aa9f3e7e9',
+  'chromium_revision': 'c382f85f6f19dbc6f0560686876017cdc2447027',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,28 +69,28 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@d496fc3c8221c758ac43bb6f4ee1b241533efec8',
+    'https://chromium.googlesource.com/chromium/src/build@13b50b69a8b4e4d79fec99e453c72cc32ec824e5',
   'src/buildtools':
-    'https://chromium.googlesource.com/chromium/src/buildtools@00586fa43b1dedbd119cfd5c71cb9396d09d53e0',
+    'https://chromium.googlesource.com/chromium/src/buildtools@901e462980aa1cd7e1595b1ecdddbdba351f8c4e',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
   'src/examples/androidtests/third_party/gradle': {
     'url': 'https://chromium.googlesource.com/external/github.com/gradle/gradle.git@f2d1fb54a951d8b11d25748e4711bec8d128d7e3',
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@239060780b2befcf0a37a5136045767087419891',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@ce6a64bcc9a69fcc4f831781bd239db8c079f047',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@b8b3f4dc949417f023d640e8b6f91bd9c8cbd1c7',
+    'https://chromium.googlesource.com/chromium/src/testing@0df4df8485492be8249d9d25816d02254e59609a',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@a1d17d9cba4d21817f06f01bb3b7daafa2dcaa92',
+    'https://chromium.googlesource.com/chromium/src/third_party@8d03db77b50add72441bd147aed120bd2fc18287',
 
   'src/buildtools/linux64': {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:5ddf42d01f30d9db392aedf2cf7e0f36980c882d',
+        'version': 'git_revision:07d3c6f4dc290fae5ca6152ebcb37d6815c411ab',
       }
     ],
     'dep_type': 'cipd',
@@ -100,7 +100,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:5ddf42d01f30d9db392aedf2cf7e0f36980c882d',
+        'version': 'git_revision:07d3c6f4dc290fae5ca6152ebcb37d6815c411ab',
       }
     ],
     'dep_type': 'cipd',
@@ -110,7 +110,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:5ddf42d01f30d9db392aedf2cf7e0f36980c882d',
+        'version': 'git_revision:07d3c6f4dc290fae5ca6152ebcb37d6815c411ab',
       }
     ],
     'dep_type': 'cipd',
@@ -333,7 +333,7 @@ deps = {
   'src/third_party/compiler-rt/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@5436a04e9d9f47771ae83ac5942e1d0e690baf76',
   'src/third_party/libc++/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git@36113b45e92d2c052d1bced583065a6128693bfb',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git@7004cc20b78195efae8c7e6da618d9e048a24ee4',
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@864f61dc9253d56586ada34c388278565ef513f6',
   'src/third_party/llvm-libc/src':
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@1c514626e83c20fffa8557e75641848e1e15cd5e',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@babcfc4ae7d3b38ad6bfbdcbcd2a3cf7132e72c6',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@2460ce2251c84074d79068f18467aff29db28e4d',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -593,7 +593,7 @@ deps = {
   'src/third_party/libFuzzer/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt/lib/fuzzer.git@bea408a6e01f0f7e6c82a43121fe3af4506c932e',
   'src/third_party/fuzztest/src':
-    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@d6013a0fef8e52c950fbc79338a82ebe13aca6b3',
+    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@eca6bcbfa22025eca10789dde7e9eb658d61f1da',
   'src/third_party/libjpeg_turbo':
     'https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git@e14cbfaa85529d47f9f55b0f104a579c1061f9ad',
   'src/third_party/libsrtp':
@@ -609,7 +609,7 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'eced455f5d17079fef42f07fc82fa37fcf17c338',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '11a3d5fb3890853111293ec0991ebff03b28a4f6',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@6ade535dffb6a1af927ded235abfbcfc6be4fa34',
+    'https://chromium.googlesource.com/chromium/src/tools@a05e7faebeb5c0975cf1854ab86901efa6c41270',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'izkLzm4zmxdJwMbKPzb0yHm7cGnHgZ9hotGdmPKZKyQC',
+          'version': 'fyinP9RshUI8vASuLvf1tuBf8jI4KnxUWd6QzLb1b5YC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
