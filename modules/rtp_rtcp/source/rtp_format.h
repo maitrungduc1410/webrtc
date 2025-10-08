@@ -36,7 +36,23 @@ class RtpPacketizer {
     int single_packet_reduction_len = 0;
   };
 
-  // If type is not set, returns a raw packetizer.
+  enum class PacketizationFormat {
+    kGeneric,
+    kRaw,
+    kH264,
+    kH265,
+    kVP8,
+    kVP9,
+    kAV1,
+  };
+  static std::unique_ptr<RtpPacketizer> Create(
+      PacketizationFormat format,
+      ArrayView<const uint8_t> payload,
+      PayloadSizeLimits limits,
+      // Codec-specific details.
+      const RTPVideoHeader& rtp_video_header);
+
+  [[deprecated("b/446768451")]]
   static std::unique_ptr<RtpPacketizer> Create(
       std::optional<VideoCodecType> type,
       ArrayView<const uint8_t> payload,

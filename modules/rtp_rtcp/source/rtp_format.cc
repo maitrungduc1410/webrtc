@@ -33,46 +33,79 @@
 namespace webrtc {
 
 std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
+    PacketizationFormat format,
+    ArrayView<const uint8_t> payload,
+    PayloadSizeLimits limits,
+    // Codec-specific details.
+    const RTPVideoHeader& rtp_video_header) {
+  using enum PacketizationFormat;
+  switch (format) {
+    case kRaw: {
+      return std::make_unique<RtpPacketizerGeneric>(payload, limits);
+    }
+    case kH264: {
+      const auto& h264 =
+          std::get<RTPVideoHeaderH264>(rtp_video_header.video_type_header);
+      return std::make_unique<RtpPacketizerH264>(payload, limits,
+                                                 h264.packetization_mode);
+    }
+    case kVP8: {
+      const auto& vp8 =
+          std::get<RTPVideoHeaderVP8>(rtp_video_header.video_type_header);
+      return std::make_unique<RtpPacketizerVp8>(payload, limits, vp8);
+    }
+    case kVP9: {
+      const auto& vp9 =
+          std::get<RTPVideoHeaderVP9>(rtp_video_header.video_type_header);
+      return std::make_unique<RtpPacketizerVp9>(payload, limits, vp9);
+    }
+    case kAV1:
+      return std::make_unique<RtpPacketizerAv1>(
+          payload, limits, rtp_video_header.frame_type,
+          rtp_video_header.is_last_frame_in_picture);
+    case kH265: {
+#ifdef RTC_ENABLE_H265
+      return std::make_unique<RtpPacketizerH265>(payload, limits);
+#else
+      return std::make_unique<RtpPacketizerGeneric>(payload, limits,
+                                                    rtp_video_header);
+#endif
+    }
+    case kGeneric: {
+      return std::make_unique<RtpPacketizerGeneric>(payload, limits,
+                                                    rtp_video_header);
+    }
+  }
+}
+
+std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
     std::optional<VideoCodecType> type,
     ArrayView<const uint8_t> payload,
     PayloadSizeLimits limits,
     // Codec-specific details.
     const RTPVideoHeader& rtp_video_header) {
   if (!type) {
-    // Use raw packetizer.
-    return std::make_unique<RtpPacketizerGeneric>(payload, limits);
+    return Create(PacketizationFormat::kRaw, payload, limits, rtp_video_header);
   }
-
   switch (*type) {
-    case kVideoCodecH264: {
-      const auto& h264 =
-          std::get<RTPVideoHeaderH264>(rtp_video_header.video_type_header);
-      return std::make_unique<RtpPacketizerH264>(payload, limits,
-                                                 h264.packetization_mode);
-    }
-    case kVideoCodecVP8: {
-      const auto& vp8 =
-          std::get<RTPVideoHeaderVP8>(rtp_video_header.video_type_header);
-      return std::make_unique<RtpPacketizerVp8>(payload, limits, vp8);
-    }
-    case kVideoCodecVP9: {
-      const auto& vp9 =
-          std::get<RTPVideoHeaderVP9>(rtp_video_header.video_type_header);
-      return std::make_unique<RtpPacketizerVp9>(payload, limits, vp9);
-    }
+    case kVideoCodecH264:
+      return Create(PacketizationFormat::kH264, payload, limits,
+                    rtp_video_header);
+    case kVideoCodecVP8:
+      return Create(PacketizationFormat::kVP8, payload, limits,
+                    rtp_video_header);
+    case kVideoCodecVP9:
+      return Create(PacketizationFormat::kVP9, payload, limits,
+                    rtp_video_header);
     case kVideoCodecAV1:
-      return std::make_unique<RtpPacketizerAv1>(
-          payload, limits, rtp_video_header.frame_type,
-          rtp_video_header.is_last_frame_in_picture);
-#ifdef RTC_ENABLE_H265
-    case kVideoCodecH265: {
-      return std::make_unique<RtpPacketizerH265>(payload, limits);
-    }
-#endif
-    default: {
-      return std::make_unique<RtpPacketizerGeneric>(payload, limits,
-                                                    rtp_video_header);
-    }
+      return Create(PacketizationFormat::kAV1, payload, limits,
+                    rtp_video_header);
+    case kVideoCodecH265:
+      return Create(PacketizationFormat::kH265, payload, limits,
+                    rtp_video_header);
+    default:
+      return Create(PacketizationFormat::kGeneric, payload, limits,
+                    rtp_video_header);
   }
 }
 
