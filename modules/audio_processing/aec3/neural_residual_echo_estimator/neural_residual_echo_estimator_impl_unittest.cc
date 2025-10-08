@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/aec3/neural_residual_echo_estimator_impl.h"
+#include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator_impl.h"
 
 #include <algorithm>
 #include <array>
@@ -20,7 +20,7 @@
 
 #include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
-#include "modules/audio_processing/aec3/neural_feature_extractor.h"
+#include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_feature_extractor.h"
 #include "modules/audio_processing/test/echo_canceller_test_tools.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/random.h"
@@ -29,9 +29,9 @@
 #include "test/testsupport/file_utils.h"
 #include "third_party/tflite/src/tensorflow/lite/kernels/register.h"
 #ifdef WEBRTC_ANDROID_PLATFORM_BUILD
-#include "external/webrtc/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator.pb.h"
+#include "external/webrtc/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator.pb.h"
 #else
-#include "modules/audio_processing/aec3/neural_residual_echo_estimator.pb.h"
+#include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator.pb.h"
 #endif
 
 namespace webrtc {

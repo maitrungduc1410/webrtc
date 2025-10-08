@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/aec3/neural_feature_extractor.h"
+#include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_feature_extractor.h"
 
 #include <algorithm>
 #include <array>

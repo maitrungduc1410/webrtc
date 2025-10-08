@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_AUDIO_PROCESSING_AEC3_NEURAL_FEATURE_EXTRACTOR_H_
-#define MODULES_AUDIO_PROCESSING_AEC3_NEURAL_FEATURE_EXTRACTOR_H_
+#ifndef MODULES_AUDIO_PROCESSING_AEC3_NEURAL_RESIDUAL_ECHO_ESTIMATOR_NEURAL_FEATURE_EXTRACTOR_H_
+#define MODULES_AUDIO_PROCESSING_AEC3_NEURAL_RESIDUAL_ECHO_ESTIMATOR_NEURAL_FEATURE_EXTRACTOR_H_
 
 #include <cstring>
 #include <memory>
@@ -58,7 +58,7 @@ class FrequencyDomainFeatureExtractor : public FeatureExtractor {
  private:
   class PffftState {
    public:
-    PffftState(int frame_size)
+    explicit PffftState(int frame_size)
         : data_(static_cast<float*>(
               pffft_aligned_malloc(frame_size * sizeof(float)))) {
       std::memset(data_, 0, sizeof(float) * frame_size);
@@ -78,4 +78,4 @@ class FrequencyDomainFeatureExtractor : public FeatureExtractor {
 };
 
 }  // namespace webrtc
-#endif  // MODULES_AUDIO_PROCESSING_AEC3_NEURAL_FEATURE_EXTRACTOR_H_
+#endif  // MODULES_AUDIO_PROCESSING_AEC3_NEURAL_RESIDUAL_ECHO_ESTIMATOR_NEURAL_FEATURE_EXTRACTOR_H_

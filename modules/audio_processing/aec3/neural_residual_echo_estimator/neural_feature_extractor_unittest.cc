@@ -49,7 +49,7 @@ print(format_as_cpp_array(expected_output1, "expected_output1"))
 print(format_as_cpp_array(expected_output2, "expected_output2"))
 */
 
-#include "modules/audio_processing/aec3/neural_feature_extractor.h"
+#include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_feature_extractor.h"
 
 #include <vector>
 
