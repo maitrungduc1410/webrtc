@@ -26,12 +26,8 @@
 #include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "api/jsep.h"
-#include "api/rtp_parameters.h"
-#include "rtc_base/strings/string_builder.h"
 
 namespace webrtc {
-struct SdpParseError;
-
 // Serializes the passed in SessionDescriptionInterface.
 // Serialize SessionDescription including candidates if
 // SessionDescriptionInterface has candidates.
@@ -48,18 +44,6 @@ absl_nullable std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(
     SdpType sdp_type,
     absl::string_view sdp,
     SdpParseError* absl_nullable error = nullptr);
-
-// Generates an FMTP line based on `parameters`. Please note that some
-// parameters are not considered to be part of the FMTP line, see the function
-// IsFmtpParam(). Returns true if the set of FMTP parameters is nonempty, false
-// otherwise.
-bool WriteFmtpParameters(const CodecParameterMap& parameters,
-                         StringBuilder* os);
-
-// Parses a string into an FMTP parameter set, in key-value format.
-bool ParseFmtpParameterSet(absl::string_view line_params,
-                           CodecParameterMap& codec_params,
-                           SdpParseError* error);
 
 }  // namespace webrtc
 
