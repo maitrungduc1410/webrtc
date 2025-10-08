@@ -19,12 +19,6 @@
 
 namespace webrtc {
 
-std::unique_ptr<SessionDescriptionInterface> CloneSessionDescription(
-    const SessionDescriptionInterface* sdesc) {
-  RTC_DCHECK(sdesc);
-  return CloneSessionDescriptionAsType(sdesc, sdesc->GetType());
-}
-
 std::unique_ptr<SessionDescriptionInterface> CloneSessionDescriptionAsType(
     const SessionDescriptionInterface* sdesc,
     SdpType type) {

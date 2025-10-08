@@ -28,7 +28,6 @@
 #include "api/units/time_delta.h"
 #include "pc/peer_connection.h"
 #include "pc/peer_connection_wrapper.h"
-#include "pc/sdp_utils.h"
 #include "pc/test/enable_fake_media.h"
 #include "pc/test/mock_peer_connection_observers.h"
 #include "pc/usage_pattern.h"
@@ -192,8 +191,7 @@ class PeerConnectionWrapperForUsageHistogramTest
     if (!offer) {
       return false;
     }
-    bool set_local_offer =
-        SetLocalDescription(CloneSessionDescription(offer.get()));
+    bool set_local_offer = SetLocalDescription(offer->Clone());
     EXPECT_TRUE(set_local_offer);
     if (!set_local_offer) {
       return false;
@@ -697,7 +695,7 @@ TEST_F(PeerConnectionUsageHistogramTest,
 
   // By default, the Answer created does not contain ICE candidates.
   std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
-  callee->SetLocalDescription(CloneSessionDescription(answer.get()));
+  callee->SetLocalDescription(answer->Clone());
   caller->SetRemoteDescription(std::move(answer));
   EXPECT_THAT(
       WaitUntil([&] { return caller->IsConnected(); }, ::testing::IsTrue()),

@@ -1346,6 +1346,7 @@ rtc_library("sdp_utils") {
     "../p2p:transport_info",
     "../rtc_base:checks",
     "../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/base:core_headers",
   ]
 }
 rtc_library("legacy_stats_collector") {
@@ -2338,6 +2339,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":peer_connection",
       ":peerconnection_wrapper",
       ":sdp_utils",
+      ":session_description",
       "../api:audio_options_api",
       "../api:create_modular_peer_connection_factory",
       "../api:enable_media_with_defaults",

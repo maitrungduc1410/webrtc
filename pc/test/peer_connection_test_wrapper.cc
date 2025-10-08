@@ -56,7 +56,6 @@
 #include "api/video_codecs/video_encoder_factory_template_open_h264_adapter.h"
 #include "media/engine/simulcast_encoder_adapter.h"
 #include "p2p/test/fake_port_allocator.h"
-#include "pc/sdp_utils.h"
 #include "pc/test/fake_audio_capture_module.h"
 #include "pc/test/fake_periodic_video_source.h"
 #include "pc/test/fake_periodic_video_track_source.h"
@@ -282,10 +281,9 @@ PeerConnectionTestWrapper::AwaitCreateAnswer() {
 }
 
 void PeerConnectionTestWrapper::AwaitSetLocalDescription(
-    SessionDescriptionInterface* sdp) {
+    webrtc::SessionDescriptionInterface* sdp) {
   auto observer = make_ref_counted<MockSetSessionDescriptionObserver>();
-  peer_connection_->SetLocalDescription(observer.get(),
-                                        CloneSessionDescription(sdp).release());
+  peer_connection_->SetLocalDescription(observer.get(), sdp->Clone().release());
   EXPECT_THAT(
       WaitUntil([&] { return observer->called(); }, ::testing::IsTrue()),
       IsRtcOk());
@@ -294,8 +292,8 @@ void PeerConnectionTestWrapper::AwaitSetLocalDescription(
 void PeerConnectionTestWrapper::AwaitSetRemoteDescription(
     SessionDescriptionInterface* sdp) {
   auto observer = make_ref_counted<MockSetSessionDescriptionObserver>();
-  peer_connection_->SetRemoteDescription(
-      observer.get(), CloneSessionDescription(sdp).release());
+  peer_connection_->SetRemoteDescription(observer.get(),
+                                         sdp->Clone().release());
   EXPECT_THAT(
       WaitUntil([&] { return observer->called(); }, ::testing::IsTrue()),
       IsRtcOk());

@@ -74,7 +74,6 @@
 #include "pc/rtp_media_utils.h"
 #include "pc/rtp_sender.h"
 #include "pc/rtp_sender_proxy.h"
-#include "pc/sdp_utils.h"
 #include "pc/session_description.h"
 #include "pc/stream_collection.h"
 #include "pc/test/fake_audio_capture_module.h"
@@ -1001,7 +1000,7 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   void CreateOfferReceiveAnswer() {
     CreateOfferAsLocalDescription();
     std::unique_ptr<SessionDescriptionInterface> offer =
-        CloneSessionDescription(pc_->local_description());
+        pc_->local_description()->Clone();
     // Adapts the offer so that it can serve as an answer.
     // This test does not use DTLS so direcetion does not have
     // to be adapted in a similar way.
