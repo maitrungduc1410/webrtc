@@ -63,6 +63,8 @@ FrequencyDomainFeatureExtractor::FrequencyDomainFeatureExtractor(int step_size)
       sqrt_hanning_(GetSqrtHanningWindow(frame_size_, kScale)),
       spectrum_(static_cast<float*>(
           pffft_aligned_malloc(frame_size_ * sizeof(float)))),
+      work_(static_cast<float*>(
+          pffft_aligned_malloc(frame_size_ * sizeof(float)))),
       pffft_setup_(pffft_new_setup(frame_size_, PFFFT_REAL)),
       pffft_states_(
           static_cast<size_t>(FeatureExtractor::ModelInputEnum::kNumInputs)) {
@@ -75,6 +77,7 @@ FrequencyDomainFeatureExtractor::FrequencyDomainFeatureExtractor(int step_size)
 
 FrequencyDomainFeatureExtractor::~FrequencyDomainFeatureExtractor() {
   pffft_destroy_setup(pffft_setup_);
+  pffft_aligned_free(work_);
   pffft_aligned_free(spectrum_);
 }
 
@@ -93,8 +96,7 @@ void FrequencyDomainFeatureExtractor::PushFeaturesToModelInput(
   for (int k = 0; k < frame_size_; ++k) {
     data[k] *= sqrt_hanning_[k];
   }
-  pffft_transform_ordered(pffft_setup_, data, spectrum_, nullptr,
-                          PFFFT_FORWARD);
+  pffft_transform_ordered(pffft_setup_, data, spectrum_, work_, PFFFT_FORWARD);
   RTC_CHECK_EQ(model_input.size(), step_size_ + 1);
   model_input[0] = spectrum_[0] * spectrum_[0];
   model_input[step_size_] = spectrum_[1] * spectrum_[1];

@@ -73,6 +73,7 @@ class FrequencyDomainFeatureExtractor : public FeatureExtractor {
   const int frame_size_;
   const std::vector<float> sqrt_hanning_;
   float* const spectrum_;
+  float* const work_;
   PFFFT_Setup* pffft_setup_;
   std::vector<std::unique_ptr<PffftState>> pffft_states_;
 };

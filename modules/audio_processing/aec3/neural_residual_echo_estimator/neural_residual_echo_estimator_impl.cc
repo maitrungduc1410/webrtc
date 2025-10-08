@@ -49,6 +49,7 @@ namespace webrtc {
 namespace {
 using ModelInputEnum = FeatureExtractor::ModelInputEnum;
 using ModelOutputEnum = FeatureExtractor::ModelOutputEnum;
+const std::array<int, 1> kSupportedFrameSizeSamples = {256};
 
 // A TFLite ErrorReporter that writes its messages to RTC_LOG.
 class LoggingErrorReporter : public tflite::ErrorReporter {
@@ -122,6 +123,9 @@ class TfLiteModelRunner : public NeuralResidualEchoEstimatorImpl::ModelRunner {
     }
 
     RTC_CHECK_EQ(frame_size_ % kBlockSize, 0);
+    RTC_CHECK(std::any_of(kSupportedFrameSizeSamples.cbegin(),
+                          kSupportedFrameSizeSamples.cend(),
+                          [this](int a) { return a == frame_size_; }));
     RTC_CHECK_EQ(tflite::NumElements(tflite_interpreter_->input_tensor(
                      static_cast<int>(ModelInputEnum::kLinearAecOutput))),
                  input_tensor_size_);

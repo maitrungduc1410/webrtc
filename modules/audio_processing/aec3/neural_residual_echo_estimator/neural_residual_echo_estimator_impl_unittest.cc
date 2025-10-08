@@ -262,8 +262,7 @@ TEST(NeuralResidualEchoEstimatorWithRealModelTest,
 
   const audioproc::ReeModelMetadata metadata =
       tflite_model_runner->GetMetadata();
-  // Default version 1 is returned when model metadata is missing.
-  ASSERT_EQ(metadata.version(), 1);
+  ASSERT_EQ(metadata.version(), 2);
 
   NeuralResidualEchoEstimatorImpl estimator(std::move(tflite_model_runner));
 
