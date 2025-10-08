@@ -26,6 +26,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -153,6 +154,8 @@ const char kSdpDelimiterSpace[] = " ";
 const char kSdpDelimiterSpaceChar = ' ';
 constexpr absl::string_view kSdpDelimiterColon = ":";
 const char kSdpDelimiterColonChar = ':';
+const char kSdpDelimiterSemicolon[] = ";";
+const char kSdpDelimiterSemicolonChar = ';';
 const char kSdpDelimiterSlashChar = '/';
 const char kNewLineChar = '\n';
 const char kReturnChar = '\r';
@@ -1008,12 +1011,24 @@ void WriteRtcpFbHeader(int payload_type, StringBuilder* os) {
   }
 }
 
+void WriteFmtpParameter(absl::string_view parameter_name,
+                        absl::string_view parameter_value,
+                        StringBuilder* os) {
+  if (parameter_name.empty()) {
+    // RFC 2198 and RFC 4733 don't use key-value pairs.
+    *os << parameter_value;
+  } else {
+    // fmtp parameters: `parameter_name`=`parameter_value`
+    *os << parameter_name << kSdpDelimiterEqual << parameter_value;
+  }
+}
+
 void AddFmtpLine(const Codec& codec, std::string* message) {
   StringBuilder os;
   WriteFmtpHeader(codec.id, &os);
   os << kSdpDelimiterSpace;
   // Create FMTP line and check that it's nonempty.
-  if (WriteFmtpParameters(codec.params, os)) {
+  if (WriteFmtpParameters(codec.params, &os)) {
     AddLine(os.str(), message);
   }
   return;
@@ -1416,6 +1431,14 @@ void BuildMediaDescription(const ContentInfo* content_info,
   } else if (IsRtpProtocol(media_desc->protocol())) {
     BuildRtpContentAttributes(media_desc, media_type, msid_signaling, message);
   }
+}
+
+bool IsFmtpParam(absl::string_view name) {
+  // RFC 4855, section 3 specifies the mapping of media format parameters to SDP
+  // parameters. Only ptime, maxptime, channels and rate are placed outside of
+  // the fmtp line. In WebRTC, channels and rate are already handled separately
+  // and thus not included in the CodecParameterMap.
+  return name != kCodecParamPTime && name != kCodecParamMaxPTime;
 }
 
 bool ParseConnectionData(absl::string_view line,
@@ -2014,6 +2037,20 @@ void UpdateCodec(MediaContentDescription* content_desc,
   AddOrReplaceCodec(content_desc, new_codec);
 }
 
+bool ParseFmtpParam(absl::string_view line,
+                    std::string* parameter,
+                    std::string* value,
+                    SdpParseError* error) {
+  if (!tokenize_first(line, kSdpDelimiterEqualChar, parameter, value)) {
+    // Support for non-key-value lines like RFC 2198 or RFC 4733.
+    *parameter = "";
+    *value = std::string(line);
+    return true;
+  }
+  // a=fmtp:<payload_type> <param1>=<value1>; <param2>=<value2>; ...
+  return true;
+}
+
 bool ParseFmtpAttributes(absl::string_view line,
                          const MediaType media_type,
                          MediaContentDescription* media_desc,
@@ -2049,7 +2086,7 @@ bool ParseFmtpAttributes(absl::string_view line,
 
   // Parse out format specific parameters.
   CodecParameterMap codec_params;
-  if (!ParseFmtpParameterSet(line_params, codec_params).ok()) {
+  if (!ParseFmtpParameterSet(line_params, codec_params, error)) {
     return false;
   }
 
@@ -3249,6 +3286,47 @@ std::unique_ptr<SessionDescriptionInterface> SdpDeserialize(
   }
 
   return description;
+}
+
+bool WriteFmtpParameters(const CodecParameterMap& parameters,
+                         StringBuilder* os) {
+  bool empty = true;
+  const char* delimiter = "";  // No delimiter before first parameter.
+  for (const auto& entry : parameters) {
+    const std::string& key = entry.first;
+    const std::string& value = entry.second;
+
+    if (IsFmtpParam(key)) {
+      *os << delimiter;
+      // A semicolon before each subsequent parameter.
+      delimiter = kSdpDelimiterSemicolon;
+      WriteFmtpParameter(key, value, os);
+      empty = false;
+    }
+  }
+
+  return !empty;
+}
+
+bool ParseFmtpParameterSet(absl::string_view line_params,
+                           CodecParameterMap& codec_params,
+                           SdpParseError* error) {
+  // Parse out format specific parameters.
+  for (absl::string_view param :
+       split(line_params, kSdpDelimiterSemicolonChar)) {
+    std::string name;
+    std::string value;
+    if (!ParseFmtpParam(absl::StripAsciiWhitespace(param), &name, &value,
+                        error)) {
+      return false;
+    }
+    if (codec_params.find(name) != codec_params.end()) {
+      RTC_LOG(LS_INFO) << "Overwriting duplicate fmtp parameter with key \""
+                       << name << "\".";
+    }
+    codec_params[name] = value;
+  }
+  return true;
 }
 
 }  // namespace webrtc

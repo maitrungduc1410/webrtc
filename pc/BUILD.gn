@@ -994,6 +994,7 @@ rtc_library("rtc_stats_collector") {
     ":sctp_data_channel",
     ":track_media_info_map",
     ":transport_stats",
+    ":webrtc_sdp",
     "../api:array_view",
     "../api:candidate",
     "../api:dtls_transport_interface",
@@ -1043,18 +1044,6 @@ rtc_library("rtc_stats_collector") {
     "//third_party/abseil-cpp/absl/functional:bind_front",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
-
-    # TODO:bugs.webrtc.org/42222470 - This dependency shouldn't be here.
-    # `rtc_stats_collector` doesn't actually depend on this target. But due
-    # to a cyclical dependency between api/jsep.h and webrtc_sdp, this
-    # dependency has pulled in code from webrtc_sdp to other targets that
-    # depend on types declared in api/jsep.h and also have a dependency on
-    # `rtc_stats_collector`. The webrtc_sdp target depends on api/jsep.h, so
-    # that cycle prevents the dependencies from being set up correctly.
-    # Somehow (historically), this dependency here, has saved the day by
-    # pulling in the right symbols. Remove this once the remaining webrtc_sdp
-    # code gets co-located with jsep.h.
-    ":webrtc_sdp",
   ]
 }
 

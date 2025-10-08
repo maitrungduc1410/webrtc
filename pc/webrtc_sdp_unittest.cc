@@ -4965,6 +4965,27 @@ TEST_F(WebRtcSdpTest, BackfillsDefaultFmtpValues) {
   EXPECT_EQ(value, "SRST");
 }
 
+TEST_F(WebRtcSdpTest, ParsesKeyValueFmtpParameterSet) {
+  std::string params = "key1=value1;key2=value2";
+  CodecParameterMap codec_params;
+  SdpParseError error;
+
+  ASSERT_TRUE(ParseFmtpParameterSet(params, codec_params, &error));
+  EXPECT_EQ(2U, codec_params.size());
+  EXPECT_EQ(codec_params["key1"], "value1");
+  EXPECT_EQ(codec_params["key2"], "value2");
+}
+
+TEST_F(WebRtcSdpTest, ParsesNonKeyValueFmtpParameterSet) {
+  std::string params = "not-in-key-value-format";
+  CodecParameterMap codec_params;
+  SdpParseError error;
+
+  ASSERT_TRUE(ParseFmtpParameterSet(params, codec_params, &error));
+  EXPECT_EQ(1U, codec_params.size());
+  EXPECT_EQ(codec_params[""], "not-in-key-value-format");
+}
+
 TEST_F(WebRtcSdpTest, SctpProtocolWithNonApplication) {
   std::string sdp =
       "v=0\r\n"
