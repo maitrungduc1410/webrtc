@@ -5,7 +5,6 @@ tommi@webrtc.org
 
 # For approvals that absolutely must be done on US Pacific time
 deadbeef@webrtc.org
-tkchin@webrtc.org
 
 per-file peer_connection*=hbos@webrtc.org
 
