@@ -980,6 +980,7 @@ rtc_library("time_controller") {
   ]
 
   deps = [
+    ":function_view",
     "../rtc_base:socket_server",
     "../rtc_base:threading",
     "../rtc_base/synchronization:yield_policy",
