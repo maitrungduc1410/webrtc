@@ -20,7 +20,7 @@
 #include "test/gmock.h"
 #include "test/gtest.h"
 
-namespace webrtc::video_frame_simulator {
+namespace webrtc::video_timing_simulator {
 namespace {
 
 constexpr int kBaseRtpHeaderSize = 12;
@@ -119,4 +119,4 @@ TEST(RtpPacketSimulatorTest, SimulatesSizes) {
 
 }  // namespace
 
-}  // namespace webrtc::video_frame_simulator
+}  // namespace webrtc::video_timing_simulator
