@@ -1090,6 +1090,7 @@ rtc_library("datagram_connection") {
     "../rtc_base:macromagic",
     "../rtc_base/system:rtc_export",
     "environment",
+    "units:timestamp",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
@@ -1632,7 +1633,9 @@ if (rtc_include_tests) {
     testonly = true
     sources = [ "test/mock_datagram_connection_observer.h" ]
     deps = [
-      "../api:datagram_connection",
+      ":array_view",
+      ":candidate",
+      ":datagram_connection",
       "//test:test_support",
       "//testing/gmock",
     ]
