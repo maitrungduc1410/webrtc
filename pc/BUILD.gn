@@ -1000,7 +1000,6 @@ rtc_library("rtc_stats_collector") {
     ":sctp_data_channel",
     ":track_media_info_map",
     ":transport_stats",
-    ":webrtc_sdp",
     "../api:array_view",
     "../api:candidate",
     "../api:dtls_transport_interface",
