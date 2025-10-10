@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "pc/webrtc_sdp.h"
+#include "api/webrtc_sdp.h"
 
 #include <algorithm>
 #include <cctype>
@@ -46,7 +46,6 @@
 #include "p2p/base/transport_description.h"
 #include "p2p/base/transport_info.h"
 #include "pc/media_protocol_names.h"
-#include "pc/media_session.h"
 #include "pc/session_description.h"
 #include "pc/simulcast_description.h"
 #include "pc/simulcast_sdp_serializer.h"
@@ -3108,6 +3107,28 @@ bool ParseMediaDescription(
   return true;
 }
 
+bool IsMediaType(const MediaContentDescription* description, MediaType type) {
+  return description && description->type() == type;
+}
+
+const ContentInfo* GetFirstMediaContent(const ContentInfos& contents,
+                                        MediaType type) {
+  for (const ContentInfo& content : contents) {
+    if (IsMediaType(content.media_description(), type)) {
+      return &content;
+    }
+  }
+  return nullptr;
+}
+
+const ContentInfo* LegacyGetFirstAudioContent(const SessionDescription& sdesc) {
+  return GetFirstMediaContent(sdesc.contents(), MediaType::AUDIO);
+}
+
+const ContentInfo* LegacyGetFirstVideoContent(const SessionDescription& sdesc) {
+  return GetFirstMediaContent(sdesc.contents(), MediaType::VIDEO);
+}
+
 }  // namespace
 
 std::string SdpSerialize(const SessionDescriptionInterface& jdesc) {
@@ -3171,11 +3192,11 @@ std::string SdpSerialize(const SessionDescriptionInterface& jdesc) {
     // audio/video content. Fixing that might result in much larger SDP and the
     // msid-semantic line should eventually go away so this is not worth fixing.
     std::set<std::string> media_stream_ids;
-    const ContentInfo* audio_content = GetFirstAudioContent(desc);
+    const ContentInfo* audio_content = LegacyGetFirstAudioContent(*desc);
     if (audio_content)
       GetMediaStreamIds(audio_content, &media_stream_ids);
 
-    const ContentInfo* video_content = GetFirstVideoContent(desc);
+    const ContentInfo* video_content = LegacyGetFirstVideoContent(*desc);
     if (video_content)
       GetMediaStreamIds(video_content, &media_stream_ids);
 

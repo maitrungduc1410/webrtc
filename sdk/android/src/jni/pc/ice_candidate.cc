@@ -14,7 +14,7 @@
 
 #include "absl/strings/string_view.h"
 #include "api/jsep.h"
-#include "pc/webrtc_sdp.h"
+#include "api/webrtc_sdp.h"
 #include "sdk/android/generated_peerconnection_jni/IceCandidate_jni.h"
 #include "sdk/android/native_api/jni/java_types.h"
 #include "sdk/android/src/jni/pc/media_stream_track.h"

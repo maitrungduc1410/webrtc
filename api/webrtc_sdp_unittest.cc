@@ -52,7 +52,7 @@
 #ifdef WEBRTC_ANDROID
 #include "pc/test/android_test_initializer.h"
 #endif
-#include "pc/webrtc_sdp.h"
+#include "api/webrtc_sdp.h"
 
 namespace webrtc {
 

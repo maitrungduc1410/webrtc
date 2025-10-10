@@ -320,17 +320,42 @@ rtc_library("jsep") {
     "jsep_ice_candidate.cc",
     "jsep_ice_candidate.h",
     "jsep_session_description.h",
+    "webrtc_sdp.cc",
+    "webrtc_sdp.h",
   ]
   deps = [
     ":candidate",
     ":ref_count",
     ":rtc_error",
+    ":rtp_parameters",
+    ":rtp_transceiver_direction",
+    ":sctp_transport_interface",
     ":sequence_checker",
+    "../media:codec",
+    "../media:media_constants",
+    "../media:rid_description",
+    "../media:rtp_utils",
+    "../media:stream_params",
+    "../p2p:p2p_constants",
+    "../p2p:transport_description",
+    "../p2p:transport_info",
+    "../pc:media_protocol_names",
+    "../pc:session_description",
+    "../pc:simulcast_description",
+    "../pc:simulcast_sdp_serializer",
     "../rtc_base:checks",
+    "../rtc_base:crypto_random",
+    "../rtc_base:ip_address",
     "../rtc_base:logging",
     "../rtc_base:macromagic",
+    "../rtc_base:net_helper",
+    "../rtc_base:net_helpers",
+    "../rtc_base:socket_address",
+    "../rtc_base:ssl",
+    "../rtc_base:stringutils",
     "../rtc_base/system:no_unique_address",
     "../rtc_base/system:rtc_export",
+    "audio:audio_frame_api",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/memory",
@@ -1694,6 +1719,7 @@ if (rtc_include_tests) {
       "scoped_refptr_unittest.cc",
       "sequence_checker_unittest.cc",
       "test/peerconnection_quality_test_fixture_unittest.cc",
+      "webrtc_sdp_unittest.cc",
     ]
 
     deps = [
@@ -1709,16 +1735,29 @@ if (rtc_include_tests) {
       ":rtp_headers",
       ":rtp_packet_info",
       ":rtp_parameters",
+      ":rtp_transceiver_direction",
       ":scoped_refptr",
       ":sequence_checker",
+      "../media:codec",
+      "../media:media_constants",
+      "../media:rid_description",
+      "../media:stream_params",
       "../p2p:p2p_constants",
+      "../p2p:transport_description",
+      "../p2p:transport_info",
+      "../pc:media_protocol_names",
+      "../pc:media_session",
+      "../pc:session_description",
+      "../pc:simulcast_description",
       "../rtc_base:buffer",
       "../rtc_base:checks",
+      "../rtc_base:digest",
       "../rtc_base:logging",
       "../rtc_base:macromagic",
       "../rtc_base:platform_thread",
       "../rtc_base:rtc_event",
       "../rtc_base:socket_address",
+      "../rtc_base:ssl",
       "../rtc_base:task_queue_for_test",
       "../rtc_base/containers:flat_set",
       "../rtc_base/synchronization:sequence_checker_internal",
@@ -1741,13 +1780,20 @@ if (rtc_include_tests) {
       "video/corruption_detection:frame_instrumentation_data_unittest",
       "video/corruption_detection:frame_instrumentation_evaluation_unittest",
       "video/corruption_detection:frame_instrumentation_generator_unittest",
+      "//third_party/abseil-cpp/absl/algorithm:container",
+      "//third_party/abseil-cpp/absl/base:nullability",
       "//third_party/abseil-cpp/absl/functional:any_invocable",
+      "//third_party/abseil-cpp/absl/memory",
       "//third_party/abseil-cpp/absl/strings",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
 
     if (rtc_use_h265) {
       deps += [ "video:rtp_video_frame_h265_assembler_unittests" ]
+    }
+
+    if (is_android) {
+      deps += [ "../pc:android_black_magic" ]
     }
   }
 

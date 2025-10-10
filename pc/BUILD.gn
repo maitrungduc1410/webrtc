@@ -829,7 +829,11 @@ rtc_source_set("rtc_pc") {
 }
 
 rtc_library("media_protocol_names") {
-  visibility = [ ":*" ]
+  visibility = [
+    ":*",
+    "../api:jsep",
+    "../api:rtc_api_unittests",
+  ]
   sources = [
     "media_protocol_names.cc",
     "media_protocol_names.h",
@@ -1313,7 +1317,10 @@ rtc_library("peer_connection") {
 }
 
 rtc_library("simulcast_sdp_serializer") {
-  visibility = [ ":*" ]
+  visibility = [
+    ":*",
+    "../api:jsep",
+  ]
 
   sources = [
     "simulcast_sdp_serializer.cc",
@@ -1429,54 +1436,14 @@ rtc_library("track_media_info_map") {
     "../rtc_base:threading",
   ]
 }
-rtc_library("webrtc_sdp") {
-  # TODO(bugs.webrtc.org/13661): Reduce visibility if possible
-  visibility = [ "*" ]  # Used by Chrome and more
 
-  sources = [
-    "jsep_session_description.cc",
-    "webrtc_sdp.cc",
-    "webrtc_sdp.h",
-  ]
-  deps = [
-    ":media_protocol_names",
-    ":media_session",
-    ":session_description",
-    ":simulcast_description",
-    ":simulcast_sdp_serializer",
-    "../api:candidate",
-    "../api:jsep",
-    "../api:rtc_error",
-    "../api:rtp_parameters",
-    "../api:rtp_transceiver_direction",
-    "../api:sctp_transport_interface",
-    "../api:sequence_checker",
-    "../api/audio:audio_frame_api",
-    "../media:codec",
-    "../media:media_constants",
-    "../media:rid_description",
-    "../media:rtp_utils",
-    "../media:stream_params",
-    "../p2p:p2p_constants",
-    "../p2p:transport_description",
-    "../p2p:transport_info",
-    "../rtc_base:checks",
-    "../rtc_base:crypto_random",
-    "../rtc_base:ip_address",
-    "../rtc_base:logging",
-    "../rtc_base:net_helper",
-    "../rtc_base:net_helpers",
-    "../rtc_base:socket_address",
-    "../rtc_base:ssl",
-    "../rtc_base:stringutils",
-    "../rtc_base/system:rtc_export",
-    "//third_party/abseil-cpp/absl/algorithm:container",
-    "//third_party/abseil-cpp/absl/base:nullability",
-    "//third_party/abseil-cpp/absl/memory",
-    "//third_party/abseil-cpp/absl/strings",
-    "//third_party/abseil-cpp/absl/strings:string_view",
-  ]
+# TODO(bugs.webrtc.org/42222470): Remove this target.
+rtc_library("webrtc_sdp") {
+  visibility = [ "*" ]  # Used by Chrome and more
+  sources = [ "webrtc_sdp.h" ]
+  deps = [ "../api:jsep" ]
 }
+
 rtc_library("webrtc_session_description_factory") {
   visibility = [ ":*" ]
   sources = [
@@ -2509,7 +2476,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "track_media_info_map_unittest.cc",
       "video_rtp_track_source_unittest.cc",
       "video_track_unittest.cc",
-      "webrtc_sdp_unittest.cc",
     ]
 
     deps = [
