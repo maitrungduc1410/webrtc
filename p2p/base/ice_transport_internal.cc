@@ -282,5 +282,13 @@ void IceTransportInternal::SubscribeDestroyed(
     absl::AnyInvocable<void(IceTransportInternal*)> callback) {
   destroyed_trampoline_.Subscribe(std::move(callback));
 }
+void IceTransportInternal::SubscribeDestroyed(
+    void* tag,
+    absl::AnyInvocable<void(IceTransportInternal*)> callback) {
+  destroyed_trampoline_.Subscribe(tag, std::move(callback));
+}
+void IceTransportInternal::UnsubscribeDestroyed(void* tag) {
+  destroyed_trampoline_.Unsubscribe(tag);
+}
 
 }  // namespace webrtc
