@@ -27,8 +27,8 @@ namespace webrtc {
 const char* DegradationPreferenceToString(
     DegradationPreference degradation_preference) {
   switch (degradation_preference) {
-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
-      return "maintain-framerate-and-resolution";
+    case DegradationPreference::DISABLED:
+      return "disabled";
     case DegradationPreference::MAINTAIN_FRAMERATE:
       return "maintain-framerate";
     case DegradationPreference::MAINTAIN_RESOLUTION:

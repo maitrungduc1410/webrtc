@@ -32,8 +32,8 @@ DegradationPreference JavaToNativeDegradationPreference(
     const JavaRef<jobject>& j_degradation_preference) {
   std::string enum_name = GetJavaEnumName(jni, j_degradation_preference);
 
-  if (enum_name == "MAINTAIN_FRAMERATE_AND_RESOLUTION")
-    return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
+  if (enum_name == "DISABLED")
+    return DegradationPreference::DISABLED;
 
   if (enum_name == "MAINTAIN_FRAMERATE")
     return DegradationPreference::MAINTAIN_FRAMERATE;
@@ -46,7 +46,7 @@ DegradationPreference JavaToNativeDegradationPreference(
 
   RTC_CHECK(false) << "Unexpected DegradationPreference enum_name "
                    << enum_name;
-  return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
+  return DegradationPreference::DISABLED;
 }
 
 ScopedJavaLocalRef<jobject> NativeToJavaRtpEncodingParameter(

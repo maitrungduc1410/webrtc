@@ -140,7 +140,6 @@ TEST_F(CpuOveruseTest, AdaptsDownInResolutionOrFpsOnOveruse) {
 }
 
 TEST_F(CpuOveruseTest, NoAdaptDownOnOveruse) {
-  RunTestAndCheckForAdaptation(
-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION, false);
+  RunTestAndCheckForAdaptation(DegradationPreference::DISABLED, false);
 }
 }  // namespace webrtc

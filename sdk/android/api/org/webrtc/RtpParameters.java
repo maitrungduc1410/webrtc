@@ -29,7 +29,7 @@ import org.webrtc.MediaStreamTrack;
 public class RtpParameters {
   public enum DegradationPreference {
     /** Does not degrade resolution or framerate. */
-    MAINTAIN_FRAMERATE_AND_RESOLUTION,
+    DISABLED,
     /** Degrade resolution in order to maintain framerate. */
     MAINTAIN_FRAMERATE,
     /** Degrade framerate in order to maintain resolution. */

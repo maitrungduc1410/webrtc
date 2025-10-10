@@ -69,10 +69,9 @@ public class RtpSenderTest {
     parameters = sender.getParameters();
     assertEquals(DegradationPreference.BALANCED, parameters.degradationPreference);
 
-    parameters.degradationPreference = DegradationPreference.MAINTAIN_FRAMERATE_AND_RESOLUTION;
+    parameters.degradationPreference = DegradationPreference.DISABLED;
     assertTrue(sender.setParameters(parameters));
     parameters = sender.getParameters();
-    assertEquals(DegradationPreference.MAINTAIN_FRAMERATE_AND_RESOLUTION,
-        parameters.degradationPreference);
+    assertEquals(DegradationPreference.DISABLED, parameters.degradationPreference);
   }
 }

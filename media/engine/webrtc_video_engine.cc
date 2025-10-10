@@ -1900,8 +1900,7 @@ bool WebRtcVideoSendChannel::WebRtcVideoSendStream::SetVideoSend(
   }
 
   if (source_ && stream_) {
-    stream_->SetSource(
-        nullptr, DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
+    stream_->SetSource(nullptr, DegradationPreference::DISABLED);
     if (source && source != source_) {
       reconfiguration_needed = true;
     }
@@ -1927,7 +1926,7 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::GetDegradationPreference()
   // `this` acts like a VideoSource to make sure SinkWants are handled on the
   // correct thread.
   if (!enable_cpu_overuse_detection_) {
-    return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
+    return DegradationPreference::DISABLED;
   }
 
   DegradationPreference degradation_preference;

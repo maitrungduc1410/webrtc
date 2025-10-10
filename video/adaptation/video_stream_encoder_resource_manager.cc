@@ -284,8 +284,7 @@ VideoStreamEncoderResourceManager::VideoStreamEncoderResourceManager(
       input_state_provider_(input_state_provider),
       adaptation_processor_(nullptr),
       encoder_stats_observer_(encoder_stats_observer),
-      degradation_preference_(
-          DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION),
+      degradation_preference_(DegradationPreference::DISABLED),
       video_source_restrictions_(),
       balanced_settings_(field_trials),
       clock_(clock),
