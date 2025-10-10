@@ -211,23 +211,6 @@ SessionDescriptionInterface::SessionDescriptionInterface(
   candidate_collection_.resize(number_of_mediasections());
 }
 
-JsepSessionDescription::JsepSessionDescription(SdpType type)
-    : SessionDescriptionInterface(type, nullptr, "", "") {}
-
-JsepSessionDescription::JsepSessionDescription(
-    SdpType type,
-    std::unique_ptr<SessionDescription> desc,
-    absl::string_view session_id,
-    absl::string_view session_version,
-    std::vector<IceCandidateCollection> candidates)
-    : SessionDescriptionInterface(type,
-                                  std::move(desc),
-                                  session_id,
-                                  session_version,
-                                  std::move(candidates)) {}
-
-JsepSessionDescription::~JsepSessionDescription() {}
-
 std::unique_ptr<SessionDescriptionInterface>
 SessionDescriptionInterface::Clone() const {
   RTC_DCHECK_RUN_ON(sequence_checker());
