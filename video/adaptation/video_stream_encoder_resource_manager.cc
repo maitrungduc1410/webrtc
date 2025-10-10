@@ -356,7 +356,8 @@ void VideoStreamEncoderResourceManager::MaybeInitializePixelLimitResource() {
   pixel_limit_resource_ = PixelLimitResource::CreateIfFieldTrialEnabled(
       field_trials_, encoder_queue_, input_state_provider_);
   if (pixel_limit_resource_) {
-    AddResource(pixel_limit_resource_, VideoAdaptationReason::kCpu);
+    AddResource(pixel_limit_resource_,
+                pixel_limit_resource_->adaptation_reason());
   }
 }
 
