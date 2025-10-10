@@ -123,9 +123,13 @@ enum class DtxStatus {
 // maintain-framerate option.
 // TODO(deadbeef): Default to "balanced", as the spec indicates?
 enum class DegradationPreference {
-  // Don't take any actions based on over-utilization signals. Not part of the
-  // web API.
-  DISABLED,
+  // Maintain framerate and resolution regardless of video quality. Frames may
+  // be dropped before encoding if necessary not to overuse network and encoder
+  // resources.
+  MAINTAIN_FRAMERATE_AND_RESOLUTION,
+  // TODO(webrtc:450044904): Switch downstream projects to
+  // MAINTAIN_FRAMERATE_AND_RESOLUTION and remove DISABLED.
+  DISABLED = MAINTAIN_FRAMERATE_AND_RESOLUTION,
   // On over-use, request lower resolution, possibly causing down-scaling.
   MAINTAIN_FRAMERATE,
   // On over-use, request lower frame rate, possibly causing frame drops.
