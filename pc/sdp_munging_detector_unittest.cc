@@ -1444,6 +1444,25 @@ TEST_F(SdpMungingTest, NumberOfCandidates) {
       ElementsAre(Pair(SdpMungingType::kIceCandidateCount, 1)));
 }
 
+TEST_F(SdpMungingTest, Bandwidth) {
+  auto pc = CreatePeerConnection();
+  pc->AddVideoTrack("video_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = pc->CreateOffer();
+  auto& contents = offer->description()->contents();
+  ASSERT_EQ(contents.size(), 1u);
+  auto* media_description = contents[0].media_description();
+  ASSERT_TRUE(media_description);
+  EXPECT_NE(media_description->bandwidth(), 100000);
+  media_description->set_bandwidth(100000);
+
+  RTCError error;
+  EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kBandwidth, 1)));
+}
+
 #ifdef WEBRTC_HAVE_SCTP
 TEST_F(SdpMungingTest, NoMungingForDataChannels) {
   auto pc = CreatePeerConnection();
