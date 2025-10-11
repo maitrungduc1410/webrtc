@@ -2679,6 +2679,8 @@ bool WebRtcVoiceReceiveChannel::GetStats(VoiceMediaReceiveInfo* info,
     rinfo.header_and_padding_bytes_received =
         stats.header_and_padding_bytes_received;
     rinfo.packets_received = stats.packets_received;
+    rinfo.packets_received_with_ect1 = stats.packets_received_with_ect1;
+    rinfo.packets_received_with_ce = stats.packets_received_with_ce;
     rinfo.fec_packets_received = stats.fec_packets_received;
     rinfo.fec_packets_discarded = stats.fec_packets_discarded;
     rinfo.packets_lost = stats.packets_lost;
