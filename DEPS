@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'ab4c90c7e4c265487c0f2388e2c2ce6b50e27728',
+  'chromium_revision': '1c6807788067a21cbb22a14c139274c35e8ef52f',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@99f8d0f4dbccc2724258ab280f0e000b94681e8d',
+    'https://chromium.googlesource.com/chromium/src/build@86343db8bb208c734b7c49485f51c0442acd5498',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@66c901ce4f8beba61ac6ef0244e4505840f18070',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@8e5d26fa6deccaca3a7cebc93ed72ec676ef2877',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@0e96b0c06ef3bd138138eaf3c026208973e38230',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@de7c19956c6b929314ef95286b2da6a64d500776',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@c0bf7f4c5ddf625285cea79085fab977a3912fee',
+    'https://chromium.googlesource.com/chromium/src/third_party@ce6d786f7cd84b89b18ad1967d47e3459eff1f74',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -337,7 +337,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8e720a3a3ae30fcfffe436aae418c91acacc34d0',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@bd0c0334345f1ffa2c4bbfa611ebfefb5da0c39e',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@42896a2dc20f55c4bdd0b78b82a7e94740ebbac7',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@d200a5352ef186e2af83f56bd4fd230972f3c8f8',
 
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@1c514626e83c20fffa8557e75641848e1e15cd5e',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@da3fa1e6076968a6c6617aad775443043667e8e0',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@37a60d0392472faec0dacd04a564f511f1ec9308',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -609,7 +609,7 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'b8036a07d4c35638a3f1f4c4da53596d40413383',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '3b4d64fbceb41b554ff7e609ed721160c2f5b1e7',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@92d17e5bd7b803c23d3693258faed4ab69906479',
+    'https://chromium.googlesource.com/chromium/src/tools@93e00226e417ec7c684368c3b320e2b73caa2ec9',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'hEdm5RV4e3n-OJzHktxc0wmXts7jpfnHh2MnDWvHmE0C',
+          'version': 'GtSKJ1S7Ux-Q46trHywevNQhEkNDd2w8uBsuqVD3vGgC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
