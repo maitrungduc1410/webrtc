@@ -219,6 +219,8 @@ size_t SessionDescriptionInternal::mediasection_count() const {
   return description_ ? description_->contents().size() : 0u;
 }
 
+SessionDescriptionInterface::~SessionDescriptionInterface() = default;
+
 void SessionDescriptionInterface::RelinquishThreadOwnership() {
   // Ideally we should require that the method can only be called from the
   // thread that the sequence checker is currently attached to. However that's
@@ -324,12 +326,8 @@ const IceCandidateCollection* SessionDescriptionInterface::candidates(
   return &candidate_collection_[mediasection_index];
 }
 
-bool SessionDescriptionInterface::ToString(std::string* out) const {
-  if (!description() || !out) {
-    return false;
-  }
-  *out = SdpSerialize(*this);
-  return !out->empty();
+std::string SessionDescriptionInterface::ToString() const {
+  return SdpSerialize(*this);
 }
 
 bool SessionDescriptionInterface::IsValidMLineIndex(int index) const {

@@ -23,13 +23,9 @@ std::unique_ptr<SessionDescriptionInterface> CloneSessionDescriptionAsType(
     const SessionDescriptionInterface* sdesc,
     SdpType type) {
   RTC_DCHECK(sdesc);
-  if (sdesc->description()) {
-    return CreateSessionDescription(type, sdesc->session_id(),
-                                    sdesc->session_version(),
-                                    sdesc->description()->Clone());
-  }
-  RTC_DCHECK_EQ(type, SdpType::kRollback);
-  return SessionDescriptionInterface::Create(type, nullptr, "", "");
+  return SessionDescriptionInterface::Create(
+      type, sdesc->description() ? sdesc->description()->Clone() : nullptr,
+      sdesc->session_id(), sdesc->session_version());
 }
 
 bool SdpContentsAll(SdpContentPredicate pred, const SessionDescription* desc) {

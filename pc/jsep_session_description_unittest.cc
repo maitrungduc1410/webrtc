@@ -95,8 +95,7 @@ class JsepSessionDescriptionTest : public ::testing::Test {
   }
 
   std::string Serialize(const SessionDescriptionInterface* desc) {
-    std::string sdp;
-    EXPECT_TRUE(desc->ToString(&sdp));
+    std::string sdp = desc->ToString();
     EXPECT_FALSE(sdp.empty());
     return sdp;
   }

@@ -319,7 +319,6 @@ rtc_library("jsep") {
     "jsep.h",
     "jsep_ice_candidate.cc",
     "jsep_ice_candidate.h",
-    "jsep_session_description.h",
     "webrtc_sdp.cc",
     "webrtc_sdp.h",
   ]
@@ -431,6 +430,7 @@ rtc_library("libjingle_peerconnection_api") {
     "../p2p:port",
     "../p2p:port_allocator",
     "../pc:media_factory",
+    "../pc:session_description",
     "../rtc_base:copy_on_write_buffer",
     "../rtc_base:logging",
     "../rtc_base:macromagic",
