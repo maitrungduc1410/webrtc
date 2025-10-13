@@ -12,11 +12,9 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <vector>
 
 #include "api/array_view.h"
-#include "api/video/video_codec_type.h"
 #include "modules/rtp_rtcp/source/rtp_format_h264.h"
 #include "modules/rtp_rtcp/source/rtp_format_video_generic.h"
 #include "modules/rtp_rtcp/source/rtp_format_vp8.h"
@@ -75,37 +73,6 @@ std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
       return std::make_unique<RtpPacketizerGeneric>(payload, limits,
                                                     rtp_video_header);
     }
-  }
-}
-
-std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
-    std::optional<VideoCodecType> type,
-    ArrayView<const uint8_t> payload,
-    PayloadSizeLimits limits,
-    // Codec-specific details.
-    const RTPVideoHeader& rtp_video_header) {
-  if (!type) {
-    return Create(PacketizationFormat::kRaw, payload, limits, rtp_video_header);
-  }
-  switch (*type) {
-    case kVideoCodecH264:
-      return Create(PacketizationFormat::kH264, payload, limits,
-                    rtp_video_header);
-    case kVideoCodecVP8:
-      return Create(PacketizationFormat::kVP8, payload, limits,
-                    rtp_video_header);
-    case kVideoCodecVP9:
-      return Create(PacketizationFormat::kVP9, payload, limits,
-                    rtp_video_header);
-    case kVideoCodecAV1:
-      return Create(PacketizationFormat::kAV1, payload, limits,
-                    rtp_video_header);
-    case kVideoCodecH265:
-      return Create(PacketizationFormat::kH265, payload, limits,
-                    rtp_video_header);
-    default:
-      return Create(PacketizationFormat::kGeneric, payload, limits,
-                    rtp_video_header);
   }
 }
 
