@@ -1673,6 +1673,20 @@ if (rtc_include_tests) {
     ]
   }
 
+  rtc_library("mock_datagram_connection") {
+    visibility = [ "*" ]
+    testonly = true
+    sources = [ "test/mock_datagram_connection.h" ]
+    deps = [
+      ":array_view",
+      ":candidate",
+      ":datagram_connection",
+      "../p2p:transport_description",
+      "//test:test_support",
+      "//testing/gmock",
+    ]
+  }
+
   rtc_library("mock_datagram_connection_observer") {
     visibility = [ "*" ]
     testonly = true
