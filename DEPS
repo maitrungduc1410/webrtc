@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'a276f6963aa7ffcdc80bb830f0ff7b00cd2f9994',
+  'chromium_revision': '8cec3084e3a433bcea6fb7e5e6845574d0cd5fa1',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@dc6d63bd15d0d5ce4626de74f72ddf83ad71d799',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@d6f53e3feb91c1aa27d38268be479b42d603f587',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@de7c19956c6b929314ef95286b2da6a64d500776',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@b8c3fc15727cd19954cd8013daf83d3b4d033305',
+    'https://chromium.googlesource.com/chromium/src/third_party@1fd39a709ac160ce0e07650878ca3ce07ed4b5dc',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -337,9 +337,9 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8e720a3a3ae30fcfffe436aae418c91acacc34d0',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@42896a2dc20f55c4bdd0b78b82a7e94740ebbac7',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@71f9245792872176918a1f82dfe2e9ccfb0d30df',
   'src/third_party/libunwind/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@a8f7d512055916d1069093a1672d4705019e36f8',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@da8737e079a64c8ddd0aa73b4f2479a23852833b',
 
   'src/third_party/test_fonts/test_fonts': {
       'dep_type': 'gcs',
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@1c514626e83c20fffa8557e75641848e1e15cd5e',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@37a60d0392472faec0dacd04a564f511f1ec9308',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@1a7ed027f486e5ec73ca558a56b550263e43fac1',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -644,7 +644,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/r8',
-              'version': '2aBDG942g42qUBPPInGETRHusdxru1U3anwJI_QX5wIC',
+              'version': 'AYeAI5FH_WyqBwnhCmq8W1k-pGRyIkxmRN7PbMErE7EC',
           },
       ],
       'condition': 'checkout_android',
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'KTolsEsO0xx4X3JiPihANLfYEqYxhfSkLOeQKznGB6wC',
+          'version': 'UL6BZ9EIGUurtyN2FGY30YoW9ov97kE0du4ZgoEKc2YC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
