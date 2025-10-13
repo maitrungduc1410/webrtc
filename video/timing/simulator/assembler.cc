@@ -7,6 +7,7 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+
 #include "video/timing/simulator/assembler.h"
 
 #include <cstdint>
@@ -32,7 +33,7 @@ VideoReceiveStreamInterface::Config CreateVideoReceiveStreamConfig(
   VideoReceiveStreamInterface::Config config(/*rtcp_send_transport=*/nullptr);
   config.rtp.remote_ssrc = ssrc;
   // The value of `local_ssrc` is not really used, but we need to set it to
-  // something due to an RTC_DCHECK in rtp_video_stream_receiver2.cc.
+  // _something_ due to an RTC_DCHECK in rtp_video_stream_receiver2.cc.
   config.rtp.local_ssrc = ssrc + 1;
   return config;
 }

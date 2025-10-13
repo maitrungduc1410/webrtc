@@ -7,18 +7,15 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+
 #include "video/timing/simulator/assembler.h"
 
 #include <cstdint>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
-#include "api/environment/environment.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/task_queue_base.h"
-#include "api/task_queue/task_queue_factory.h"
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -28,10 +25,9 @@
 #include "modules/rtp_rtcp/source/rtp_dependency_descriptor_extension.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/thread_annotations.h"
-#include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
-#include "test/time_controller/simulated_time_controller.h"
+#include "video/timing/simulator/test_utils.h"
 
 namespace webrtc::video_timing_simulator {
 namespace {
@@ -47,11 +43,6 @@ using ::testing::Matcher;
 using ::testing::NiceMock;
 using ::testing::Pointee;
 using ::testing::Property;
-
-inline Matcher<std::unique_ptr<EncodedFrame>> EncodedFrameWithId(
-    int expected_id) {
-  return Pointee(Property(&EncodedFrame::Id, Eq(expected_id)));
-}
 
 class MockAssemblerEvents : public AssemblerEvents {
  public:
@@ -152,18 +143,9 @@ class RtpPacketReceivedGenerator {
   int frame_id_;
 };
 
-// The `Assembler` should be run on a task queue, so we use a fixture to do
-// that.
-class AssemblerTest : public ::testing::Test {
+class AssemblerTest : public SimulatedTimeTestFixture {
  protected:
-  AssemblerTest()
-      : time_controller_(/*start_time=*/Timestamp::Seconds(10000)),
-        env_(CreateTestEnvironment(
-            CreateTestEnvironmentOptions{.time = &time_controller_})),
-        queue_(env_.task_queue_factory().CreateTaskQueue(
-            "test_queue",
-            TaskQueueFactory::Priority::NORMAL)),
-        queue_ptr_(queue_.get()) {
+  AssemblerTest() {
     SendTask([this]() {
       RTC_DCHECK_RUN_ON(queue_ptr_);
       assembler_ = std::make_unique<Assembler>(env_, kSsrc, &assembler_events_,
@@ -177,24 +159,12 @@ class AssemblerTest : public ::testing::Test {
     });
   }
 
-  // Post a task and synchronize.
-  void SendTask(absl::AnyInvocable<void() &&> task) {
-    queue_->PostTask(std::move(task));
-    time_controller_.AdvanceTime(TimeDelta::Zero());
-  }
-
   void InsertPacket(const RtpPacketReceived& rtp_packet) {
     SendTask([this, &rtp_packet]() {
       RTC_DCHECK_RUN_ON(queue_ptr_);
       assembler_->InsertPacket(rtp_packet);
     });
   }
-
-  // Environment.
-  GlobalSimulatedTimeController time_controller_;
-  Environment env_;
-  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> queue_;
-  TaskQueueBase* queue_ptr_;
 
   // Helpers.
   RtpPacketReceivedGenerator rtp_packet_generator_;
@@ -214,7 +184,7 @@ TEST_F(AssemblerTest, AssemblesSinglePacketKeyframe) {
       rtp_packet_generator_.BuildRtpPacketsForFrame(
           {.num_packets = 1, .is_keyframe = true});
 
-  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFramePtrWithId(0)));
   InsertPacket(rtp_packets[0]);
 }
 
@@ -232,7 +202,7 @@ TEST_F(AssemblerTest, AssemblesKeyframe) {
       rtp_packet_generator_.BuildRtpPacketsForFrame(
           {.num_packets = 3, .is_keyframe = true});
 
-  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFramePtrWithId(0)));
   for (const auto& rtp_packet : rtp_packets) {
     InsertPacket(rtp_packet);
   }
@@ -264,7 +234,7 @@ TEST_F(AssemblerTest, AssemblesKeyframeWithReorderedPackets) {
       rtp_packet_generator_.BuildRtpPacketsForFrame(
           {.num_packets = 3, .is_keyframe = true});
 
-  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFramePtrWithId(0)));
   InsertPacket(rtp_packets[0]);
   InsertPacket(rtp_packets[2]);
   InsertPacket(rtp_packets[1]);
@@ -280,9 +250,11 @@ TEST_F(AssemblerTest, AssemblesSinglePacketKeyframeAndDeltaFrame) {
 
   {
     InSequence seq;
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(0)));
     InsertPacket(key_rtp_packets[0]);
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(1)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(1)));
     InsertPacket(delta_rtp_packets[0]);
   }
 }
@@ -297,11 +269,13 @@ TEST_F(AssemblerTest, AssemblesKeyframeAndDeltaFrame) {
 
   {
     InSequence seq;
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(0)));
     for (const auto& rtp_packet : key_rtp_packets) {
       InsertPacket(rtp_packet);
     }
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(1)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(1)));
     for (const auto& rtp_packet : delta_rtp_packets) {
       InsertPacket(rtp_packet);
     }
@@ -316,7 +290,7 @@ TEST_F(AssemblerTest, DoesNotAssembleDeltaFrameAfterKeyframe) {
       rtp_packet_generator_.BuildRtpPacketsForFrame(
           {.num_packets = 2, .is_keyframe = false});
 
-  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+  EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFramePtrWithId(0)));
   for (const auto& rtp_packet : delta_rtp_packets) {
     InsertPacket(rtp_packet);
   }
@@ -338,15 +312,18 @@ TEST_F(AssemblerTest, AssemblesKeyframeAndDeltaFramesWithReorderedPacket) {
 
   {
     InSequence seq;
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(0)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(0)));
     for (const auto& rtp_packet : key_rtp_packets) {
       InsertPacket(rtp_packet);
     }
     InsertPacket(delta_rtp_packets1[0]);
     InsertPacket(delta_rtp_packets2[0]);
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(1)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(1)));
     InsertPacket(delta_rtp_packets1[1]);
-    EXPECT_CALL(assembled_frame_cb_, OnAssembledFrame(EncodedFrameWithId(2)));
+    EXPECT_CALL(assembled_frame_cb_,
+                OnAssembledFrame(EncodedFramePtrWithId(2)));
     InsertPacket(delta_rtp_packets2[1]);
   }
 }

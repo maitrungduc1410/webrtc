@@ -7,6 +7,7 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+
 #include "video/timing/simulator/rtp_packet_simulator.h"
 
 #include "api/environment/environment.h"

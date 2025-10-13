@@ -7,6 +7,7 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+
 #ifndef VIDEO_TIMING_SIMULATOR_ASSEMBLER_H_
 #define VIDEO_TIMING_SIMULATOR_ASSEMBLER_H_
 
