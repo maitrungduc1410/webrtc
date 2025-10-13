@@ -76,6 +76,7 @@ class Assembler : public DecodedFrameIdCallback,
   // so that it can be flushed from the `PacketBuffer`.
   void OnDecodedFrameId(int64_t frame_id) override;
 
+ private:
   // Trivially implements `Transport`.
   // We need to implement this due to an RTC_DCHECK in rtcp_sender.cc.
   bool SendRtp(ArrayView<const uint8_t>, const PacketOptions&) override {
@@ -89,7 +90,6 @@ class Assembler : public DecodedFrameIdCallback,
   // assembled frames to the `observer_`.
   void OnCompleteFrame(std::unique_ptr<EncodedFrame> encoded_frame) override;
 
- private:
   // Environment.
   SequenceChecker sequence_checker_;
   const Environment env_;
