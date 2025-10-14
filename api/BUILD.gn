@@ -1823,6 +1823,8 @@ if (rtc_include_tests) {
       ":mock_audio_mixer",
       ":mock_audio_sink",
       ":mock_data_channel",
+      ":mock_datagram_connection",
+      ":mock_datagram_connection_observer",
       ":mock_dtmf_sender",
       ":mock_frame_decryptor",
       ":mock_frame_encryptor",
