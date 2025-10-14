@@ -1561,10 +1561,6 @@ bool WebRtcVoiceSendChannel::SetSendCodecs(
 
   send_codecs_ = codecs;
 
-  if (send_codec_changed_callback_) {
-    send_codec_changed_callback_();
-  }
-
   return true;
 }
 
@@ -1885,12 +1881,6 @@ bool WebRtcVoiceSendChannel::SenderNonSenderRttEnabled() const {
     return false;
   }
   return send_codec_spec_->enable_non_sender_rtt;
-}
-
-void WebRtcVoiceSendChannel::SetSendCodecChangedCallback(
-    absl::AnyInvocable<void()> callback) {
-  RTC_DCHECK_RUN_ON(worker_thread_);
-  send_codec_changed_callback_ = std::move(callback);
 }
 
 void WebRtcVoiceSendChannel::FillSendCodecStats(
