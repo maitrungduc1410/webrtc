@@ -465,6 +465,15 @@ TEST(L4STest, NoCcfbSentAfterRenegotiationAndCallerCachLocalDescription) {
             transport_cc_callee);
 }
 
+#if !defined(WEBRTC_ANDROID)
+// TODO: bugs.webrtc.org/447037083 - for some reason a "fake" hardware
+// encoder/decoder is used on
+// https://ci.chromium.org/ui/p/webrtc/builders/try/android_arm64_rel
+// generic_decoder.cc: (line 306): Decoder implementation: DecoderInfo {
+// prefers_late_decoding = implementation_name = 'fake_decoder',
+// is_hardware_accelerated = true }
+// Figure out how to run libvpx instead.
+
 struct SendMediaTestResult {
   // Stats gathered at the end of the call.
   scoped_refptr<const RTCStatsReport> caller_stats;
@@ -630,6 +639,7 @@ TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithGoogCC) {
   EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1000));
   EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(2600));
 }
+#endif
 
 TEST(L4STest, SendsEct1WithScream) {
   PeerScenario s(*test_info_);
