@@ -310,10 +310,8 @@ rtc_library("rate_tracker") {
   ]
   deps = [
     ":checks",
-    ":timeutils",
     "../api/units:time_delta",
     "../api/units:timestamp",
-    "//third_party/abseil-cpp/absl/base:core_headers",
   ]
 }
 

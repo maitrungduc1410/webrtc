@@ -17,7 +17,6 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/time_utils.h"
 
 namespace webrtc {
 
@@ -121,10 +120,6 @@ void RateTracker::Update(int64_t sample_count, Timestamp current_time) {
   // Add all samples in the bucket that includes the current time.
   sample_buckets_[current_bucket_] += sample_count;
   total_sample_count_ += sample_count;
-}
-
-int64_t RateTracker::Time() const {
-  return TimeMillis();
 }
 
 void RateTracker::EnsureInitialized(int64_t current_time_ms) {

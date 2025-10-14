@@ -14,7 +14,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "absl/base/macros.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 
@@ -26,18 +25,13 @@ namespace webrtc {
 class RateTracker {
  public:
   RateTracker(int64_t bucket_milliseconds, size_t bucket_count);
-  virtual ~RateTracker();
+  ~RateTracker();
 
   // Computes the average rate over the most recent interval_milliseconds,
   // or if the first sample was added within this period, computes the rate
   // since the first sample was added.
   double ComputeRateForInterval(Timestamp current_time,
                                 TimeDelta interval) const;
-  [[deprecated]]
-  double ComputeRateForInterval(int64_t interval_milliseconds) const {
-    return ComputeRateForInterval(Timestamp::Millis(Time()),
-                                  TimeDelta::Millis(interval_milliseconds));
-  }
 
   // Computes the average rate over the rate tracker's recording interval
   // of bucket_milliseconds * bucket_count.
@@ -46,34 +40,11 @@ class RateTracker {
         current_time, TimeDelta::Millis(bucket_milliseconds_) * bucket_count_);
   }
 
-  [[deprecated]]
-  double ComputeRate() const {
-    return Rate(Timestamp::Millis(Time()));
-  }
-
   // The total number of samples added.
   int64_t TotalSampleCount() const;
 
   // Increment count for bucket at `current_time`.
   void Update(int64_t sample_count, Timestamp now);
-
-  // Reads the current time in order to determine the appropriate bucket for
-  // these samples, and increments the count for that bucket by sample_count.
-  [[deprecated]]
-  void AddSamples(int64_t sample_count) {
-    Update(sample_count, Timestamp::Millis(Time()));
-  }
-
-  ABSL_DEPRECATE_AND_INLINE()
-  void AddSamplesAtTime(int64_t current_time_ms, int64_t sample_count) {
-    Update(sample_count, Timestamp::Millis(current_time_ms));
-  }
-
- protected:
-  // overrideable for tests
-  // TODO: bugs.webrtc.org/42223992 - Delete after Oct 27, 2025 together with
-  // deprecated functions that do not take current time as a parameter
-  virtual int64_t Time() const;
 
  private:
   void EnsureInitialized(int64_t current_time_ms);
