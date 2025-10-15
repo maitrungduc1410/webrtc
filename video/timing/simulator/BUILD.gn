@@ -70,6 +70,7 @@ if (rtc_enable_protobuf) {
         "../../../test:fake_encoded_frame",
         "../../../test:test_support",
         "../../../test/time_controller",
+        "//third_party/abseil-cpp/absl/functional:any_invocable",
       ]
     }
   }
