@@ -30,6 +30,7 @@
 #include "api/rtp_parameters.h"
 #include "api/transport/bandwidth_usage.h"
 #include "api/units/data_rate.h"
+#include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/video_codec_type.h"
@@ -42,6 +43,7 @@
 #include "logging/rtc_event_log/events/rtc_event_begin_log.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
@@ -199,6 +201,19 @@ EventGenerator::NewBweUpdateLossBased() {
 
   return std::make_unique<RtcEventBweUpdateLossBased>(
       bitrate_bps, fraction_lost, total_packets);
+}
+
+std::unique_ptr<RtcEventBweUpdateScream> EventGenerator::NewBweUpdateScream() {
+  uint32_t ref_window_bytes = prng_.Rand(0u, 100000u);
+  uint32_t target_rate_kbps = prng_.Rand(0u, 40000u);
+  uint32_t smoothed_rtt_ms = prng_.Rand(0u, 10000u);
+  uint32_t avg_queue_delay_ms = prng_.Rand(0u, 5000u);
+  uint32_t l4s_marked_permille = prng_.Rand(0u, 1000u);
+  return std::make_unique<RtcEventBweUpdateScream>(
+      DataSize::Bytes(ref_window_bytes),
+      DataRate::KilobitsPerSec(target_rate_kbps),
+      TimeDelta::Millis(smoothed_rtt_ms), TimeDelta::Millis(avg_queue_delay_ms),
+      l4s_marked_permille);
 }
 
 std::unique_ptr<RtcEventDtlsTransportState>
@@ -936,6 +951,19 @@ void EventVerifier::VerifyLoggedBweLossBasedUpdate(
   EXPECT_EQ(original_event.bitrate_bps(), logged_event.bitrate_bps);
   EXPECT_EQ(original_event.fraction_loss(), logged_event.fraction_lost);
   EXPECT_EQ(original_event.total_packets(), logged_event.expected_packets);
+}
+
+void EventVerifier::VerifyLoggedBweScreamUpdate(
+    const RtcEventBweUpdateScream& original_event,
+    const LoggedBweScreamUpdate& logged_event) const {
+  EXPECT_EQ(original_event.timestamp_ms(), logged_event.log_time_ms());
+  EXPECT_EQ(original_event.ref_window_bytes(), logged_event.ref_window.bytes());
+  EXPECT_EQ(original_event.target_rate_kbps(), logged_event.target_rate.kbps());
+  EXPECT_EQ(original_event.smoothed_rtt_ms(), logged_event.smoothed_rtt.ms());
+  EXPECT_EQ(original_event.avg_queue_delay_ms(),
+            logged_event.avg_queue_delay.ms());
+  EXPECT_EQ(original_event.l4s_marked_permille(),
+            logged_event.l4s_marked_permille);
 }
 
 void EventVerifier::VerifyLoggedBweProbeClusterCreatedEvent(

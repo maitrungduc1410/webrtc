@@ -295,6 +295,10 @@ std::string RtcEventLogEncoderLegacy::Encode(const RtcEvent& event) {
       return EncodeBweUpdateLossBased(rtc_event);
     }
 
+    case RtcEvent::Type::BweUpdateScream: {
+      return "";
+    }
+
     case RtcEvent::Type::DtlsTransportState: {
       return "";
     }

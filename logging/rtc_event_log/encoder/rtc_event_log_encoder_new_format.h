@@ -38,6 +38,7 @@ class RtcEventAudioReceiveStreamConfig;
 class RtcEventAudioSendStreamConfig;
 class RtcEventBweUpdateDelayBased;
 class RtcEventBweUpdateLossBased;
+class RtcEventBweUpdateScream;
 class RtcEventDtlsTransportState;
 class RtcEventDtlsWritableState;
 class RtcEventLoggingStarted;
@@ -94,6 +95,8 @@ class RtcEventLogEncoderNewFormat final : public RtcEventLogEncoder {
   void EncodeBweUpdateLossBased(
       ArrayView<const RtcEventBweUpdateLossBased*> batch,
       rtclog2::EventStream* event_stream);
+  void EncodeBweUpdateScream(ArrayView<const RtcEventBweUpdateScream*> batch,
+                             rtclog2::EventStream* event_stream);
   void EncodeDtlsTransportState(
       ArrayView<const RtcEventDtlsTransportState*> batch,
       rtclog2::EventStream* event_stream);

@@ -1201,6 +1201,7 @@ void ParsedRtcEventLog::Clear() {
   bwe_probe_success_events_.clear();
   bwe_delay_updates_.clear();
   bwe_loss_updates_.clear();
+  bwe_scream_updates_.clear();
   dtls_transport_states_.clear();
   dtls_writable_states_.clear();
   decoded_frames_.clear();
@@ -1354,6 +1355,7 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::ParseStream(
   StoreFirstAndLastTimestamp(bwe_probe_success_events());
   StoreFirstAndLastTimestamp(bwe_delay_updates());
   StoreFirstAndLastTimestamp(bwe_loss_updates());
+  StoreFirstAndLastTimestamp(bwe_scream_updates());
   for (const auto& frame_stream : decoded_frames()) {
     StoreFirstAndLastTimestamp(frame_stream.second);
   }
@@ -2716,6 +2718,7 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreParsedNewFormatEvent(
           stream.audio_playout_events_size() + stream.begin_log_events_size() +
           stream.end_log_events_size() + stream.loss_based_bwe_updates_size() +
           stream.delay_based_bwe_updates_size() +
+          stream.scream_bwe_updates_size() +
           stream.dtls_transport_state_events_size() +
           stream.dtls_writable_states_size() +
           stream.audio_network_adaptations_size() +
@@ -2753,6 +2756,8 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreParsedNewFormatEvent(
     return StoreBweLossBasedUpdate(stream.loss_based_bwe_updates(0));
   } else if (stream.delay_based_bwe_updates_size() == 1) {
     return StoreBweDelayBasedUpdate(stream.delay_based_bwe_updates(0));
+  } else if (stream.scream_bwe_updates_size() == 1) {
+    return StoreBweScreamUpdate(stream.scream_bwe_updates(0));
   } else if (stream.dtls_transport_state_events_size() == 1) {
     return StoreDtlsTransportState(stream.dtls_transport_state_events(0));
   } else if (stream.dtls_writable_states_size() == 1) {
@@ -3165,6 +3170,111 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweDelayBasedUpdate(
     bwe_delay_updates_.emplace_back(Timestamp::Millis(timestamp_ms),
                                     bitrate_bps,
                                     GetRuntimeDetectorState(detector_state));
+  }
+  return ParseStatus::Success();
+}
+
+ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
+    const rtclog2::ScreamBweUpdates& proto) {
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_timestamp_ms());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_ref_window_bytes());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_target_rate_kbps());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_smoothed_rtt_ms());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_avg_queue_delay_ms());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_l4s_marked_permille());
+
+  // Base event
+  bwe_scream_updates_.emplace_back(
+      Timestamp::Millis(proto.timestamp_ms()), proto.ref_window_bytes(),
+      proto.target_rate_kbps(), proto.smoothed_rtt_ms(),
+      proto.avg_queue_delay_ms(), proto.l4s_marked_permille());
+
+  const size_t number_of_deltas =
+      proto.has_number_of_deltas() ? proto.number_of_deltas() : 0u;
+  if (number_of_deltas == 0) {
+    return ParseStatus::Success();
+  }
+
+  // timestamp_ms
+  std::vector<std::optional<uint64_t>> timestamp_ms_values =
+      DecodeDeltas(proto.timestamp_ms_deltas(),
+                   ToUnsigned(proto.timestamp_ms()), number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(timestamp_ms_values.size(), number_of_deltas);
+
+  // ref_window_bytes
+  std::vector<std::optional<uint64_t>> ref_window_bytes_values =
+      DecodeDeltas(proto.ref_window_bytes_deltas(), proto.ref_window_bytes(),
+                   number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(ref_window_bytes_values.size(),
+                               number_of_deltas);
+
+  // target_rate_kbps
+  std::vector<std::optional<uint64_t>> target_rate_kbps_values =
+      DecodeDeltas(proto.target_rate_kbps_deltas(), proto.target_rate_kbps(),
+                   number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(target_rate_kbps_values.size(),
+                               number_of_deltas);
+
+  // smoothed_rtt_ms
+  std::vector<std::optional<uint64_t>> smoothed_rtt_ms_values =
+      DecodeDeltas(proto.smoothed_rtt_ms_deltas(), proto.smoothed_rtt_ms(),
+                   number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(smoothed_rtt_ms_values.size(), number_of_deltas);
+
+  // avg_queue_delay_ms
+  std::vector<std::optional<uint64_t>> avg_queue_delay_ms_values =
+      DecodeDeltas(proto.avg_queue_delay_ms_deltas(),
+                   proto.avg_queue_delay_ms(), number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(avg_queue_delay_ms_values.size(),
+                               number_of_deltas);
+
+  // l4s_marked_permille
+  std::vector<std::optional<uint64_t>> l4s_marked_permille_values =
+      DecodeDeltas(proto.l4s_marked_permille_deltas(),
+                   proto.l4s_marked_permille(), number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(l4s_marked_permille_values.size(),
+                               number_of_deltas);
+
+  // Populate events from decoded deltas
+  for (size_t i = 0; i < number_of_deltas; ++i) {
+    RTC_PARSE_CHECK_OR_RETURN(timestamp_ms_values[i].has_value());
+    int64_t timestamp_ms;
+    RTC_PARSE_CHECK_OR_RETURN(
+        ToSigned(timestamp_ms_values[i].value(), &timestamp_ms));
+
+    RTC_PARSE_CHECK_OR_RETURN(ref_window_bytes_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(ref_window_bytes_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t ref_window_bytes =
+        static_cast<uint32_t>(ref_window_bytes_values[i].value());
+
+    RTC_PARSE_CHECK_OR_RETURN(target_rate_kbps_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(target_rate_kbps_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t target_rate_kbps =
+        static_cast<uint32_t>(target_rate_kbps_values[i].value());
+
+    RTC_PARSE_CHECK_OR_RETURN(smoothed_rtt_ms_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(smoothed_rtt_ms_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t smoothed_rtt_ms =
+        static_cast<uint32_t>(smoothed_rtt_ms_values[i].value());
+
+    RTC_PARSE_CHECK_OR_RETURN(avg_queue_delay_ms_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(avg_queue_delay_ms_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t avg_queue_delay_ms =
+        static_cast<uint32_t>(avg_queue_delay_ms_values[i].value());
+
+    RTC_PARSE_CHECK_OR_RETURN(l4s_marked_permille_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(l4s_marked_permille_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t l4s_marked_permille =
+        static_cast<uint32_t>(l4s_marked_permille_values[i].value());
+
+    bwe_scream_updates_.emplace_back(
+        Timestamp::Millis(timestamp_ms), ref_window_bytes, target_rate_kbps,
+        smoothed_rtt_ms, avg_queue_delay_ms, l4s_marked_permille);
   }
   return ParseStatus::Success();
 }

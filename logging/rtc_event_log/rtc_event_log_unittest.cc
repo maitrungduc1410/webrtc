@@ -33,6 +33,7 @@
 #include "logging/rtc_event_log/events/rtc_event_audio_send_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
@@ -81,6 +82,7 @@ struct EventCounts {
   size_t ana_configs = 0;
   size_t bwe_loss_events = 0;
   size_t bwe_delay_events = 0;
+  size_t bwe_scream_events = 0;
   size_t dtls_transport_states = 0;
   size_t dtls_writable_states = 0;
   size_t frame_decoded_events = 0;
@@ -98,12 +100,12 @@ struct EventCounts {
 
   size_t total_nonconfig_events() const {
     return alr_states + route_changes + audio_playouts + ana_configs +
-           bwe_loss_events + bwe_delay_events + dtls_transport_states +
-           dtls_writable_states + frame_decoded_events + probe_creations +
-           probe_successes + probe_failures + ice_configs + ice_events +
-           incoming_rtp_packets + outgoing_rtp_packets + incoming_rtcp_packets +
-           outgoing_rtcp_packets + generic_packets_sent +
-           generic_packets_received;
+           bwe_loss_events + bwe_delay_events + bwe_scream_events +
+           dtls_transport_states + dtls_writable_states + frame_decoded_events +
+           probe_creations + probe_successes + probe_failures + ice_configs +
+           ice_events + incoming_rtp_packets + outgoing_rtp_packets +
+           incoming_rtcp_packets + outgoing_rtcp_packets +
+           generic_packets_sent + generic_packets_received;
   }
 
   size_t total_config_events() const {
@@ -189,6 +191,7 @@ class RtcEventLogSession
       ana_configs_list_;
   std::vector<std::unique_ptr<RtcEventBweUpdateDelayBased>> bwe_delay_list_;
   std::vector<std::unique_ptr<RtcEventBweUpdateLossBased>> bwe_loss_list_;
+  std::vector<std::unique_ptr<RtcEventBweUpdateScream>> bwe_scream_list_;
   std::vector<std::unique_ptr<RtcEventDtlsTransportState>>
       dtls_transport_state_list_;
   std::vector<std::unique_ptr<RtcEventDtlsWritableState>>
@@ -449,6 +452,15 @@ void RtcEventLogSession::WriteLog(EventCounts count,
     }
     selection -= count.bwe_delay_events;
 
+    if (selection < count.bwe_scream_events) {
+      auto event = gen_.NewBweUpdateScream();
+      event_log->Log(event->Copy());
+      bwe_scream_list_.push_back(std::move(event));
+      count.bwe_scream_events--;
+      continue;
+    }
+    selection -= count.bwe_scream_events;
+
     if (selection < count.probe_creations) {
       auto event = gen_.NewProbeClusterCreated();
       event_log->Log(event->Copy());
@@ -661,6 +673,13 @@ void RtcEventLogSession::ReadAndVerifyLog() {
                                              parsed_bwe_loss_updates[i]);
   }
 
+  auto& parsed_bwe_scream_updates = parsed_log.bwe_scream_updates();
+  ASSERT_EQ(parsed_bwe_scream_updates.size(), bwe_scream_list_.size());
+  for (size_t i = 0; i < parsed_bwe_scream_updates.size(); i++) {
+    verifier_.VerifyLoggedBweScreamUpdate(*bwe_scream_list_[i],
+                                          parsed_bwe_scream_updates[i]);
+  }
+
   auto& parsed_bwe_probe_cluster_created_events =
       parsed_log.bwe_probe_cluster_created_events();
   ASSERT_EQ(parsed_bwe_probe_cluster_created_events.size(),
@@ -851,6 +870,7 @@ TEST_P(RtcEventLogSession, StartLoggingFromBeginning) {
     count.generic_packets_sent = 100;
     count.generic_packets_received = 100;
     count.route_changes = 4;
+    count.bwe_scream_events = 20;
   }
 
   WriteLog(count, 0);
@@ -884,6 +904,7 @@ TEST_P(RtcEventLogSession, StartLoggingInTheMiddle) {
     count.generic_packets_sent = 500;
     count.generic_packets_received = 500;
     count.route_changes = 10;
+    count.bwe_scream_events = 50;
   }
 
   WriteLog(count, 500);

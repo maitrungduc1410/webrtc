@@ -179,6 +179,26 @@ rtc_library("rtc_event_bwe") {
   ]
 }
 
+rtc_library("rtc_event_bwe_update_scream") {
+  sources = [
+    "rtc_event_log/events/rtc_event_bwe_update_scream.cc",
+    "rtc_event_log/events/rtc_event_bwe_update_scream.h",
+  ]
+
+  deps = [
+    ":rtc_event_log_parse_status",
+    "../api:array_view",
+    "../api/rtc_event_log",
+    "../api/units:data_rate",
+    "../api/units:data_size",
+    "../api/units:time_delta",
+    "../api/units:timestamp",
+    "../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
 rtc_library("rtc_event_frame_events") {
   visibility = [ "*" ]
   sources = [
@@ -359,6 +379,7 @@ rtc_library("rtc_event_log_impl_encoder") {
       ":rtc_event_audio",
       ":rtc_event_begin_end",
       ":rtc_event_bwe",
+      ":rtc_event_bwe_update_scream",
       ":rtc_event_field",
       ":rtc_event_frame_events",
       ":rtc_event_generic_packet_events",
@@ -507,6 +528,7 @@ if (rtc_enable_protobuf) {
       ":rtc_event_audio",
       ":rtc_event_begin_end",
       ":rtc_event_bwe",
+      ":rtc_event_bwe_update_scream",
       ":rtc_event_frame_events",
       ":rtc_event_generic_packet_events",
       ":rtc_event_log2_proto",
@@ -578,6 +600,7 @@ if (rtc_enable_protobuf) {
         ":rtc_event_audio",
         ":rtc_event_begin_end",
         ":rtc_event_bwe",
+        ":rtc_event_bwe_update_scream",
         ":rtc_event_field",
         ":rtc_event_frame_events",
         ":rtc_event_generic_packet_events",
@@ -611,6 +634,7 @@ if (rtc_enable_protobuf) {
         "../api/rtc_event_log:rtc_event_log_factory",
         "../api/transport:bandwidth_usage",
         "../api/units:data_rate",
+        "../api/units:data_size",
         "../api/units:time_delta",
         "../api/units:timestamp",
         "../api/video:video_frame",

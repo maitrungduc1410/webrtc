@@ -42,6 +42,7 @@
 #include "logging/rtc_event_log/events/rtc_event_audio_send_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
@@ -722,6 +723,7 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
     std::vector<const RtcEventAudioSendStreamConfig*> audio_send_stream_configs;
     std::vector<const RtcEventBweUpdateDelayBased*> bwe_delay_based_updates;
     std::vector<const RtcEventBweUpdateLossBased*> bwe_loss_based_updates;
+    std::vector<const RtcEventBweUpdateScream*> bwe_scream_updates;
     std::vector<const RtcEventDtlsTransportState*> dtls_transport_states;
     std::vector<const RtcEventDtlsWritableState*> dtls_writable_states;
     std::map<uint32_t /* SSRC */, std::vector<const RtcEventFrameDecoded*>>
@@ -792,6 +794,12 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
           auto* rtc_event =
               static_cast<const RtcEventBweUpdateLossBased* const>(it->get());
           bwe_loss_based_updates.push_back(rtc_event);
+          break;
+        }
+        case RtcEvent::Type::BweUpdateScream: {
+          auto* rtc_event =
+              static_cast<const RtcEventBweUpdateScream* const>(it->get());
+          bwe_scream_updates.push_back(rtc_event);
           break;
         }
         case RtcEvent::Type::DtlsTransportState: {
@@ -936,6 +944,7 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
     EncodeNetEqSetMinimumDelay(neteq_set_minimum_delay_events, &event_stream);
     EncodeBweUpdateDelayBased(bwe_delay_based_updates, &event_stream);
     EncodeBweUpdateLossBased(bwe_loss_based_updates, &event_stream);
+    EncodeBweUpdateScream(bwe_scream_updates, &event_stream);
     EncodeDtlsTransportState(dtls_transport_states, &event_stream);
     EncodeDtlsWritableState(dtls_writable_states, &event_stream);
     for (const auto& kv : frames_decoded) {
@@ -1379,6 +1388,92 @@ void RtcEventLogEncoderNewFormat::EncodeBweUpdateLossBased(
   encoded_deltas = EncodeDeltas(base_event->total_packets(), values);
   if (!encoded_deltas.empty()) {
     proto_batch->set_total_packets_deltas(encoded_deltas);
+  }
+}
+
+void RtcEventLogEncoderNewFormat::EncodeBweUpdateScream(
+    ArrayView<const RtcEventBweUpdateScream*> batch,
+    rtclog2::EventStream* event_stream) {
+  if (batch.empty())
+    return;
+
+  // Base event
+  const RtcEventBweUpdateScream* const base_event = batch[0];
+  rtclog2::ScreamBweUpdates* proto_batch =
+      event_stream->add_scream_bwe_updates();
+  proto_batch->set_timestamp_ms(base_event->timestamp_ms());
+  proto_batch->set_ref_window_bytes(base_event->ref_window_bytes());
+  proto_batch->set_target_rate_kbps(base_event->target_rate_kbps());
+  proto_batch->set_smoothed_rtt_ms(base_event->smoothed_rtt_ms());
+  proto_batch->set_avg_queue_delay_ms(base_event->avg_queue_delay_ms());
+  proto_batch->set_l4s_marked_permille(base_event->l4s_marked_permille());
+
+  if (batch.size() == 1)
+    return;
+
+  // Delta encoding
+  proto_batch->set_number_of_deltas(batch.size() - 1);
+  std::vector<std::optional<uint64_t>> values(batch.size() - 1);
+  std::string encoded_deltas;
+
+  // timestamp_ms
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = ToUnsigned(event->timestamp_ms());
+  }
+  encoded_deltas = EncodeDeltas(ToUnsigned(base_event->timestamp_ms()), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_timestamp_ms_deltas(encoded_deltas);
+  }
+
+  // ref_window_bytes
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->ref_window_bytes();
+  }
+  encoded_deltas = EncodeDeltas(base_event->ref_window_bytes(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_ref_window_bytes_deltas(encoded_deltas);
+  }
+
+  // target_rate_kbps
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->target_rate_kbps();
+  }
+  encoded_deltas = EncodeDeltas(base_event->target_rate_kbps(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_target_rate_kbps_deltas(encoded_deltas);
+  }
+
+  // smoothed_rtt_ms
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->smoothed_rtt_ms();
+  }
+  encoded_deltas = EncodeDeltas(base_event->smoothed_rtt_ms(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_smoothed_rtt_ms_deltas(encoded_deltas);
+  }
+
+  // avg_queue_delay_ms
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->avg_queue_delay_ms();
+  }
+  encoded_deltas = EncodeDeltas(base_event->avg_queue_delay_ms(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_avg_queue_delay_ms_deltas(encoded_deltas);
+  }
+
+  // l4s_marked_permille
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->l4s_marked_permille();
+  }
+  encoded_deltas = EncodeDeltas(base_event->l4s_marked_permille(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_l4s_marked_permille_deltas(encoded_deltas);
   }
 }
 

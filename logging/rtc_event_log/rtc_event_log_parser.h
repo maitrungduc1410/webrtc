@@ -36,6 +36,7 @@
 #include "logging/rtc_event_log/events/rtc_event_begin_log.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
@@ -497,6 +498,10 @@ class ParsedRtcEventLog {
     return bwe_loss_updates_;
   }
 
+  const std::vector<LoggedBweScreamUpdate>& bwe_scream_updates() const {
+    return bwe_scream_updates_;
+  }
+
   // DTLS
   const std::vector<LoggedDtlsTransportState>& dtls_transport_states() const {
     return dtls_transport_states_;
@@ -761,6 +766,7 @@ class ParsedRtcEventLog {
       const rtclog2::DelayBasedBweUpdates& proto);
   ParseStatus StoreBweLossBasedUpdate(
       const rtclog2::LossBasedBweUpdates& proto);
+  ParseStatus StoreBweScreamUpdate(const rtclog2::ScreamBweUpdates& proto);
   ParseStatus StoreBweProbeClusterCreated(
       const rtclog2::BweProbeCluster& proto);
   ParseStatus StoreBweProbeFailureEvent(
@@ -898,6 +904,7 @@ class ParsedRtcEventLog {
 
   std::vector<LoggedBweDelayBasedUpdate> bwe_delay_updates_;
   std::vector<LoggedBweLossBasedUpdate> bwe_loss_updates_;
+  std::vector<LoggedBweScreamUpdate> bwe_scream_updates_;
 
   std::vector<LoggedDtlsTransportState> dtls_transport_states_;
   std::vector<LoggedDtlsWritableState> dtls_writable_states_;

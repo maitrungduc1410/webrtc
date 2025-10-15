@@ -40,6 +40,7 @@
 #include "logging/rtc_event_log/events/rtc_event_audio_send_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
 #include "logging/rtc_event_log/events/rtc_event_probe_cluster_created.h"
 #include "logging/rtc_event_log/events/rtc_event_probe_result_failure.h"
@@ -615,6 +616,30 @@ TEST_P(RtcEventLogEncoderTest, RtcEventBweUpdateLossBased) {
 
   for (size_t i = 0; i < event_count_; ++i) {
     verifier_.VerifyLoggedBweLossBasedUpdate(*events[i], bwe_loss_updates[i]);
+  }
+}
+
+TEST_P(RtcEventLogEncoderTest, RtcEventBweUpdateScream) {
+  std::unique_ptr<RtcEventLogEncoder> encoder = CreateEncoder();
+  std::vector<std::unique_ptr<RtcEventBweUpdateScream>> events(event_count_);
+  for (size_t i = 0; i < event_count_; ++i) {
+    events[i] = (i == 0 || !force_repeated_fields_) ? gen_.NewBweUpdateScream()
+                                                    : events[0]->Copy();
+    history_.push_back(events[i]->Copy());
+  }
+
+  encoded_ += encoder->EncodeBatch(history_.begin(), history_.end());
+  ASSERT_TRUE(parsed_log_.ParseString(encoded_).ok());
+
+  const auto& bwe_scream_updates = parsed_log_.bwe_scream_updates();
+  if (encoding_type_ == RtcEventLog::EncodingType::Legacy) {
+    ASSERT_EQ(bwe_scream_updates.size(), 0u);
+    return;
+  }
+
+  ASSERT_EQ(bwe_scream_updates.size(), event_count_);
+  for (size_t i = 0; i < event_count_; ++i) {
+    verifier_.VerifyLoggedBweScreamUpdate(*events[i], bwe_scream_updates[i]);
   }
 }
 

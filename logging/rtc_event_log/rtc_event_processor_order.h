@@ -24,6 +24,7 @@
 #include "logging/rtc_event_log/events/rtc_event_begin_log.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
@@ -76,6 +77,7 @@ enum class TypeOrder {
   BweDelayBased,
   BweLossBased,
   BweProbeCreated,
+  BweScream,
   // General processing events. No obvious order.
   AudioNetworkAdaptation,
   NetEqSetMinDelay,
@@ -270,6 +272,16 @@ class TieBreaker<LoggedBweProbeClusterCreatedEvent> {
       static_cast<int>(TypeOrder::BweProbeCreated);
   static std::optional<uint16_t> transport_seq_num_accessor(
       const LoggedBweProbeClusterCreatedEvent&) {
+    return std::optional<uint16_t>();
+  }
+};
+
+template <>
+class TieBreaker<LoggedBweScreamUpdate> {
+ public:
+  static constexpr int type_order = static_cast<int>(TypeOrder::BweScream);
+  static std::optional<uint16_t> transport_seq_num_accessor(
+      const LoggedBweScreamUpdate&) {
     return std::optional<uint16_t>();
   }
 };
