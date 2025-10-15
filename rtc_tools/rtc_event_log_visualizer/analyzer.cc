@@ -628,6 +628,12 @@ void EventLogAnalyzer::InitializeMapOfNamedGraphs(bool show_detector_state,
   plots_.RegisterPlot("incoming_ecn_feedback", [this](Plot* plot) {
     this->CreateIncomingEcnFeedbackGraph(plot);
   });
+  plots_.RegisterPlot("scream_ref_window", [this](Plot* plot) {
+    this->CreateScreamRefWindowGraph(plot);
+  });
+  plots_.RegisterPlot("scream_delay_estimates", [this](Plot* plot) {
+    this->CreateScreamDelayEstimateGraph(plot);
+  });
   plots_.RegisterPlot("network_delay_feedback", [this](Plot* plot) {
     this->CreateNetworkDelayFeedbackGraph(plot);
   });
@@ -1358,6 +1364,13 @@ void EventLogAnalyzer::CreateTotalOutgoingBitrateGraph(
   last_series->intervals.emplace_back(last_detector_switch,
                                       config_.CallEndTimeSec());
 
+  TimeSeries scream_series("Scream target rate", LineStyle::kStep);
+  for (auto& scream_update : parsed_log_.bwe_scream_updates()) {
+    float x = config_.GetCallTimeSec(scream_update.log_time());
+    float y = static_cast<float>(scream_update.target_rate.kbps());
+    scream_series.points.emplace_back(x, y);
+  }
+
   TimeSeries created_series("Probe cluster created.", LineStyle::kNone,
                             PointStyle::kHighlight);
   for (auto& cluster : parsed_log_.bwe_probe_cluster_created_events()) {
@@ -1420,6 +1433,7 @@ void EventLogAnalyzer::CreateTotalOutgoingBitrateGraph(
   plot->AppendTimeSeries(std::move(loss_series));
   plot->AppendTimeSeriesIfNotEmpty(std::move(probe_failures_series));
   plot->AppendTimeSeries(std::move(delay_series));
+  plot->AppendTimeSeriesIfNotEmpty(std::move(scream_series));
   plot->AppendTimeSeries(std::move(created_series));
   plot->AppendTimeSeries(std::move(result_series));
 
@@ -1579,6 +1593,45 @@ void EventLogAnalyzer::CreateOutgoingEcnFeedbackGraph(Plot* plot) const {
 void EventLogAnalyzer::CreateIncomingEcnFeedbackGraph(Plot* plot) const {
   CreateEcnFeedbackGraph(plot, kIncomingPacket);
   plot->SetTitle("Incoming ECN count per feedback");
+}
+
+void EventLogAnalyzer::CreateScreamRefWindowGraph(Plot* plot) const {
+  TimeSeries ref_window_series("RefWindow", LineStyle::kStep);
+
+  for (auto& scream_update : parsed_log_.bwe_scream_updates()) {
+    float x = config_.GetCallTimeSec(scream_update.log_time());
+    float y = static_cast<float>(scream_update.ref_window.bytes());
+    ref_window_series.points.emplace_back(x, y);
+  }
+
+  plot->AppendTimeSeries(std::move(ref_window_series));
+
+  plot->SetXAxis(config_.CallBeginTimeSec(), config_.CallEndTimeSec(),
+                 "Time (s)", kLeftMargin, kRightMargin);
+  plot->SetSuggestedYAxis(0, 3000, "Bytes", kBottomMargin, kTopMargin);
+  plot->SetTitle("Scream Ref Window");
+}
+
+void EventLogAnalyzer::CreateScreamDelayEstimateGraph(Plot* plot) const {
+  TimeSeries smoothed_rtt_series("Smoothed RTT", LineStyle::kStep);
+  TimeSeries avg_queue_delay_series("Avg queue delay", LineStyle::kStep);
+
+  for (auto& scream_update : parsed_log_.bwe_scream_updates()) {
+    float x = config_.GetCallTimeSec(scream_update.log_time());
+    float smoothed_rtt_ms = static_cast<float>(scream_update.smoothed_rtt.ms());
+    smoothed_rtt_series.points.emplace_back(x, smoothed_rtt_ms);
+    float avg_queue_delay_ms =
+        static_cast<float>(scream_update.avg_queue_delay.ms());
+    avg_queue_delay_series.points.emplace_back(x, avg_queue_delay_ms);
+  }
+
+  plot->AppendTimeSeries(std::move(smoothed_rtt_series));
+  plot->AppendTimeSeries(std::move(avg_queue_delay_series));
+
+  plot->SetXAxis(config_.CallBeginTimeSec(), config_.CallEndTimeSec(),
+                 "Time (s)", kLeftMargin, kRightMargin);
+  plot->SetSuggestedYAxis(0, 50, "Delay (ms)", kBottomMargin, kTopMargin);
+  plot->SetTitle("Scream delay estimates");
 }
 
 void EventLogAnalyzer::CreateEcnFeedbackGraph(Plot* plot,
