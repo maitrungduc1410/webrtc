@@ -126,26 +126,6 @@ scoped_refptr<const RTCStatsReport> GetStatsAndProcess(
   return stats_collector->report();
 }
 
-DataRate GetAvailableSendBitrate(
-    const scoped_refptr<const RTCStatsReport>& report) {
-  auto stats = report->GetStatsOfType<RTCIceCandidatePairStats>();
-  if (stats.empty()) {
-    return DataRate::Zero();
-  }
-  return DataRate::BitsPerSec(*stats[0]->available_outgoing_bitrate);
-}
-
-TimeDelta GetAverageRoundTripTime(
-    const scoped_refptr<const RTCStatsReport>& report) {
-  auto stats = report->GetStatsOfType<RTCIceCandidatePairStats>();
-  if (stats.empty() || (stats[0]->responses_received.value_or(0) == 0)) {
-    return TimeDelta::Zero();
-  }
-
-  return TimeDelta::Seconds(*stats[0]->total_round_trip_time /
-                            *stats[0]->responses_received);
-}
-
 std::optional<int64_t> GetPacketsSentWithEct1(
     const scoped_refptr<const RTCStatsReport>& report) {
   auto stats = report->GetStatsOfType<RTCOutboundRtpStreamStats>();
@@ -246,116 +226,6 @@ TEST(L4STest, NegotiateAndUseCcfbIfEnabled) {
   EXPECT_GT(ret_node_feedback_counter.FeedbackAccordingToRfc8888(), 0);
   EXPECT_EQ(ret_node_feedback_counter.FeedbackAccordingToTransportCc(), 0);
 }
-
-struct SupportRfc8888Params {
-  bool caller_supports_rfc8888 = false;
-  bool callee_supports_rfc8888 = false;
-  std::string test_suffix;
-};
-
-class FeedbackFormatTest : public TestWithParam<SupportRfc8888Params> {};
-
-TEST_P(FeedbackFormatTest, AdaptToLinkCapacityWithoutEcn) {
-  const SupportRfc8888Params& params = GetParam();
-  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
-
-  PeerScenarioClient::Config caller_config;
-  caller_config.disable_encryption = true;
-  caller_config.field_trials.Set(
-      "WebRTC-RFC8888CongestionControlFeedback",
-      params.caller_supports_rfc8888 ? "Enabled,offer:true" : "Disabled");
-  PeerScenarioClient* caller = s.CreateClient(caller_config);
-
-  PeerScenarioClient::Config callee_config;
-  callee_config.disable_encryption = true;
-  callee_config.field_trials.Set(
-      "WebRTC-RFC8888CongestionControlFeedback",
-      params.callee_supports_rfc8888 ? "Enabled" : "Disabled");
-  PeerScenarioClient* callee = s.CreateClient(callee_config);
-
-  auto caller_to_callee = s.net()
-                              ->NodeBuilder()
-                              .capacity(DataRate::KilobitsPerSec(250))
-                              .Build()
-                              .node;
-  auto callee_to_caller = s.net()
-                              ->NodeBuilder()
-                              .capacity(DataRate::KilobitsPerSec(250))
-                              .Build()
-                              .node;
-  RtcpFeedbackCounter callee_feedback_counter;
-  caller_to_callee->router()->SetWatcher([&](const EmulatedIpPacket& packet) {
-    callee_feedback_counter.Count(packet);
-  });
-  RtcpFeedbackCounter caller_feedback_counter;
-  callee_to_caller->router()->SetWatcher([&](const EmulatedIpPacket& packet) {
-    caller_feedback_counter.Count(packet);
-  });
-
-  s.net()->CreateRoute(caller->endpoint(), {caller_to_callee},
-                       callee->endpoint());
-  s.net()->CreateRoute(callee->endpoint(), {callee_to_caller},
-                       caller->endpoint());
-
-  auto signaling = s.ConnectSignaling(caller, callee, {caller_to_callee},
-                                      {callee_to_caller});
-  PeerScenarioClient::VideoSendTrackConfig video_conf;
-  video_conf.generator.squares_video->framerate = 30;
-  video_conf.generator.squares_video->width = 320;
-  video_conf.generator.squares_video->height = 240;
-  caller->CreateVideo("FROM_CALLER", video_conf);
-  callee->CreateVideo("FROM_CALLEE", video_conf);
-  caller->CreateAudio("FROM_CALLER", AudioOptions());
-  callee->CreateAudio("FROM_CALLEE", AudioOptions());
-
-  signaling.StartIceSignaling();
-  std::atomic<bool> offer_exchange_done(false);
-  signaling.NegotiateSdp([&](const SessionDescriptionInterface& answer) {
-    offer_exchange_done = true;
-  });
-  s.WaitAndProcess(&offer_exchange_done);
-  s.ProcessMessages(TimeDelta::Seconds(5));
-
-  DataRate caller_available_bwe =
-      GetAvailableSendBitrate(GetStatsAndProcess(s, caller));
-  EXPECT_GT(caller_available_bwe.kbps(), 150);
-  EXPECT_LT(caller_available_bwe.kbps(), 260);
-
-  DataRate callee_available_bwe =
-      GetAvailableSendBitrate(GetStatsAndProcess(s, callee));
-  EXPECT_GT(callee_available_bwe.kbps(), 150);
-  EXPECT_LT(callee_available_bwe.kbps(), 260);
-
-  EXPECT_LT(GetAverageRoundTripTime(GetStatsAndProcess(s, caller)),
-            TimeDelta::Millis(200));
-
-  if (params.caller_supports_rfc8888 && params.callee_supports_rfc8888) {
-    EXPECT_GT(caller_feedback_counter.FeedbackAccordingToRfc8888(), 0);
-    EXPECT_GT(callee_feedback_counter.FeedbackAccordingToRfc8888(), 0);
-    EXPECT_EQ(caller_feedback_counter.FeedbackAccordingToTransportCc(), 0);
-    EXPECT_EQ(callee_feedback_counter.FeedbackAccordingToTransportCc(), 0);
-  } else {
-    EXPECT_EQ(caller_feedback_counter.FeedbackAccordingToRfc8888(), 0);
-    EXPECT_EQ(callee_feedback_counter.FeedbackAccordingToRfc8888(), 0);
-    EXPECT_GT(caller_feedback_counter.FeedbackAccordingToTransportCc(), 0);
-    EXPECT_GT(callee_feedback_counter.FeedbackAccordingToTransportCc(), 0);
-  }
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    L4STest,
-    FeedbackFormatTest,
-    testing::Values(
-        SupportRfc8888Params{.caller_supports_rfc8888 = true,
-                             .test_suffix = "OnlyCallerSupportsRfc8888"},
-        SupportRfc8888Params{.callee_supports_rfc8888 = true,
-                             .test_suffix = "OnlyCalleeSupportsRfc8888"},
-        SupportRfc8888Params{.caller_supports_rfc8888 = true,
-                             .callee_supports_rfc8888 = true,
-                             .test_suffix = "SupportsRfc8888"}),
-    [](const testing::TestParamInfo<SupportRfc8888Params>& info) {
-      return info.param.test_suffix;
-    });
 
 TEST(L4STest, NoCcfbSentAfterRenegotiationAndCallerCachLocalDescription) {
   // The caller supports CCFB, but the callee does not.
@@ -473,6 +343,136 @@ TEST(L4STest, NoCcfbSentAfterRenegotiationAndCallerCachLocalDescription) {
 // prefers_late_decoding = implementation_name = 'fake_decoder',
 // is_hardware_accelerated = true }
 // Figure out how to run libvpx instead.
+
+DataRate GetAvailableSendBitrate(
+    const scoped_refptr<const RTCStatsReport>& report) {
+  auto stats = report->GetStatsOfType<RTCIceCandidatePairStats>();
+  if (stats.empty()) {
+    return DataRate::Zero();
+  }
+  return DataRate::BitsPerSec(*stats[0]->available_outgoing_bitrate);
+}
+
+TimeDelta GetAverageRoundTripTime(
+    const scoped_refptr<const RTCStatsReport>& report) {
+  auto stats = report->GetStatsOfType<RTCIceCandidatePairStats>();
+  if (stats.empty() || (stats[0]->responses_received.value_or(0) == 0)) {
+    return TimeDelta::Zero();
+  }
+
+  return TimeDelta::Seconds(*stats[0]->total_round_trip_time /
+                            *stats[0]->responses_received);
+}
+
+struct SupportRfc8888Params {
+  bool caller_supports_rfc8888 = false;
+  bool callee_supports_rfc8888 = false;
+  std::string test_suffix;
+};
+
+class FeedbackFormatTest : public TestWithParam<SupportRfc8888Params> {};
+
+TEST_P(FeedbackFormatTest, AdaptToLinkCapacityWithoutEcn) {
+  const SupportRfc8888Params& params = GetParam();
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+
+  PeerScenarioClient::Config caller_config;
+  caller_config.disable_encryption = true;
+  caller_config.field_trials.Set(
+      "WebRTC-RFC8888CongestionControlFeedback",
+      params.caller_supports_rfc8888 ? "Enabled,offer:true" : "Disabled");
+  PeerScenarioClient* caller = s.CreateClient(caller_config);
+
+  PeerScenarioClient::Config callee_config;
+  callee_config.disable_encryption = true;
+  callee_config.field_trials.Set(
+      "WebRTC-RFC8888CongestionControlFeedback",
+      params.callee_supports_rfc8888 ? "Enabled" : "Disabled");
+  PeerScenarioClient* callee = s.CreateClient(callee_config);
+
+  auto caller_to_callee = s.net()
+                              ->NodeBuilder()
+                              .capacity(DataRate::KilobitsPerSec(250))
+                              .Build()
+                              .node;
+  auto callee_to_caller = s.net()
+                              ->NodeBuilder()
+                              .capacity(DataRate::KilobitsPerSec(250))
+                              .Build()
+                              .node;
+  RtcpFeedbackCounter callee_feedback_counter;
+  caller_to_callee->router()->SetWatcher([&](const EmulatedIpPacket& packet) {
+    callee_feedback_counter.Count(packet);
+  });
+  RtcpFeedbackCounter caller_feedback_counter;
+  callee_to_caller->router()->SetWatcher([&](const EmulatedIpPacket& packet) {
+    caller_feedback_counter.Count(packet);
+  });
+
+  s.net()->CreateRoute(caller->endpoint(), {caller_to_callee},
+                       callee->endpoint());
+  s.net()->CreateRoute(callee->endpoint(), {callee_to_caller},
+                       caller->endpoint());
+
+  auto signaling = s.ConnectSignaling(caller, callee, {caller_to_callee},
+                                      {callee_to_caller});
+  PeerScenarioClient::VideoSendTrackConfig video_conf;
+  video_conf.generator.squares_video->framerate = 30;
+  video_conf.generator.squares_video->width = 320;
+  video_conf.generator.squares_video->height = 240;
+  caller->CreateVideo("FROM_CALLER", video_conf);
+  callee->CreateVideo("FROM_CALLEE", video_conf);
+  caller->CreateAudio("FROM_CALLER", AudioOptions());
+  callee->CreateAudio("FROM_CALLEE", AudioOptions());
+
+  signaling.StartIceSignaling();
+  std::atomic<bool> offer_exchange_done(false);
+  signaling.NegotiateSdp([&](const SessionDescriptionInterface& answer) {
+    offer_exchange_done = true;
+  });
+  s.WaitAndProcess(&offer_exchange_done);
+  s.ProcessMessages(TimeDelta::Seconds(5));
+
+  DataRate caller_available_bwe =
+      GetAvailableSendBitrate(GetStatsAndProcess(s, caller));
+  EXPECT_GT(caller_available_bwe.kbps(), 150);
+  EXPECT_LT(caller_available_bwe.kbps(), 260);
+
+  DataRate callee_available_bwe =
+      GetAvailableSendBitrate(GetStatsAndProcess(s, callee));
+  EXPECT_GT(callee_available_bwe.kbps(), 150);
+  EXPECT_LT(callee_available_bwe.kbps(), 260);
+
+  EXPECT_LT(GetAverageRoundTripTime(GetStatsAndProcess(s, caller)),
+            TimeDelta::Millis(200));
+
+  if (params.caller_supports_rfc8888 && params.callee_supports_rfc8888) {
+    EXPECT_GT(caller_feedback_counter.FeedbackAccordingToRfc8888(), 0);
+    EXPECT_GT(callee_feedback_counter.FeedbackAccordingToRfc8888(), 0);
+    EXPECT_EQ(caller_feedback_counter.FeedbackAccordingToTransportCc(), 0);
+    EXPECT_EQ(callee_feedback_counter.FeedbackAccordingToTransportCc(), 0);
+  } else {
+    EXPECT_EQ(caller_feedback_counter.FeedbackAccordingToRfc8888(), 0);
+    EXPECT_EQ(callee_feedback_counter.FeedbackAccordingToRfc8888(), 0);
+    EXPECT_GT(caller_feedback_counter.FeedbackAccordingToTransportCc(), 0);
+    EXPECT_GT(callee_feedback_counter.FeedbackAccordingToTransportCc(), 0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    L4STest,
+    FeedbackFormatTest,
+    testing::Values(
+        SupportRfc8888Params{.caller_supports_rfc8888 = true,
+                             .test_suffix = "OnlyCallerSupportsRfc8888"},
+        SupportRfc8888Params{.callee_supports_rfc8888 = true,
+                             .test_suffix = "OnlyCalleeSupportsRfc8888"},
+        SupportRfc8888Params{.caller_supports_rfc8888 = true,
+                             .callee_supports_rfc8888 = true,
+                             .test_suffix = "SupportsRfc8888"}),
+    [](const testing::TestParamInfo<SupportRfc8888Params>& info) {
+      return info.param.test_suffix;
+    });
 
 struct SendMediaTestResult {
   // Stats gathered at the end of the call.
