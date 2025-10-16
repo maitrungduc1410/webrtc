@@ -805,6 +805,46 @@ TEST_F(RtpTransceiverTestForHeaderExtensions, ReturnsNegotiatedHdrExts) {
 }
 
 TEST_F(RtpTransceiverTestForHeaderExtensions,
+       ReturnsNegotiatedHdrExtsOnPrAnswer) {
+  const std::string content_name("my_mid");
+  EXPECT_CALL(*receiver_.get(), SetMediaChannel(_)).WillRepeatedly(Return());
+  EXPECT_CALL(*receiver_.get(), Stop()).WillRepeatedly(Return());
+  EXPECT_CALL(*sender_.get(), SetMediaChannel(_));
+  EXPECT_CALL(*sender_.get(), SetTransceiverAsStopped());
+  EXPECT_CALL(*sender_.get(), Stop());
+
+  auto mock_channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto mock_channel_ptr = mock_channel.get();
+  EXPECT_CALL(*mock_channel, media_type())
+      .WillRepeatedly(Return(MediaType::AUDIO));
+  EXPECT_CALL(*mock_channel, voice_media_send_channel())
+      .WillRepeatedly(Return(nullptr));
+  EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
+  EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
+                                    RtpExtension("uri2", 2)};
+  AudioContentDescription description;
+  description.set_rtp_header_extensions(extensions);
+  transceiver_->OnNegotiationUpdate(SdpType::kPrAnswer, &description);
+
+  transceiver_->SetChannel(std::move(mock_channel),
+                           [](const std::string&) { return nullptr; });
+
+  EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
+              ElementsAre(Field(&RtpHeaderExtensionCapability::direction,
+                                RtpTransceiverDirection::kSendRecv),
+                          Field(&RtpHeaderExtensionCapability::direction,
+                                RtpTransceiverDirection::kSendRecv),
+                          Field(&RtpHeaderExtensionCapability::direction,
+                                RtpTransceiverDirection::kStopped),
+                          Field(&RtpHeaderExtensionCapability::direction,
+                                RtpTransceiverDirection::kStopped)));
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketReceivedCallback(_));
+  ClearChannel();
+}
+
+TEST_F(RtpTransceiverTestForHeaderExtensions,
        ReturnsNegotiatedHdrExtsSecondTime) {
   EXPECT_CALL(*receiver_.get(), Stop());
   EXPECT_CALL(*receiver_.get(), SetMediaChannel(_));
