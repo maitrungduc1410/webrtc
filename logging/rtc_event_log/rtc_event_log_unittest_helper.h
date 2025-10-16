@@ -60,6 +60,7 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/sender_report.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "modules/rtp_rtcp/source/rtp_packet.h"
+#include "rtc_base/buffer.h"
 #include "rtc_base/random.h"
 
 namespace webrtc {
@@ -150,6 +151,7 @@ class EventGenerator {
 
  private:
   rtcp::ReportBlock NewReportBlock();
+  Buffer NewRtcpPacket();
 
   Random prng_;
 };

@@ -494,142 +494,29 @@ std::unique_ptr<RtcEventRemoteEstimate> EventGenerator::NewRemoteEstimate() {
       DataRate::KilobitsPerSec(prng_.Rand(0, 100000)));
 }
 
+Buffer EventGenerator::NewRtcpPacket() {
+  static constexpr Buffer (*kSupportedRtcp[])(EventGenerator*) = {
+      [](EventGenerator* thiz) { return thiz->NewSenderReport().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewReceiverReport().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewExtendedReports().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewFir().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewPli().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewNack().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewRemb().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewBye().Build(); },
+      [](EventGenerator* thiz) { return thiz->NewTransportFeedback().Build(); },
+  };
+  return kSupportedRtcp[prng_.Rand(std::size(kSupportedRtcp) - 1)](this);
+}
+
 std::unique_ptr<RtcEventRtcpPacketIncoming>
 EventGenerator::NewRtcpPacketIncoming() {
-  enum class SupportedRtcpTypes {
-    kSenderReport = 0,
-    kReceiverReport,
-    kExtendedReports,
-    kFir,
-    kPli,
-    kNack,
-    kRemb,
-    kBye,
-    kTransportFeedback,
-    kNumValues
-  };
-  SupportedRtcpTypes type = static_cast<SupportedRtcpTypes>(
-      prng_.Rand(0, static_cast<int>(SupportedRtcpTypes::kNumValues) - 1));
-  switch (type) {
-    case SupportedRtcpTypes::kSenderReport: {
-      rtcp::SenderReport sender_report = NewSenderReport();
-      Buffer buffer = sender_report.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kReceiverReport: {
-      rtcp::ReceiverReport receiver_report = NewReceiverReport();
-      Buffer buffer = receiver_report.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kExtendedReports: {
-      rtcp::ExtendedReports extended_report = NewExtendedReports();
-      Buffer buffer = extended_report.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kFir: {
-      rtcp::Fir fir = NewFir();
-      Buffer buffer = fir.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kPli: {
-      rtcp::Pli pli = NewPli();
-      Buffer buffer = pli.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kNack: {
-      rtcp::Nack nack = NewNack();
-      Buffer buffer = nack.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kRemb: {
-      rtcp::Remb remb = NewRemb();
-      Buffer buffer = remb.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kBye: {
-      rtcp::Bye bye = NewBye();
-      Buffer buffer = bye.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    case SupportedRtcpTypes::kTransportFeedback: {
-      rtcp::TransportFeedback transport_feedback = NewTransportFeedback();
-      Buffer buffer = transport_feedback.Build();
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-    }
-    default:
-      RTC_DCHECK_NOTREACHED();
-      Buffer buffer;
-      return std::make_unique<RtcEventRtcpPacketIncoming>(buffer);
-  }
+  return std::make_unique<RtcEventRtcpPacketIncoming>(NewRtcpPacket());
 }
 
 std::unique_ptr<RtcEventRtcpPacketOutgoing>
 EventGenerator::NewRtcpPacketOutgoing() {
-  enum class SupportedRtcpTypes {
-    kSenderReport = 0,
-    kReceiverReport,
-    kExtendedReports,
-    kFir,
-    kPli,
-    kNack,
-    kRemb,
-    kBye,
-    kTransportFeedback,
-    kNumValues
-  };
-  SupportedRtcpTypes type = static_cast<SupportedRtcpTypes>(
-      prng_.Rand(0, static_cast<int>(SupportedRtcpTypes::kNumValues) - 1));
-  switch (type) {
-    case SupportedRtcpTypes::kSenderReport: {
-      rtcp::SenderReport sender_report = NewSenderReport();
-      Buffer buffer = sender_report.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kReceiverReport: {
-      rtcp::ReceiverReport receiver_report = NewReceiverReport();
-      Buffer buffer = receiver_report.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kExtendedReports: {
-      rtcp::ExtendedReports extended_report = NewExtendedReports();
-      Buffer buffer = extended_report.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kFir: {
-      rtcp::Fir fir = NewFir();
-      Buffer buffer = fir.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kPli: {
-      rtcp::Pli pli = NewPli();
-      Buffer buffer = pli.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kNack: {
-      rtcp::Nack nack = NewNack();
-      Buffer buffer = nack.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kRemb: {
-      rtcp::Remb remb = NewRemb();
-      Buffer buffer = remb.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kBye: {
-      rtcp::Bye bye = NewBye();
-      Buffer buffer = bye.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    case SupportedRtcpTypes::kTransportFeedback: {
-      rtcp::TransportFeedback transport_feedback = NewTransportFeedback();
-      Buffer buffer = transport_feedback.Build();
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-    }
-    default:
-      RTC_DCHECK_NOTREACHED();
-      Buffer buffer;
-      return std::make_unique<RtcEventRtcpPacketOutgoing>(buffer);
-  }
+  return std::make_unique<RtcEventRtcpPacketOutgoing>(NewRtcpPacket());
 }
 
 void EventGenerator::RandomizeRtpPacket(
