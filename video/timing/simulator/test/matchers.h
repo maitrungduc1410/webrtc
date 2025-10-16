@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "api/video/encoded_frame.h"
+#include "api/video/video_frame.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -27,6 +28,10 @@ inline ::testing::Matcher<const EncodedFrame&> EncodedFrameWithId(
 inline ::testing::Matcher<std::unique_ptr<EncodedFrame>> EncodedFramePtrWithId(
     int64_t expected_id) {
   return ::testing::Pointee(EncodedFrameWithId(expected_id));
+}
+inline ::testing::Matcher<const VideoFrame&> VideoFrameWithId(
+    uint16_t expected_id) {
+  return ::testing::Property(&VideoFrame::id, ::testing::Eq(expected_id));
 }
 
 }  // namespace webrtc::video_timing_simulator

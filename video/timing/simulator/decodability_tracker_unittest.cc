@@ -16,6 +16,7 @@
 
 #include "api/sequence_checker.h"
 #include "api/video/encoded_frame.h"
+#include "rtc_base/thread_annotations.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "video/timing/simulator/assembler.h"
@@ -72,7 +73,8 @@ class DecodabilityTrackerTest : public SimulatedTimeTestFixture {
   NiceMock<MockDecodedFrameIdCallback> decoded_frame_id_cb_;
 
   // Object under test.
-  std::unique_ptr<DecodabilityTracker> decodability_tracker_;
+  std::unique_ptr<DecodabilityTracker> decodability_tracker_
+      RTC_PT_GUARDED_BY(queue_ptr_);
 };
 
 TEST_F(DecodabilityTrackerTest, KeyframeIsDecodable) {
