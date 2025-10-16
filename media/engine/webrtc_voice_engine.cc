@@ -533,9 +533,6 @@ void WebRtcVoiceEngine::Init() {
 
   adm_helpers::Init(adm());
 
-  // Connect the ADM to our audio path.
-  adm()->RegisterAudioCallback(audio_state()->audio_transport());
-
   // Set default engine options.
   {
     AudioOptions options;
@@ -554,6 +551,12 @@ void WebRtcVoiceEngine::Init() {
     options.audio_jitter_buffer_min_delay_ms = 0;
     ApplyOptions(options);
   }
+
+  // Connect the ADM to our audio path. It's important to do this after applying
+  // the configuration so that the audio callback receives calls with the
+  // correct init options already applied.
+  adm()->RegisterAudioCallback(audio_state()->audio_transport());
+
   initialized_ = true;
 }
 
