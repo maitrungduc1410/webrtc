@@ -315,12 +315,12 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationBitrate) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
+      AudioEncoderRuntimeConfig runtime_config;
       const int bitrate_bps =
           checked_cast<int>(prng_.Rand(0, std::numeric_limits<int32_t>::max()));
-      runtime_config->bitrate_bps = bitrate_bps;
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      runtime_config.bitrate_bps = bitrate_bps;
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }
@@ -333,11 +333,11 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationFrameLength) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
+      AudioEncoderRuntimeConfig runtime_config;
       const int frame_length_ms = prng_.Rand(1, 1000);
-      runtime_config->frame_length_ms = frame_length_ms;
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      runtime_config.frame_length_ms = frame_length_ms;
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }
@@ -352,10 +352,10 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationPacketLoss) {
     if (i == 0 || !force_repeated_fields_) {
       // To simplify the test, we just check powers of two.
       const float plr = std::pow(0.5f, prng_.Rand(1, 8));
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
-      runtime_config->uplink_packet_loss_fraction = plr;
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      AudioEncoderRuntimeConfig runtime_config;
+      runtime_config.uplink_packet_loss_fraction = plr;
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }
@@ -368,10 +368,10 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationFec) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
-      runtime_config->enable_fec = prng_.Rand<bool>();
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      AudioEncoderRuntimeConfig runtime_config;
+      runtime_config.enable_fec = prng_.Rand<bool>();
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }
@@ -384,8 +384,8 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationDtx) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
-      runtime_config->enable_dtx = prng_.Rand<bool>();
+      AudioEncoderRuntimeConfig runtime_config;
+      runtime_config.enable_dtx = prng_.Rand<bool>();
       events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
           std::move(runtime_config));
     } else {
@@ -400,10 +400,10 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationChannels) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
-      runtime_config->num_channels = prng_.Rand(1, 2);
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      AudioEncoderRuntimeConfig runtime_config;
+      runtime_config.num_channels = prng_.Rand(1, 2);
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }
@@ -416,17 +416,17 @@ TEST_P(RtcEventLogEncoderTest, RtcEventAudioNetworkAdaptationAll) {
       event_count_);
   for (size_t i = 0; i < event_count_; ++i) {
     if (i == 0 || !force_repeated_fields_) {
-      auto runtime_config = std::make_unique<AudioEncoderRuntimeConfig>();
-      runtime_config->bitrate_bps =
+      AudioEncoderRuntimeConfig runtime_config;
+      runtime_config.bitrate_bps =
           checked_cast<int>(prng_.Rand(0, std::numeric_limits<int32_t>::max()));
-      runtime_config->frame_length_ms = prng_.Rand(1, 1000);
-      runtime_config->uplink_packet_loss_fraction =
+      runtime_config.frame_length_ms = prng_.Rand(1, 1000);
+      runtime_config.uplink_packet_loss_fraction =
           std::pow(0.5f, prng_.Rand(1, 8));
-      runtime_config->enable_fec = prng_.Rand<bool>();
-      runtime_config->enable_dtx = prng_.Rand<bool>();
-      runtime_config->num_channels = prng_.Rand(1, 2);
-      events[i] = std::make_unique<RtcEventAudioNetworkAdaptation>(
-          std::move(runtime_config));
+      runtime_config.enable_fec = prng_.Rand<bool>();
+      runtime_config.enable_dtx = prng_.Rand<bool>();
+      runtime_config.num_channels = prng_.Rand(1, 2);
+      events[i] =
+          std::make_unique<RtcEventAudioNetworkAdaptation>(runtime_config);
     } else {
       events[i] = events[0]->Copy();
     }

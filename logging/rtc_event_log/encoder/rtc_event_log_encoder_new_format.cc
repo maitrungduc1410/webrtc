@@ -61,7 +61,6 @@
 #include "logging/rtc_event_log/events/rtc_event_video_receive_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_video_send_stream_config.h"
 #include "logging/rtc_event_log/rtc_stream_config.h"
-#include "modules/audio_coding/audio_network_adaptor/include/audio_network_adaptor_config.h"
 #include "modules/rtp_rtcp/include/rtp_cvo.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/bye.h"
@@ -972,28 +971,27 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   rtclog2::AudioNetworkAdaptations* proto_batch =
       event_stream->add_audio_network_adaptations();
   proto_batch->set_timestamp_ms(base_event->timestamp_ms());
-  if (base_event->config().bitrate_bps.has_value())
-    proto_batch->set_bitrate_bps(base_event->config().bitrate_bps.value());
-  if (base_event->config().frame_length_ms.has_value()) {
-    proto_batch->set_frame_length_ms(
-        base_event->config().frame_length_ms.value());
+  if (base_event->bitrate_bps().has_value())
+    proto_batch->set_bitrate_bps(base_event->bitrate_bps().value());
+  if (base_event->frame_length_ms().has_value()) {
+    proto_batch->set_frame_length_ms(base_event->frame_length_ms().value());
   }
   std::optional<uint64_t> base_uplink_packet_loss_fraction;
-  if (base_event->config().uplink_packet_loss_fraction.has_value()) {
+  if (base_event->uplink_packet_loss_fraction().has_value()) {
     base_uplink_packet_loss_fraction = ConvertPacketLossFractionToProtoFormat(
-        base_event->config().uplink_packet_loss_fraction.value());
+        base_event->uplink_packet_loss_fraction().value());
     proto_batch->set_uplink_packet_loss_fraction(
         base_uplink_packet_loss_fraction.value());
   }
-  if (base_event->config().enable_fec.has_value())
-    proto_batch->set_enable_fec(base_event->config().enable_fec.value());
-  if (base_event->config().enable_dtx.has_value())
-    proto_batch->set_enable_dtx(base_event->config().enable_dtx.value());
+  if (base_event->enable_fec().has_value())
+    proto_batch->set_enable_fec(base_event->enable_fec().value());
+  if (base_event->enable_dtx().has_value())
+    proto_batch->set_enable_dtx(base_event->enable_dtx().value());
   // Note that `num_channels_deltas` encodes N as N-1, to keep deltas smaller,
   // but there's no reason to do the same for the base event's value, since
   // no bits will be spared.
-  if (base_event->config().num_channels.has_value())
-    proto_batch->set_num_channels(base_event->config().num_channels.value());
+  if (base_event->num_channels().has_value())
+    proto_batch->set_num_channels(base_event->num_channels().value());
 
   if (batch.size() == 1)
     return;
@@ -1016,15 +1014,15 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // bitrate_bps
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    if (event->config().bitrate_bps.has_value()) {
-      values[i] = ToUnsigned(event->config().bitrate_bps.value());
+    if (event->bitrate_bps().has_value()) {
+      values[i] = ToUnsigned(event->bitrate_bps().value());
     } else {
       values[i].reset();
     }
   }
   const std::optional<uint64_t> unsigned_base_bitrate_bps =
-      base_event->config().bitrate_bps.has_value()
-          ? ToUnsigned(base_event->config().bitrate_bps.value())
+      base_event->bitrate_bps().has_value()
+          ? ToUnsigned(base_event->bitrate_bps().value())
           : std::optional<uint64_t>();
   encoded_deltas = EncodeDeltas(unsigned_base_bitrate_bps, values);
   if (!encoded_deltas.empty()) {
@@ -1034,15 +1032,15 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // frame_length_ms
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    if (event->config().frame_length_ms.has_value()) {
-      values[i] = ToUnsigned(event->config().frame_length_ms.value());
+    if (event->frame_length_ms().has_value()) {
+      values[i] = ToUnsigned(event->frame_length_ms().value());
     } else {
       values[i].reset();
     }
   }
   const std::optional<uint64_t> unsigned_base_frame_length_ms =
-      base_event->config().frame_length_ms.has_value()
-          ? ToUnsigned(base_event->config().frame_length_ms.value())
+      base_event->frame_length_ms().has_value()
+          ? ToUnsigned(base_event->frame_length_ms().value())
           : std::optional<uint64_t>();
   encoded_deltas = EncodeDeltas(unsigned_base_frame_length_ms, values);
   if (!encoded_deltas.empty()) {
@@ -1052,9 +1050,9 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // uplink_packet_loss_fraction
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    if (event->config().uplink_packet_loss_fraction.has_value()) {
+    if (event->uplink_packet_loss_fraction().has_value()) {
       values[i] = ConvertPacketLossFractionToProtoFormat(
-          event->config().uplink_packet_loss_fraction.value());
+          event->uplink_packet_loss_fraction().value());
     } else {
       values[i].reset();
     }
@@ -1067,9 +1065,9 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // enable_fec
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    values[i] = event->config().enable_fec;
+    values[i] = event->enable_fec();
   }
-  encoded_deltas = EncodeDeltas(base_event->config().enable_fec, values);
+  encoded_deltas = EncodeDeltas(base_event->enable_fec(), values);
   if (!encoded_deltas.empty()) {
     proto_batch->set_enable_fec_deltas(encoded_deltas);
   }
@@ -1077,9 +1075,9 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // enable_dtx
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    values[i] = event->config().enable_dtx;
+    values[i] = event->enable_dtx();
   }
-  encoded_deltas = EncodeDeltas(base_event->config().enable_dtx, values);
+  encoded_deltas = EncodeDeltas(base_event->enable_dtx(), values);
   if (!encoded_deltas.empty()) {
     proto_batch->set_enable_dtx_deltas(encoded_deltas);
   }
@@ -1087,7 +1085,7 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // num_channels
   for (size_t i = 0; i < values.size(); ++i) {
     const RtcEventAudioNetworkAdaptation* event = batch[i + 1];
-    const std::optional<size_t> num_channels = event->config().num_channels;
+    const std::optional<size_t> num_channels = event->num_channels();
     if (num_channels.has_value()) {
       // Since the number of channels is always greater than 0, we can encode
       // N channels as N-1, thereby making sure that we get smaller deltas.
@@ -1103,9 +1101,9 @@ void RtcEventLogEncoderNewFormat::EncodeAudioNetworkAdaptation(
   // In the base event, N channels encoded as N channels, but for delta
   // compression purposes, also shifted down by 1.
   std::optional<size_t> shifted_base_num_channels;
-  if (base_event->config().num_channels.has_value()) {
-    RTC_DCHECK_GT(base_event->config().num_channels.value(), 0u);
-    shifted_base_num_channels = base_event->config().num_channels.value() - 1;
+  if (base_event->num_channels().has_value()) {
+    RTC_DCHECK_GT(base_event->num_channels().value(), 0u);
+    shifted_base_num_channels = base_event->num_channels().value() - 1;
   }
   encoded_deltas = EncodeDeltas(shifted_base_num_channels, values);
   if (!encoded_deltas.empty()) {

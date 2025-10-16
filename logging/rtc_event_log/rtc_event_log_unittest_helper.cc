@@ -161,17 +161,16 @@ std::unique_ptr<RtcEventAudioPlayout> EventGenerator::NewAudioPlayout(
 
 std::unique_ptr<RtcEventAudioNetworkAdaptation>
 EventGenerator::NewAudioNetworkAdaptation() {
-  std::unique_ptr<AudioEncoderRuntimeConfig> config =
-      std::make_unique<AudioEncoderRuntimeConfig>();
+  AudioEncoderRuntimeConfig config;
 
-  config->bitrate_bps = prng_.Rand(0, 3000000);
-  config->enable_fec = prng_.Rand<bool>();
-  config->enable_dtx = prng_.Rand<bool>();
-  config->frame_length_ms = prng_.Rand(10, 120);
-  config->num_channels = prng_.Rand(1, 2);
-  config->uplink_packet_loss_fraction = prng_.Rand<float>();
+  config.bitrate_bps = prng_.Rand(0, 3000000);
+  config.enable_fec = prng_.Rand<bool>();
+  config.enable_dtx = prng_.Rand<bool>();
+  config.frame_length_ms = prng_.Rand(10, 120);
+  config.num_channels = prng_.Rand(1, 2);
+  config.uplink_packet_loss_fraction = prng_.Rand<float>();
 
-  return std::make_unique<RtcEventAudioNetworkAdaptation>(std::move(config));
+  return std::make_unique<RtcEventAudioNetworkAdaptation>(config);
 }
 
 std::unique_ptr<RtcEventNetEqSetMinimumDelay>
@@ -787,21 +786,18 @@ void EventVerifier::VerifyLoggedAudioNetworkAdaptationEvent(
     const LoggedAudioNetworkAdaptationEvent& logged_event) const {
   EXPECT_EQ(original_event.timestamp_ms(), logged_event.log_time_ms());
 
-  EXPECT_EQ(original_event.config().bitrate_bps,
-            logged_event.config.bitrate_bps);
-  EXPECT_EQ(original_event.config().enable_dtx, logged_event.config.enable_dtx);
-  EXPECT_EQ(original_event.config().enable_fec, logged_event.config.enable_fec);
-  EXPECT_EQ(original_event.config().frame_length_ms,
+  EXPECT_EQ(original_event.bitrate_bps(), logged_event.config.bitrate_bps);
+  EXPECT_EQ(original_event.enable_dtx(), logged_event.config.enable_dtx);
+  EXPECT_EQ(original_event.enable_fec(), logged_event.config.enable_fec);
+  EXPECT_EQ(original_event.frame_length_ms(),
             logged_event.config.frame_length_ms);
-  EXPECT_EQ(original_event.config().num_channels,
-            logged_event.config.num_channels);
+  EXPECT_EQ(original_event.num_channels(), logged_event.config.num_channels);
 
   // uplink_packet_loss_fraction
-  ASSERT_EQ(original_event.config().uplink_packet_loss_fraction.has_value(),
+  ASSERT_EQ(original_event.uplink_packet_loss_fraction().has_value(),
             logged_event.config.uplink_packet_loss_fraction.has_value());
-  if (original_event.config().uplink_packet_loss_fraction.has_value()) {
-    const float original =
-        original_event.config().uplink_packet_loss_fraction.value();
+  if (original_event.uplink_packet_loss_fraction().has_value()) {
+    const float original = original_event.uplink_packet_loss_fraction().value();
     const float logged =
         logged_event.config.uplink_packet_loss_fraction.value();
     const float uplink_packet_loss_fraction_delta = std::abs(original - logged);
