@@ -8,31 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef VIDEO_TIMING_SIMULATOR_TEST_UTILS_H_
-#define VIDEO_TIMING_SIMULATOR_TEST_UTILS_H_
+#ifndef VIDEO_TIMING_SIMULATOR_TEST_SIMULATED_TIME_TEST_FIXTURE_H_
+#define VIDEO_TIMING_SIMULATOR_TEST_SIMULATED_TIME_TEST_FIXTURE_H_
 
-#include <cstdint>
 #include <memory>
 
 #include "absl/functional/any_invocable.h"
 #include "api/environment/environment.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/video/encoded_frame.h"
-#include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/time_controller/simulated_time_controller.h"
 
 namespace webrtc::video_timing_simulator {
-
-// Frame ID matchers.
-inline ::testing::Matcher<const EncodedFrame&> EncodedFrameWithId(
-    int64_t expected_id) {
-  return ::testing::Property(&EncodedFrame::Id, ::testing::Eq(expected_id));
-}
-inline ::testing::Matcher<std::unique_ptr<EncodedFrame>> EncodedFramePtrWithId(
-    int64_t expected_id) {
-  return ::testing::Pointee(EncodedFrameWithId(expected_id));
-}
 
 // Fixture for running objects under test on a simulated time task queue.
 class SimulatedTimeTestFixture : public ::testing::Test {
@@ -52,4 +39,4 @@ class SimulatedTimeTestFixture : public ::testing::Test {
 
 }  // namespace webrtc::video_timing_simulator
 
-#endif  // VIDEO_TIMING_SIMULATOR_TEST_UTILS_H_
+#endif  // VIDEO_TIMING_SIMULATOR_TEST_SIMULATED_TIME_TEST_FIXTURE_H_

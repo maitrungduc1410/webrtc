@@ -47,15 +47,12 @@ if (rtc_enable_protobuf) {
         "assembler_unittest.cc",
         "decodability_tracker_unittest.cc",
         "rtp_packet_simulator_unittest.cc",
-        "test_utils.cc",
-        "test_utils.h",
       ]
       deps = [
         ":simulator",
         "../../../api:rtp_headers",
         "../../../api:sequence_checker",
         "../../../api/environment",
-        "../../../api/task_queue",
         "../../../api/transport/rtp:dependency_descriptor",
         "../../../api/units:time_delta",
         "../../../api/units:timestamp",
@@ -67,10 +64,8 @@ if (rtc_enable_protobuf) {
         "../../../rtc_base:macromagic",
         "../../../system_wrappers",
         "../../../test:create_test_environment",
-        "../../../test:fake_encoded_frame",
         "../../../test:test_support",
-        "../../../test/time_controller",
-        "//third_party/abseil-cpp/absl/functional:any_invocable",
+        "test",
       ]
     }
   }

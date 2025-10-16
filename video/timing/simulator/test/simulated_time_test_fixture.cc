@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "video/timing/simulator/test_utils.h"
+#include "video/timing/simulator/test/simulated_time_test_fixture.h"
 
 #include <utility>
 
