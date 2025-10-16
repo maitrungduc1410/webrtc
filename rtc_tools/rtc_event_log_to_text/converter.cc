@@ -30,6 +30,7 @@
 #include "logging/rtc_event_log/events/rtc_event_begin_log.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based.h"
+#include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
@@ -222,6 +223,16 @@ bool Convert(std::string inputfile,
             "expected_packets=%d\n",
             event.log_time_ms(), event.bitrate_bps, event.fraction_lost,
             event.expected_packets);
+  };
+
+  auto bwe_scream_update_handler = [&](const LoggedBweScreamUpdate& event) {
+    fprintf(output,
+            "BWE_SCREAM %" PRId64 "ref_window_bytes=%" PRId64
+            " target_rate_kbps=%" PRId64 " smoothed_rtt_ms=%" PRId64
+            " avg_queue_delay_ms=%" PRId64 " l4s_marked_permille=%u\n",
+            event.log_time_ms(), event.ref_window.bytes(),
+            event.target_rate.kbps(), event.smoothed_rtt.ms(),
+            event.avg_queue_delay.ms(), event.l4s_marked_permille);
   };
 
   auto dtls_transport_state_handler =
@@ -562,6 +573,8 @@ bool Convert(std::string inputfile,
   processor.AddEvents(parsed_log.bwe_loss_updates(), bwe_loss_update_handler);
   processor.AddEvents(parsed_log.remote_estimate_events(),
                       remote_estimate_handler);
+  processor.AddEvents(parsed_log.bwe_scream_updates(),
+                      bwe_scream_update_handler);
 
   // Connectivity
   processor.AddEvents(parsed_log.dtls_transport_states(),
