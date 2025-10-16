@@ -57,9 +57,6 @@ class RtcEventIceCandidatePairConfig;
 class RtcEventIceCandidatePair;
 class RtpPacket;
 class RtcEventFrameDecoded;
-class RtcEventGenericAckReceived;
-class RtcEventGenericPacketReceived;
-class RtcEventGenericPacketSent;
 
 class RtcEventLogEncoderNewFormat final : public RtcEventLogEncoder {
  public:
@@ -105,12 +102,6 @@ class RtcEventLogEncoderNewFormat final : public RtcEventLogEncoder {
       rtclog2::EventStream* event_stream);
   void EncodeFramesDecoded(ArrayView<const RtcEventFrameDecoded* const> batch,
                            rtclog2::EventStream* event_stream);
-  void EncodeGenericPacketsReceived(
-      ArrayView<const RtcEventGenericPacketReceived*> batch,
-      rtclog2::EventStream* event_stream);
-  void EncodeGenericPacketsSent(
-      ArrayView<const RtcEventGenericPacketSent*> batch,
-      rtclog2::EventStream* event_stream);
   void EncodeIceCandidatePairConfig(
       ArrayView<const RtcEventIceCandidatePairConfig*> batch,
       rtclog2::EventStream* event_stream);

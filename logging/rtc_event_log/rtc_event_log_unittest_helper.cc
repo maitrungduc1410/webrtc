@@ -48,8 +48,6 @@
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/events/rtc_event_neteq_set_minimum_delay.h"
@@ -634,18 +632,6 @@ EventGenerator::NewRtcpPacketOutgoing() {
   }
 }
 
-std::unique_ptr<RtcEventGenericPacketSent>
-EventGenerator::NewGenericPacketSent() {
-  return std::make_unique<RtcEventGenericPacketSent>(
-      sent_packet_number_++, prng_.Rand(40, 50), prng_.Rand(0, 150),
-      prng_.Rand(0, 1000));
-}
-std::unique_ptr<RtcEventGenericPacketReceived>
-EventGenerator::NewGenericPacketReceived() {
-  return std::make_unique<RtcEventGenericPacketReceived>(
-      received_packet_number_++, prng_.Rand(40, 250));
-}
-
 void EventGenerator::RandomizeRtpPacket(
     size_t payload_size,
     size_t padding_size,
@@ -1191,25 +1177,6 @@ void EventVerifier::VerifyLoggedRtpPacketOutgoing(
   VerifyLoggedRtpHeader(original_event, logged_event.rtp.header);
   VerifyLoggedDependencyDescriptor(
       original_event, logged_event.rtp.dependency_descriptor_wire_format);
-}
-
-void EventVerifier::VerifyLoggedGenericPacketSent(
-    const RtcEventGenericPacketSent& original_event,
-    const LoggedGenericPacketSent& logged_event) const {
-  EXPECT_EQ(original_event.timestamp_ms(), logged_event.log_time_ms());
-  EXPECT_EQ(original_event.packet_number(), logged_event.packet_number);
-  EXPECT_EQ(original_event.overhead_length(), logged_event.overhead_length);
-  EXPECT_EQ(original_event.payload_length(), logged_event.payload_length);
-  EXPECT_EQ(original_event.padding_length(), logged_event.padding_length);
-}
-
-void EventVerifier::VerifyLoggedGenericPacketReceived(
-    const RtcEventGenericPacketReceived& original_event,
-    const LoggedGenericPacketReceived& logged_event) const {
-  EXPECT_EQ(original_event.timestamp_ms(), logged_event.log_time_ms());
-  EXPECT_EQ(original_event.packet_number(), logged_event.packet_number);
-  EXPECT_EQ(static_cast<int>(original_event.packet_length()),
-            logged_event.packet_length);
 }
 
 void EventVerifier::VerifyLoggedRtcpPacketIncoming(

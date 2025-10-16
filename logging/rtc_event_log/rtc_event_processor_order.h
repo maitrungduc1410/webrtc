@@ -29,8 +29,6 @@
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/events/rtc_event_neteq_set_minimum_delay.h"
@@ -324,28 +322,6 @@ class TieBreaker<LoggedFrameDecoded> {
   static constexpr int type_order = static_cast<int>(TypeOrder::FrameDecoded);
   static std::optional<uint16_t> transport_seq_num_accessor(
       const LoggedFrameDecoded&) {
-    return std::optional<uint16_t>();
-  }
-};
-
-template <>
-class TieBreaker<LoggedGenericPacketReceived> {
- public:
-  static constexpr int type_order =
-      static_cast<int>(TypeOrder::GenericPacketIn);
-  static std::optional<uint16_t> transport_seq_num_accessor(
-      const LoggedGenericPacketReceived&) {
-    return std::optional<uint16_t>();
-  }
-};
-
-template <>
-class TieBreaker<LoggedGenericPacketSent> {
- public:
-  static constexpr int type_order =
-      static_cast<int>(TypeOrder::GenericPacketOut);
-  static std::optional<uint16_t> transport_seq_num_accessor(
-      const LoggedGenericPacketSent&) {
     return std::optional<uint16_t>();
   }
 };

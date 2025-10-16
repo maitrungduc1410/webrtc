@@ -46,8 +46,6 @@
 #include "logging/rtc_event_log/events/rtc_event_dtls_transport_state.h"
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/events/rtc_event_neteq_set_minimum_delay.h"
@@ -728,9 +726,6 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
     std::vector<const RtcEventDtlsWritableState*> dtls_writable_states;
     std::map<uint32_t /* SSRC */, std::vector<const RtcEventFrameDecoded*>>
         frames_decoded;
-    std::vector<const RtcEventGenericAckReceived*> generic_acks_received;
-    std::vector<const RtcEventGenericPacketReceived*> generic_packets_received;
-    std::vector<const RtcEventGenericPacketSent*> generic_packets_sent;
     std::vector<const RtcEventIceCandidatePair*> ice_candidate_events;
     std::vector<const RtcEventIceCandidatePairConfig*> ice_candidate_configs;
     std::vector<const RtcEventProbeClusterCreated*>
@@ -897,19 +892,6 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
           ice_candidate_events.push_back(rtc_event);
           break;
         }
-        case RtcEvent::Type::GenericPacketReceived: {
-          auto* rtc_event =
-              static_cast<const RtcEventGenericPacketReceived* const>(
-                  it->get());
-          generic_packets_received.push_back(rtc_event);
-          break;
-        }
-        case RtcEvent::Type::GenericPacketSent: {
-          auto* rtc_event =
-              static_cast<const RtcEventGenericPacketSent* const>(it->get());
-          generic_packets_sent.push_back(rtc_event);
-          break;
-        }
         case RtcEvent::Type::FrameDecoded: {
           auto* rtc_event =
               static_cast<const RtcEventFrameDecoded* const>(it->get());
@@ -950,8 +932,6 @@ std::string RtcEventLogEncoderNewFormat::EncodeBatch(
     for (const auto& kv : frames_decoded) {
       EncodeFramesDecoded(kv.second, &event_stream);
     }
-    EncodeGenericPacketsReceived(generic_packets_received, &event_stream);
-    EncodeGenericPacketsSent(generic_packets_sent, &event_stream);
     EncodeIceCandidatePairConfig(ice_candidate_configs, &event_stream);
     EncodeIceCandidatePairEvent(ice_candidate_events, &event_stream);
     EncodeProbeClusterCreated(probe_cluster_created_events, &event_stream);
@@ -1748,136 +1728,6 @@ void RtcEventLogEncoderNewFormat::EncodeFramesDecoded(
   encoded_deltas = EncodeDeltas(base_event->qp(), values);
   if (!encoded_deltas.empty()) {
     proto_batch->set_qp_deltas(encoded_deltas);
-  }
-}
-
-void RtcEventLogEncoderNewFormat::EncodeGenericPacketsSent(
-    ArrayView<const RtcEventGenericPacketSent*> batch,
-    rtclog2::EventStream* event_stream) {
-  if (batch.empty()) {
-    return;
-  }
-  const RtcEventGenericPacketSent* const base_event = batch[0];
-  rtclog2::GenericPacketSent* proto_batch =
-      event_stream->add_generic_packets_sent();
-  proto_batch->set_timestamp_ms(base_event->timestamp_ms());
-  proto_batch->set_packet_number(base_event->packet_number());
-  proto_batch->set_overhead_length(base_event->overhead_length());
-  proto_batch->set_payload_length(base_event->payload_length());
-  proto_batch->set_padding_length(base_event->padding_length());
-
-  // Delta encoding
-  proto_batch->set_number_of_deltas(batch.size() - 1);
-  std::vector<std::optional<uint64_t>> values(batch.size() - 1);
-  std::string encoded_deltas;
-
-  if (batch.size() == 1) {
-    return;
-  }
-
-  // timestamp_ms
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketSent* event = batch[i + 1];
-    values[i] = ToUnsigned(event->timestamp_ms());
-  }
-  encoded_deltas = EncodeDeltas(ToUnsigned(base_event->timestamp_ms()), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_timestamp_ms_deltas(encoded_deltas);
-  }
-
-  // packet_number
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketSent* event = batch[i + 1];
-    values[i] = ToUnsigned(event->packet_number());
-  }
-  encoded_deltas =
-      EncodeDeltas(ToUnsigned(base_event->packet_number()), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_packet_number_deltas(encoded_deltas);
-  }
-
-  // overhead_length
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketSent* event = batch[i + 1];
-    values[i] = event->overhead_length();
-  }
-  encoded_deltas = EncodeDeltas(base_event->overhead_length(), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_overhead_length_deltas(encoded_deltas);
-  }
-
-  // payload_length
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketSent* event = batch[i + 1];
-    values[i] = event->payload_length();
-  }
-  encoded_deltas = EncodeDeltas(base_event->payload_length(), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_payload_length_deltas(encoded_deltas);
-  }
-
-  // padding_length
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketSent* event = batch[i + 1];
-    values[i] = event->padding_length();
-  }
-  encoded_deltas = EncodeDeltas(base_event->padding_length(), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_padding_length_deltas(encoded_deltas);
-  }
-}
-
-void RtcEventLogEncoderNewFormat::EncodeGenericPacketsReceived(
-    ArrayView<const RtcEventGenericPacketReceived*> batch,
-    rtclog2::EventStream* event_stream) {
-  if (batch.empty()) {
-    return;
-  }
-  const RtcEventGenericPacketReceived* const base_event = batch[0];
-  rtclog2::GenericPacketReceived* proto_batch =
-      event_stream->add_generic_packets_received();
-  proto_batch->set_timestamp_ms(base_event->timestamp_ms());
-  proto_batch->set_packet_number(base_event->packet_number());
-  proto_batch->set_packet_length(base_event->packet_length());
-
-  // Delta encoding
-  proto_batch->set_number_of_deltas(batch.size() - 1);
-  std::vector<std::optional<uint64_t>> values(batch.size() - 1);
-  std::string encoded_deltas;
-
-  if (batch.size() == 1) {
-    return;
-  }
-
-  // timestamp_ms
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketReceived* event = batch[i + 1];
-    values[i] = ToUnsigned(event->timestamp_ms());
-  }
-  encoded_deltas = EncodeDeltas(ToUnsigned(base_event->timestamp_ms()), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_timestamp_ms_deltas(encoded_deltas);
-  }
-
-  // packet_number
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketReceived* event = batch[i + 1];
-    values[i] = ToUnsigned(event->packet_number());
-  }
-  encoded_deltas =
-      EncodeDeltas(ToUnsigned(base_event->packet_number()), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_packet_number_deltas(encoded_deltas);
-  }
-
-  // packet_length
-  for (size_t i = 0; i < values.size(); ++i) {
-    const RtcEventGenericPacketReceived* event = batch[i + 1];
-    values[i] = event->packet_length();
-  }
-  encoded_deltas = EncodeDeltas(base_event->packet_length(), values);
-  if (!encoded_deltas.empty()) {
-    proto_batch->set_packet_length_deltas(encoded_deltas);
   }
 }
 

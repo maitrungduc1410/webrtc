@@ -45,8 +45,6 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/events/logged_rtp_rtcp.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/rtc_event_log_parser.h"
@@ -1235,17 +1233,6 @@ void EventLogAnalyzer::CreateTotalIncomingBitrateGraph(Plot* plot) const {
   }
   plot->AppendTimeSeriesIfNotEmpty(std::move(remb_series));
 
-  if (!parsed_log_.generic_packets_received().empty()) {
-    TimeSeries time_series("Incoming generic bitrate", LineStyle::kLine);
-    auto GetPacketSizeKilobits = [](const LoggedGenericPacketReceived& packet) {
-      return packet.packet_length * 8.0 / 1000.0;
-    };
-    MovingAverage<LoggedGenericPacketReceived, double>(
-        GetPacketSizeKilobits, parsed_log_.generic_packets_received(), config_,
-        &time_series);
-    plot->AppendTimeSeries(std::move(time_series));
-  }
-
   plot->SetXAxis(config_.CallBeginTimeSec(), config_.CallEndTimeSec(),
                  "Time (s)", kLeftMargin, kRightMargin);
   plot->SetSuggestedYAxis(0, 1, "Bitrate (kbps)", kBottomMargin, kTopMargin);
@@ -1445,32 +1432,6 @@ void EventLogAnalyzer::CreateTotalOutgoingBitrateGraph(
     remb_series.points.emplace_back(x, y);
   }
   plot->AppendTimeSeriesIfNotEmpty(std::move(remb_series));
-
-  if (!parsed_log_.generic_packets_sent().empty()) {
-    {
-      TimeSeries time_series("Outgoing generic total bitrate",
-                             LineStyle::kLine);
-      auto GetPacketSizeKilobits = [](const LoggedGenericPacketSent& packet) {
-        return packet.packet_length() * 8.0 / 1000.0;
-      };
-      MovingAverage<LoggedGenericPacketSent, double>(
-          GetPacketSizeKilobits, parsed_log_.generic_packets_sent(), config_,
-          &time_series);
-      plot->AppendTimeSeries(std::move(time_series));
-    }
-
-    {
-      TimeSeries time_series("Outgoing generic payload bitrate",
-                             LineStyle::kLine);
-      auto GetPacketSizeKilobits = [](const LoggedGenericPacketSent& packet) {
-        return packet.payload_length * 8.0 / 1000.0;
-      };
-      MovingAverage<LoggedGenericPacketSent, double>(
-          GetPacketSizeKilobits, parsed_log_.generic_packets_sent(), config_,
-          &time_series);
-      plot->AppendTimeSeries(std::move(time_series));
-    }
-  }
 
   plot->SetXAxis(config_.CallBeginTimeSec(), config_.CallEndTimeSec(),
                  "Time (s)", kLeftMargin, kRightMargin);

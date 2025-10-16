@@ -51,8 +51,6 @@
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/events/rtc_event_log_parse_status.h"
@@ -1371,8 +1369,6 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::ParseStream(
   }
   StoreFirstAndLastTimestamp(incoming_rtcp_packets());
   StoreFirstAndLastTimestamp(outgoing_rtcp_packets());
-  StoreFirstAndLastTimestamp(generic_packets_sent_);
-  StoreFirstAndLastTimestamp(generic_packets_received_);
   StoreFirstAndLastTimestamp(remote_estimate_events_);
 
   // Stop events could be missing due to file size limits. If so, use the
@@ -1598,14 +1594,6 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::ParseStreamInternalV3(
         break;
       case static_cast<uint32_t>(RtcEvent::Type::FrameDecoded):
         RtcEventFrameDecoded::Parse(event_fields, batched, decoded_frames_);
-        break;
-      case static_cast<uint32_t>(RtcEvent::Type::GenericPacketReceived):
-        RtcEventGenericPacketReceived::Parse(event_fields, batched,
-                                             generic_packets_received_);
-        break;
-      case static_cast<uint32_t>(RtcEvent::Type::GenericPacketSent):
-        RtcEventGenericPacketSent::Parse(event_fields, batched,
-                                         generic_packets_sent_);
         break;
       case static_cast<uint32_t>(RtcEvent::Type::IceCandidatePairConfig):
         RtcEventIceCandidatePairConfig::Parse(event_fields, batched,
@@ -2789,10 +2777,11 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreParsedNewFormatEvent(
     return StoreVideoRecvConfig(stream.video_recv_stream_configs(0));
   } else if (stream.video_send_stream_configs_size() == 1) {
     return StoreVideoSendConfig(stream.video_send_stream_configs(0));
-  } else if (stream.generic_packets_received_size() == 1) {
-    return StoreGenericPacketReceivedEvent(stream.generic_packets_received(0));
-  } else if (stream.generic_packets_sent_size() == 1) {
-    return StoreGenericPacketSentEvent(stream.generic_packets_sent(0));
+  } else if (stream.generic_packets_received_size() == 1 ||
+             stream.generic_packets_sent_size() == 1 ||
+             stream.generic_acks_received_size() == 1) {
+    // Generic packet type is deprecated. Ignore the proto event.
+    return ParseStatus::Success();
   } else if (stream.frame_decoded_events_size() == 1) {
     return StoreFrameDecodedEvents(stream.frame_decoded_events(0));
   } else if (stream.neteq_set_minimum_delay_size() == 1) {
@@ -3434,124 +3423,6 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreFrameDecodedEvents(
     frame.qp = static_cast<uint8_t>(qp_values[i].value());
 
     decoded_frames_[frame.ssrc].push_back(frame);
-  }
-  return ParseStatus::Success();
-}
-
-ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreGenericPacketSentEvent(
-    const rtclog2::GenericPacketSent& proto) {
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_timestamp_ms());
-
-  // Base event
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_packet_number());
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_overhead_length());
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_payload_length());
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_padding_length());
-
-  generic_packets_sent_.push_back(
-      {Timestamp::Millis(proto.timestamp_ms()), proto.packet_number(),
-       static_cast<size_t>(proto.overhead_length()),
-       static_cast<size_t>(proto.payload_length()),
-       static_cast<size_t>(proto.padding_length())});
-
-  const size_t number_of_deltas =
-      proto.has_number_of_deltas() ? proto.number_of_deltas() : 0u;
-  if (number_of_deltas == 0) {
-    return ParseStatus::Success();
-  }
-
-  // timestamp_ms
-  std::vector<std::optional<uint64_t>> timestamp_ms_values =
-      DecodeDeltas(proto.timestamp_ms_deltas(),
-                   ToUnsigned(proto.timestamp_ms()), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(timestamp_ms_values.size(), number_of_deltas);
-
-  // packet_number
-  std::vector<std::optional<uint64_t>> packet_number_values =
-      DecodeDeltas(proto.packet_number_deltas(),
-                   ToUnsigned(proto.packet_number()), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(packet_number_values.size(), number_of_deltas);
-
-  std::vector<std::optional<uint64_t>> overhead_length_values =
-      DecodeDeltas(proto.overhead_length_deltas(), proto.overhead_length(),
-                   number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(overhead_length_values.size(), number_of_deltas);
-
-  std::vector<std::optional<uint64_t>> payload_length_values = DecodeDeltas(
-      proto.payload_length_deltas(), proto.payload_length(), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(payload_length_values.size(), number_of_deltas);
-
-  std::vector<std::optional<uint64_t>> padding_length_values = DecodeDeltas(
-      proto.padding_length_deltas(), proto.padding_length(), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(padding_length_values.size(), number_of_deltas);
-
-  for (size_t i = 0; i < number_of_deltas; i++) {
-    int64_t timestamp_ms;
-    RTC_PARSE_CHECK_OR_RETURN(
-        ToSigned(timestamp_ms_values[i].value(), &timestamp_ms));
-    int64_t packet_number;
-    RTC_PARSE_CHECK_OR_RETURN(
-        ToSigned(packet_number_values[i].value(), &packet_number));
-    RTC_PARSE_CHECK_OR_RETURN(overhead_length_values[i].has_value());
-    RTC_PARSE_CHECK_OR_RETURN(payload_length_values[i].has_value());
-    RTC_PARSE_CHECK_OR_RETURN(padding_length_values[i].has_value());
-    generic_packets_sent_.push_back(
-        {Timestamp::Millis(timestamp_ms), packet_number,
-         static_cast<size_t>(overhead_length_values[i].value()),
-         static_cast<size_t>(payload_length_values[i].value()),
-         static_cast<size_t>(padding_length_values[i].value())});
-  }
-  return ParseStatus::Success();
-}
-
-ParsedRtcEventLog::ParseStatus
-ParsedRtcEventLog::StoreGenericPacketReceivedEvent(
-    const rtclog2::GenericPacketReceived& proto) {
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_timestamp_ms());
-
-  // Base event
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_packet_number());
-  RTC_PARSE_CHECK_OR_RETURN(proto.has_packet_length());
-
-  generic_packets_received_.push_back({Timestamp::Millis(proto.timestamp_ms()),
-                                       proto.packet_number(),
-                                       proto.packet_length()});
-
-  const size_t number_of_deltas =
-      proto.has_number_of_deltas() ? proto.number_of_deltas() : 0u;
-  if (number_of_deltas == 0) {
-    return ParseStatus::Success();
-  }
-
-  // timestamp_ms
-  std::vector<std::optional<uint64_t>> timestamp_ms_values =
-      DecodeDeltas(proto.timestamp_ms_deltas(),
-                   ToUnsigned(proto.timestamp_ms()), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(timestamp_ms_values.size(), number_of_deltas);
-
-  // packet_number
-  std::vector<std::optional<uint64_t>> packet_number_values =
-      DecodeDeltas(proto.packet_number_deltas(),
-                   ToUnsigned(proto.packet_number()), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(packet_number_values.size(), number_of_deltas);
-
-  std::vector<std::optional<uint64_t>> packet_length_values = DecodeDeltas(
-      proto.packet_length_deltas(), proto.packet_length(), number_of_deltas);
-  RTC_PARSE_CHECK_OR_RETURN_EQ(packet_length_values.size(), number_of_deltas);
-
-  for (size_t i = 0; i < number_of_deltas; i++) {
-    int64_t timestamp_ms;
-    RTC_PARSE_CHECK_OR_RETURN(
-        ToSigned(timestamp_ms_values[i].value(), &timestamp_ms));
-    int64_t packet_number;
-    RTC_PARSE_CHECK_OR_RETURN(
-        ToSigned(packet_number_values[i].value(), &packet_number));
-    RTC_PARSE_CHECK_OR_RETURN_LE(packet_length_values[i].value(),
-                                 std::numeric_limits<int32_t>::max());
-    int32_t packet_length =
-        static_cast<int32_t>(packet_length_values[i].value());
-    generic_packets_received_.push_back(
-        {Timestamp::Millis(timestamp_ms), packet_number, packet_length});
   }
   return ParseStatus::Success();
 }

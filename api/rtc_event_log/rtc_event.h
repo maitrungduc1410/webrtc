@@ -53,8 +53,6 @@ class RtcEvent {
     RtpPacketOutgoing,
     VideoReceiveStreamConfig,
     VideoSendStreamConfig,
-    GenericPacketSent,
-    GenericPacketReceived,
     FrameDecoded,
     NetEqSetMinimumDelay,
     BeginV3Log = 0x2501580,

@@ -41,8 +41,6 @@
 #include "logging/rtc_event_log/events/rtc_event_dtls_writable_state.h"
 #include "logging/rtc_event_log/events/rtc_event_end_log.h"
 #include "logging/rtc_event_log/events/rtc_event_frame_decoded.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_received.h"
-#include "logging/rtc_event_log/events/rtc_event_generic_packet_sent.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair.h"
 #include "logging/rtc_event_log/events/rtc_event_ice_candidate_pair_config.h"
 #include "logging/rtc_event_log/events/rtc_event_log_parse_status.h"
@@ -657,14 +655,6 @@ class ParsedRtcEventLog {
     }
   }
 
-  const std::vector<LoggedGenericPacketReceived>& generic_packets_received()
-      const {
-    return generic_packets_received_;
-  }
-  const std::vector<LoggedGenericPacketSent>& generic_packets_sent() const {
-    return generic_packets_sent_;
-  }
-
   // Media
   const std::map<uint32_t, std::vector<LoggedFrameDecoded>>& decoded_frames()
       const {
@@ -778,10 +768,6 @@ class ParsedRtcEventLog {
   ParseStatus StoreDtlsWritableState(const rtclog2::DtlsWritableState& proto);
   ParsedRtcEventLog::ParseStatus StoreFrameDecodedEvents(
       const rtclog2::FrameDecodedEvents& proto);
-  ParseStatus StoreGenericPacketReceivedEvent(
-      const rtclog2::GenericPacketReceived& proto);
-  ParseStatus StoreGenericPacketSentEvent(
-      const rtclog2::GenericPacketSent& proto);
   ParseStatus StoreIceCandidateEvent(
       const rtclog2::IceCandidatePairEvent& proto);
   ParseStatus StoreIceCandidatePairConfig(
@@ -918,9 +904,6 @@ class ParsedRtcEventLog {
   std::vector<LoggedAudioSendConfig> audio_send_configs_;
   std::vector<LoggedVideoRecvConfig> video_recv_configs_;
   std::vector<LoggedVideoSendConfig> video_send_configs_;
-
-  std::vector<LoggedGenericPacketReceived> generic_packets_received_;
-  std::vector<LoggedGenericPacketSent> generic_packets_sent_;
 
   std::vector<LoggedRouteChangeEvent> route_change_events_;
   std::vector<LoggedRemoteEstimateEvent> remote_estimate_events_;
