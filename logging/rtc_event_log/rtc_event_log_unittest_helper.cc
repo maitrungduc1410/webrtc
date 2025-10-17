@@ -1104,10 +1104,11 @@ void EventVerifier::VerifyReportBlock(
 }
 
 void EventVerifier::VerifyLoggedSenderReport(
-    int64_t log_time_ms,
+    Timestamp log_time,
     const rtcp::SenderReport& original_sr,
     const LoggedRtcpPacketSenderReport& logged_sr) {
-  EXPECT_EQ(log_time_ms, logged_sr.log_time_ms());
+  EXPECT_THAT(logged_sr.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_sr.sender_ssrc(), logged_sr.sr.sender_ssrc());
   EXPECT_EQ(original_sr.ntp(), logged_sr.sr.ntp());
   EXPECT_EQ(original_sr.rtp_timestamp(), logged_sr.sr.rtp_timestamp());
@@ -1124,10 +1125,11 @@ void EventVerifier::VerifyLoggedSenderReport(
 }
 
 void EventVerifier::VerifyLoggedReceiverReport(
-    int64_t log_time_ms,
+    Timestamp log_time,
     const rtcp::ReceiverReport& original_rr,
     const LoggedRtcpPacketReceiverReport& logged_rr) {
-  EXPECT_EQ(log_time_ms, logged_rr.log_time_ms());
+  EXPECT_THAT(logged_rr.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_rr.sender_ssrc(), logged_rr.rr.sender_ssrc());
   ASSERT_EQ(original_rr.report_blocks().size(),
             logged_rr.rr.report_blocks().size());
@@ -1138,10 +1140,11 @@ void EventVerifier::VerifyLoggedReceiverReport(
 }
 
 void EventVerifier::VerifyLoggedExtendedReports(
-    int64_t log_time_ms,
+    Timestamp log_time,
     const rtcp::ExtendedReports& original_xr,
     const LoggedRtcpPacketExtendedReports& logged_xr) {
-  EXPECT_EQ(log_time_ms, logged_xr.log_time_ms());
+  EXPECT_THAT(logged_xr.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_xr.sender_ssrc(), logged_xr.xr.sender_ssrc());
 
   EXPECT_EQ(original_xr.rrtr().has_value(), logged_xr.xr.rrtr().has_value());
@@ -1179,10 +1182,11 @@ void EventVerifier::VerifyLoggedExtendedReports(
   }
 }
 
-void EventVerifier::VerifyLoggedFir(int64_t log_time_ms,
+void EventVerifier::VerifyLoggedFir(Timestamp log_time,
                                     const rtcp::Fir& original_fir,
                                     const LoggedRtcpPacketFir& logged_fir) {
-  EXPECT_EQ(log_time_ms, logged_fir.log_time_ms());
+  EXPECT_THAT(logged_fir.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_fir.sender_ssrc(), logged_fir.fir.sender_ssrc());
   const auto& original_requests = original_fir.requests();
   const auto& logged_requests = logged_fir.fir.requests();
@@ -1193,35 +1197,39 @@ void EventVerifier::VerifyLoggedFir(int64_t log_time_ms,
   }
 }
 
-void EventVerifier::VerifyLoggedPli(int64_t log_time_ms,
+void EventVerifier::VerifyLoggedPli(Timestamp log_time,
                                     const rtcp::Pli& original_pli,
                                     const LoggedRtcpPacketPli& logged_pli) {
-  EXPECT_EQ(log_time_ms, logged_pli.log_time_ms());
+  EXPECT_THAT(logged_pli.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_pli.sender_ssrc(), logged_pli.pli.sender_ssrc());
   EXPECT_EQ(original_pli.media_ssrc(), logged_pli.pli.media_ssrc());
 }
 
-void EventVerifier::VerifyLoggedBye(int64_t log_time_ms,
+void EventVerifier::VerifyLoggedBye(Timestamp log_time,
                                     const rtcp::Bye& original_bye,
                                     const LoggedRtcpPacketBye& logged_bye) {
-  EXPECT_EQ(log_time_ms, logged_bye.log_time_ms());
+  EXPECT_THAT(logged_bye.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_bye.sender_ssrc(), logged_bye.bye.sender_ssrc());
   EXPECT_EQ(original_bye.csrcs(), logged_bye.bye.csrcs());
   EXPECT_EQ(original_bye.reason(), logged_bye.bye.reason());
 }
 
-void EventVerifier::VerifyLoggedNack(int64_t log_time_ms,
+void EventVerifier::VerifyLoggedNack(Timestamp log_time,
                                      const rtcp::Nack& original_nack,
                                      const LoggedRtcpPacketNack& logged_nack) {
-  EXPECT_EQ(log_time_ms, logged_nack.log_time_ms());
+  EXPECT_THAT(logged_nack.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_nack.packet_ids(), logged_nack.nack.packet_ids());
 }
 
 void EventVerifier::VerifyLoggedTransportFeedback(
-    int64_t log_time_ms,
+    Timestamp log_time,
     const rtcp::TransportFeedback& original_transport_feedback,
     const LoggedRtcpPacketTransportFeedback& logged_transport_feedback) {
-  EXPECT_EQ(log_time_ms, logged_transport_feedback.log_time_ms());
+  EXPECT_THAT(logged_transport_feedback.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   ASSERT_EQ(
       original_transport_feedback.GetReceivedPackets().size(),
       logged_transport_feedback.transport_feedback.GetReceivedPackets().size());
@@ -1238,19 +1246,21 @@ void EventVerifier::VerifyLoggedTransportFeedback(
   }
 }
 
-void EventVerifier::VerifyLoggedRemb(int64_t log_time_ms,
+void EventVerifier::VerifyLoggedRemb(Timestamp log_time,
                                      const rtcp::Remb& original_remb,
                                      const LoggedRtcpPacketRemb& logged_remb) {
-  EXPECT_EQ(log_time_ms, logged_remb.log_time_ms());
+  EXPECT_THAT(logged_remb.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_remb.ssrcs(), logged_remb.remb.ssrcs());
   EXPECT_EQ(original_remb.bitrate_bps(), logged_remb.remb.bitrate_bps());
 }
 
 void EventVerifier::VerifyLoggedLossNotification(
-    int64_t log_time_ms,
+    Timestamp log_time,
     const rtcp::LossNotification& original_loss_notification,
     const LoggedRtcpPacketLossNotification& logged_loss_notification) {
-  EXPECT_EQ(log_time_ms, logged_loss_notification.log_time_ms());
+  EXPECT_THAT(logged_loss_notification.log_time(),
+              Near(log_time, /*max_error=*/TimeDelta::Millis(1)));
   EXPECT_EQ(original_loss_notification.last_decoded(),
             logged_loss_notification.loss_notification.last_decoded());
   EXPECT_EQ(original_loss_notification.last_received(),
