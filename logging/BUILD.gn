@@ -631,6 +631,7 @@ if (rtc_enable_protobuf) {
         "../test:create_test_environment",
         "../test:create_test_field_trials",
         "../test:fileutils",
+        "../test:near_matcher",
         "../test:test_support",
         "../test/logging:log_writer",
         "../test/time_controller",

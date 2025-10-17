@@ -91,6 +91,7 @@
 #include "system_wrappers/include/ntp_time.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/near_matcher.h"
 
 namespace webrtc {
 
@@ -125,10 +126,6 @@ constexpr ExtensionPair kExtensions[kMaxNumExtensions] = {
      .name = RtpExtension::kVideoRotationUri},
     {.type = RTPExtensionType::kRtpExtensionDependencyDescriptor,
      .name = RtpExtension::kDependencyDescriptorUri}};
-
-MATCHER_P2(Near, value, margin, "") {
-  return value - margin < arg && arg < value + margin;
-}
 
 template <typename T>
 void ShuffleInPlace(Random* prng, ArrayView<T> array) {
@@ -1268,11 +1265,12 @@ void EventVerifier::VerifyLoggedStartEvent(
     const LoggedStartEvent& logged_event) const {
   // Use approximate comparison to support various roundings to milliseconds.
   EXPECT_THAT(logged_event.log_time(),
-              Near(Timestamp::Micros(start_time_us), TimeDelta::Millis(1)));
+              Near(Timestamp::Micros(start_time_us),
+                   /*max_error=*/TimeDelta::Millis(1)));
   if (encoding_type_ == RtcEventLog::EncodingType::NewFormat) {
-    EXPECT_THAT(
-        logged_event.utc_start_time,
-        Near(Timestamp::Micros(utc_start_time_us), TimeDelta::Millis(1)));
+    EXPECT_THAT(logged_event.utc_start_time,
+                Near(Timestamp::Micros(utc_start_time_us),
+                     /*max_error=*/TimeDelta::Millis(1)));
   }
 }
 
@@ -1281,7 +1279,8 @@ void EventVerifier::VerifyLoggedStopEvent(
     const LoggedStopEvent& logged_event) const {
   // Use approximate comparison to support various roundings to milliseconds.
   EXPECT_THAT(logged_event.log_time(),
-              Near(Timestamp::Micros(stop_time_us), TimeDelta::Millis(1)));
+              Near(Timestamp::Micros(stop_time_us),
+                   /*max_error=*/TimeDelta::Millis(1)));
 }
 
 void VerifyLoggedStreamConfig(const rtclog::StreamConfig& original_config,
