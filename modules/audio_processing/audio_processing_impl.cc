@@ -88,6 +88,7 @@ bool EnforceSplitBandHpf(const FieldTrialsView& field_trials) {
 }
 
 // Identify the native processing rate that best handles a sample rate.
+// Always returns one of 16000, 32000 and 48000 Hz.
 int SuitableProcessRate(int minimum_rate,
                         int max_splitting_rate,
                         bool band_splitting_required) {
@@ -342,6 +343,7 @@ bool NeedEchoController(const AudioProcessing::Config& config,
 }
 
 constexpr int kUnspecifiedDataDumpInputVolume = -100;
+constexpr int kBandSplitRate = AudioProcessing::kSampleRate16kHz;
 
 }  // namespace
 
@@ -643,7 +645,9 @@ void AudioProcessingImpl::InitializeLocked(const ProcessingConfig& config) {
       max_splitting_rate,
       submodule_states_.CaptureMultiBandSubModulesActive() ||
           submodule_states_.RenderMultiBandSubModulesActive());
-  RTC_DCHECK_NE(8000, capture_processing_rate);
+  RTC_DCHECK(capture_processing_rate == 16000 ||
+             capture_processing_rate == 32000 ||
+             capture_processing_rate == 48000);
 
   capture_nonlocked_.capture_processing_format =
       StreamConfig(capture_processing_rate);
@@ -659,18 +663,9 @@ void AudioProcessingImpl::InitializeLocked(const ProcessingConfig& config) {
   } else {
     render_processing_rate = capture_processing_rate;
   }
-
-  // If the forward sample rate is 8 kHz, the render stream is also processed
-  // at this rate.
-  if (capture_nonlocked_.capture_processing_format.sample_rate_hz() ==
-      kSampleRate8kHz) {
-    render_processing_rate = kSampleRate8kHz;
-  } else {
-    render_processing_rate =
-        std::max(render_processing_rate, static_cast<int>(kSampleRate16kHz));
-  }
-
-  RTC_DCHECK_NE(8000, render_processing_rate);
+  RTC_DCHECK(render_processing_rate == 16000 ||
+             render_processing_rate == 32000 ||
+             render_processing_rate == 48000);
 
   if (submodule_states_.RenderMultiBandSubModulesActive()) {
     // By default, downmix the render stream to mono for analysis. This has been
@@ -687,16 +682,6 @@ void AudioProcessingImpl::InitializeLocked(const ProcessingConfig& config) {
     formats_.render_processing_format = StreamConfig(
         formats_.api_format.reverse_input_stream().sample_rate_hz(),
         formats_.api_format.reverse_input_stream().num_channels());
-  }
-
-  if (capture_nonlocked_.capture_processing_format.sample_rate_hz() ==
-          kSampleRate32kHz ||
-      capture_nonlocked_.capture_processing_format.sample_rate_hz() ==
-          kSampleRate48kHz) {
-    capture_nonlocked_.split_rate = kSampleRate16kHz;
-  } else {
-    capture_nonlocked_.split_rate =
-        capture_nonlocked_.capture_processing_format.sample_rate_hz();
   }
 
   InitializeLocked();
@@ -793,8 +778,7 @@ int AudioProcessingImpl::proc_fullband_sample_rate_hz() const {
 }
 
 int AudioProcessingImpl::proc_split_sample_rate_hz() const {
-  // Used as callback from submodules, hence locking is not allowed.
-  return capture_nonlocked_.split_rate;
+  return kBandSplitRate;
 }
 
 size_t AudioProcessingImpl::num_reverse_channels() const {
@@ -2304,7 +2288,6 @@ AudioProcessingImpl::ApmCaptureState::ApmCaptureState()
       capture_output_used_last_frame(true),
       key_pressed(false),
       capture_processing_format(kSampleRate16kHz),
-      split_rate(kSampleRate16kHz),
       echo_path_gain_change(false),
       prev_pre_adjustment_gain(-1.0f),
       playout_volume(-1),
