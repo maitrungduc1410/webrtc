@@ -72,6 +72,7 @@ class RtpTransceiverTest : public testing::Test {
       : env_(CreateTestEnvironment()),
         dependencies_(MakeDependencies()),
         context_(ConnectionContext::Create(env_, &dependencies_)),
+        media_engine_ref_(context_),
         codec_lookup_helper_(context_.get(), env_.field_trials()) {}
 
  protected:
@@ -79,7 +80,7 @@ class RtpTransceiverTest : public testing::Test {
   FakeMediaEngine* media_engine() {
     // We know this cast is safe because we supplied the fake implementation
     // in MakeDependencies().
-    return static_cast<FakeMediaEngine*>(context_->media_engine());
+    return static_cast<FakeMediaEngine*>(media_engine_ref_.media_engine());
   }
   ConnectionContext* context() { return context_.get(); }
   CodecLookupHelper* codec_lookup_helper() { return &codec_lookup_helper_; }
@@ -102,6 +103,7 @@ class RtpTransceiverTest : public testing::Test {
   Environment env_;
   PeerConnectionFactoryDependencies dependencies_;
   scoped_refptr<ConnectionContext> context_;
+  ConnectionContext::MediaEngineReference media_engine_ref_;
   FakeCodecLookupHelper codec_lookup_helper_;
 };
 

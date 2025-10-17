@@ -302,10 +302,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
                            const MediaContentDescription* content);
 
  private:
-  MediaEngineInterface* media_engine() const
-      RTC_RUN_ON(context()->worker_thread()) {
-    return context_->media_engine();
-  }
+  MediaEngineInterface* media_engine() RTC_RUN_ON(context()->worker_thread());
   ConnectionContext* context() const { return context_; }
   CodecVendor& codec_vendor() {
     return *codec_lookup_helper_->GetCodecVendor();
@@ -354,6 +351,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // because all access on the network thread is within an invoke()
   // from thread_.
   std::unique_ptr<ChannelInterface> channel_ = nullptr;
+  std::unique_ptr<ConnectionContext::MediaEngineReference> media_engine_ref_
+      RTC_GUARDED_BY(context()->worker_thread());
   ConnectionContext* const context_;
   CodecLookupHelper* const codec_lookup_helper_;
   std::vector<RtpCodecCapability> codec_preferences_;

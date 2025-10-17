@@ -5817,7 +5817,7 @@ bool SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
 }
 
 bool SdpOfferAnswerHandler::ConfiguredForMedia() const {
-  return context_->media_engine();
+  return context_->is_configured_for_media();
 }
 
 }  // namespace webrtc
