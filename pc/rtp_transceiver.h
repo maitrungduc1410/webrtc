@@ -287,6 +287,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
       const override;
   std::vector<RtpHeaderExtensionCapability> GetNegotiatedHeaderExtensions()
       const override;
+
   RTCError SetHeaderExtensionsToNegotiate(
       ArrayView<const RtpHeaderExtensionCapability> header_extensions) override;
 
@@ -321,6 +322,10 @@ class RtpTransceiver : public RtpTransceiverInterface {
 
   RTCError UpdateCodecPreferencesCaches(
       const std::vector<RtpCodecCapability>& codecs);
+  // Helper function for handling extensions during O/A
+  std::vector<RtpHeaderExtensionCapability>
+  GetOfferedAndImplementedHeaderExtensions(
+      const MediaContentDescription* content) const;
 
   const Environment env_;
   // Enforce that this object is created, used and destroyed on one thread.
@@ -355,7 +360,10 @@ class RtpTransceiver : public RtpTransceiverInterface {
   std::vector<RtpCodecCapability> sendrecv_codec_preferences_;
   std::vector<RtpCodecCapability> sendonly_codec_preferences_;
   std::vector<RtpCodecCapability> recvonly_codec_preferences_;
-  std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate_;
+  std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate_
+      RTC_GUARDED_BY(thread_);
+  std::vector<RtpHeaderExtensionCapability> header_extensions_for_rollback_
+      RTC_GUARDED_BY(thread_);
 
   // `negotiated_header_extensions_` is read and written to on the signaling
   // thread from the SdpOfferAnswerHandler class (e.g.

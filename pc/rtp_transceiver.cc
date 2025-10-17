@@ -761,6 +761,7 @@ std::vector<RtpCodecCapability> RtpTransceiver::filtered_codec_preferences()
 
 std::vector<RtpHeaderExtensionCapability>
 RtpTransceiver::GetHeaderExtensionsToNegotiate() const {
+  RTC_DCHECK_RUN_ON(thread_);
   return header_extensions_to_negotiate_;
 }
 
@@ -771,6 +772,30 @@ RtpTransceiver::GetNegotiatedHeaderExtensions() const {
   result.reserve(header_extensions_to_negotiate_.size());
   for (const auto& ext : header_extensions_to_negotiate_) {
     auto negotiated = absl::c_find_if(negotiated_header_extensions_,
+                                      [&ext](const RtpExtension& negotiated) {
+                                        return negotiated.uri == ext.uri;
+                                      });
+    RtpHeaderExtensionCapability capability(ext.uri);
+    // TODO(bugs.webrtc.org/7477): extend when header extensions support
+    // direction.
+    capability.direction = negotiated != negotiated_header_extensions_.end()
+                               ? RtpTransceiverDirection::kSendRecv
+                               : RtpTransceiverDirection::kStopped;
+    result.push_back(capability);
+  }
+  return result;
+}
+
+std::vector<RtpHeaderExtensionCapability>
+RtpTransceiver::GetOfferedAndImplementedHeaderExtensions(
+    const MediaContentDescription* content) const {
+  RTC_DCHECK_RUN_ON(thread_);
+  std::vector<RtpHeaderExtensionCapability> result;
+  result.reserve(header_extensions_to_negotiate_.size());
+  const RtpHeaderExtensions& offered_extensions =
+      content->rtp_header_extensions();
+  for (const auto& ext : header_extensions_to_negotiate_) {
+    auto negotiated = absl::c_find_if(offered_extensions,
                                       [&ext](const RtpExtension& negotiated) {
                                         return negotiated.uri == ext.uri;
                                       });
@@ -796,6 +821,7 @@ bool IsMandatoryHeaderExtension(const std::string& uri) {
 
 RTCError RtpTransceiver::SetHeaderExtensionsToNegotiate(
     ArrayView<const RtpHeaderExtensionCapability> header_extensions) {
+  RTC_DCHECK_RUN_ON(thread_);
   // https://w3c.github.io/webrtc-extensions/#dom-rtcrtptransceiver-setheaderextensionstonegotiate
   if (header_extensions.size() != header_extensions_to_negotiate_.size()) {
     return RTCError(RTCErrorType::INVALID_MODIFICATION,
@@ -839,6 +865,19 @@ void RtpTransceiver::OnNegotiationUpdate(
     if (env_.field_trials().IsEnabled(
             "WebRTC-HeaderExtensionNegotiateMemory")) {
       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
+    }
+  } else if (sdp_type == SdpType::kOffer) {
+    if (env_.field_trials().IsEnabled(
+            "WebRTC-HeaderExtensionNegotiateMemory")) {
+      header_extensions_for_rollback_ = header_extensions_to_negotiate_;
+      header_extensions_to_negotiate_ =
+          GetOfferedAndImplementedHeaderExtensions(content);
+    }
+  } else if (sdp_type == SdpType::kRollback) {
+    if (env_.field_trials().IsEnabled(
+            "WebRTC-HeaderExtensionNegotiateMemory")) {
+      RTC_CHECK(!header_extensions_for_rollback_.empty());
+      header_extensions_to_negotiate_ = header_extensions_for_rollback_;
     }
   }
 }
