@@ -84,6 +84,7 @@ if (rtc_enable_protobuf) {
         "../../../test:create_test_environment",
         "../../../test:test_support",
         "test",
+        "//third_party/abseil-cpp/absl/functional:any_invocable",
       ]
     }
   }
