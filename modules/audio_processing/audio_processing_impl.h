@@ -220,6 +220,7 @@ class AudioProcessingImpl : public AudioProcessing {
     bool RenderFullBandProcessingActive() const;
     bool RenderMultiBandProcessingActive() const;
     bool HighPassFilteringRequired() const;
+    bool EchoControllerEnabled() const;
 
    private:
     const bool capture_post_processor_enabled_ = false;
@@ -478,7 +479,6 @@ class AudioProcessingImpl : public AudioProcessing {
     StreamConfig capture_processing_format;
     int split_rate;
     int stream_delay_ms;
-    bool echo_controller_enabled = false;
   } capture_nonlocked_;
 
   struct ApmRenderState {
