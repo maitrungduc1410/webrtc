@@ -32,12 +32,14 @@ struct LoggedBweScreamUpdate {
   LoggedBweScreamUpdate() = default;
   LoggedBweScreamUpdate(Timestamp timestamp,
                         uint32_t ref_window_bytes,
+                        uint32_t data_in_flight_bytes,
                         uint32_t target_rate_kbps,
                         uint32_t smoothed_rtt_ms,
                         uint32_t avg_queue_delay_ms,
                         uint32_t l4s_marked_permille)
       : timestamp(timestamp),
         ref_window(DataSize::Bytes(ref_window_bytes)),
+        data_in_flight(DataSize::Bytes(data_in_flight_bytes)),
         target_rate(DataRate::KilobitsPerSec(target_rate_kbps)),
         smoothed_rtt(TimeDelta::Millis(smoothed_rtt_ms)),
         avg_queue_delay(TimeDelta::Millis(avg_queue_delay_ms)),
@@ -49,6 +51,7 @@ struct LoggedBweScreamUpdate {
 
   Timestamp timestamp = Timestamp::MinusInfinity();
   DataSize ref_window;
+  DataSize data_in_flight;
   DataRate target_rate;
   TimeDelta smoothed_rtt;
   TimeDelta avg_queue_delay;
@@ -60,6 +63,7 @@ class RtcEventBweUpdateScream final : public RtcEvent {
   static constexpr Type kType = Type::BweUpdateScream;
 
   RtcEventBweUpdateScream(DataSize ref_window,
+                          DataSize data_in_flight,
                           DataRate target_rate,
                           TimeDelta smoothed_rtt,
                           TimeDelta avg_queue_delay,
@@ -72,6 +76,7 @@ class RtcEventBweUpdateScream final : public RtcEvent {
   std::unique_ptr<RtcEventBweUpdateScream> Copy() const;
 
   uint32_t ref_window_bytes() const { return ref_window_bytes_; }
+  uint32_t data_in_flight_bytes() const { return data_in_flight_bytes_; }
   uint32_t target_rate_kbps() const { return target_rate_kbps_; }
   uint32_t smoothed_rtt_ms() const { return smoothed_rtt_ms_; }
   uint32_t avg_queue_delay_ms() const { return avg_queue_delay_ms_; }
@@ -94,6 +99,7 @@ class RtcEventBweUpdateScream final : public RtcEvent {
   RtcEventBweUpdateScream(const RtcEventBweUpdateScream&) = default;
 
   const uint32_t ref_window_bytes_;
+  const uint32_t data_in_flight_bytes_;
   const uint32_t target_rate_kbps_;
   const uint32_t smoothed_rtt_ms_;
   const uint32_t avg_queue_delay_ms_;

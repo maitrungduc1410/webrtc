@@ -226,11 +226,13 @@ bool Convert(std::string inputfile,
   auto bwe_scream_update_handler = [&](const LoggedBweScreamUpdate& event) {
     fprintf(output,
             "BWE_SCREAM %" PRId64 "ref_window_bytes=%" PRId64
-            " target_rate_kbps=%" PRId64 " smoothed_rtt_ms=%" PRId64
-            " avg_queue_delay_ms=%" PRId64 " l4s_marked_permille=%u\n",
+            " data_in_flight_bytes=%" PRId64 " target_rate_kbps=%" PRId64
+            " smoothed_rtt_ms=%" PRId64 " avg_queue_delay_ms=%" PRId64
+            " l4s_marked_permille=%u\n",
             event.log_time_ms(), event.ref_window.bytes(),
-            event.target_rate.kbps(), event.smoothed_rtt.ms(),
-            event.avg_queue_delay.ms(), event.l4s_marked_permille);
+            event.data_in_flight.bytes(), event.target_rate.kbps(),
+            event.smoothed_rtt.ms(), event.avg_queue_delay.ms(),
+            event.l4s_marked_permille);
   };
 
   auto dtls_transport_state_handler =

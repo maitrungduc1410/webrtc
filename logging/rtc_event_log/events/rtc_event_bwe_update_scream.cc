@@ -21,11 +21,13 @@
 namespace webrtc {
 
 RtcEventBweUpdateScream::RtcEventBweUpdateScream(DataSize ref_window,
+                                                 DataSize data_in_flight,
                                                  DataRate target_rate,
                                                  TimeDelta smoothed_rtt,
                                                  TimeDelta avg_queue_delay,
                                                  uint32_t l4s_marked_permille)
     : ref_window_bytes_(ref_window.bytes()),
+      data_in_flight_bytes_(data_in_flight.bytes()),
       target_rate_kbps_(target_rate.kbps()),
       smoothed_rtt_ms_(smoothed_rtt.ms()),
       avg_queue_delay_ms_(avg_queue_delay.ms()),

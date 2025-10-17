@@ -202,12 +202,13 @@ EventGenerator::NewBweUpdateLossBased() {
 
 std::unique_ptr<RtcEventBweUpdateScream> EventGenerator::NewBweUpdateScream() {
   uint32_t ref_window_bytes = prng_.Rand(0u, 100000u);
+  uint32_t data_in_flight_bytes = prng_.Rand(0u, 100000u);
   uint32_t target_rate_kbps = prng_.Rand(0u, 40000u);
   uint32_t smoothed_rtt_ms = prng_.Rand(0u, 10000u);
   uint32_t avg_queue_delay_ms = prng_.Rand(0u, 5000u);
   uint32_t l4s_marked_permille = prng_.Rand(0u, 1000u);
   return std::make_unique<RtcEventBweUpdateScream>(
-      DataSize::Bytes(ref_window_bytes),
+      DataSize::Bytes(ref_window_bytes), DataSize::Bytes(data_in_flight_bytes),
       DataRate::KilobitsPerSec(target_rate_kbps),
       TimeDelta::Millis(smoothed_rtt_ms), TimeDelta::Millis(avg_queue_delay_ms),
       l4s_marked_permille);
@@ -827,6 +828,8 @@ void EventVerifier::VerifyLoggedBweScreamUpdate(
     const LoggedBweScreamUpdate& logged_event) const {
   EXPECT_EQ(original_event.timestamp_ms(), logged_event.log_time_ms());
   EXPECT_EQ(original_event.ref_window_bytes(), logged_event.ref_window.bytes());
+  EXPECT_EQ(original_event.data_in_flight_bytes(),
+            logged_event.data_in_flight.bytes());
   EXPECT_EQ(original_event.target_rate_kbps(), logged_event.target_rate.kbps());
   EXPECT_EQ(original_event.smoothed_rtt_ms(), logged_event.smoothed_rtt.ms());
   EXPECT_EQ(original_event.avg_queue_delay_ms(),

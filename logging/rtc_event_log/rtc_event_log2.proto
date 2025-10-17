@@ -456,9 +456,10 @@ message ScreamBweUpdates {
   optional uint32 smoothed_rtt_ms = 4;
   optional uint32 avg_queue_delay_ms = 5;
   optional uint32 l4s_marked_permille = 6;
+  optional uint32 data_in_flight_bytes = 7;
 
   // optional - required if the batch contains delta encoded events.
-  optional uint32 number_of_deltas = 7;
+  optional uint32 number_of_deltas = 15;
 
   // Delta encodings.
   optional bytes timestamp_ms_deltas = 101;
@@ -467,6 +468,7 @@ message ScreamBweUpdates {
   optional bytes smoothed_rtt_ms_deltas = 104;
   optional bytes avg_queue_delay_ms_deltas = 105;
   optional bytes l4s_marked_permille_deltas = 106;
+  optional bytes data_in_flight_bytes_deltas = 107;
 }
 
 // Maps RTP header extension names to numerical IDs.

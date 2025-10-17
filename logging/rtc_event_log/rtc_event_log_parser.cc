@@ -3167,6 +3167,7 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
     const rtclog2::ScreamBweUpdates& proto) {
   RTC_PARSE_CHECK_OR_RETURN(proto.has_timestamp_ms());
   RTC_PARSE_CHECK_OR_RETURN(proto.has_ref_window_bytes());
+  RTC_PARSE_CHECK_OR_RETURN(proto.has_data_in_flight_bytes());
   RTC_PARSE_CHECK_OR_RETURN(proto.has_target_rate_kbps());
   RTC_PARSE_CHECK_OR_RETURN(proto.has_smoothed_rtt_ms());
   RTC_PARSE_CHECK_OR_RETURN(proto.has_avg_queue_delay_ms());
@@ -3175,8 +3176,9 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
   // Base event
   bwe_scream_updates_.emplace_back(
       Timestamp::Millis(proto.timestamp_ms()), proto.ref_window_bytes(),
-      proto.target_rate_kbps(), proto.smoothed_rtt_ms(),
-      proto.avg_queue_delay_ms(), proto.l4s_marked_permille());
+      proto.data_in_flight_bytes(), proto.target_rate_kbps(),
+      proto.smoothed_rtt_ms(), proto.avg_queue_delay_ms(),
+      proto.l4s_marked_permille());
 
   const size_t number_of_deltas =
       proto.has_number_of_deltas() ? proto.number_of_deltas() : 0u;
@@ -3195,6 +3197,12 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
       DecodeDeltas(proto.ref_window_bytes_deltas(), proto.ref_window_bytes(),
                    number_of_deltas);
   RTC_PARSE_CHECK_OR_RETURN_EQ(ref_window_bytes_values.size(),
+                               number_of_deltas);
+  // data_in_flight_bytes
+  std::vector<std::optional<uint64_t>> data_in_flight_bytes_values =
+      DecodeDeltas(proto.data_in_flight_bytes_deltas(),
+                   proto.data_in_flight_bytes(), number_of_deltas);
+  RTC_PARSE_CHECK_OR_RETURN_EQ(data_in_flight_bytes_values.size(),
                                number_of_deltas);
 
   // target_rate_kbps
@@ -3237,6 +3245,12 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
     const uint32_t ref_window_bytes =
         static_cast<uint32_t>(ref_window_bytes_values[i].value());
 
+    RTC_PARSE_CHECK_OR_RETURN(data_in_flight_bytes_values[i].has_value());
+    RTC_PARSE_CHECK_OR_RETURN_LE(data_in_flight_bytes_values[i].value(),
+                                 std::numeric_limits<uint32_t>::max());
+    const uint32_t data_in_flight_bytes =
+        static_cast<uint32_t>(data_in_flight_bytes_values[i].value());
+
     RTC_PARSE_CHECK_OR_RETURN(target_rate_kbps_values[i].has_value());
     RTC_PARSE_CHECK_OR_RETURN_LE(target_rate_kbps_values[i].value(),
                                  std::numeric_limits<uint32_t>::max());
@@ -3261,9 +3275,10 @@ ParsedRtcEventLog::ParseStatus ParsedRtcEventLog::StoreBweScreamUpdate(
     const uint32_t l4s_marked_permille =
         static_cast<uint32_t>(l4s_marked_permille_values[i].value());
 
-    bwe_scream_updates_.emplace_back(
-        Timestamp::Millis(timestamp_ms), ref_window_bytes, target_rate_kbps,
-        smoothed_rtt_ms, avg_queue_delay_ms, l4s_marked_permille);
+    bwe_scream_updates_.emplace_back(Timestamp::Millis(timestamp_ms),
+                                     ref_window_bytes, data_in_flight_bytes,
+                                     target_rate_kbps, smoothed_rtt_ms,
+                                     avg_queue_delay_ms, l4s_marked_permille);
   }
   return ParseStatus::Success();
 }

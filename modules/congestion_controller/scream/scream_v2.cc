@@ -82,7 +82,7 @@ DataRate ScreamV2::OnTransportPacketsFeedback(
   UpdateL4SAlpha(msg);
   UpdateRefWindowAndTargetRate(msg);
   env_.event_log().Log(std::make_unique<RtcEventBweUpdateScream>(
-      ref_window_, target_rate_, msg.smoothed_rtt,
+      ref_window_, msg.data_in_flight, target_rate_, msg.smoothed_rtt,
       delay_based_congestion_control_.queue_delay(),
       /*l4s_marked_permille*/ l4s_alpha_ * 1000));
   return target_rate_;

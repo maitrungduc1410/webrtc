@@ -1558,14 +1558,20 @@ void EventLogAnalyzer::CreateIncomingEcnFeedbackGraph(Plot* plot) const {
 
 void EventLogAnalyzer::CreateScreamRefWindowGraph(Plot* plot) const {
   TimeSeries ref_window_series("RefWindow", LineStyle::kStep);
-
   for (auto& scream_update : parsed_log_.bwe_scream_updates()) {
     float x = config_.GetCallTimeSec(scream_update.log_time());
     float y = static_cast<float>(scream_update.ref_window.bytes());
     ref_window_series.points.emplace_back(x, y);
   }
-
   plot->AppendTimeSeries(std::move(ref_window_series));
+
+  TimeSeries data_in_flight_series("Data in flight", LineStyle::kLine);
+  for (auto& scream_update : parsed_log_.bwe_scream_updates()) {
+    float x = config_.GetCallTimeSec(scream_update.log_time());
+    float y = static_cast<float>(scream_update.data_in_flight.bytes());
+    data_in_flight_series.points.emplace_back(x, y);
+  }
+  plot->AppendTimeSeries(std::move(data_in_flight_series));
 
   plot->SetXAxis(config_.CallBeginTimeSec(), config_.CallEndTimeSec(),
                  "Time (s)", kLeftMargin, kRightMargin);

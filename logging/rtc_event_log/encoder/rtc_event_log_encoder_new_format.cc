@@ -1381,6 +1381,7 @@ void RtcEventLogEncoderNewFormat::EncodeBweUpdateScream(
       event_stream->add_scream_bwe_updates();
   proto_batch->set_timestamp_ms(base_event->timestamp_ms());
   proto_batch->set_ref_window_bytes(base_event->ref_window_bytes());
+  proto_batch->set_data_in_flight_bytes(base_event->data_in_flight_bytes());
   proto_batch->set_target_rate_kbps(base_event->target_rate_kbps());
   proto_batch->set_smoothed_rtt_ms(base_event->smoothed_rtt_ms());
   proto_batch->set_avg_queue_delay_ms(base_event->avg_queue_delay_ms());
@@ -1412,6 +1413,16 @@ void RtcEventLogEncoderNewFormat::EncodeBweUpdateScream(
   encoded_deltas = EncodeDeltas(base_event->ref_window_bytes(), values);
   if (!encoded_deltas.empty()) {
     proto_batch->set_ref_window_bytes_deltas(encoded_deltas);
+  }
+
+  // data_in_flight_bytes
+  for (size_t i = 0; i < values.size(); ++i) {
+    const RtcEventBweUpdateScream* event = batch[i + 1];
+    values[i] = event->data_in_flight_bytes();
+  }
+  encoded_deltas = EncodeDeltas(base_event->data_in_flight_bytes(), values);
+  if (!encoded_deltas.empty()) {
+    proto_batch->set_data_in_flight_bytes_deltas(encoded_deltas);
   }
 
   // target_rate_kbps
