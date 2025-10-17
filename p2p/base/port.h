@@ -267,7 +267,7 @@ class RTC_EXPORT Port : public PortInterface, public sigslot::has_slots<> {
   // Downstream code uses this signal. We will continue firing it along with the
   // callback list. The signal can be deleted once all downstream usages are
   // replaced with the new CallbackList implementation.
-  void NotifyCandidateready(Port* port, const Candidate& candidate) {
+  void NotifyCandidateReady(Port* port, const Candidate& candidate) {
     SignalCandidateReady(port, candidate);
   }
   sigslot::signal2<Port*, const Candidate&> SignalCandidateReady;
