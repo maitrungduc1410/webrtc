@@ -126,9 +126,9 @@ void RenderingTracker::OnEncodedFrame(
   // This check is currently true by construction, but it could change in
   // the future.
   RTC_DCHECK(vsbc_decodable_stats_.has_value());
-
   VideoStreamBufferControllerObserverDecodableStats vsbc_decodable_stats =
-      vsbc_decodable_stats_.value_or({});
+      vsbc_decodable_stats_.value_or(
+          VideoStreamBufferControllerObserverDecodableStats());
   observer_.OnDecodedFrame(*encoded_frame, vsbc_frames_dropped_.value_or(0),
                            vsbc_decodable_stats.jitter_buffer_minimum_delay,
                            vsbc_decodable_stats.jitter_buffer_target_delay,
