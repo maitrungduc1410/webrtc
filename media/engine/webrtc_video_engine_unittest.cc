@@ -9126,6 +9126,59 @@ TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
 }
 #endif
 
+TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
+       SetRtpSendParametersFailsForMixedCodecSimulcastWithScalabilityMode) {
+  StreamParams sp = CreateSimStreamParams("cname", {123, 456, 789});
+
+  std::vector<RidDescription> rid_descriptions;
+  rid_descriptions.emplace_back("f", RidDirection::kSend);
+  rid_descriptions.emplace_back("h", RidDirection::kSend);
+  rid_descriptions.emplace_back("q", RidDirection::kSend);
+  sp.set_rids(rid_descriptions);
+
+  ASSERT_TRUE(send_channel_->AddSendStream(sp));
+
+  Codec vp8 = GetEngineCodec("VP8");
+  Codec vp9 = GetEngineCodec("VP9");
+  RtpParameters rtp_parameters =
+      send_channel_->GetRtpSendParameters(last_ssrc_);
+  ASSERT_EQ(3UL, rtp_parameters.encodings.size());
+
+  // In single-codec simulcast, any scalability_mode is allowed.
+  rtp_parameters.encodings[0].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[1].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[2].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[2].scalability_mode = "L1T1";
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+  rtp_parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+  rtp_parameters.encodings[2].scalability_mode = "L2T1";
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+
+  // In mixed-codec simulcast, only L1 scalability modes are allowed; higher
+  // spatial-layer modes (e.g., L2) must be rejected.
+  rtp_parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+  rtp_parameters.encodings[0].codec = vp8.ToCodecParameters();
+  rtp_parameters.encodings[1].codec = vp8.ToCodecParameters();
+  rtp_parameters.encodings[2].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[2].scalability_mode = "L1T1";
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+  rtp_parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+  rtp_parameters.encodings[2].scalability_mode = "L2T1";
+  webrtc::RTCError error =
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters);
+  EXPECT_FALSE(error.ok());
+  EXPECT_EQ(RTCErrorType::UNSUPPORTED_OPERATION, error.type());
+  // UNSUPPORTED_OPERATION could also indicate mixed-codec rejection; verify the
+  // message to ensure it specifically rejects spatial layers in
+  // scalabilityMode.
+  EXPECT_THAT(error.message(),
+              testing::HasSubstr(
+                  "Attempted to use a scalabilityMode with spatial layers"));
+}
+
 // Test that min and max bitrate values set via RtpParameters are correctly
 // propagated to the underlying encoder for a single stream.
 TEST_F(WebRtcVideoChannelTest, MinAndMaxBitratePropagatedToEncoder) {

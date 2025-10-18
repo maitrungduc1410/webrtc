@@ -2338,7 +2338,8 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
         // webrtc qp scaler (in the no-svc case or if only a single spatial
         // layer is encoded). It has to be explicitly detected and reported to
         // adaptation metrics.
-        if (codec_type == VideoCodecType::kVideoCodecVP9 &&
+        if (!send_codec_.IsMixedCodec() &&
+            codec_type == VideoCodecType::kVideoCodecVP9 &&
             send_codec_.VP9()->automaticResizeOn) {
           unsigned int expected_width = send_codec_.width;
           unsigned int expected_height = send_codec_.height;
