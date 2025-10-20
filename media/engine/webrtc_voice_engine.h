@@ -153,7 +153,7 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
   SequenceChecker worker_thread_checker_{SequenceChecker::kDetached};
 
   // Field trial flags.
-  const bool minimized_remsampling_on_mobile_trial_enabled_;
+  const bool minimized_resampling_on_mobile_trial_enabled_;
   const bool payload_types_in_transport_trial_enabled_;
 
   // The audio device module.
