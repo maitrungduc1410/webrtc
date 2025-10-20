@@ -19,6 +19,7 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/numerics/sequence_number_unwrapper.h"
+
 namespace webrtc {
 
 // CongestionControlFeedbackTracker is reponsible for creating and keeping track
@@ -26,7 +27,7 @@ namespace webrtc {
 // https://datatracker.ietf.org/doc/rfc8888/
 class CongestionControlFeedbackTracker {
  public:
-  CongestionControlFeedbackTracker() = default;
+  explicit CongestionControlFeedbackTracker(uint32_t ssrc) : ssrc_(ssrc) {}
 
   void ReceivedPacket(const RtpPacketReceived& packet);
 
@@ -41,12 +42,12 @@ class CongestionControlFeedbackTracker {
 
  private:
   struct PacketInfo {
-    uint32_t ssrc;
     int64_t unwrapped_sequence_number = 0;
     Timestamp arrival_time;
     EcnMarking ecn = EcnMarking::kNotEct;
   };
 
+  const uint32_t ssrc_;
   std::optional<int64_t> last_sequence_number_in_feedback_;
   SeqNumUnwrapper<uint16_t> unwrapper_;
 

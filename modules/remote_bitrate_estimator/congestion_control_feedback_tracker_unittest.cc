@@ -29,11 +29,13 @@ using ::testing::Field;
 using ::testing::Property;
 using ::testing::SizeIs;
 
+constexpr uint32_t kSsrc = 1234;
+
 RtpPacketReceived CreatePacket(Timestamp arrival_time,
                                uint16_t seq = 1,
                                EcnMarking ecn = EcnMarking::kNotEct) {
   RtpPacketReceived packet;
-  packet.SetSsrc(1234);
+  packet.SetSsrc(kSsrc);
   packet.SetSequenceNumber(seq);
   packet.set_arrival_time(arrival_time);
   packet.set_ecn(ecn);
@@ -47,7 +49,7 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 =
       CreatePacket(/*arrival_time=*/Timestamp::Millis(125), /*seq=*/1);
 
-  CongestionControlFeedbackTracker tracker;
+  CongestionControlFeedbackTracker tracker(kSsrc);
   tracker.ReceivedPacket(packet_1);
   tracker.ReceivedPacket(packet_2);
 
@@ -82,7 +84,7 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_3 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(126), /*seq=*/1, EcnMarking::kEct1);
 
-  CongestionControlFeedbackTracker tracker;
+  CongestionControlFeedbackTracker tracker(kSsrc);
   tracker.ReceivedPacket(packet_1);
   tracker.ReceivedPacket(packet_2);
   tracker.ReceivedPacket(packet_3);
@@ -109,7 +111,7 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
-  CongestionControlFeedbackTracker tracker;
+  CongestionControlFeedbackTracker tracker(kSsrc);
   tracker.ReceivedPacket(packet_1);
   tracker.ReceivedPacket(packet_2);
 
@@ -134,7 +136,7 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
-  CongestionControlFeedbackTracker tracker;
+  CongestionControlFeedbackTracker tracker(kSsrc);
   tracker.ReceivedPacket(packet_1);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
@@ -166,7 +168,7 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_3 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
-  CongestionControlFeedbackTracker tracker;
+  CongestionControlFeedbackTracker tracker(kSsrc);
   tracker.ReceivedPacket(packet_1);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;

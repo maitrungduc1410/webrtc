@@ -30,6 +30,7 @@ constexpr int kMaxPacketsPerSsrc = 16384;
 
 void CongestionControlFeedbackTracker::ReceivedPacket(
     const RtpPacketReceived& packet) {
+  RTC_DCHECK_EQ(packet.Ssrc(), ssrc_);
   if (packets_.size() > kMaxPacketsPerSsrc) {
     RTC_LOG(LS_VERBOSE)
         << "Unexpected number of packets without sending reports:"
@@ -53,8 +54,7 @@ void CongestionControlFeedbackTracker::ReceivedPacket(
     // received.
     last_sequence_number_in_feedback_ = unwrapped_sequence_number - 1;
   }
-  packets_.push_back({.ssrc = packet.Ssrc(),
-                      .unwrapped_sequence_number = unwrapped_sequence_number,
+  packets_.push_back({.unwrapped_sequence_number = unwrapped_sequence_number,
                       .arrival_time = packet.arrival_time(),
                       .ecn = packet.ecn()});
 }
@@ -75,14 +75,12 @@ void CongestionControlFeedbackTracker::AddPacketsToFeedback(
   }
 
   auto packet_it = packets_.begin();
-  uint32_t ssrc = packet_it->ssrc;
   for (int64_t sequence_number = *last_sequence_number_in_feedback_ + 1;
        sequence_number <= packets_.back().unwrapped_sequence_number &&
        sequence_number <=
            *last_sequence_number_in_feedback_ + kMaxPacketsPerSsrc;
        ++sequence_number) {
     RTC_DCHECK(packet_it != packets_.end());
-    RTC_DCHECK_EQ(ssrc, packet_it->ssrc);
 
     EcnMarking ecn = EcnMarking::kNotEct;
     TimeDelta arrival_time_offset = TimeDelta::MinusInfinity();
@@ -102,14 +100,14 @@ void CongestionControlFeedbackTracker::AddPacketsToFeedback(
         if (packet_it->ecn == EcnMarking::kCe) {
           ecn = EcnMarking::kCe;
         }
-        RTC_LOG(LS_WARNING) << "Received duplicate packet ssrc:" << ssrc
+        RTC_LOG(LS_WARNING) << "Received duplicate packet ssrc:" << ssrc_
                             << " seq:" << static_cast<uint16_t>(sequence_number)
                             << " ecn: " << static_cast<int>(ecn);
         ++packet_it;
       }
     }  // else - the packet has not been received yet.
     packet_feedback.push_back(
-        {.ssrc = ssrc,
+        {.ssrc = ssrc_,
          .sequence_number = static_cast<uint16_t>(sequence_number),
          .arrival_time_offset = arrival_time_offset,
          .ecn = ecn});

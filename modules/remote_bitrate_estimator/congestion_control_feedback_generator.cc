@@ -58,7 +58,8 @@ void CongestionControlFeedbackGenerator::OnReceivedPacket(
   if (!first_arrival_time_since_feedback_) {
     first_arrival_time_since_feedback_ = now;
   }
-  feedback_trackers_[packet.Ssrc()].ReceivedPacket(packet);
+  auto it = feedback_trackers_.try_emplace(packet.Ssrc(), packet.Ssrc()).first;
+  it->second.ReceivedPacket(packet);
   if (NextFeedbackTime() < now) {
     SendFeedback(now);
   }
