@@ -613,9 +613,9 @@ void UDPPort::MaybeSetPortCompleteOrError() {
   // request succeeded for any stun server, or the socket is shared.
   if (server_addresses_.empty() || !bind_request_succeeded_servers_.empty() ||
       SharedSocket()) {
-    SignalPortComplete(this);
+    NotifyPortComplete(this);
   } else {
-    SignalPortError(this);
+    NotifyPortError(this);
   }
 }
 

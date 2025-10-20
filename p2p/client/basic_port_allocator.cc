@@ -46,10 +46,10 @@
 #include "rtc_base/ip_address.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/net_helper.h"
+#include "rtc_base/net_helpers.h"
 #include "rtc_base/network.h"
 #include "rtc_base/network/received_packet.h"
 #include "rtc_base/network_constants.h"
-#include "rtc_base/platform_thread_types.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/thread.h"
@@ -338,7 +338,7 @@ void BasicPortAllocatorSession::SetCandidateFilter(uint32_t filter) {
           found_signalable_candidate = true;
           port_data.set_state(PortData::STATE_INPROGRESS);
         }
-        port->SignalCandidateReady(port, c);
+        port->NotifyCandidateReady(port, c);
       }
 
       if (CandidatePairable(c, port)) {

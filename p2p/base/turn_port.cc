@@ -52,7 +52,6 @@
 #include "rtc_base/network.h"
 #include "rtc_base/network/received_packet.h"
 #include "rtc_base/network/sent_packet.h"
-#include "rtc_base/platform_thread_types.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/ssl_certificate.h"
@@ -932,7 +931,7 @@ void TurnPort::OnAllocateError(int error_code, absl::string_view reason) {
   // port initialization. This way it will not be blocking other port
   // creation.
   thread()->PostTask(
-      SafeTask(task_safety_.flag(), [this] { SignalPortError(this); }));
+      SafeTask(task_safety_.flag(), [this] { NotifyPortError(this); }));
   std::string address = GetLocalAddress().HostAsSensitiveURIString();
   int port = GetLocalAddress().port();
   if (server_address_.proto == PROTO_TCP &&
