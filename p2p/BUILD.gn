@@ -644,8 +644,10 @@ rtc_library("port_allocator") {
     "../api:candidate",
     "../api:sequence_checker",
     "../api/transport:enums",
+    "../api/units:time_delta",
     "../rtc_base:checks",
     "../rtc_base:crypto_random",
+    "../rtc_base:net_helper",
     "../rtc_base:network",
     "../rtc_base:sigslot_trampoline",
     "../rtc_base:socket_address",
@@ -653,6 +655,7 @@ rtc_library("port_allocator") {
     "../rtc_base:threading",
     "../rtc_base/system:rtc_export",
     "../rtc_base/third_party/sigslot",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
