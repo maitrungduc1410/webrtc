@@ -869,19 +869,19 @@ void RtpTransceiver::OnNegotiationUpdate(
   RTC_DCHECK(content);
   if (sdp_type == SdpType::kAnswer || sdp_type == SdpType::kPrAnswer) {
     negotiated_header_extensions_ = content->rtp_header_extensions();
-    if (env_.field_trials().IsEnabled(
+    if (!env_.field_trials().IsDisabled(
             "WebRTC-HeaderExtensionNegotiateMemory")) {
       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
     }
   } else if (sdp_type == SdpType::kOffer) {
-    if (env_.field_trials().IsEnabled(
+    if (!env_.field_trials().IsDisabled(
             "WebRTC-HeaderExtensionNegotiateMemory")) {
       header_extensions_for_rollback_ = header_extensions_to_negotiate_;
       header_extensions_to_negotiate_ =
           GetOfferedAndImplementedHeaderExtensions(content);
     }
   } else if (sdp_type == SdpType::kRollback) {
-    if (env_.field_trials().IsEnabled(
+    if (!env_.field_trials().IsDisabled(
             "WebRTC-HeaderExtensionNegotiateMemory")) {
       RTC_CHECK(!header_extensions_for_rollback_.empty());
       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
