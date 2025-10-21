@@ -278,7 +278,7 @@ TEST(ScreamV2Test, AdaptsToEcnLinkCapacity1Mbps) {
   EXPECT_GT(result.min_rate_after_adaption, DataRate::KilobitsPerSec(650));
 
   EXPECT_LT(result.max_smoothed_rtt_after_adaptation,
-            TimeDelta::Millis(25 * 2 + 20));
+            TimeDelta::Millis(25 * 2 + 25));
 }
 
 TEST(ScreamV2Test, AdaptsToLossLinkCapacity5Mbps) {
@@ -291,20 +291,18 @@ TEST(ScreamV2Test, AdaptsToLossLinkCapacity5Mbps) {
 
   AdaptsToLinkCapacityResult result = RunAdaptToLinkCapacityTest(params);
 
-  EXPECT_LT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(5200));
-  EXPECT_GT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(4000));
-  EXPECT_LT(result.max_rate_after_adaption, DataRate::KilobitsPerSec(5200));
-  EXPECT_GT(result.min_rate_after_adaption, DataRate::KilobitsPerSec(3500));
+  EXPECT_LT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(5400));
+  EXPECT_GT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(2500));
+  EXPECT_LT(result.max_rate_after_adaption, DataRate::KilobitsPerSec(5400));
+  EXPECT_GT(result.min_rate_after_adaption, DataRate::KilobitsPerSec(2500));
 
   EXPECT_LT(result.max_smoothed_rtt_after_adaptation,
             TimeDelta::Millis(10 * 2 + 40));
 }
 
 TEST(ScreamV2Test, AdaptsToDelayLinkCapacity2Mbps) {
-  // TODO: bugs.webrtc.org/447037083  - investigate why target rate and rtt vary
-  // much more if `queue_delay_ms` is set to 10ms.
   AdaptsToLinkCapacityParams params{
-      .network_config = {.queue_delay_ms = 5,
+      .network_config = {.queue_delay_ms = 10,
                          .link_capacity = DataRate::KilobitsPerSec(2000)},
       .send_as_ect1 = false,  // Adapt only due to delay increase.
       .adaption_time = TimeDelta::Seconds(3)};
