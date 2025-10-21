@@ -45,7 +45,8 @@ TEST(ScreamControllerTest, OnNetworkAvailabilityUpdatesTargetRateAndPacerRate) {
   EXPECT_EQ(update.target_rate->target_rate, config.constraints.starting_rate);
   ASSERT_TRUE(update.pacer_config);
   EXPECT_EQ(update.pacer_config->data_window,
-            *config.constraints.starting_rate * 1.5 * TimeDelta::Seconds(1));
+            *config.constraints.starting_rate * 1.5 *
+                PacerConfig::kDefaultTimeInterval);
 }
 
 TEST(ScreamControllerTest,
@@ -68,7 +69,8 @@ TEST(ScreamControllerTest,
   EXPECT_GT(update.target_rate->target_rate, DataRate::KilobitsPerSec(100));
   ASSERT_TRUE(update.pacer_config);
   EXPECT_EQ(update.pacer_config->data_window,
-            update.target_rate->target_rate * 1.5 * TimeDelta::Seconds(1));
+            update.target_rate->target_rate * 1.5 *
+                PacerConfig::kDefaultTimeInterval);
 }
 
 TEST(ScreamControllerTest,
@@ -103,9 +105,9 @@ TEST(ScreamControllerTest,
   EXPECT_EQ(update.target_rate->target_rate,
             route_change.constraints.starting_rate);
   ASSERT_TRUE(update.pacer_config);
-  EXPECT_EQ(
-      update.pacer_config->data_window,
-      *route_change.constraints.starting_rate * 1.5 * TimeDelta::Seconds(1));
+  EXPECT_EQ(update.pacer_config->data_window,
+            *route_change.constraints.starting_rate * 1.5 *
+                PacerConfig::kDefaultTimeInterval);
 }
 
 TEST(ScreamControllerTest, TargetRateRampsUptoTargetConstraints) {

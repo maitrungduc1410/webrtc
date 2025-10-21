@@ -163,10 +163,9 @@ PacerConfig ScreamNetworkController::GetPacerConfig(
   const double kPacingRateFactor = 1.5;
   // TODO: bugs.webrtc.org/447037083 - Currently, pacer will allow sending
   // bursts of packets with a total size up to 40ms * pacing rate.
-  return {
-      .data_window = kPacingRateFactor * target_rate * TimeDelta::Seconds(1),
-      .time_window = TimeDelta::Seconds(1),
-  };
+  return PacerConfig::Create(env_.clock().CurrentTime(),
+                             target_rate * kPacingRateFactor,
+                             /*pad_rate=*/DataRate::Zero());
 }
 
 }  // namespace webrtc
