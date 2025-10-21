@@ -12,9 +12,11 @@
 #define TEST_PC_SCTP_FAKE_SCTP_TRANSPORT_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "api/environment/environment.h"
 #include "api/priority.h"
@@ -89,6 +91,12 @@ class FakeSctpTransportFactory : public webrtc::SctpTransportFactoryInterface {
 
   FakeSctpTransport* last_fake_sctp_transport() {
     return last_fake_sctp_transport_;
+  }
+
+  std::vector<uint8_t> GenerateConnectionToken(
+      const webrtc::Environment& env) override {
+    RTC_DCHECK_NOTREACHED() << "Not implemented yet.";
+    return {};
   }
 
  private:

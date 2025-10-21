@@ -1538,7 +1538,7 @@ void SdpOfferAnswerHandler::Initialize(
             RTC_DCHECK_RUN_ON(signaling_thread());
             transport_controller_s()->SetLocalCertificate(certificate);
           },
-          codec_lookup_helper, pc_->trials());
+          codec_lookup_helper, pc_->env());
 
   if (pc_->options()->disable_encryption) {
     RTC_LOG(LS_INFO)

@@ -33,7 +33,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
-#include "media/sctp/sctp_transport_internal.h"
 #include "net/dcsctp/public/dcsctp_message.h"
 #include "net/dcsctp/public/dcsctp_options.h"
 #include "net/dcsctp/public/dcsctp_socket.h"
@@ -761,6 +760,12 @@ dcsctp::DcSctpOptions DcSctpTransport::CreateDcSctpOptions(
       field_trials.IsEnabled("WebRTC-DataChannelMessageInterleaving");
 
   return dcsctp_options;
+}
+
+std::vector<uint8_t> DcSctpTransport::GenerateConnectionToken(
+    const Environment& env) {
+  RTC_DCHECK_NOTREACHED() << "Not implemented yet.";
+  return {};
 }
 
 }  // namespace webrtc
