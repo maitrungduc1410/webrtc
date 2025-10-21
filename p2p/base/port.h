@@ -450,18 +450,6 @@ class RTC_EXPORT Port : public PortInterface, public sigslot::has_slots<> {
   // then we will signal the client.
   void OnReadPacket(const ReceivedIpPacket& packet, ProtocolType proto);
 
-  [[deprecated(
-      "Use OnReadPacket(const ReceivedIpPacket& packet, ProtocolType "
-      "proto)")]] void
-  OnReadPacket(const char* data,
-               size_t size,
-               const SocketAddress& addr,
-               ProtocolType proto) {
-    OnReadPacket(ReceivedIpPacket::CreateFromLegacy(
-                     data, size, /*packet_time_us = */ -1, addr),
-                 proto);
-  }
-
   // If the given data comprises a complete and correct STUN message then the
   // return value is true, otherwise false. If the message username corresponds
   // with this port's username fragment, msg will contain the parsed STUN
