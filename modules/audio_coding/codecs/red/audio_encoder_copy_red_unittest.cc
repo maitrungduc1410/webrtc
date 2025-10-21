@@ -34,7 +34,6 @@
 using ::testing::_;
 using ::testing::Eq;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::MockFunction;
 using ::testing::Optional;
 using ::testing::Return;
@@ -626,7 +625,7 @@ TEST_F(AudioEncoderCopyRedTest, AvoidRedundantNonSpeechEncoding) {
   info.payload_type = primary_payload_type;
   info.speech = false;
   EXPECT_CALL(*mock_encoder_, EncodeImpl(_, _, _))
-      .WillOnce(Invoke(MockAudioEncoder::FakeEncoding(info)));
+      .WillOnce(MockAudioEncoder::FakeEncoding(info));
   Encode();
 
   // Previous packet was non-speech and should not be used as redundant
@@ -636,7 +635,7 @@ TEST_F(AudioEncoderCopyRedTest, AvoidRedundantNonSpeechEncoding) {
   info.encoded_bytes = 100;
   info.speech = true;
   EXPECT_CALL(*mock_encoder_, EncodeImpl(_, _, _))
-      .WillOnce(Invoke(MockAudioEncoder::FakeEncoding(info)));
+      .WillOnce(MockAudioEncoder::FakeEncoding(info));
   Encode();
   EXPECT_EQ(encoded_.size(), 1u + 100u);
   EXPECT_TRUE(encoded_info_.redundant.empty());
@@ -647,7 +646,7 @@ TEST_F(AudioEncoderCopyRedTest, AvoidRedundantNonSpeechEncoding) {
   info.encoded_bytes = 200;
   info.speech = false;
   EXPECT_CALL(*mock_encoder_, EncodeImpl(_, _, _))
-      .WillOnce(Invoke(MockAudioEncoder::FakeEncoding(info)));
+      .WillOnce(MockAudioEncoder::FakeEncoding(info));
   Encode();
   EXPECT_EQ(encoded_.size(), 5u + 100u + 200u);
 }
