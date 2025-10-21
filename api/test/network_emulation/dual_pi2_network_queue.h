@@ -14,7 +14,6 @@
 #include <memory>
 #include <optional>
 #include <queue>
-#include <random>
 #include <vector>
 
 #include "api/sequence_checker.h"
@@ -24,6 +23,7 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "rtc_base/random.h"
 
 namespace webrtc {
 
@@ -110,8 +110,7 @@ class DualPi2NetworkQueue : public NetworkQueue {
   std::queue<PacketInFlightInfo> l4s_queue_;
   std::queue<PacketInFlightInfo> classic_queue_;
 
-  std::mt19937 random_;
-  std::uniform_real_distribution<double> distribution_;
+  Random random_;
 
   std::optional<size_t> max_packet_capacity_;
   DataSize total_queued_size_;

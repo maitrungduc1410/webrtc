@@ -30,8 +30,7 @@ DualPi2NetworkQueue::DualPi2NetworkQueue(const Config& config)
       step_threshold_(config.link_rate.IsInfinite()
                           ? DataSize::Infinity()
                           : config_.target_delay * config_.link_rate * 2),
-      random_(config.seed),
-      distribution_(0.0, 1.0) {
+      random_(config.seed) {
   sequence_checker_.Detach();
 }
 
@@ -151,7 +150,7 @@ bool DualPi2NetworkQueue::ShouldTakeAction(double marking_probability) {
   if (total_queued_size_ > step_threshold_) {
     return true;
   }
-  return distribution_(random_) < marking_probability;
+  return random_.Rand<double>() < marking_probability;
 }
 
 }  // namespace webrtc
