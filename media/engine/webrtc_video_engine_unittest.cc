@@ -9180,6 +9180,52 @@ TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
                   "Attempted to use a scalabilityMode with spatial layers"));
 }
 
+// When stats are retrieved in mixed-codec simulcast, verify that information
+// about multiple codecs and the streams referencing them is obtained.
+TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest, GetStatsMixedCodec) {
+  StreamParams sp = CreateSimStreamParams("cname", {123, 456, 789});
+
+  std::vector<RidDescription> rid_descriptions;
+  rid_descriptions.emplace_back("f", RidDirection::kSend);
+  rid_descriptions.emplace_back("h", RidDirection::kSend);
+  rid_descriptions.emplace_back("q", RidDirection::kSend);
+  sp.set_rids(rid_descriptions);
+
+  FakeVideoSendStream* stream = AddSendStream(sp);
+
+  VideoSendStream::Stats stats;
+  stats.substreams[123];
+  stats.substreams[456];
+  stats.substreams[789];
+  stream->SetStats(stats);
+
+  RtpParameters rtp_parameters =
+      send_channel_->GetRtpSendParameters(last_ssrc_);
+  EXPECT_EQ(3UL, rtp_parameters.encodings.size());
+  Codec vp8 = GetEngineCodec("VP8");
+  Codec vp9 = GetEngineCodec("VP9");
+  rtp_parameters.encodings[0].codec = vp8.ToCodecParameters();
+  rtp_parameters.encodings[1].codec = vp8.ToCodecParameters();
+  rtp_parameters.encodings[2].codec = vp9.ToCodecParameters();
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+
+  VideoMediaSendInfo send_info;
+  EXPECT_TRUE(send_channel_->GetStats(&send_info));
+  EXPECT_EQ(2U, send_info.send_codecs.size());
+  EXPECT_EQ(vp8.id, send_info.send_codecs[vp8.id].payload_type);
+  EXPECT_EQ(vp9.id, send_info.send_codecs[vp9.id].payload_type);
+  EXPECT_EQ(vp8.name, send_info.send_codecs[vp8.id].name);
+  EXPECT_EQ(vp9.name, send_info.send_codecs[vp9.id].name);
+  EXPECT_EQ(3U, send_info.senders.size());
+  EXPECT_EQ(vp8.id, send_info.senders[0].codec_payload_type);
+  EXPECT_EQ(vp8.id, send_info.senders[1].codec_payload_type);
+  EXPECT_EQ(vp9.id, send_info.senders[2].codec_payload_type);
+  EXPECT_EQ(vp8.name, send_info.senders[0].codec_name);
+  EXPECT_EQ(vp8.name, send_info.senders[1].codec_name);
+  EXPECT_EQ(vp9.name, send_info.senders[2].codec_name);
+}
+
 // Test that min and max bitrate values set via RtpParameters are correctly
 // propagated to the underlying encoder for a single stream.
 TEST_F(WebRtcVideoChannelTest, MinAndMaxBitratePropagatedToEncoder) {
