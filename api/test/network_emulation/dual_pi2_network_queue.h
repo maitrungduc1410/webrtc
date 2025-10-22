@@ -89,18 +89,8 @@ class DualPi2NetworkQueue : public NetworkQueue {
   }
 
  private:
-  void UpdateBaseMarkingProbability(Timestamp time_now);
+  void UpdateBaseMarkingProbability(Timestamp time_now, TimeDelta sojourn_time);
   bool ShouldTakeAction(double marking_probability);
-  TimeDelta l4s_queue_delay(Timestamp time_now) const {
-    return l4s_queue_.empty() ? TimeDelta::Zero()
-                              : time_now - l4s_queue_.front().send_time();
-  }
-
-  TimeDelta classic_queue_delay(Timestamp time_now) const {
-    return classic_queue_.empty()
-               ? TimeDelta::Zero()
-               : time_now - classic_queue_.front().send_time();
-  }
 
   SequenceChecker sequence_checker_;
 

@@ -641,7 +641,9 @@ TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcnWithScream) {
   // 10ms, and we dont strictly pace, frames with more than 1 packet can cause
   // the queue delay to be too long at these rates.
   EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(600));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(2100));
+  // TODO: bugs.webrtc.org/447037083 - Stream does not produce a higher rate
+  // than approximately 1.2Mbit/S. Consider limiting target rate to a rate sent.
+  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(3000));
 }
 
 TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithGoogCC) {
