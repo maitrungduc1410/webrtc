@@ -27,10 +27,12 @@ static constexpr DataRate kDefaultStartRate = DataRate::KilobitsPerSec(300);
 
 ScreamNetworkController::ScreamNetworkController(NetworkControllerConfig config)
     : env_(config.env),
+      params_(env_.field_trials()),
       default_pacing_window_(config.default_pacing_time_window),
       current_pacing_window_(config.default_pacing_time_window),
       scream_(std::in_place, env_),
-      target_rate_constraints_(config.constraints) {
+      target_rate_constraints_(config.constraints),
+      last_padding_interval_started_(Timestamp::Zero()) {
   if (config.constraints.min_data_rate.has_value() ||
       config.constraints.max_data_rate.has_value()) {
     scream_->SetTargetBitrateConstraints(
@@ -169,10 +171,27 @@ PacerConfig ScreamNetworkController::CreatePacerConfig(DataRate target_rate) {
   // marking.
   constexpr double kL4sAlphaThreshold = 0.01;
 
-  DataRate max_needed_rate = DataRate::Zero();
-  if (streams_config_.max_total_allocated_bitrate.has_value()) {
-    max_needed_rate = *streams_config_.max_total_allocated_bitrate;
+  DataRate max_needed_rate =
+      streams_config_.max_total_allocated_bitrate.value_or(DataRate::Zero());
+
+  DataRate padding_rate = DataRate::Zero();
+  Timestamp now = env_.clock().CurrentTime();
+  if (target_rate < max_needed_rate * kPacingRateFactor &&
+      target_rate < target_rate_constraints_.max_data_rate.value_or(
+                        DataRate::PlusInfinity())) {
+    // Periodically allow padding to be used to reach a target rate close to
+    // kPacingRateFactor*max_needed_rate.
+    if (params_.periodic_padding_interval->IsFinite() &&
+        (now - last_padding_interval_started_ >
+         params_.periodic_padding_interval.Get())) {
+      last_padding_interval_started_ = now;
+    }
+    if (now - last_padding_interval_started_ <
+        params_.periodic_padding_duration.Get()) {
+      padding_rate = target_rate;
+    }
   }
+
   if (current_pacing_window_ == default_pacing_window_ &&
       target_rate < max_needed_rate &&
       scream_->l4s_alpha() > kL4sAlphaThreshold) {
@@ -182,9 +201,8 @@ PacerConfig ScreamNetworkController::CreatePacerConfig(DataRate target_rate) {
     current_pacing_window_ =
         std::min(default_pacing_window_, kReducedPacingWindow);
   }
-  return PacerConfig::Create(
-      env_.clock().CurrentTime(), target_rate * kPacingRateFactor,
-      /*pad_rate=*/DataRate::Zero(), current_pacing_window_);
+  return PacerConfig::Create(now, target_rate * kPacingRateFactor, padding_rate,
+                             current_pacing_window_);
 }
 
 }  // namespace webrtc

@@ -152,7 +152,7 @@ TEST(ScreamV2Test, ReferenceWindowIncreaseLessPerStepIfCeDetected) {
   EXPECT_GT(scream_1.ref_window(), scream_2.ref_window());
 }
 
-TEST(ScreamV2Test, ReferenceWindowIncreaseTo2xDataInflight) {
+TEST(ScreamV2Test, ReferenceWindowIncreaseToDataInflight) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
   Environment env = CreateTestEnvironment({.time = &clock});
   ScreamV2 scream(env);
@@ -171,10 +171,10 @@ TEST(ScreamV2Test, ReferenceWindowIncreaseTo2xDataInflight) {
     scream.OnTransportPacketsFeedback(feedback);
     clock.AdvanceTime(feedback_interval);
   }
-  // Target rate can increase up to 2 * data_in_flight + Max Segment Size(
+  // Target rate can increase up to 1.1 * data_in_flight + Max Segment Size(
   // default 1000 bytes) when no max target rate has been set.
   EXPECT_EQ(scream.ref_window(),
-            2 * feedback.data_in_flight + DataSize::Bytes(1000));
+            1.1 * feedback.data_in_flight + DataSize::Bytes(1000));
 }
 
 TEST(ScreamV2Test, CalculatesL4sAlpha) {
@@ -309,7 +309,7 @@ TEST(ScreamV2Test, AdaptsToDelayLinkCapacity2Mbps) {
 
   AdaptsToLinkCapacityResult result = RunAdaptToLinkCapacityTest(params);
 
-  EXPECT_LT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(2100));
+  EXPECT_LT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(2300));
   EXPECT_GT(result.data_rate_after_adaption, DataRate::KilobitsPerSec(1700));
   EXPECT_LT(result.max_rate_after_adaption, DataRate::KilobitsPerSec(2300));
   EXPECT_GT(result.min_rate_after_adaption, DataRate::KilobitsPerSec(1700));

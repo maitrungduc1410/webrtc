@@ -611,10 +611,11 @@ TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithScream) {
 
   SendMediaTestResult result = SendMediaInOneDirection(params);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats);
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1300));
-  // Encoder does not produce more than approximately 1.5Mbit/S.
-  // Scream allow ref window to increase to roughly 2x max seen data in flight.
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(3800));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1600));
+  // TODO: bugs.webrtc.org/447037083 - Even if reference window is limited by
+  // seen data in flight, target rate can still increase due to that RTT
+  // decrease.
+  EXPECT_LE(available_bwe, DataRate::KilobitsPerSec(2600));
 }
 
 TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcnWithScream) {
@@ -628,10 +629,8 @@ TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcnWithScream) {
 
   SendMediaTestResult result = SendMediaInOneDirection(params);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats);
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1400));
-  // TODO: bugs.webrtc.org/447037083 - Stream does not produce a higher rate
-  // than approximately 1.2Mbit/S. Consider limiting target rate to a rate sent.
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(3000));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1500));
+  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(2100));
 }
 
 TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithGoogCC) {
