@@ -11,7 +11,6 @@
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_CONGESTION_CONTROL_FEEDBACK_TRACKER_H_
 
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include "api/transport/ecn_marking.h"
@@ -42,16 +41,36 @@ class CongestionControlFeedbackTracker {
 
  private:
   struct PacketInfo {
-    int64_t unwrapped_sequence_number = 0;
-    Timestamp arrival_time;
+    bool received() const { return arrival_time != Timestamp::MinusInfinity(); }
+
+    Timestamp arrival_time = Timestamp::MinusInfinity();
     EcnMarking ecn = EcnMarking::kNotEct;
   };
 
+  // Returns a `PacketInfo` entry for `sequence_number`,
+  // Returns nullptr if an entry can't be allocated due to `sequence_number`
+  // being too much out of order of already stored packet infos.
+  PacketInfo* FindOrCreatePacketInfo(int64_t sequence_number);
+
   const uint32_t ssrc_;
-  std::optional<int64_t> last_sequence_number_in_feedback_;
   SeqNumUnwrapper<uint16_t> unwrapper_;
 
+  // Contains info relevant for producing feedback for a received or missed RTP
+  // packet. Entry with index `i` represent information about packet with
+  // RTP sequence number `first_sequence_number_in_packets_ + i`
   std::vector<PacketInfo> packets_;
+
+  // Unwrapped RTP sequence number of the first element in `packets_`.
+  // Mustn't be used when `packets_.empty()`
+  int64_t first_sequence_number_in_packets_ = -1;
+
+  // Unwrapped RTP sequence number of a packet to start next feedback with.
+  // Mustn't be used when `packets_.empty()`
+  int64_t next_sequence_number_in_feedback_ = -1;
+
+  // Number of packets discarded by `ReceivedPacket` function since last call
+  // to `AddPacketsToFeedback`.
+  int num_ignored_packets_since_last_feedback_ = 0;
 };
 
 }  // namespace webrtc
