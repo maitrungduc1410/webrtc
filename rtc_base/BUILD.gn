@@ -1716,6 +1716,7 @@ rtc_library("ssl_adapter") {
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
   ]
 
   # If we are building the SSL library ourselves, we know it's BoringSSL.
