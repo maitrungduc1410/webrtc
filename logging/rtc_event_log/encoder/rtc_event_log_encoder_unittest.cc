@@ -88,7 +88,7 @@ class RtcEventLogEncoderTest
         event_count_(std::get<2>(GetParam())),
         force_repeated_fields_(std::get<3>(GetParam())),
         clock_(prng_.Rand<uint32_t>()),
-        gen_(seed_ * 880001UL),
+        gen_(seed_ * 880001UL, &clock_),
         verifier_(encoding_type_) {}
   ~RtcEventLogEncoderTest() override = default;
 

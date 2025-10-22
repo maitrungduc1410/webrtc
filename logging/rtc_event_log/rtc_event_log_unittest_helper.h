@@ -15,8 +15,10 @@
 #include <stdint.h>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/events/logged_rtp_rtcp.h"
@@ -63,6 +65,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/random.h"
+#include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
@@ -70,7 +73,8 @@ namespace test {
 
 class EventGenerator {
  public:
-  explicit EventGenerator(uint64_t seed) : prng_(seed) {}
+  explicit EventGenerator(uint64_t seed, Clock* absl_nonnull clock)
+      : prng_(seed), clock_(*clock) {}
 
   std::unique_ptr<RtcEventAlrState> NewAlrState();
   std::unique_ptr<RtcEventAudioNetworkAdaptation> NewAudioNetworkAdaptation();
@@ -154,7 +158,15 @@ class EventGenerator {
   rtcp::ReportBlock NewReportBlock();
   Buffer NewRtcpPacket();
 
+  template <typename T, typename... Args>
+  std::unique_ptr<T> Create(Args&&... args) {
+    auto rtc_event = std::make_unique<T>(std::forward<Args>(args)...);
+    rtc_event->SetTimestamp(clock_.CurrentTime());
+    return rtc_event;
+  }
+
   Random prng_;
+  Clock& clock_;
 };
 
 class EventVerifier {
