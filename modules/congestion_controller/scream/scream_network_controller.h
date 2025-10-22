@@ -49,11 +49,14 @@ class ScreamNetworkController : public NetworkControllerInterface {
   NetworkControlUpdate CreateUpdate(Timestamp now,
                                     DataRate target_rate,
                                     TimeDelta rtt);
-  PacerConfig GetPacerConfig(DataRate target_rate) const;
+  PacerConfig CreatePacerConfig(DataRate target_rate);
 
   Environment env_;
+  const TimeDelta default_pacing_window_;
+  TimeDelta current_pacing_window_;
   std::optional<ScreamV2> scream_;
   TargetRateConstraints target_rate_constraints_;
+  StreamsConfig streams_config_;
 };
 
 }  // namespace webrtc

@@ -19,10 +19,16 @@
 #include "modules/congestion_controller/scream/test/cc_feedback_generator.h"
 #include "system_wrappers/include/clock.h"
 #include "test/create_test_environment.h"
+#include "test/gmock.h"
 #include "test/gtest.h"
 
 namespace webrtc {
 namespace {
+
+using ::testing::Eq;
+using ::testing::Field;
+using ::testing::Lt;
+using ::testing::Optional;
 
 TEST(ScreamControllerTest, CanConstruct) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
@@ -142,6 +148,67 @@ TEST(ScreamControllerTest, TargetRateRampsUptoTargetConstraints) {
       scream_controller.OnTransportPacketsFeedback(feedback);
   ASSERT_TRUE(update.target_rate.has_value());
   EXPECT_EQ(update.target_rate->target_rate, DataRate::KilobitsPerSec(200));
+}
+
+TEST(ScreamControllerTest, PacingWindowReducedIfCeCongestedStreamsConfigured) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  CcFeedbackGenerator feedback_generator({
+      .network_config = {.link_capacity = DataRate::KilobitsPerSec(900)},
+      .send_as_ect1 = true,
+  });
+
+  NetworkControllerConfig config(env);
+  ScreamNetworkController scream_controller(config);
+
+  StreamsConfig streams_config;
+  streams_config.max_total_allocated_bitrate = DataRate::KilobitsPerSec(1000);
+  scream_controller.OnStreamsConfig(streams_config);
+
+  NetworkControlUpdate update;
+  DataRate send_rate = DataRate::KilobitsPerSec(500);
+  for (int i = 0; i < 20; ++i) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
+    update = scream_controller.OnTransportPacketsFeedback(feedback);
+    if (update.target_rate.has_value()) {
+      send_rate = update.target_rate->target_rate;
+    }
+  }
+  EXPECT_THAT(update.pacer_config,
+              Optional(Field(&PacerConfig::time_window,
+                             Lt(PacerConfig::kDefaultTimeInterval))));
+  EXPECT_GT(send_rate, DataRate::KilobitsPerSec(500));
+}
+
+TEST(ScreamControllerTest,
+     PacingWindowNotReducedIfDelayCongestedStreamsConfigured) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  CcFeedbackGenerator feedback_generator(
+      {.network_config = {.link_capacity = DataRate::KilobitsPerSec(900)},
+       .send_as_ect1 = false});  // Scream will react to delay increase, not CE.
+
+  NetworkControllerConfig config(env);
+  ScreamNetworkController scream_controller(config);
+
+  StreamsConfig streams_config;
+  streams_config.max_total_allocated_bitrate = DataRate::KilobitsPerSec(1000);
+  scream_controller.OnStreamsConfig(streams_config);
+
+  NetworkControlUpdate update;
+  DataRate send_rate = DataRate::KilobitsPerSec(500);
+  for (int i = 0; i < 20; ++i) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(send_rate, clock);
+    update = scream_controller.OnTransportPacketsFeedback(feedback);
+    if (update.target_rate.has_value()) {
+      send_rate = update.target_rate->target_rate;
+    }
+  }
+  EXPECT_THAT(update.pacer_config,
+              Optional(Field(&PacerConfig::time_window,
+                             Eq(PacerConfig::kDefaultTimeInterval))));
 }
 
 }  // namespace

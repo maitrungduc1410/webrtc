@@ -581,11 +581,7 @@ TEST(L4STest, CallerAdaptsToLinkCapacity600KbpsRtt100msEcnWithScream) {
 
   SendMediaTestResult result = SendMediaInOneDirection(params);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats);
-  // TODO: bugs.webrtc.org/447037083 - Implement stricter pacing and
-  // re-evalute these limits, Currently, since the DualPi target delay is
-  // 10ms, and we dont strictly pace, frames with more than 1 packet can cause
-  // the queue delay to be too long at these rates.
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(300));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(350));
   EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
 }
 
@@ -600,11 +596,7 @@ TEST(L4STest, CallerAdaptsToLinkCapacity1000KbpsRtt100msEcnWithScream) {
 
   SendMediaTestResult result = SendMediaInOneDirection(params);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats);
-  // TODO: bugs.webrtc.org/447037083 - Implement stricter pacing and
-  // re-evalute these limits, Currently, since the DualPi target delay is
-  // 10ms, and we dont strictly pace, frames with more than 1 packet can cause
-  // the queue delay to be too long at these rates.
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(350));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(600));
   EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(1000));
 }
 
@@ -636,11 +628,7 @@ TEST(L4STest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcnWithScream) {
 
   SendMediaTestResult result = SendMediaInOneDirection(params);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats);
-  // TODO: bugs.webrtc.org/447037083 - Implement stricter pacing and
-  // re-evalute these limits, Currently, since the DualPi target delay is
-  // 10ms, and we dont strictly pace, frames with more than 1 packet can cause
-  // the queue delay to be too long at these rates.
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(600));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1400));
   // TODO: bugs.webrtc.org/447037083 - Stream does not produce a higher rate
   // than approximately 1.2Mbit/S. Consider limiting target rate to a rate sent.
   EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(3000));
