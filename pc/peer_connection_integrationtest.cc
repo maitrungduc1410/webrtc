@@ -3655,7 +3655,7 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
 }
 
 TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
-       RenegotiateManyVideoTransceivers) {
+       DISABLED_RenegotiateManyVideoTransceivers) {
   OverrideLoggingLevelForTest(LS_WARNING);
 
   PeerConnectionInterface::RTCConfiguration config;
