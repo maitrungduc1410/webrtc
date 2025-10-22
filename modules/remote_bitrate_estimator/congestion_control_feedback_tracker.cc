@@ -156,7 +156,16 @@ void CongestionControlFeedbackTracker::AddPacketsToFeedback(
   for (auto it = packets_.begin() + (next_sequence_number_in_feedback_ -
                                      first_sequence_number_in_packets_);
        it != packets_.end(); ++it, ++rtp_sequence_number) {
-    const PacketInfo& info = *it;
+    PacketInfo& info = *it;
+
+    if (!info.received() && !info.last_reported_as_lost) {
+      ++num_reported_lost_;
+      info.last_reported_as_lost = true;
+    }
+    if (info.received() && info.last_reported_as_lost) {
+      ++num_reported_recovered_;
+      info.last_reported_as_lost = false;
+    }
 
     packet_feedback.push_back(
         {.ssrc = ssrc_,

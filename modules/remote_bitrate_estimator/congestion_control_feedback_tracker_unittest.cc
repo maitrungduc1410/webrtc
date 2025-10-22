@@ -29,6 +29,8 @@ using ::testing::Contains;
 using ::testing::Field;
 using ::testing::Ge;
 using ::testing::IsEmpty;
+using ::testing::IsFalse;
+using ::testing::IsTrue;
 using ::testing::Property;
 using ::testing::SizeIs;
 using PacketInfo = ::webrtc::rtcp::CongestionControlFeedback::PacketInfo;
@@ -377,6 +379,137 @@ TEST(CongestionControlFeedbackTrackerTest,
   ASSERT_THAT(feedback_info, SizeIs(3));
   EXPECT_EQ(feedback_info[0].sequence_number, 998);
   EXPECT_EQ(feedback_info[2].sequence_number, 1000);
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     AccumulatesTotalNumberOfReportedLostPackets) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+
+  // Until reported in a feedback, missed packets are not counted as lost.
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 0);
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 3);  // seq = [2,3,4]
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/8));
+  tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 5);  // seq = [2,3,4,6,7]
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     RecoveredPacketsDoesntDecreaseNumberOfLostPackets) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 3);  // seq = [2,3,4]
+
+  // Recover packet#4, so that only packets #2 and #3 are lost, but total
+  // number of reported loss stays the same.
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4));
+  tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 3);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 1);
+}
+
+TEST(CongestionControlFeedbackTrackerTest, CountsOncePacketReportedLostTwice) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 3);  // seq = [2,3,4]
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2));
+  feedback_info = {};
+  tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
+  // Feedback includes information that packets #3 and #4 are lost.
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 3),
+                             Property(&PacketInfo::received, IsFalse()))));
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
+                             Property(&PacketInfo::received, IsFalse()))));
+  // Those losses are not counted twice.
+  EXPECT_EQ(tracker.NumPacketsReportedAsLost(), 3);
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     AccumulatesTotalNumberOfReportedRecoveredPackets) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 2),
+                             Property(&PacketInfo::received, IsFalse()))));
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2));
+
+  // Until reported in a feedback, recovered packets are not counted.
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 0);
+  feedback_info = {};
+  tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 2),
+                             Property(&PacketInfo::received, IsTrue()))));
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 1);
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(160), /*seq=*/4));
+  feedback_info = {};
+  tracker.AddPacketsToFeedback(Timestamp::Millis(170), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 3),
+                             Property(&PacketInfo::received, IsTrue()))));
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
+                             Property(&PacketInfo::received, IsTrue()))));
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 3);
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     CountsOncePacketReportedAsRecoveredTwice) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
+                             Property(&PacketInfo::received, IsFalse()))));
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4));
+
+  feedback_info = {};
+  tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
+                             Property(&PacketInfo::received, IsTrue()))));
+  // Expect packet#4 is counted as recovered.
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 1);
+
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3));
+  feedback_info = {};
+  tracker.AddPacketsToFeedback(Timestamp::Millis(170), feedback_info);
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 3),
+                             Property(&PacketInfo::received, IsTrue()))));
+  ASSERT_THAT(feedback_info,
+              Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
+                             Property(&PacketInfo::received, IsTrue()))));
+
+  // Expect packet#3 is counted as recovered, but packet#4 is not counted twice.
+  EXPECT_EQ(tracker.NumPacketsReportedAsLostButRecovered(), 2);
 }
 
 }  // namespace

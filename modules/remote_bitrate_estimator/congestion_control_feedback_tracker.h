@@ -39,12 +39,27 @@ class CongestionControlFeedbackTracker {
       std::vector<rtcp::CongestionControlFeedback::PacketInfo>&
           packet_feedback);
 
+  // Total number of packets reported as lost in a produced feedback.
+  // https://w3c.github.io/webrtc-stats/#dom-rtcreceivedrtpstreamstats-packetsreportedaslost
+  int64_t NumPacketsReportedAsLost() const { return num_reported_lost_; }
+
+  // Total number of packets reported first as lost in a produced feedback, but
+  // that were also reported as received in a later feedback.
+  // https://w3c.github.io/webrtc-stats/#dom-rtcreceivedrtpstreamstats-packetsreportedaslostbutrecovered
+  int64_t NumPacketsReportedAsLostButRecovered() const {
+    return num_reported_recovered_;
+  }
+
  private:
   struct PacketInfo {
     bool received() const { return arrival_time != Timestamp::MinusInfinity(); }
 
     Timestamp arrival_time = Timestamp::MinusInfinity();
     EcnMarking ecn = EcnMarking::kNotEct;
+
+    // Indicates if packet was reported as lost last time it was reported in a
+    // `AddPacketsToFeedback`.
+    bool last_reported_as_lost = false;
   };
 
   // Returns a `PacketInfo` entry for `sequence_number`,
@@ -71,6 +86,9 @@ class CongestionControlFeedbackTracker {
   // Number of packets discarded by `ReceivedPacket` function since last call
   // to `AddPacketsToFeedback`.
   int num_ignored_packets_since_last_feedback_ = 0;
+
+  int64_t num_reported_lost_ = 0;
+  int64_t num_reported_recovered_ = 0;
 };
 
 }  // namespace webrtc
