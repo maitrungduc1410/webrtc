@@ -515,7 +515,6 @@ TEST_F(SdpOfferAnswerTest, RollbackPreservesAddTrackMid) {
 }
 
 #ifdef WEBRTC_HAVE_SCTP
-
 TEST_F(SdpOfferAnswerTest, RejectedDataChannelsDoNotGetReoffered) {
   auto pc = CreatePeerConnection();
   EXPECT_TRUE(pc->pc()->CreateDataChannelOrError("dc", nullptr).ok());
@@ -593,6 +592,56 @@ TEST_F(SdpOfferAnswerTest, RejectedDataChannelsDoGetReofferedWhenActive) {
   EXPECT_EQ(offer_contents[0].rejected, false);
 }
 
+TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannels) {
+  RTCConfiguration config;
+  config.always_negotiate_data_channels = true;
+  auto caller = CreatePeerConnection(config, /*field_trials=*/"");
+
+  // No data channels are created.
+  auto video_transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  auto offer = caller->CreateOffer();
+  ASSERT_THAT(offer, NotNull());
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(2));
+  // SCTP is negotiated first.
+  EXPECT_EQ(MediaProtocolType::kSctp, contents[0].type);
+  EXPECT_EQ(MediaProtocolType::kRtp, contents[1].type);
+}
+
+TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsNegotiationNeeded) {
+  RTCConfiguration config;
+  config.always_negotiate_data_channels = true;
+  auto caller = CreatePeerConnection(config, /*field_trials=*/"");
+  auto callee = CreatePeerConnection();
+
+  // ONN should not fire.
+  EXPECT_FALSE(caller->observer()->has_negotiation_needed_event());
+
+  // No data channels are created.
+  auto video_transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  EXPECT_TRUE(caller->pc()->ShouldFireNegotiationNeededEvent(
+      caller->observer()->latest_negotiation_needed_event()));
+  auto offer = caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(offer, NotNull());
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(2));
+  // SCTP is negotiated first.
+  EXPECT_EQ(MediaProtocolType::kSctp, contents[0].type);
+  EXPECT_EQ(MediaProtocolType::kRtp, contents[1].type);
+
+  // Negotiate to clear ONN.
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  auto answer = callee->CreateAnswerAndSetAsLocal();
+  ASSERT_THAT(answer, NotNull());
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  // Create a datachannel.
+  EXPECT_TRUE(caller->pc()->CreateDataChannelOrError("first_dc", nullptr).ok());
+  EXPECT_FALSE(caller->pc()->ShouldFireNegotiationNeededEvent(
+      caller->observer()->latest_negotiation_needed_event()));
+}
 #endif  // WEBRTC_HAVE_SCTP
 
 TEST_F(SdpOfferAnswerTest, SimulcastAnswerWithNoRidsIsRejected) {
