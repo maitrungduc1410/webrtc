@@ -186,10 +186,10 @@ class MediaSessionDescriptionFactory {
   AlwaysValidPointer<UniqueRandomIdGenerator> const ssrc_generator_;
   bool enable_encrypted_rtp_header_extensions_ = true;
   const TransportDescriptionFactory* transport_desc_factory_;
-  [[maybe_unused]] SctpTransportFactoryInterface* sctp_factory_;
+  SctpTransportFactoryInterface* sctp_factory_;
   CodecLookupHelper* codec_lookup_helper_;
   bool payload_types_in_transport_trial_enabled_;
-  [[maybe_unused]] const Environment env_;
+  const Environment env_;
 };
 
 // Convenience functions.

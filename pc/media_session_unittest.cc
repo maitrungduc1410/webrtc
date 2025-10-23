@@ -1699,6 +1699,82 @@ TEST_F(MediaSessionDescriptionFactoryTest,
   EXPECT_EQ(webrtc::kSctpSendBufferSize, dcd_answer->max_message_size());
 }
 
+class MediaSessionDescriptionFactorySnapTest
+    : public MediaSessionDescriptionFactoryTest {
+ public:
+  MediaSessionDescriptionFactorySnapTest()
+      : MediaSessionDescriptionFactoryTest("WebRTC-Sctp-Snap/Enabled/") {}
+};
+
+TEST_F(MediaSessionDescriptionFactorySnapTest,
+       TestCreateDataAnswerToOfferWithSctpInit) {
+  MediaSessionOptions opts;
+  opts.use_sctp_snap = true;
+  AddDataSection(RtpTransceiverDirection::kSendRecv, &opts);
+  std::unique_ptr<SessionDescription> offer =
+      f1_.CreateOfferOrError(opts, nullptr).MoveValue();
+  ASSERT_THAT(offer, NotNull());
+  ContentInfo* dc_offer = offer->GetContentByName("2");
+  ASSERT_THAT(dc_offer, NotNull());
+  SctpDataContentDescription* dcd_offer =
+      dc_offer->media_description()->as_sctp();
+  ASSERT_THAT(dcd_offer, NotNull());
+  EXPECT_NE(dcd_offer->sctp_init(), std::nullopt);
+  dcd_offer->set_sctp_init(std::nullopt);
+  std::unique_ptr<SessionDescription> answer =
+      f2_.CreateAnswerOrError(offer.get(), opts, nullptr).MoveValue();
+  const ContentInfo* dc_answer = answer->GetContentByName("2");
+  ASSERT_THAT(dc_answer, NotNull());
+  const SctpDataContentDescription* dcd_answer =
+      dc_answer->media_description()->as_sctp();
+  ASSERT_THAT(dcd_answer, NotNull());
+  EXPECT_FALSE(dc_answer->rejected);
+  EXPECT_EQ(dcd_answer->sctp_init(), std::nullopt);
+}
+
+TEST_F(MediaSessionDescriptionFactorySnapTest,
+       TestCreateOfferAfterAnswerWithoutSctpInit) {
+  MediaSessionOptions opts;
+  opts.use_sctp_snap = true;
+  AddDataSection(RtpTransceiverDirection::kSendRecv, &opts);
+  std::unique_ptr<SessionDescription> offer =
+      f1_.CreateOfferOrError(opts, nullptr).MoveValue();
+  ASSERT_THAT(offer, NotNull());
+  ContentInfo* dc_offer = offer->GetContentByName("2");
+  ASSERT_THAT(dc_offer, NotNull());
+  SctpDataContentDescription* dcd_offer =
+      dc_offer->media_description()->as_sctp();
+  ASSERT_THAT(dcd_offer, NotNull());
+  EXPECT_NE(dcd_offer->sctp_init(), std::nullopt);
+  dcd_offer->set_sctp_init(std::nullopt);
+  std::unique_ptr<SessionDescription> answer =
+      f2_.CreateAnswerOrError(offer.get(), opts, nullptr).MoveValue();
+  const ContentInfo* dc_answer = answer->GetContentByName("2");
+  ASSERT_THAT(dc_answer, NotNull());
+  const SctpDataContentDescription* dcd_answer =
+      dc_answer->media_description()->as_sctp();
+  ASSERT_THAT(dcd_answer, NotNull());
+  EXPECT_FALSE(dc_answer->rejected);
+  EXPECT_EQ(dcd_answer->sctp_init(), std::nullopt);
+
+  std::unique_ptr<SessionDescription> reoffer =
+      f2_.CreateOfferOrError(opts, nullptr).MoveValue();
+  ASSERT_THAT(reoffer, NotNull());
+  ContentInfo* dc_reoffer = reoffer->GetContentByName("2");
+  ASSERT_THAT(dc_reoffer, NotNull());
+  SctpDataContentDescription* dcd_reoffer =
+      dc_reoffer->media_description()->as_sctp();
+  ASSERT_THAT(dcd_reoffer, NotNull());
+  EXPECT_FALSE(dc_reoffer->rejected);
+  EXPECT_NE(dcd_reoffer->sctp_init(), std::nullopt);
+}
+
+// TODO: bugs.webrtc.org/426480601 - add more SNAP tests here:
+// - two calls to createOffer without SLD get different cookie
+// - subsequent createOffer after SLD retains old cookie
+// - subsequent createOffer after offer without cookie has new cookie
+//   (or stale cookie?)
+
 // Verifies that the order of the media contents in the offer is preserved in
 // the answer.
 TEST_F(MediaSessionDescriptionFactoryTest, TestCreateAnswerContentOrder) {
