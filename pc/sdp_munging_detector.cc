@@ -452,6 +452,20 @@ SdpMungingType DetermineDataSdpModification(
     return SdpMungingType::kDataChannelSctpInit;
   }
 
+  if (last_created_sctp_description->max_message_size() !=
+      sctp_description_to_set->max_message_size()) {
+    RTC_LOG(LS_WARNING) << "SDP munging: max-message-size does not match "
+                           "last created description.";
+    return SdpMungingType::kDataChannelMaxMessageSize;
+  }
+
+  if (last_created_sctp_description->port() !=
+      sctp_description_to_set->port()) {
+    RTC_LOG(LS_WARNING) << "SDP munging: sctp-port does not match "
+                           "last created description.";
+    return SdpMungingType::kDataChannelSctpPort;
+  }
+
   return SdpMungingType::kNoModification;
 }
 

@@ -1502,6 +1502,51 @@ TEST_F(SdpMungingTest, SctpInit) {
       metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
       ElementsAre(Pair(SdpMungingType::kDataChannelSctpInit, 1)));
 }
+
+TEST_F(SdpMungingTest, MaxMessageSize) {
+  auto pc = CreatePeerConnection();
+  EXPECT_TRUE(pc->CreateDataChannel("dc"));
+  auto offer = pc->CreateOffer();
+  ASSERT_THAT(offer, Not(IsNull()));
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  auto* media_description = contents[0].media_description();
+  ASSERT_THAT(media_description, Not(IsNull()));
+  auto* sctp_description = media_description->as_sctp();
+  ASSERT_THAT(sctp_description, Not(IsNull()));
+
+  sctp_description->set_max_message_size(sctp_description->max_message_size() /
+                                         2);
+
+  RTCError error;
+  EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kDataChannelMaxMessageSize, 1)));
+}
+
+TEST_F(SdpMungingTest, SctpPort) {
+  auto pc = CreatePeerConnection();
+  EXPECT_TRUE(pc->CreateDataChannel("dc"));
+  auto offer = pc->CreateOffer();
+  ASSERT_THAT(offer, Not(IsNull()));
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  auto* media_description = contents[0].media_description();
+  ASSERT_THAT(media_description, Not(IsNull()));
+  auto* sctp_description = media_description->as_sctp();
+  ASSERT_THAT(sctp_description, Not(IsNull()));
+
+  sctp_description->set_port(sctp_description->port() + 1);
+
+  RTCError error;
+  EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kDataChannelSctpPort, 1)));
+}
 #endif  // WEBRTC_HAVE_SCTP
 
 TEST_F(SdpMungingTest, MungeNumberOfBundleGroups) {
