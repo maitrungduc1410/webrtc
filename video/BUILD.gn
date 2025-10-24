@@ -163,6 +163,7 @@ rtc_library("video") {
     "../rtc_base:mod_ops",
     "../rtc_base:moving_max_counter",
     "../rtc_base:platform_thread",
+    "../rtc_base:race_checker",
     "../rtc_base:rate_statistics",
     "../rtc_base:rate_tracker",
     "../rtc_base:rtc_event",
