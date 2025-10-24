@@ -1015,7 +1015,7 @@ TEST_F(WebRtcVideoEngineTest, ReceiveBufferSizeViaFieldTrial) {
   std::unique_ptr<VideoMediaReceiveChannelInterface> receive_channel =
       engine_->CreateReceiveChannel(env_, call_.get(), GetMediaConfig(),
                                     VideoOptions(), CryptoOptions());
-  FakeNetworkInterface network;
+  FakeNetworkInterface network(env_);
   receive_channel->SetInterface(&network);
   EXPECT_EQ(10000, network.recvbuf_size());
   receive_channel->SetInterface(nullptr);
@@ -1028,7 +1028,7 @@ TEST_F(WebRtcVideoEngineTest, TooHighReceiveBufferSizeViaFieldTrial) {
   std::unique_ptr<VideoMediaReceiveChannelInterface> receive_channel =
       engine_->CreateReceiveChannel(env_, call_.get(), GetMediaConfig(),
                                     VideoOptions(), CryptoOptions());
-  FakeNetworkInterface network;
+  FakeNetworkInterface network(env_);
   receive_channel->SetInterface(&network);
   EXPECT_EQ(kVideoRtpRecvBufferSize, network.recvbuf_size());
   receive_channel->SetInterface(nullptr);
@@ -1040,7 +1040,7 @@ TEST_F(WebRtcVideoEngineTest, TooLowReceiveBufferSizeViaFieldTrial) {
   std::unique_ptr<VideoMediaReceiveChannelInterface> receive_channel =
       engine_->CreateReceiveChannel(env_, call_.get(), GetMediaConfig(),
                                     VideoOptions(), CryptoOptions());
-  FakeNetworkInterface network;
+  FakeNetworkInterface network(env_);
   receive_channel->SetInterface(&network);
   EXPECT_EQ(kVideoRtpRecvBufferSize, network.recvbuf_size());
   receive_channel->SetInterface(nullptr);
@@ -1641,7 +1641,8 @@ class WebRtcVideoChannelEncodedFrameCallbackTest : public ::testing::Test {
             std::make_unique<FunctionVideoDecoderFactory>(
                 []() { return std::make_unique<test::FakeDecoder>(); },
                 kSdpVideoFormats),
-            field_trials_) {
+            field_trials_),
+        network_interface_(env_) {
     send_channel_ = engine_.CreateSendChannel(
         env_, call_.get(), MediaConfig(), VideoOptions(), CryptoOptions(),
         video_bitrate_allocator_factory_.get());
@@ -1812,7 +1813,8 @@ class WebRtcVideoChannelBaseTest : public ::testing::Test {
                                             LibvpxVp9DecoderTemplateAdapter,
                                             OpenH264DecoderTemplateAdapter,
                                             Dav1dDecoderTemplateAdapter>>(),
-            env_.field_trials())) {}
+            env_.field_trials())),
+        network_interface_(env_) {}
 
   void SetUp() override {
     // One testcase calls SetUp in a loop, only create call_ once.
@@ -5678,8 +5680,7 @@ TEST_F(WebRtcVideoChannelTest, SetSend) {
 
 // This test verifies DSCP settings are properly applied on video media channel.
 TEST_F(WebRtcVideoChannelTest, TestSetDscpOptions) {
-  std::unique_ptr<FakeNetworkInterface> network_interface(
-      new FakeNetworkInterface);
+  auto network_interface = std::make_unique<FakeNetworkInterface>(env_);
   MediaConfig config;
   std::unique_ptr<VideoMediaSendChannelInterface> send_channel;
   RtpParameters parameters;
