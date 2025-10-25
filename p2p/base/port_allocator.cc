@@ -298,7 +298,7 @@ void PortAllocator::SetCandidateFilter(uint32_t filter) {
   }
   uint32_t prev_filter = candidate_filter_;
   candidate_filter_ = filter;
-  SignalCandidateFilterChanged(prev_filter, filter);
+  NotifyCandidateFilterChanged(prev_filter, filter);
 }
 
 void PortAllocator::GetCandidateStatsFromPooledSessions(

@@ -644,6 +644,7 @@ rtc_library("port_allocator") {
     "../api:sequence_checker",
     "../api/transport:enums",
     "../api/units:time_delta",
+    "../rtc_base:callback_list",
     "../rtc_base:checks",
     "../rtc_base:crypto_random",
     "../rtc_base:net_helper",

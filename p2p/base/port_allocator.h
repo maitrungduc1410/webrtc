@@ -27,6 +27,7 @@
 #include "p2p/base/port.h"
 #include "p2p/base/port_interface.h"
 #include "p2p/base/transport_description.h"
+#include "rtc_base/callback_list.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/net_helper.h"
 #include "rtc_base/network.h"
@@ -670,8 +671,14 @@ class RTC_EXPORT PortAllocator : public sigslot::has_slots<> {
   std::vector<IceParameters> GetPooledIceCredentials();
 
   // Fired when `candidate_filter_` changes.
-  sigslot::signal2<uint32_t /* prev_filter */, uint32_t /* cur_filter */>
-      SignalCandidateFilterChanged;
+  void SubscribeCandidateFilterChanged(
+      void* tag,
+      absl::AnyInvocable<void(uint32_t, uint32_t)> callback) {
+    candidate_filter_callbacks_.AddReceiver(tag, std::move(callback));
+  }
+  void UnsubscribeCandidateFilterChanged(void* tag) {
+    candidate_filter_callbacks_.RemoveReceivers(tag);
+  }
 
  protected:
   // TODO(webrtc::13579): Remove std::string version once downstream users have
@@ -733,7 +740,11 @@ class RTC_EXPORT PortAllocator : public sigslot::has_slots<> {
   // if ice_credentials is nullptr.
   std::vector<std::unique_ptr<PortAllocatorSession>>::const_iterator
   FindPooledSession(const IceParameters* ice_credentials = nullptr) const;
+  void NotifyCandidateFilterChanged(uint32_t prev_filter, uint32_t cur_filter) {
+    candidate_filter_callbacks_.Send(prev_filter, cur_filter);
+  }
 
+  CallbackList<uint32_t, uint32_t> candidate_filter_callbacks_;
   // ICE tie breaker.
   uint64_t tiebreaker_;
 };
