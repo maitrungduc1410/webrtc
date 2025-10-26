@@ -426,20 +426,16 @@ class AudioProcessingImpl : public AudioProcessing {
     ApmConstants(bool multi_channel_render_support,
                  bool multi_channel_capture_support,
                  bool enforce_split_band_hpf,
-                 bool minimize_processing_for_unused_output,
-                 bool enforce_48_khz_max_internal_processing_rate)
+                 bool minimize_processing_for_unused_output)
         : multi_channel_render_support(multi_channel_render_support),
           multi_channel_capture_support(multi_channel_capture_support),
           enforce_split_band_hpf(enforce_split_band_hpf),
           minimize_processing_for_unused_output(
-              minimize_processing_for_unused_output),
-          enforce_48_khz_max_internal_processing_rate(
-              enforce_48_khz_max_internal_processing_rate) {}
+              minimize_processing_for_unused_output) {}
     bool multi_channel_render_support;
     bool multi_channel_capture_support;
     bool enforce_split_band_hpf;
     bool minimize_processing_for_unused_output;
-    bool enforce_48_khz_max_internal_processing_rate;
   } constants_;
 
   struct ApmCaptureState {
