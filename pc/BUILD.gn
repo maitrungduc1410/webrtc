@@ -2104,6 +2104,7 @@ rtc_library("datagram_connection_internal") {
     "../rtc_base:ssl",
     "../rtc_base:ssl_adapter",
     "../rtc_base/network:received_packet",
+    "../rtc_base/network:sent_packet",
     "../rtc_base/system:rtc_export",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
