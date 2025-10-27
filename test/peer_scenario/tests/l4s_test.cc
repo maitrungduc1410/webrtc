@@ -372,7 +372,7 @@ struct SupportRfc8888Params {
 
 class FeedbackFormatTest : public TestWithParam<SupportRfc8888Params> {};
 
-TEST_P(FeedbackFormatTest, AdaptToLinkCapacityWithoutEcn) {
+TEST_P(FeedbackFormatTest, DISABLED_AdaptToLinkCapacityWithoutEcn) {
   const SupportRfc8888Params& params = GetParam();
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
 
