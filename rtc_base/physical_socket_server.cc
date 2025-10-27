@@ -1035,15 +1035,15 @@ void SocketDispatcher::OnEvent(uint32_t ff, int err) {
   }
   if ((ff & DE_ACCEPT) != 0) {
     DisableEvents(DE_ACCEPT);
-    SignalReadEvent(this);
+    NotifyReadEvent(this);
   }
   if ((ff & DE_READ) != 0) {
     DisableEvents(DE_READ);
-    SignalReadEvent(this);
+    NotifyReadEvent(this);
   }
   if ((ff & DE_WRITE) != 0) {
     DisableEvents(DE_WRITE);
-    SignalWriteEvent(this);
+    NotifyWriteEvent(this);
   }
   if ((ff & DE_CLOSE) != 0) {
     // The socket is now dead to us, so stop checking it.

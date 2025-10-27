@@ -44,7 +44,7 @@ TEST(AsyncTCPSocketTest, OnWriteEvent) {
                                        &AsyncTCPSocketObserver::OnReadyToSend);
 
   EXPECT_FALSE(observer.ready_to_send);
-  socket_ref.SignalWriteEvent(&socket_ref);
+  socket_ref.NotifyWriteEvent(&socket_ref);
   EXPECT_TRUE(observer.ready_to_send);
 }
 

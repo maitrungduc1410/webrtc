@@ -66,7 +66,8 @@ class SocketReader : public sigslot::has_slots<> {
  public:
   explicit SocketReader(Socket* socket, Thread* network_thread)
       : socket_(socket), network_thread_(network_thread) {
-    socket_->SignalReadEvent.connect(this, &SocketReader::OnReadEvent);
+    socket_->SubscribeReadEvent(
+        this, [this](Socket* socket) { OnReadEvent(socket); });
   }
 
   void OnReadEvent(Socket* socket) {

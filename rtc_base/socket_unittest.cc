@@ -757,7 +757,8 @@ void SocketTest::DeleteInReadCallbackInternal(const IPAddress& loopback) {
   // Configure the helper class to delete socket 2 when socket 1 has a read
   // event.
   SocketDeleter deleter(std::move(socket2));
-  socket1->SignalReadEvent.connect(&deleter, &SocketDeleter::Delete);
+  socket1->SubscribeReadEvent(
+      &deleter, [&deleter](Socket* socket) { deleter.Delete(socket); });
   EXPECT_THAT(WaitUntil([&] { return deleter.deleted(); }, ::testing::IsTrue()),
               IsRtcOk());
 }

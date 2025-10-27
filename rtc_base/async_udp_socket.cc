@@ -53,8 +53,10 @@ AsyncUDPSocket::AsyncUDPSocket(const Environment& env,
       sequence_checker_(SequenceChecker::kDetached),
       socket_(std::move(socket)) {
   // The socket should start out readable but not writable.
-  socket_->SignalReadEvent.connect(this, &AsyncUDPSocket::OnReadEvent);
-  socket_->SignalWriteEvent.connect(this, &AsyncUDPSocket::OnWriteEvent);
+  socket_->SubscribeReadEvent(this,
+                              [this](Socket* socket) { OnReadEvent(socket); });
+  socket_->SubscribeWriteEvent(
+      this, [this](Socket* socket) { OnWriteEvent(socket); });
 }
 
 SocketAddress AsyncUDPSocket::GetLocalAddress() const {
