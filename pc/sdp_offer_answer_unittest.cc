@@ -642,6 +642,25 @@ TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsNegotiationNeeded) {
   EXPECT_FALSE(caller->pc()->ShouldFireNegotiationNeededEvent(
       caller->observer()->latest_negotiation_needed_event()));
 }
+
+TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsSetConfiguration) {
+  RTCConfiguration config;
+  config.always_negotiate_data_channels = false;
+  auto caller = CreatePeerConnection(config, /*field_trials=*/"");
+
+  RTCConfiguration pc_config = caller->pc()->GetConfiguration();
+  pc_config.always_negotiate_data_channels = true;
+  EXPECT_TRUE(caller->pc()->SetConfiguration(pc_config).ok());
+
+  // No data channels are created.
+  auto offer = caller->CreateOffer();
+  ASSERT_THAT(offer, NotNull());
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  // SCTP is negotiated.
+  EXPECT_EQ(MediaProtocolType::kSctp, contents[0].type);
+}
 #endif  // WEBRTC_HAVE_SCTP
 
 TEST_F(SdpOfferAnswerTest, SimulcastAnswerWithNoRidsIsRejected) {

@@ -298,9 +298,15 @@ RTCErrorOr<PeerConnectionInterface::RTCConfiguration> ApplyConfiguration(
     const PeerConnectionInterface::RTCConfiguration& existing_configuration) {
   PeerConnectionInterface::RTCConfiguration modified_config =
       existing_configuration;
-  modified_config.servers = configuration.servers;
   modified_config.type = configuration.type;
   modified_config.crypto_options = configuration.crypto_options;
+  modified_config.always_negotiate_data_channels =
+      configuration.always_negotiate_data_channels;
+  modified_config.active_reset_srtp_params =
+      configuration.active_reset_srtp_params;
+
+  // ICE configuration.
+  modified_config.servers = configuration.servers;
   modified_config.ice_candidate_pool_size =
       configuration.ice_candidate_pool_size;
   modified_config.prune_turn_ports = configuration.prune_turn_ports;
@@ -320,11 +326,10 @@ RTCErrorOr<PeerConnectionInterface::RTCConfiguration> ApplyConfiguration(
       configuration.stun_candidate_keepalive_interval;
   modified_config.turn_customizer = configuration.turn_customizer;
   modified_config.network_preference = configuration.network_preference;
-  modified_config.active_reset_srtp_params =
-      configuration.active_reset_srtp_params;
   modified_config.turn_logging_id = configuration.turn_logging_id;
   modified_config.stable_writable_connection_ping_interval_ms =
       configuration.stable_writable_connection_ping_interval_ms;
+
   if (configuration != modified_config) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_MODIFICATION,
                          "Modifying the configuration in an unsupported way.");
@@ -1586,8 +1591,8 @@ RTCError PeerConnection::SetConfiguration(
                          "SetLocalDescription.");
   }
 
-  // Create a new, configuration object whose Ice config will have been
-  // validated..
+  // Create a new, configuration object whose peerconnection config
+  // will have been validated.
   RTCErrorOr<RTCConfiguration> validated_config =
       ApplyConfiguration(configuration, configuration_);
   if (!validated_config.ok()) {
