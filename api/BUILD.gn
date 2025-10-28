@@ -1681,6 +1681,7 @@ if (rtc_include_tests) {
       ":candidate",
       ":datagram_connection",
       "../p2p:transport_description",
+      "../rtc_base:refcount",
       "//test:test_support",
       "//testing/gmock",
     ]
