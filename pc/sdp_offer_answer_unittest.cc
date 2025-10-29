@@ -1795,6 +1795,157 @@ TEST_F(SdpOfferAnswerTest, PayloadTypeMatchingWithSubsequentOfferAnswer) {
   EXPECT_EQ(codecs[1].id, av1.id);
 }
 
+TEST_F(SdpOfferAnswerTest, TransceiverReceptive) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  auto transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kRecvOnly)
+          .ok());
+
+  EXPECT_FALSE(transceiver->receptive());
+  auto offer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_TRUE(transceiver->receptive());
+
+  EXPECT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  ASSERT_THAT(callee->pc()->GetTransceivers(), SizeIs(1));
+  auto callee_transceiver = callee->pc()->GetTransceivers()[0];
+  EXPECT_FALSE(callee_transceiver->receptive());
+  EXPECT_TRUE(callee_transceiver
+                  ->SetDirectionWithError(RtpTransceiverDirection::kSendRecv)
+                  .ok());
+
+  auto answer = callee->CreateAnswerAndSetAsLocal();
+  EXPECT_FALSE(callee_transceiver->receptive());
+  EXPECT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+  EXPECT_TRUE(transceiver->receptive());
+
+  // Renegotiate, switching roles.
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kSendOnly)
+          .ok());
+
+  EXPECT_TRUE(transceiver->receptive());
+  auto reoffer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_FALSE(transceiver->receptive());
+
+  EXPECT_TRUE(callee->SetRemoteDescription(std::move(reoffer)));
+  ASSERT_THAT(callee->pc()->GetTransceivers(), SizeIs(1));
+  EXPECT_FALSE(callee_transceiver->receptive());
+
+  auto reanswer = callee->CreateAnswerAndSetAsLocal();
+  EXPECT_TRUE(callee_transceiver->receptive());
+  EXPECT_TRUE(caller->SetRemoteDescription(std::move(reanswer)));
+  EXPECT_FALSE(transceiver->receptive());
+}
+
+TEST_F(SdpOfferAnswerTest, TransceiverReceptiveInactive) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  auto transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kRecvOnly)
+          .ok());
+
+  EXPECT_FALSE(transceiver->receptive());
+  auto offer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_TRUE(transceiver->receptive());
+
+  EXPECT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  ASSERT_THAT(callee->pc()->GetTransceivers(), SizeIs(1));
+  auto callee_transceiver = callee->pc()->GetTransceivers()[0];
+  EXPECT_FALSE(callee_transceiver->receptive());
+
+  EXPECT_TRUE(callee_transceiver
+                  ->SetDirectionWithError(RtpTransceiverDirection::kInactive)
+                  .ok());
+
+  auto answer = callee->CreateAnswerAndSetAsLocal();
+  EXPECT_FALSE(callee_transceiver->receptive());
+  EXPECT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+  EXPECT_FALSE(transceiver->receptive());
+}
+
+TEST_F(SdpOfferAnswerTest, TransceiverReceptiveRollback) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  auto transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kRecvOnly)
+          .ok());
+
+  EXPECT_FALSE(transceiver->receptive());
+  auto offer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_TRUE(transceiver->receptive());
+
+  auto rollback = caller->CreateRollback();
+  ASSERT_THAT(rollback, NotNull());
+
+  EXPECT_TRUE(caller->SetLocalDescription(std::move(rollback)));
+  EXPECT_FALSE(transceiver->receptive());
+}
+
+TEST_F(SdpOfferAnswerTest, TransceiverReceptiveRollbackAfterFullNegotiation) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  auto transceiver = caller->AddTransceiver(MediaType::VIDEO);
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kInactive)
+          .ok());
+
+  EXPECT_FALSE(transceiver->receptive());
+  auto offer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_FALSE(transceiver->receptive());
+
+  EXPECT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  auto answer = callee->CreateAnswerAndSetAsLocal();
+  EXPECT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+  EXPECT_FALSE(transceiver->receptive());
+
+  EXPECT_TRUE(
+      transceiver->SetDirectionWithError(RtpTransceiverDirection::kSendRecv)
+          .ok());
+  auto reoffer = caller->CreateOfferAndSetAsLocal();
+  EXPECT_TRUE(transceiver->receptive());
+
+  auto rollback = caller->CreateRollback();
+  ASSERT_THAT(rollback, NotNull());
+
+  EXPECT_TRUE(caller->SetLocalDescription(std::move(rollback)));
+  EXPECT_FALSE(transceiver->receptive());
+}
+
+TEST_F(SdpOfferAnswerTest,
+       TransceiverReceptiveRollbackAfterFullNegotiationRemote) {
+  auto callee = CreatePeerConnection();
+  callee->AddVideoTrack("a");
+  auto caller = CreatePeerConnection();
+  caller->AddAudioTrack("b");
+  caller->AddVideoTrack("c");
+  EXPECT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  EXPECT_TRUE(
+      caller->SetRemoteDescription(callee->CreateAnswerAndSetAsLocal()));
+  // In stable don't add or remove anything.
+  callee->observer()->clear_legacy_renegotiation_needed();
+  callee->observer()->clear_latest_negotiation_needed_event();
+  ASSERT_THAT(caller->pc()->GetTransceivers(), SizeIs(2));
+  auto caller_transceiver = caller->pc()->GetTransceivers()[1];
+  EXPECT_TRUE(caller_transceiver
+                  ->SetDirectionWithError(RtpTransceiverDirection::kInactive)
+                  .ok());
+  ASSERT_THAT(callee->pc()->GetTransceivers(), SizeIs(2));
+  auto callee_transceiver = callee->pc()->GetTransceivers()[0];
+  EXPECT_TRUE(callee_transceiver->receptive());
+  EXPECT_TRUE(callee->SetRemoteDescription(caller->CreateOffer()));
+  EXPECT_FALSE(callee_transceiver->receptive());
+  EXPECT_TRUE(callee->SetRemoteDescription(caller->CreateRollback()));
+  EXPECT_TRUE(callee_transceiver->receptive());
+}
+
 #ifdef WEBRTC_HAVE_SCTP
 TEST_F(SdpOfferAnswerTest, SctpInitDisabled) {
   auto pc1 = CreatePeerConnection("WebRTC-Sctp-Snap/Disabled/");
