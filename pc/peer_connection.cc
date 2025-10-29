@@ -88,6 +88,7 @@
 #include "pc/ice_server_parsing.h"
 #include "pc/jsep_transport_controller.h"
 #include "pc/legacy_stats_collector.h"
+#include "pc/media_session.h"
 #include "pc/rtc_stats_collector.h"
 #include "pc/rtp_receiver.h"
 #include "pc/rtp_receiver_proxy.h"
@@ -2101,6 +2102,25 @@ void PeerConnection::ReportFirstConnectUsageMetrics() {
       // Rollback does not have SDP so can not be munged.
       break;
   }
+  bool negotiated_sctp_snap = false;
+  const SessionDescription* desc = nullptr;
+  if (local_description()->GetType() == SdpType::kAnswer) {
+    desc = local_description()->description();
+  } else if (remote_description()->GetType() == SdpType::kAnswer) {
+    desc = remote_description()->description();
+  }
+  if (desc) {
+    const ContentInfo* sctp_content = GetFirstDataContent(desc);
+    if (sctp_content && !sctp_content->rejected) {
+      const SctpDataContentDescription* sctp_desc =
+          sctp_content->media_description()->as_sctp();
+      if (sctp_desc) {
+        negotiated_sctp_snap |= sctp_desc->sctp_init().has_value();
+      }
+    }
+  }
+  RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.NegotiatedSctpSnap",
+                        negotiated_sctp_snap);
 }
 
 void PeerConnection::ReportCloseUsageMetrics() {
