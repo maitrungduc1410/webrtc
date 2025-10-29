@@ -185,7 +185,7 @@ UDPPort::UDPPort(const PortParametersRef& args,
       request_manager_(
           args.network_thread,
           [this](const void* data, size_t size, StunRequest* request) {
-            OnSendPacket(data, size, request);
+            SendStunRequest(data, size, request);
           }),
       socket_(socket),
       error_(0),
@@ -203,7 +203,7 @@ UDPPort::UDPPort(const PortParametersRef& args,
       request_manager_(
           args.network_thread,
           [this](const void* data, size_t size, StunRequest* request) {
-            OnSendPacket(data, size, request);
+            SendStunRequest(data, size, request);
           }),
       socket_(nullptr),
       error_(0),
@@ -631,18 +631,12 @@ void UDPPort::MaybeSetPortCompleteOrError() {
   }
 }
 
-// TODO(?): merge this with SendTo above.
-void UDPPort::OnSendPacket(const void* data, size_t size, StunRequest* req) {
+void UDPPort::SendStunRequest(const void* data, size_t size, StunRequest* req) {
   StunBindingRequest* sreq = static_cast<StunBindingRequest*>(req);
   AsyncSocketPacketOptions options(StunDscpValue());
   options.info_signaled_after_sent.packet_type = PacketType::kStunMessage;
-  CopyPortInformationToPacketInfo(&options.info_signaled_after_sent);
-  if (socket_->SendTo(data, size, sreq->server_addr(), options) < 0) {
-    RTC_LOG_ERR_EX(LS_ERROR, socket_->GetError())
-        << "UDP send of " << size << " bytes to host "
-        << sreq->server_addr().ToSensitiveNameAndAddressString()
-        << " failed with error " << error_;
-  }
+  SendTo(data, size, sreq->server_addr(), options, /*payload=*/true);
+
   stats_.stun_binding_requests_sent++;
 }
 
