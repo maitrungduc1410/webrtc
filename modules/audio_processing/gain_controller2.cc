@@ -113,7 +113,6 @@ GainController2::GainController2(
                /*histogram_name_prefix=*/"Agc2"),
       calls_since_last_limiter_log_(0) {
   RTC_DCHECK(Validate(config));
-  data_dumper_.InitiateNewSetOfRecordings();
 
   if (config.input_volume_controller.enabled ||
       config.adaptive_digital.enabled) {
