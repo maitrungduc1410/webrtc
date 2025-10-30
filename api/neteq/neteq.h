@@ -118,6 +118,7 @@ struct NetEqOperationsAndState {
 };
 
 // This is the interface class for NetEq.
+// This class is thread-compatible.
 class NetEq {
  public:
   struct Config {
