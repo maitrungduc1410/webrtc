@@ -183,9 +183,6 @@ class RenderingSimulatorStream : public RtcEventLogDriver::StreamInterface {
         tracker_(env,
                  RenderingTracker::Config{
                      .ssrc = ssrc,
-                     .max_wait_for_keyframe =
-                         RenderingSimulator::kMaxWaitForKeyframe,
-                     .max_wait_for_frame = RenderingSimulator::kMaxWaitForFrame,
                      .render_delay = RenderingSimulator::kRenderDelay},
                  config.video_timing_factory(env),
                  &collector_),

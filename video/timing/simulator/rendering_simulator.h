@@ -134,11 +134,8 @@ class RenderingSimulator {
     std::vector<Stream> streams;
   };
 
-  // Component configuration.
+  // Static configuration.
   static constexpr TimeDelta kRenderDelay = TimeDelta::Millis(10);
-  // TODO: b/423646186 - Hard code these in `RenderingTracker` instead.
-  static constexpr TimeDelta kMaxWaitForKeyframe = TimeDelta::Seconds(10);
-  static constexpr TimeDelta kMaxWaitForFrame = TimeDelta::Seconds(10);
 
   explicit RenderingSimulator(Config config);
   ~RenderingSimulator();

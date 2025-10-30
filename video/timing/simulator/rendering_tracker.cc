@@ -35,6 +35,9 @@ namespace webrtc::video_timing_simulator {
 
 namespace {
 
+constexpr TimeDelta kMaxWaitForKeyframe = TimeDelta::Seconds(10);
+constexpr TimeDelta kMaxWaitForFrame = TimeDelta::Seconds(10);
+
 // TODO: b/423646186 - Consider adding some variability to the decode time, and
 // update VCMTiming accordingly.
 VideoFrame SimulateDecode(const EncodedFrame& encoded_frame) {
@@ -65,8 +68,8 @@ RenderingTracker::RenderingTracker(const Environment& env,
           video_timing_.get(),
           /*stats_proxy=*/this,
           /*receiver=*/this,
-          config.max_wait_for_keyframe,
-          config.max_wait_for_frame,
+          kMaxWaitForKeyframe,
+          kMaxWaitForFrame,
           std::make_unique<TaskQueueFrameDecodeScheduler>(&env_.clock(),
                                                           simulator_queue_),
           env_.field_trials()),
@@ -79,8 +82,6 @@ RenderingTracker::RenderingTracker(const Environment& env,
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   // Validation.
   RTC_DCHECK_NE(config.ssrc, 0u);
-  RTC_DCHECK(config.max_wait_for_keyframe.IsFinite());
-  RTC_DCHECK(config.max_wait_for_frame.IsFinite());
   RTC_DCHECK(config.render_delay.IsFinite());
   // Setup.
   ResetVideoStreamBufferControllerObserverStats();
