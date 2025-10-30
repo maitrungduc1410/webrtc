@@ -1267,6 +1267,14 @@ TEST_F(RTCStatsIntegrationTest, ExperimentalTransportCcfbStats) {
       RTCStatsVerifier verifier(report.get(), &transport);
       verifier.TestAttributeIsNonNegative<int>(
           transport.ccfb_messages_received);
+    } else if (stats.type() == RTCInboundRtpStreamStats::kType) {
+      const RTCInboundRtpStreamStats& inbound(
+          stats.cast_to<RTCInboundRtpStreamStats>());
+      RTCStatsVerifier verifier(report.get(), &inbound);
+      verifier.TestAttributeIsNonNegative<int64_t>(
+          inbound.packets_reported_as_lost);
+      verifier.TestAttributeIsNonNegative<int64_t>(
+          inbound.packets_reported_as_lost_but_recovered);
     }
   }
 }
