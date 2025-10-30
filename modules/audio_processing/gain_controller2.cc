@@ -216,8 +216,7 @@ void GainController2::Process(bool input_volume_changed, AudioBuffer* audio) {
   }
   std::optional<SpeechLevel> speech_level;
   if (speech_level_estimator_) {
-    speech_level_estimator_->Update(audio_levels.rms_dbfs,
-                                    audio_levels.peak_dbfs, speech_probability);
+    speech_level_estimator_->Update(audio_levels.rms_dbfs, speech_probability);
     speech_level =
         SpeechLevel{.is_confident = speech_level_estimator_->is_confident(),
                     .rms_dbfs = speech_level_estimator_->level_dbfs()};

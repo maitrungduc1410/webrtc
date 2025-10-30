@@ -61,12 +61,9 @@ SpeechLevelEstimator::SpeechLevelEstimator(
 }
 
 void SpeechLevelEstimator::Update(float rms_dbfs,
-                                  float peak_dbfs,
                                   float speech_probability) {
   RTC_DCHECK_GT(rms_dbfs, -150.0f);
   RTC_DCHECK_LT(rms_dbfs, 50.0f);
-  RTC_DCHECK_GT(peak_dbfs, -150.0f);
-  RTC_DCHECK_LT(peak_dbfs, 50.0f);
   RTC_DCHECK_GE(speech_probability, 0.0f);
   RTC_DCHECK_LE(speech_probability, 1.0f);
   if (speech_probability < kVadConfidenceThreshold) {
