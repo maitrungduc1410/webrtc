@@ -64,7 +64,10 @@ class RenderedFrameCollector : public AssemblerEvents,
     int64_t frame_id = assembled_frame.Id();
     if (frames_.contains(frame_id)) {
       RTC_LOG(LS_WARNING) << "Assembled frame_id=" << frame_id
-                          << " had already been collected";
+                          << " on ssrc=" << ssrc_
+                          << " had already been collected. Dropping it."
+                          << " (simulated_ts=" << env_.clock().CurrentTime()
+                          << ")";
       return;
     }
     auto& frame = frames_[frame_id];
@@ -101,8 +104,10 @@ class RenderedFrameCollector : public AssemblerEvents,
     int64_t frame_id = decoded_frame.Id();
     auto it = frames_.find(frame_id);
     if (it == frames_.end()) {
-      RTC_LOG(LS_WARNING) << "Decoded frame_id=" << frame_id
-                          << " had no assembly information collected";
+      RTC_LOG(LS_WARNING)
+          << "Decoded frame_id=" << frame_id << " on ssrc=" << ssrc_
+          << " had no assembly information collected. Dropping it."
+          << " (simulated_ts=" << env_.clock().CurrentTime() << ")";
       return;
     }
     auto& frame = it->second;
@@ -123,8 +128,10 @@ class RenderedFrameCollector : public AssemblerEvents,
         rendered_frame_id_unwrapper_.Unwrap(rendered_frame.id());
     auto it = frames_.find(unwrapped_frame_id);
     if (it == frames_.end()) {
-      RTC_LOG(LS_WARNING) << "Rendered frame_id=" << unwrapped_frame_id
-                          << " had no decode information collected";
+      RTC_LOG(LS_WARNING)
+          << "Rendered frame_id=" << unwrapped_frame_id << " on ssrc=" << ssrc_
+          << " had no decode information collected. Dropping it."
+          << " (simulated_ts=" << env_.clock().CurrentTime() << ")";
       return;
     }
     auto& frame = it->second;

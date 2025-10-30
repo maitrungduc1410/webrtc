@@ -61,7 +61,10 @@ class DecodableFrameCollector : public AssemblerEvents,
     int64_t frame_id = assembled_frame.Id();
     if (frames_.contains(frame_id)) {
       RTC_LOG(LS_WARNING) << "Assembled frame_id=" << frame_id
-                          << " had already been collected";
+                          << " on ssrc=" << ssrc_
+                          << " had already been collected. Dropping it."
+                          << " (simulated_ts=" << env_.clock().CurrentTime()
+                          << ")";
       return;
     }
     auto& frame = frames_[frame_id];
@@ -79,8 +82,10 @@ class DecodableFrameCollector : public AssemblerEvents,
     int64_t frame_id = decodable_frame.Id();
     auto it = frames_.find(frame_id);
     if (it == frames_.end()) {
-      RTC_LOG(LS_WARNING) << "Decodable frame_id=" << frame_id
-                          << " had no assembly information collected";
+      RTC_LOG(LS_WARNING)
+          << "Decodable frame_id=" << frame_id << " on ssrc=" << ssrc_
+          << " had no assembly information collected. Dropping it."
+          << " (simulated_ts=" << env_.clock().CurrentTime() << ")";
       return;
     }
     auto& frame = it->second;
@@ -125,7 +130,7 @@ class DecodabilitySimulatorStream : public RtcEventLogDriver::StreamInterface {
                               DecodabilitySimulator::Results* absl_nonnull
                                   results)
       : collector_(env, ssrc),
-        tracker_(env, &collector_),
+        tracker_(env, DecodabilityTracker::Config{.ssrc = ssrc}, &collector_),
         assembler_(env, ssrc, &collector_, &tracker_),
         results_(*results) {
     RTC_DCHECK_RUN_ON(&sequence_checker_);
