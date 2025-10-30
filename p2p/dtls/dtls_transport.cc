@@ -591,7 +591,7 @@ int DtlsTransportInternalImpl::SendPacket(
         // an encrypted packet, rather than calling the
         // StreamInterfaceChannel::Write function. Such change would remove the
         // need of the next_packet_options_.
-        StreamResult result = dtls_->WriteAll(
+        StreamResult result = dtls_->Write(
             MakeArrayView(reinterpret_cast<const uint8_t*>(data), size),
             written, error);
         if (result != SR_SUCCESS) {
@@ -600,6 +600,10 @@ int DtlsTransportInternalImpl::SendPacket(
           downward_->ClearNextPacketOptions();
           return -1;
         }
+        // For DTLS, a SSL_Write operation will either send the entire data in a
+        // single record, or fail the entire send. See for example the
+        // documentation on SSL_write in boringssl/src/include/openssl/ssl.h
+        RTC_CHECK(written == size);
         return static_cast<int>(size);
       }
     case DtlsTransportState::kFailed:
