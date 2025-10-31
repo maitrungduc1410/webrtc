@@ -43,11 +43,6 @@ class MockDatagramConnection : public DatagramConnection {
                size_t digest_len,
                DatagramConnection::SSLRole ssl_role),
               (override));
-  MOCK_METHOD(bool, SendPacket, (ArrayView<const uint8_t> data), (override));
-  MOCK_METHOD(void,
-              SendPacket,
-              (ArrayView<const uint8_t> data, PacketSendParameters params),
-              (override));
   MOCK_METHOD(void,
               SendPackets,
               (ArrayView<PacketSendParameters> packets),
