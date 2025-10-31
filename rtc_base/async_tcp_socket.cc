@@ -226,7 +226,7 @@ void AsyncTCPSocketBase::OnWriteEvent(Socket* socket) {
   }
 
   if (outbuf_.empty()) {
-    SignalReadyToSend(this);
+    NotifyReadyToSend(this);
   }
 }
 
@@ -265,7 +265,7 @@ int AsyncTCPSocket::Send(const void* pv,
                              env_.clock().TimeInMilliseconds(),
                              options.info_signaled_after_sent);
   CopySocketInformationToPacketInfo(cb, *this, &sent_packet.info);
-  SignalSentPacket(this, sent_packet);
+  NotifySentPacket(this, sent_packet);
 
   // We claim to have sent the whole thing, even if we only sent partial
   return static_cast<int>(cb);

@@ -75,7 +75,7 @@ int AsyncUDPSocket::Send(const void* pv,
                              options.info_signaled_after_sent);
   CopySocketInformationToPacketInfo(cb, *this, &sent_packet.info);
   int ret = socket_->Send(pv, cb);
-  SignalSentPacket(this, sent_packet);
+  NotifySentPacket(this, sent_packet);
   return ret;
 }
 
@@ -97,7 +97,7 @@ int AsyncUDPSocket::SendTo(const void* pv,
     }
   }
   int ret = socket_->SendTo(pv, cb, addr);
-  SignalSentPacket(this, sent_packet);
+  NotifySentPacket(this, sent_packet);
   return ret;
 }
 
@@ -168,7 +168,7 @@ void AsyncUDPSocket::OnReadEvent(Socket* socket) {
 }
 
 void AsyncUDPSocket::OnWriteEvent(Socket* socket) {
-  SignalReadyToSend(this);
+  NotifyReadyToSend(this);
 }
 
 }  // namespace webrtc
