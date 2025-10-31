@@ -485,6 +485,22 @@ rtc_library("video_coding_utility") {
   ]
 }
 
+rtc_library("encoder_speed_controller_impl") {
+  visibility = [ "*" ]
+  sources = [
+    "utility/encoder_speed_controller_impl.cc",
+    "utility/encoder_speed_controller_impl.h",
+  ]
+  deps = [
+    "../../api:array_view",
+    "../../api/units:time_delta",
+    "../../api/units:timestamp",
+    "../../api/video_codecs:video_codecs_api",
+    "../../rtc_base:checks",
+    "../../rtc_base:logging",
+  ]
+}
+
 rtc_library("webrtc_h264") {
   visibility = [ "*" ]
   sources = [
@@ -611,6 +627,7 @@ rtc_library("webrtc_vp8") {
     "../../api/video:video_frame",
     "../../api/video:video_frame_type",
     "../../api/video:video_rtp_headers",
+    "../../api/video_codecs:encoder_speed_controller_factory",
     "../../api/video_codecs:scalability_mode",
     "../../api/video_codecs:video_codecs_api",
     "../../api/video_codecs:vp8_temporal_layers_factory",
@@ -1228,8 +1245,8 @@ if (rtc_include_tests) {
       "utility/bandwidth_quality_scaler_unittest.cc",
       "utility/corruption_detection_settings_generator_unittest.cc",
       "utility/decoded_frames_history_unittest.cc",
+      "utility/encoder_speed_controller_impl_unittest.cc",
       "utility/frame_dropper_unittest.cc",
-      "utility/frame_sampler_unittest.cc",
       "utility/framerate_controller_deprecated_unittest.cc",
       "utility/ivf_file_reader_unittest.cc",
       "utility/ivf_file_writer_unittest.cc",
@@ -1252,6 +1269,7 @@ if (rtc_include_tests) {
       ":chain_diff_calculator",
       ":codec_globals_headers",
       ":encoded_frame",
+      ":encoder_speed_controller_impl",
       ":frame_dependencies_calculator",
       ":frame_helpers",
       ":frame_sampler",
