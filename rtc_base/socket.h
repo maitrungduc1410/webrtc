@@ -21,6 +21,7 @@
 #include "api/transport/ecn_marking.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/buffer.h"
+#include "rtc_base/callback_list.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/sigslot_trampoline.h"
 #include "rtc_base/socket_address.h"
@@ -180,36 +181,34 @@ class RTC_EXPORT Socket {
   void NotifyWriteEvent(Socket* socket) { SignalWriteEvent(socket); }
   void SubscribeConnectEvent(void* tag,
                              absl::AnyInvocable<void(Socket*)> callback) {
-    connect_event_trampoline_.Subscribe(tag, std::move(callback));
+    connect_event_callbacks_.AddReceiver(tag, std::move(callback));
   }
   void UnsubscribeConnectEvent(void* tag) {
-    connect_event_trampoline_.Unsubscribe(tag);
+    connect_event_callbacks_.RemoveReceivers(tag);
   }
   void SubscribeConnectEvent(absl::AnyInvocable<void(Socket*)> callback) {
-    connect_event_trampoline_.Subscribe(std::move(callback));
+    connect_event_callbacks_.AddReceiver(std::move(callback));
   }
-  void NotifyConnectEvent(Socket* socket) { SignalConnectEvent(socket); }
+  void NotifyConnectEvent(Socket* socket) {
+    connect_event_callbacks_.Send(socket);
+  }
 
   void SubscribeCloseEvent(void* tag,
                            absl::AnyInvocable<void(Socket*, int)> callback) {
-    close_event_trampoline_.Subscribe(tag, std::move(callback));
+    close_event_callbacks_.AddReceiver(tag, std::move(callback));
   }
   void UnsubscribeCloseEvent(void* tag) {
-    close_event_trampoline_.Unsubscribe(tag);
+    close_event_callbacks_.RemoveReceivers(tag);
   }
   void SubscribeCloseEvent(absl::AnyInvocable<void(Socket*, int)> callback) {
-    close_event_trampoline_.Subscribe(std::move(callback));
+    close_event_callbacks_.AddReceiver(std::move(callback));
   }
   void NotifyCloseEvent(Socket* socket, int error) {
-    SignalCloseEvent(socket, error);
+    close_event_callbacks_.Send(socket, error);
   }
 
  protected:
-  Socket()
-      : read_event_trampoline_(this),
-        write_event_trampoline_(this),
-        connect_event_trampoline_(this),
-        close_event_trampoline_(this) {}
+  Socket() : read_event_trampoline_(this), write_event_trampoline_(this) {}
 
  private:
   sigslot::signal1<Socket*, sigslot::multi_threaded_local> SignalReadEvent;
@@ -218,11 +217,8 @@ class RTC_EXPORT Socket {
   sigslot::signal1<Socket*, sigslot::multi_threaded_local> SignalWriteEvent;
   MultiThreadSignalTrampoline<Socket, &Socket::SignalWriteEvent>
       write_event_trampoline_;
-  sigslot::signal1<Socket*> SignalConnectEvent;  // connected
-  SignalTrampoline<Socket, &Socket::SignalConnectEvent>
-      connect_event_trampoline_;
-  sigslot::signal2<Socket*, int> SignalCloseEvent;  // closed
-  SignalTrampoline<Socket, &Socket::SignalCloseEvent> close_event_trampoline_;
+  CallbackList<Socket*> connect_event_callbacks_;
+  CallbackList<Socket*, int> close_event_callbacks_;
 };
 
 }  //  namespace webrtc
