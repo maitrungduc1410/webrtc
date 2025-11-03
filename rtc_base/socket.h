@@ -22,11 +22,10 @@
 #include "api/units/timestamp.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/callback_list.h"
+#include "rtc_base/callback_list_with_locks.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/sigslot_trampoline.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/system/rtc_export.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 
 // IWYU pragma: begin_exports
 #if defined(WEBRTC_POSIX)
@@ -164,21 +163,21 @@ class RTC_EXPORT Socket {
   // ready to read
   void SubscribeReadEvent(void* tag,
                           absl::AnyInvocable<void(Socket*)> callback) {
-    read_event_trampoline_.Subscribe(tag, std::move(callback));
+    read_event_callbacks_.AddReceiver(tag, std::move(callback));
   }
   void UnsubscribeReadEvent(void* tag) {
-    read_event_trampoline_.Unsubscribe(tag);
+    read_event_callbacks_.RemoveReceivers(tag);
   }
-  void NotifyReadEvent(Socket* socket) { SignalReadEvent(socket); }
+  void NotifyReadEvent(Socket* socket) { read_event_callbacks_.Send(socket); }
   // ready to write
   void SubscribeWriteEvent(void* tag,
                            absl::AnyInvocable<void(Socket*)> callback) {
-    write_event_trampoline_.Subscribe(tag, std::move(callback));
+    write_event_callbacks_.AddReceiver(tag, std::move(callback));
   }
   void UnsubscribeWriteEvent(void* tag) {
-    write_event_trampoline_.Unsubscribe(tag);
+    write_event_callbacks_.RemoveReceivers(tag);
   }
-  void NotifyWriteEvent(Socket* socket) { SignalWriteEvent(socket); }
+  void NotifyWriteEvent(Socket* socket) { write_event_callbacks_.Send(socket); }
   void SubscribeConnectEvent(void* tag,
                              absl::AnyInvocable<void(Socket*)> callback) {
     connect_event_callbacks_.AddReceiver(tag, std::move(callback));
@@ -208,15 +207,11 @@ class RTC_EXPORT Socket {
   }
 
  protected:
-  Socket() : read_event_trampoline_(this), write_event_trampoline_(this) {}
+  Socket() = default;
 
  private:
-  sigslot::signal1<Socket*, sigslot::multi_threaded_local> SignalReadEvent;
-  MultiThreadSignalTrampoline<Socket, &Socket::SignalReadEvent>
-      read_event_trampoline_;
-  sigslot::signal1<Socket*, sigslot::multi_threaded_local> SignalWriteEvent;
-  MultiThreadSignalTrampoline<Socket, &Socket::SignalWriteEvent>
-      write_event_trampoline_;
+  CallbackListWithLocks<Socket*> read_event_callbacks_;
+  CallbackListWithLocks<Socket*> write_event_callbacks_;
   CallbackList<Socket*> connect_event_callbacks_;
   CallbackList<Socket*, int> close_event_callbacks_;
 };

@@ -64,6 +64,15 @@ rtc_library("callback_list") {
   ]
 }
 
+rtc_library("callback_list_with_locks") {
+  sources = [ "callback_list_with_locks.h" ]
+  deps = [
+    ":callback_list",
+    ":macromagic",
+    "synchronization:mutex",
+  ]
+}
+
 rtc_source_set("buffer") {
   visibility = [ "*" ]
   sources = [ "buffer.h" ]
@@ -1068,6 +1077,7 @@ rtc_library("socket") {
   deps = [
     ":buffer",
     ":callback_list",
+    ":callback_list_with_locks",
     ":checks",
     ":ip_address",
     ":net_helpers",
