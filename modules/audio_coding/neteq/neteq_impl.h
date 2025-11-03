@@ -50,7 +50,6 @@ class DtmfBuffer;
 class DtmfToneGenerator;
 class Expand;
 class Merge;
-class NackTracker;
 class Normal;
 class RedPayloadSplitter;
 class PreemptiveExpand;
@@ -142,8 +141,6 @@ class NetEqImpl : public NetEq {
                    ArrayView<const uint8_t> payload,
                    const RtpPacketInfo& packet_info) override;
 
-  void InsertEmptyPacket(const RTPHeader& rtp_header) override;
-
   int GetAudio(
       AudioFrame* audio_frame,
       bool* muted = nullptr,
@@ -193,12 +190,6 @@ class NetEqImpl : public NetEq {
 
   // Flushes both the packet buffer and the sync buffer.
   void FlushBuffers() override;
-
-  void EnableNack(size_t max_nack_list_size) override;
-
-  void DisableNack() override;
-
-  std::vector<uint16_t> GetNackList(int64_t round_trip_time_ms) const override;
 
   int SyncBufferSizeMs() const override;
 
@@ -375,8 +366,6 @@ class NetEqImpl : public NetEq {
   std::optional<uint8_t> current_cng_rtp_payload_type_;
   bool first_packet_;
   bool enable_fast_accelerate_;
-  std::unique_ptr<NackTracker> nack_;
-  bool nack_enabled_;
   const bool enable_muted_state_;
   std::unique_ptr<TickTimer::Stopwatch> generated_noise_stopwatch_;
   std::vector<RtpPacketInfo> last_decoded_packet_infos_;

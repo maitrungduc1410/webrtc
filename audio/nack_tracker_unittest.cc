@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_coding/neteq/nack_tracker.h"
+#include "audio/nack_tracker.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -213,7 +213,6 @@ TEST(NackTrackerTest, EstimateTimestampAndTimeToPlay) {
     uint16_t seq_num = seq_num_lost_packets[0] - 2;
     uint32_t timestamp = timestamp_lost_packets[0] - 2 * kTimestampIncrement;
 
-    const uint16_t first_seq_num = seq_num;
     const uint32_t first_timestamp = timestamp;
 
     // Two consecutive packets to have a correct estimate of timestamp increase.
@@ -232,7 +231,7 @@ TEST(NackTrackerTest, EstimateTimestampAndTimeToPlay) {
     EXPECT_EQ(static_cast<size_t>(kNumAllLostPackets), nack_list.size());
 
     // Pretend the first packet is decoded.
-    nack.UpdateLastDecodedPacket(first_seq_num, first_timestamp);
+    nack.UpdateLastDecodedPacket(first_timestamp);
     nack_list = nack.GetNackList();
 
     NackTracker::NackList::iterator it = nack_list.begin();
@@ -275,16 +274,14 @@ TEST(NackTrackerTest,
     for (int k = 0; k < 2; ++k) {
       // Decoding of the first and the second arrived packets.
       for (int n = 0; n < kPacketSizeMs / 10; ++n) {
-        nack.UpdateLastDecodedPacket(seq_num_offset + k,
-                                     k * kTimestampIncrement);
+        nack.UpdateLastDecodedPacket(k * kTimestampIncrement);
         nack_list = nack.GetNackList(kShortRoundTripTimeMs);
         EXPECT_EQ(kExpectedListSize, nack_list.size());
       }
     }
 
     // Decoding of the last received packet.
-    nack.UpdateLastDecodedPacket(seq_num + seq_num_offset,
-                                 seq_num * kTimestampIncrement);
+    nack.UpdateLastDecodedPacket(seq_num * kTimestampIncrement);
     nack_list = nack.GetNackList(kShortRoundTripTimeMs);
     EXPECT_TRUE(nack_list.empty());
 

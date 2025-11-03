@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_coding/neteq/nack_tracker.h"
+#include "audio/nack_tracker.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,7 +53,6 @@ NackTracker::NackTracker(const FieldTrialsView& field_trials)
       sequence_num_last_received_rtp_(0),
       timestamp_last_received_rtp_(0),
       any_rtp_received_(false),
-      sequence_num_last_decoded_rtp_(0),
       timestamp_last_decoded_rtp_(0),
       any_rtp_decoded_(false),
       sample_rate_khz_(kDefaultSampleRateKhz),
@@ -63,7 +62,11 @@ NackTracker::~NackTracker() = default;
 
 void NackTracker::UpdateSampleRate(int sample_rate_hz) {
   RTC_DCHECK_GT(sample_rate_hz, 0);
-  sample_rate_khz_ = sample_rate_hz / 1000;
+  int sample_rate_khz = sample_rate_hz / 1000;
+  if (sample_rate_khz_ != sample_rate_khz) {
+    Reset();
+    sample_rate_khz_ = sample_rate_khz;
+  }
 }
 
 void NackTracker::UpdateLastReceivedPacket(uint16_t sequence_number,
@@ -77,7 +80,6 @@ void NackTracker::UpdateLastReceivedPacket(uint16_t sequence_number,
     // If no packet is decoded, to have a reasonable estimate of time-to-play
     // use the given values.
     if (!any_rtp_decoded_) {
-      sequence_num_last_decoded_rtp_ = sequence_number;
       timestamp_last_decoded_rtp_ = timestamp;
     }
     return;
@@ -125,9 +127,6 @@ void NackTracker::UpdateList(uint16_t sequence_number_current_received_rtp,
                              sequence_num_last_received_rtp_ + 1)) {
     return;
   }
-  RTC_DCHECK(!any_rtp_decoded_ ||
-             IsNewerSequenceNumber(sequence_number_current_received_rtp,
-                                   sequence_num_last_decoded_rtp_));
 
   std::optional<int> samples_per_packet = GetSamplesPerPacket(
       sequence_number_current_received_rtp, timestamp_current_received_rtp);
@@ -149,20 +148,19 @@ uint32_t NackTracker::EstimateTimestamp(uint16_t sequence_num,
   return sequence_num_diff * samples_per_packet + timestamp_last_received_rtp_;
 }
 
-void NackTracker::UpdateLastDecodedPacket(uint16_t sequence_number,
-                                          uint32_t timestamp) {
+void NackTracker::UpdateLastDecodedPacket(uint32_t timestamp) {
   any_rtp_decoded_ = true;
-  sequence_num_last_decoded_rtp_ = sequence_number;
   timestamp_last_decoded_rtp_ = timestamp;
-  // Packets in the list with sequence numbers less than the
-  // sequence number of the decoded RTP should be removed from the lists.
-  // They will be discarded by the jitter buffer if they arrive.
-  nack_list_.erase(nack_list_.begin(),
-                   nack_list_.upper_bound(sequence_num_last_decoded_rtp_));
-
+  // Packets in the list with timestamp less than the timestamp of the decoded
+  // RTP should be removed from the lists. They will be discarded by the jitter
+  // buffer if they arrive.
+  NackList::iterator it = nack_list_.begin();
+  while (it != nack_list_.end() &&
+         !IsNewerTimestamp(it->second.estimated_timestamp, timestamp)) {
+    it = nack_list_.erase(it);
+  }
   // Update estimated time-to-play.
-  for (NackList::iterator it = nack_list_.begin(); it != nack_list_.end();
-       ++it) {
+  for (; it != nack_list_.end(); ++it) {
     it->second.time_to_play_ms = TimeToPlay(it->second.estimated_timestamp);
   }
 }
@@ -177,7 +175,6 @@ void NackTracker::Reset() {
   sequence_num_last_received_rtp_ = 0;
   timestamp_last_received_rtp_ = 0;
   any_rtp_received_ = false;
-  sequence_num_last_decoded_rtp_ = 0;
   timestamp_last_decoded_rtp_ = 0;
   any_rtp_decoded_ = false;
   sample_rate_khz_ = kDefaultSampleRateKhz;

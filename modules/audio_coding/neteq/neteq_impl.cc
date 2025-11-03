@@ -46,7 +46,6 @@
 #include "modules/audio_coding/neteq/dtmf_tone_generator.h"
 #include "modules/audio_coding/neteq/expand.h"
 #include "modules/audio_coding/neteq/merge.h"
-#include "modules/audio_coding/neteq/nack_tracker.h"
 #include "modules/audio_coding/neteq/normal.h"
 #include "modules/audio_coding/neteq/packet.h"
 #include "modules/audio_coding/neteq/packet_buffer.h"
@@ -158,7 +157,6 @@ NetEqImpl::NetEqImpl(const NetEq::Config& config,
       reset_decoder_(false),
       first_packet_(true),
       enable_fast_accelerate_(config.enable_fast_accelerate),
-      nack_enabled_(false),
       enable_muted_state_(config.enable_muted_state),
       no_time_stretching_(config.for_test_no_time_stretching) {
   RTC_LOG(LS_INFO) << "NetEq config: " << config.ToString();
@@ -223,7 +221,6 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
   // Store these for later use, since the first packet may very well disappear
   // before we need these values.
   uint32_t main_timestamp = packet_list.front().timestamp;
-  uint16_t main_sequence_number = packet_list.front().sequence_number;
 
   // Reinitialize NetEq if it's needed (changed SSRC or first call).
   if (update_sample_rate_and_channels) {
@@ -239,14 +236,6 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
 
     // Update codecs.
     timestamp_ = main_timestamp;
-  }
-
-  if (nack_enabled_) {
-    RTC_DCHECK(nack_);
-    if (update_sample_rate_and_channels) {
-      nack_->Reset();
-    }
-    nack_->UpdateLastReceivedPacket(main_sequence_number, main_timestamp);
   }
 
   // Check for RED payload type, and separate payloads into several packets.
@@ -275,7 +264,6 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
   if (decoder_database_->IsRed(rtp_header.payloadType)) {
     timestamp_scaler_->ToInternal(&packet_list);
     main_timestamp = packet_list.front().timestamp;
-    main_sequence_number = packet_list.front().sequence_number;
   }
 
   // Process DTMF payloads. Cycle through the list of packets, and pick out any
@@ -436,22 +424,9 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
       RTC_DCHECK_LE(channels, kMaxNumberOfAudioChannels);
       SetSampleRateAndChannels(decoder_info->SampleRateHz(), channels);
     }
-    if (nack_enabled_) {
-      RTC_DCHECK(nack_);
-      // Update the sample rate even if the rate is not new, because of Reset().
-      nack_->UpdateSampleRate(fs_hz_);
-    }
   }
 
   return kOK;
-}
-
-void NetEqImpl::InsertEmptyPacket(const RTPHeader& rtp_header) {
-  if (nack_enabled_) {
-    nack_->UpdateLastReceivedPacket(rtp_header.sequenceNumber,
-                                    rtp_header.timestamp);
-  }
-  controller_->RegisterEmptyPacket();
 }
 
 int NetEqImpl::GetAudio(AudioFrame* audio_frame,
@@ -643,28 +618,6 @@ void NetEqImpl::FlushBuffers() {
                                expand_->overlap_length());
   // Set to wait for new codec.
   first_packet_ = true;
-}
-
-void NetEqImpl::EnableNack(size_t max_nack_list_size) {
-  if (!nack_enabled_) {
-    nack_ = std::make_unique<NackTracker>(env_.field_trials());
-    nack_enabled_ = true;
-    nack_->UpdateSampleRate(fs_hz_);
-  }
-  nack_->SetMaxNackListSize(max_nack_list_size);
-}
-
-void NetEqImpl::DisableNack() {
-  nack_.reset();
-  nack_enabled_ = false;
-}
-
-std::vector<uint16_t> NetEqImpl::GetNackList(int64_t round_trip_time_ms) const {
-  if (!nack_enabled_) {
-    return std::vector<uint16_t>();
-  }
-  RTC_DCHECK(nack_.get());
-  return nack_->GetNackList(round_trip_time_ms);
 }
 
 int NetEqImpl::SyncBufferSizeMs() const {
@@ -1857,7 +1810,6 @@ int NetEqImpl::DtmfOverdub(const DtmfEvent& dtmf_event,
 
 int NetEqImpl::ExtractPackets(size_t required_samples,
                               PacketList* packet_list) {
-  bool first_packet = true;
   bool next_packet_available = false;
 
   const Packet* next_packet = packet_buffer_->PeekNextPacket();
@@ -1884,16 +1836,6 @@ int NetEqImpl::ExtractPackets(size_t required_samples,
     const uint64_t waiting_time_ms = packet->waiting_time->ElapsedMs();
     stats_->StoreWaitingTime(waiting_time_ms);
     RTC_DCHECK(!packet->empty());
-
-    if (first_packet) {
-      first_packet = false;
-      if (nack_enabled_) {
-        RTC_DCHECK(nack_);
-        // TODO(henrik.lundin): Should we update this for all decoded packets?
-        nack_->UpdateLastDecodedPacket(packet->sequence_number,
-                                       packet->timestamp);
-      }
-    }
 
     const bool has_cng_packet =
         decoder_database_->IsComfortNoise(packet->payload_type);

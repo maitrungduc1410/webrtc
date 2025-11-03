@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_AUDIO_CODING_NETEQ_NACK_TRACKER_H_
-#define MODULES_AUDIO_CODING_NETEQ_NACK_TRACKER_H_
+#ifndef AUDIO_NACK_TRACKER_H_
+#define AUDIO_NACK_TRACKER_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -66,15 +66,11 @@ class NackTracker {
   void SetMaxNackListSize(size_t max_nack_list_size);
 
   // Set the sampling rate.
-  //
-  // If associated sampling rate of the received packets is changed, call this
-  // function to update sampling rate. Note that if there is any change in
-  // received codec then NetEq will flush its buffer and NACK has to be reset.
-  // After Reset() is called sampling rate has to be set.
+  // Resets the state if the sampling rate changes.
   void UpdateSampleRate(int sample_rate_hz);
 
-  // Update the sequence number and the timestamp of the last decoded RTP.
-  void UpdateLastDecodedPacket(uint16_t sequence_number, uint32_t timestamp);
+  // Update the the timestamp of the last decoded RTP.
+  void UpdateLastDecodedPacket(uint32_t timestamp);
 
   // Update the sequence number and the timestamp of the last received RTP. This
   // API should be called every time a packet pushed into ACM.
@@ -183,7 +179,6 @@ class NackTracker {
   bool any_rtp_received_;  // If any packet received.
 
   // Valid if a packet is decoded.
-  uint16_t sequence_num_last_decoded_rtp_;
   uint32_t timestamp_last_decoded_rtp_;
   bool any_rtp_decoded_;  // If any packet decoded.
 
@@ -204,4 +199,4 @@ class NackTracker {
 
 }  // namespace webrtc
 
-#endif  // MODULES_AUDIO_CODING_NETEQ_NACK_TRACKER_H_
+#endif  // AUDIO_NACK_TRACKER_H_
