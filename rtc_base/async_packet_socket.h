@@ -79,7 +79,7 @@ struct RTC_EXPORT AsyncSocketPacketOptions {
 
 // Provides the ability to receive packets asynchronously. Sends are not
 // buffered since it is acceptable to drop packets under high load.
-class RTC_EXPORT AsyncPacketSocket : public sigslot::has_slots<> {
+class RTC_EXPORT AsyncPacketSocket {
  public:
   enum State {
     STATE_CLOSED,
@@ -94,7 +94,7 @@ class RTC_EXPORT AsyncPacketSocket : public sigslot::has_slots<> {
         sent_packet_trampoline_(this),
         ready_to_send_trampoline_(this),
         address_ready_trampoline_(this) {}
-  ~AsyncPacketSocket() override;
+  virtual ~AsyncPacketSocket();
 
   AsyncPacketSocket(const AsyncPacketSocket&) = delete;
   AsyncPacketSocket& operator=(const AsyncPacketSocket&) = delete;
@@ -236,7 +236,7 @@ class RTC_EXPORT AsyncPacketSocket : public sigslot::has_slots<> {
 };
 
 // Listen socket, producing an AsyncPacketSocket when a peer connects.
-class RTC_EXPORT AsyncListenSocket : public sigslot::has_slots<> {
+class RTC_EXPORT AsyncListenSocket {
  public:
   enum class State {
     kClosed,
@@ -244,6 +244,7 @@ class RTC_EXPORT AsyncListenSocket : public sigslot::has_slots<> {
   };
 
   AsyncListenSocket() : new_connection_trampoline_(this) {}
+  virtual ~AsyncListenSocket() = default;
 
   // Returns current state of the socket.
   virtual State GetState() const = 0;
@@ -277,6 +278,5 @@ void CopySocketInformationToPacketInfo(size_t packet_size_bytes,
                                        PacketInfo* info);
 
 }  //  namespace webrtc
-
 
 #endif  // RTC_BASE_ASYNC_PACKET_SOCKET_H_

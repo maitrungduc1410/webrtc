@@ -34,7 +34,6 @@
 #include "rtc_base/socket_unittest.h"
 #include "rtc_base/test_client.h"
 #include "rtc_base/test_utils.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "test/create_test_environment.h"
 #include "test/gmock.h"
@@ -662,7 +661,7 @@ void SocketTest::ServerCloseInternal(const IPAddress& loopback) {
   EXPECT_TRUE(client->GetRemoteAddress().IsNil());
 }
 
-class SocketCloser : public sigslot::has_slots<> {
+class SocketCloser {
  public:
   void OnClose(Socket* socket, int error) {
     socket->Close();  // Deleting here would blow up the vector of handlers
@@ -726,7 +725,7 @@ void SocketTest::CloseInClosedCallbackInternal(const IPAddress& loopback) {
 }
 
 // Helper class specifically for the test below.
-class SocketDeleter : public sigslot::has_slots<> {
+class SocketDeleter {
  public:
   explicit SocketDeleter(std::unique_ptr<Socket> socket)
       : socket_(std::move(socket)) {}

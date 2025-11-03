@@ -27,7 +27,6 @@
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/network_route.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
@@ -49,7 +48,7 @@ constexpr uint16_t kRemoteNetId = 2;
 constexpr int kLastPacketId = 100;
 constexpr int kTransportOverheadPerPacket = 28;  // Ipv4(20) + UDP(8).
 
-class SignalObserver : public sigslot::has_slots<> {
+class SignalObserver {
  public:
   explicit SignalObserver(RtpTransport* transport) {
     transport_ = transport;

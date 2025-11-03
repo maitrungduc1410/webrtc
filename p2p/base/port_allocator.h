@@ -727,5 +727,4 @@ class RTC_EXPORT PortAllocator {
 
 }  //  namespace webrtc
 
-
 #endif  // P2P_BASE_PORT_ALLOCATOR_H_
