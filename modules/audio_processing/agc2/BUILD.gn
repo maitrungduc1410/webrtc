@@ -12,6 +12,8 @@ rtc_library("speech_level_estimator") {
   sources = [
     "speech_level_estimator.cc",
     "speech_level_estimator.h",
+    "speech_level_estimator_impl.cc",
+    "speech_level_estimator_impl.h",
   ]
 
   visibility = [
@@ -214,8 +216,6 @@ rtc_library("input_volume_controller") {
     "../../../api:array_view",
     "../../../api/audio:audio_processing",
     "../../../rtc_base:checks",
-    "../../../rtc_base:checks",
-    "../../../rtc_base:gtest_prod",
     "../../../rtc_base:gtest_prod",
     "../../../rtc_base:logging",
     "../../../rtc_base:safe_minmax",

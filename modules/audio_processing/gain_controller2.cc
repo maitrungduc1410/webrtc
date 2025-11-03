@@ -117,7 +117,7 @@ GainController2::GainController2(
   if (config.input_volume_controller.enabled ||
       config.adaptive_digital.enabled) {
     // Create dependencies.
-    speech_level_estimator_ = std::make_unique<SpeechLevelEstimator>(
+    speech_level_estimator_ = SpeechLevelEstimator::Create(
         &data_dumper_, config.adaptive_digital, kAdjacentSpeechFramesThreshold);
     if (use_internal_vad)
       vad_ = std::make_unique<VoiceActivityDetectorWrapper>(
@@ -218,8 +218,8 @@ void GainController2::Process(bool input_volume_changed, AudioBuffer* audio) {
   if (speech_level_estimator_) {
     speech_level_estimator_->Update(audio_levels.rms_dbfs, speech_probability);
     speech_level =
-        SpeechLevel{.is_confident = speech_level_estimator_->is_confident(),
-                    .rms_dbfs = speech_level_estimator_->level_dbfs()};
+        SpeechLevel{.is_confident = speech_level_estimator_->IsConfident(),
+                    .rms_dbfs = speech_level_estimator_->GetLevelDbfs()};
   }
 
   // Update the recommended input volume.
