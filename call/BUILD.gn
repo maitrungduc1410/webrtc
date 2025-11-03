@@ -688,6 +688,7 @@ if (rtc_include_tests) {
       ":rtp_interfaces",
       "../api:fec_controller_api",
       "../api:frame_transformer_interface",
+      "../api:rtp_parameters",
       "../api:scoped_refptr",
       "../api/transport:bandwidth_estimation_settings",
       "../api/transport:bitrate_settings",

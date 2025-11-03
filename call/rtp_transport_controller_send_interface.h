@@ -22,6 +22,7 @@
 #include "api/fec_controller.h"
 #include "api/frame_transformer_interface.h"
 #include "api/rtp_packet_sender.h"
+#include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/transport/bandwidth_estimation_settings.h"
 #include "api/transport/bitrate_settings.h"
@@ -160,7 +161,8 @@ class RtpTransportControllerSendInterface {
   virtual NetworkControllerInterface* GetNetworkController() = 0;
 
   // Called once it's known that the remote end supports RFC 8888.
-  virtual void EnableCongestionControlFeedbackAccordingToRfc8888() = 0;
+  virtual void SetPreferredRtcpCcAckType(
+      RtcpFeedbackType preferred_rtcp_cc_ack_type) = 0;
   // Count of RFC8888 feedback reports received
   virtual std::optional<int> ReceivedCongestionControlFeedbackCount() const = 0;
   // Count of transport-cc feedback reports received

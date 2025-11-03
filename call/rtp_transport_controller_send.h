@@ -24,6 +24,7 @@
 #include "api/environment/environment.h"
 #include "api/fec_controller.h"
 #include "api/frame_transformer_interface.h"
+#include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
@@ -144,8 +145,10 @@ class RtpTransportControllerSend final
     return controller_.get();
   }
 
-  // Called once it's known that the remote end supports RFC 8888.
-  void EnableCongestionControlFeedbackAccordingToRfc8888() override;
+  // Determines what type of RTCP feedback that should be used for congestion
+  // control.
+  void SetPreferredRtcpCcAckType(
+      RtcpFeedbackType preferred_rtcp_cc_ack_type) override;
 
   std::optional<int> ReceivedCongestionControlFeedbackCount() const override;
   flat_map<uint32_t, ReceivedCongestionControlFeedbackStats>
