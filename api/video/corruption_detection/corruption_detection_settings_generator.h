@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2025 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_VIDEO_CODING_UTILITY_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_
-#define MODULES_VIDEO_CODING_UTILITY_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_
+#ifndef API_VIDEO_CORRUPTION_DETECTION_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_
+#define API_VIDEO_CORRUPTION_DETECTION_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_
 
 #include <optional>
 #include <variant>
@@ -89,4 +89,4 @@ class CorruptionDetectionSettingsGenerator {
 
 }  // namespace webrtc
 
-#endif  // MODULES_VIDEO_CODING_UTILITY_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_
+#endif  // API_VIDEO_CORRUPTION_DETECTION_CORRUPTION_DETECTION_SETTINGS_GENERATOR_H_

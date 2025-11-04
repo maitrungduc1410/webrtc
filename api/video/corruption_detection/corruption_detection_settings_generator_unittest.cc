@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2025 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/utility/corruption_detection_settings_generator.h"
+#include "api/video/corruption_detection/corruption_detection_settings_generator.h"
 
 #include "api/video/corruption_detection/corruption_detection_filter_settings.h"
 #include "test/gmock.h"
