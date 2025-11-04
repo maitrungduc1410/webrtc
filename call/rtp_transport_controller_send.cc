@@ -31,7 +31,6 @@
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/bandwidth_estimation_settings.h"
 #include "api/transport/bitrate_settings.h"
-#include "api/transport/ecn_marking.h"
 #include "api/transport/goog_cc_factory.h"
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
@@ -45,7 +44,6 @@
 #include "call/rtp_video_sender.h"
 #include "call/rtp_video_sender_interface.h"
 #include "logging/rtc_event_log/events/rtc_event_route_change.h"
-#include "modules/congestion_controller/rtp/congestion_controller_feedback_stats.h"
 #include "modules/congestion_controller/rtp/control_handler.h"
 #include "modules/congestion_controller/scream/scream_network_controller.h"
 #include "modules/pacing/packet_router.h"
@@ -55,7 +53,6 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_interface.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/network/sent_packet.h"
@@ -650,12 +647,6 @@ RtpTransportControllerSend::ReceivedCongestionControlFeedbackCount() const {
   return feedback_count_;
 }
 
-flat_map<uint32_t, ReceivedCongestionControlFeedbackStats>
-RtpTransportControllerSend::GetCongestionControlFeedbackStatsPerSsrc() const {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
-  return received_ccfb_stats_;
-}
-
 std::optional<int>
 RtpTransportControllerSend::ReceivedTransportCcFeedbackCount() const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
@@ -687,57 +678,7 @@ void RtpTransportControllerSend::OnCongestionControlFeedback(
       transport_feedback_adapter_.ProcessCongestionControlFeedback(
           feedback, receive_time);
   if (feedback_msg) {
-    ComputeStatsFromCongestionControlFeedback(*feedback_msg);
     HandleTransportPacketsFeedback(*feedback_msg);
-  }
-}
-
-void RtpTransportControllerSend::ComputeStatsFromCongestionControlFeedback(
-    const TransportPacketsFeedback& feedback) {
-  std::optional<uint32_t> last_ssrc;
-  ReceivedCongestionControlFeedbackStats* stats = nullptr;
-  for (const PacketResult& packet_info : feedback.packet_feedbacks) {
-    if (!packet_info.rtp_packet_info.has_value()) {
-      continue;
-    }
-
-    // Most of the time ssrc doesn't change across packets, so reuse last
-    // map lookup when ssrc is the same. Initially last_ssrc is nullopt,
-    // so first check would always trigger map lookup, thus `stats` would always
-    // be nonnull after this block.
-    if (uint32_t ssrc = packet_info.rtp_packet_info->ssrc; ssrc != last_ssrc) {
-      last_ssrc = ssrc;
-      stats = &received_ccfb_stats_[ssrc];
-    }
-
-    if (packet_info.reported_lost_for_the_first_time) {
-      RTC_DCHECK(!packet_info.IsReceived());
-      ++stats->num_packets_reported_as_lost;
-    }
-
-    if (packet_info.reported_recovered_for_the_first_time) {
-      RTC_DCHECK(packet_info.IsReceived());
-      ++stats->num_packets_reported_as_lost_but_recovered;
-    }
-
-    if (packet_info.IsReceived()) {
-      switch (packet_info.ecn) {
-        using enum EcnMarking;
-        case kEct1:
-          ++stats->num_packets_received_with_ect1;
-          break;
-        case kCe:
-          ++stats->num_packets_received_with_ce;
-          break;
-        case kNotEct:
-          if (packet_info.sent_with_ect1) {
-            ++stats->num_packets_with_bleached_ect1_marking;
-          }
-          break;
-        case kEct0:
-          break;
-      }
-    }
   }
 }
 
@@ -926,19 +867,6 @@ void RtpTransportControllerSend::OnReport(
   if (controller_)
     PostUpdates(controller_->OnTransportLossReport(msg));
   last_report_block_time_ = receive_time;
-}
-
-void RtpTransportControllerSend::NotifyBweOfSentPacketForTesting(
-    const RtpPacketToSend& rtp_packet) {
-  NotifyBweOfPacedSentPacket(rtp_packet, /*pacing_info=*/{});
-  PacketInfo packet_info;
-  packet_info.included_in_allocation = true;
-  packet_info.included_in_feedback =
-      rtp_packet.transport_sequence_number().has_value();
-  OnSentPacket(SentPacketInfo(
-      /*packet_id=*/rtp_packet.transport_sequence_number().value_or(-1),
-      /*send_time_ms=*/env_.clock().CurrentTime().ms(),
-      /*info=*/packet_info));
 }
 
 }  // namespace webrtc
