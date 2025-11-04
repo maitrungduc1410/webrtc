@@ -87,10 +87,9 @@ void PacketRouter::RegisterNotifyBweCallback(
   notify_bwe_callback_ = std::move(callback);
 }
 
-void PacketRouter::ConfigureForRtcpFeedback(bool set_transport_seq,
-                                            bool send_rtp_packets_as_ect1) {
+void PacketRouter::ConfigureForRfc8888Feedback(bool send_rtp_packets_as_ect1) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  set_transport_seq_ = set_transport_seq;
+  use_cc_feedback_according_to_rfc8888_ = true;
   send_rtp_packets_as_ect1_ = send_rtp_packets_as_ect1;
 }
 
@@ -201,7 +200,8 @@ void PacketRouter::SendPacket(std::unique_ptr<RtpPacketToSend> packet,
   // if the TransportSequenceNumber header extension is negotiated for the
   // specific media type. Historically, webrtc only used TransportSequenceNumber
   // on video packets.
-  if (set_transport_seq_ || packet->HasExtension<TransportSequenceNumber>()) {
+  if (use_cc_feedback_according_to_rfc8888_ ||
+      packet->HasExtension<TransportSequenceNumber>()) {
     packet->set_transport_sequence_number(transport_seq_++);
   }
   if (send_rtp_packets_as_ect1_) {

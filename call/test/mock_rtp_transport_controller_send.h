@@ -20,7 +20,6 @@
 #include "absl/strings/string_view.h"
 #include "api/fec_controller.h"
 #include "api/frame_transformer_interface.h"
-#include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/transport/bandwidth_estimation_settings.h"
 #include "api/transport/bitrate_settings.h"
@@ -116,7 +115,10 @@ class MockRtpTransportControllerSend
               GetNetworkController,
               (),
               (override));
-  MOCK_METHOD(void, SetPreferredRtcpCcAckType, (RtcpFeedbackType), (override));
+  MOCK_METHOD(void,
+              EnableCongestionControlFeedbackAccordingToRfc8888,
+              (),
+              (override));
   MOCK_METHOD(std::optional<int>,
               ReceivedCongestionControlFeedbackCount,
               (),

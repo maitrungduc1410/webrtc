@@ -25,7 +25,6 @@
 #include "api/frame_transformer_interface.h"
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/rtp_packet_sender.h"
-#include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
@@ -399,9 +398,7 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
         network_route.connected, network_route.packet_overhead));
     if (rfc_8888_feedback_negotiated_) {
       sending_packets_as_ect1_ = true;
-      packet_router_.ConfigureForRtcpFeedback(
-          /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-          sending_packets_as_ect1_);
+      packet_router_.ConfigureForRfc8888Feedback(sending_packets_as_ect1_);
     }
     NetworkRouteChange msg;
     msg.at_time = env_.clock().CurrentTime();
@@ -632,24 +629,16 @@ void RtpTransportControllerSend::NotifyBweOfPacedSentPacket(
       packet, pacing_info, transport_overhead_bytes_per_packet_, creation_time);
 }
 
-void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
-    RtcpFeedbackType preferred_rtcp_cc_ack_type) {
+void RtpTransportControllerSend::
+    EnableCongestionControlFeedbackAccordingToRfc8888() {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  RTC_DCHECK(preferred_rtcp_cc_ack_type == RtcpFeedbackType::CCFB ||
-             preferred_rtcp_cc_ack_type == RtcpFeedbackType::TRANSPORT_CC);
-  if (preferred_rtcp_cc_ack_type == RtcpFeedbackType::CCFB) {
-    rfc_8888_feedback_negotiated_ = true;
-    sending_packets_as_ect1_ = true;
-    RTC_LOG_F(LS_INFO)
-        << "Sending packets as ECT1(1) and assume RFC 8888 feedback.";
-  } else {
-    rfc_8888_feedback_negotiated_ = false;
-    sending_packets_as_ect1_ = false;
-    RTC_LOG_F(LS_INFO) << "Assume TWCC feedback.";
-  }
-  packet_router_.ConfigureForRtcpFeedback(
-      /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-      sending_packets_as_ect1_);
+  rfc_8888_feedback_negotiated_ = true;
+  sending_packets_as_ect1_ = true;
+  RTC_LOG(LS_INFO) << "EnableCongestionControlFeedbackAccordingToRfc8888";
+  // TODO: bugs.webrtc.org/447037083 - Implement support for re-enabling
+  // transport sequence number feedback on PR-Answer - and possibly stop using
+  // Scream.
+  packet_router_.ConfigureForRfc8888Feedback(sending_packets_as_ect1_);
 }
 
 std::optional<int>
@@ -762,9 +751,7 @@ void RtpTransportControllerSend::HandleTransportPacketsFeedback(
     if (!feedback.transport_supports_ecn ||
         !congestion_controller_support_ecn) {
       sending_packets_as_ect1_ = false;
-      packet_router_.ConfigureForRtcpFeedback(
-          /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-          sending_packets_as_ect1_);
+      packet_router_.ConfigureForRfc8888Feedback(sending_packets_as_ect1_);
       RTC_LOG(LS_INFO) << "Transport is "
                        << (!feedback.transport_supports_ecn ? "not " : "")
                        << "ECN capable. Congestion Controller does "
