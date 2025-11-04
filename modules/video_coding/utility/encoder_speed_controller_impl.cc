@@ -151,8 +151,7 @@ EncoderSpeedControllerImpl::GetEncodeSettings(
 }
 
 void EncoderSpeedControllerImpl::OnEncodedFrame(
-    EncoderSpeedController::EncodeResults results,
-    std::optional<EncodeResults> baseline_results) {
+    EncoderSpeedController::EncodeResults results) {
   double encode_tims_ms = results.encode_time.us() / 1000.0;
   if (results.frame_info.reference_type == ReferenceClass::kKey) {
     encode_tims_ms /= kKeyframeEncodeTimeCompensator;

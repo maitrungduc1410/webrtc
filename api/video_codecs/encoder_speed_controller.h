@@ -109,12 +109,8 @@ class EncoderSpeedController {
   // thereafter be configured with requested settings.
   virtual EncodeSettings GetEncodeSettings(FrameEncodingInfo frame_info) = 0;
 
-  // Should be called after each frame has completed encoding. If a baseline
-  // comparison speed was set in the `EncodeSettings`, the `baseline_results`
-  // parameter should be set with the results corresponding to those settings.
-  virtual void OnEncodedFrame(
-      EncodeResults results,
-      std::optional<EncodeResults> baseline_results) = 0;
+  // Should be called after each frame has completed encoding.
+  virtual void OnEncodedFrame(EncodeResults results) = 0;
 };
 
 }  // namespace webrtc

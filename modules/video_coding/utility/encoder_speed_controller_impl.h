@@ -12,7 +12,6 @@
 #define MODULES_VIDEO_CODING_UTILITY_ENCODER_SPEED_CONTROLLER_IMPL_H_
 
 #include <memory>
-#include <optional>
 
 #include "api/units/time_delta.h"
 #include "api/video_codecs/encoder_speed_controller.h"
@@ -41,11 +40,8 @@ class EncoderSpeedControllerImpl : public webrtc::EncoderSpeedController {
   // thereafter be configured with requested settings.
   EncodeSettings GetEncodeSettings(FrameEncodingInfo frame_info) override;
 
-  // Should be called after each frame has completed encoding. If a baseline
-  // comparison speed was set in the `EncodeSettings`, the `baseline_results`
-  // parameter should be set with the results corresponding to those settings.
-  void OnEncodedFrame(EncodeResults results,
-                      std::optional<EncodeResults> baseline_results) override;
+  // Should be called after each frame has completed encoding.
+  void OnEncodedFrame(EncodeResults results) override;
 
   const Config& config() const { return config_; }
 

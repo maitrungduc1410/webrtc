@@ -11,7 +11,6 @@
 #include <optional>
 
 #include "api/units/time_delta.h"
-#include "api/units/timestamp.h"
 #include "api/video_codecs/encoder_speed_controller.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -61,6 +60,7 @@ TEST(EncoderSpeedControllerTest, CreateFailsWithInvalidFrameInterval) {
 
 TEST(EncoderSpeedControllerTest, GetEncodeSettingsBaseLayers) {
   EncoderSpeedController::Config config = GetDefaultConfig();
+  config.speed_levels[0].min_qp = 25;  // Prevent dropping to speed 5 easily
   auto controller = EncoderSpeedController::Create(config, kFrameInterval);
   ASSERT_NE(controller, nullptr);
 
@@ -72,22 +72,18 @@ TEST(EncoderSpeedControllerTest, GetEncodeSettingsBaseLayers) {
 
   // Simulate high encode time to increase speed
   for (int i = 0; i < 10; ++i) {
-    controller->OnEncodedFrame({.speed = 6,
-                                .encode_time = kFrameInterval * 2,
+    controller->OnEncodedFrame({.encode_time = kFrameInterval * 0.90,
                                 .qp = 30,
-                                .frame_info = frame_info},
-                               std::nullopt);
+                                .frame_info = frame_info});
   }
   // Speed should increase to 7
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed, 7);
 
   // Simulate low encode time to decrease speed
   for (int i = 0; i < 20; ++i) {
-    controller->OnEncodedFrame({.speed = 7,
-                                .encode_time = kFrameInterval / 10,
-                                .qp = 30,
-                                .frame_info = frame_info},
-                               std::nullopt);
+    controller->OnEncodedFrame({.encode_time = kFrameInterval * 0.10,
+                                .qp = 20,
+                                .frame_info = frame_info});
   }
   // Speed should decrease to 6
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed, 6);
@@ -141,12 +137,9 @@ TEST(EncoderSpeedControllerTest, StaysAtMaxSpeed) {
       .reference_type = ReferenceClass::kMain};
 
   for (int i = 0; i < 20; ++i) {
-    controller->OnEncodedFrame(
-        {.speed = 7,
-         .encode_time = kFrameInterval * 2,  // High encode time
-         .qp = 30,
-         .frame_info = frame_info},
-        std::nullopt);
+    controller->OnEncodedFrame({.encode_time = kFrameInterval * 0.95,
+                                .qp = 30,
+                                .frame_info = frame_info});
   }
 
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed,
@@ -163,12 +156,7 @@ TEST(EncoderSpeedControllerTest, StaysAtMinSpeed) {
       .reference_type = ReferenceClass::kMain};
 
   for (int i = 0; i < 20; ++i) {
-    controller->OnEncodedFrame(
-        {.speed = 5,
-         .encode_time = kFrameInterval / 10,  // Low encode time
-         .qp = 30,
-         .frame_info = frame_info},
-        std::nullopt);
+    controller->OnEncodedFrame({.speed = 5, .frame_info = frame_info});
   }
 
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed,
@@ -189,11 +177,9 @@ TEST(EncoderSpeedControllerTest, IncreasesSpeedOnLowQp) {
 
   // Simulate low QP, normal encode time
   for (int i = 0; i < 20; ++i) {
-    controller->OnEncodedFrame({.speed = 6,
-                                .encode_time = kFrameInterval * 0.6,
+    controller->OnEncodedFrame({.encode_time = kFrameInterval * 0.60,
                                 .qp = 10,
-                                .frame_info = frame_info},
-                               std::nullopt);
+                                .frame_info = frame_info});
   }
   // Speed should increase to 7 due to low QP
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed, 7);
@@ -213,11 +199,9 @@ TEST(EncoderSpeedControllerTest, DoesNotDecreaseSpeedIfQpIsTooLow) {
 
   // Simulate low encode time but also low QP
   for (int i = 0; i < 20; ++i) {
-    controller->OnEncodedFrame({.speed = 6,
-                                .encode_time = kFrameInterval / 10,
+    controller->OnEncodedFrame({.encode_time = kFrameInterval * 0.10,
                                 .qp = 10,
-                                .frame_info = frame_info},
-                               std::nullopt);
+                                .frame_info = frame_info});
   }
   // Speed should NOT decrease to 5 because QP is below the next level's min_qp
   EXPECT_EQ(controller->GetEncodeSettings(frame_info).speed, 6);
