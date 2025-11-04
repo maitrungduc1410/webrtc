@@ -196,7 +196,7 @@ class FakeIceTransport : public IceTransportInternal {
     RTC_DCHECK_RUN_ON(network_thread_);
     return remote_ice_mode_;
   }
-  const IceParameters* local_ice_parameters() const override {
+  const IceParameters* local_ice_parameters() const {
     RTC_DCHECK_RUN_ON(network_thread_);
     return &ice_parameters_;
   }

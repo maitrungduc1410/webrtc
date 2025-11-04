@@ -59,7 +59,6 @@ class MockIceTransport : public IceTransportInternal {
   // before candidate gathering can start.
   MOCK_METHOD(void, SetIceParameters, (const IceParameters&), (override));
   MOCK_METHOD(void, SetRemoteIceParameters, (const IceParameters&), (override));
-  MOCK_METHOD(IceParameters*, local_ice_parameters, (), (const, override));
   MOCK_METHOD(IceParameters*, remote_ice_parameters, (), (const, override));
   MOCK_METHOD(void, SetRemoteIceMode, (IceMode), (override));
   MOCK_METHOD(void, SetIceConfig, (const IceConfig& config), (override));

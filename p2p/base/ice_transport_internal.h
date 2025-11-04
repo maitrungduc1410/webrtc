@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
-#include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "api/candidate.h"
 #include "api/peer_connection_interface.h"
@@ -282,18 +281,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
     RTC_CHECK_NOTREACHED();
   }
 
-  virtual void SetIceCredentials(absl::string_view ice_ufrag,
-                                 absl::string_view ice_pwd);
-
-  virtual void SetRemoteIceCredentials(absl::string_view ice_ufrag,
-                                       absl::string_view ice_pwd);
-
-  // TODO: bugs.webrtc.org/367395350 - Make virtual when all downstream
-  // overrides are gone.
-  // Returns the current local ICE parameters.
-  virtual const IceParameters* local_ice_parameters() const {
-    RTC_CHECK_NOTREACHED();
-  }
   // Returns the latest remote ICE parameters or nullptr if there are no remote
   // ICE parameters yet.
   virtual const IceParameters* remote_ice_parameters() const {
@@ -333,8 +320,9 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   // std::optional if there is none.
   virtual std::optional<int> GetRttEstimate() = 0;
 
+  // Default implementation in order to allow downstream override deletion.
   // TODO(qingsi): Remove this method once Chrome does not depend on it anymore.
-  virtual const Connection* selected_connection() const = 0;
+  virtual const Connection* selected_connection() const { return nullptr; }
 
   // Returns the selected candidate pair, or an empty std::optional if there is
   // none.
@@ -395,16 +383,12 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   void SubscribeIceTransportStateChanged(
       absl::AnyInvocable<void(IceTransportInternal*)> callback);
 
-  // Invoked when the transport is being destroyed.
-  void NotifyDestroyed(IceTransportInternal* transport) {
-    SignalDestroyed(transport);
-  }
-  void SubscribeDestroyed(
-      absl::AnyInvocable<void(IceTransportInternal*)> callback);
+  // TODO: webrtc:457682036 - Remove once downstream callers have been removed
   void SubscribeDestroyed(
       void* tag,
-      absl::AnyInvocable<void(IceTransportInternal*)> callback);
-  void UnsubscribeDestroyed(void* tag);
+      absl::AnyInvocable<void(IceTransportInternal*)> callback) {}
+  // TODO: webrtc:457682036 - Remove once downstream callers have been removed
+  void UnsubscribeDestroyed(void* tag) {}
 
   // Invoked when remote dictionary has been updated,
   // i.e. modifications to attributes from remote ice agent has
