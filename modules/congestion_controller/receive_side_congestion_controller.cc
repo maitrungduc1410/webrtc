@@ -121,14 +121,6 @@ void ReceiveSideCongestionController::OnReceivedPacket(
   if (send_rfc8888_congestion_feedback_) {
     RTC_DCHECK_RUN_ON(&sequence_checker_);
     congestion_control_feedback_generator_.OnReceivedPacket(packet);
-    // TODO(https://bugs.webrtc.org/374197376): Utilize RFC 8888 feedback, which
-    // provides comprehensive details similar to transport-cc. To ensure a
-    // smooth transition, we will continue using transport sequence number
-    // feedback temporarily. Once validation is complete, we will fully
-    // transition to using RFC 8888 feedback exclusively.
-    if (has_transport_sequence_number) {
-      transport_sequence_number_feedback_generator_.OnReceivedPacket(packet);
-    }
     return;
   }
   if (media_type == MediaType::AUDIO && !has_transport_sequence_number) {
