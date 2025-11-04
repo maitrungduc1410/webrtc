@@ -674,6 +674,7 @@ rtc_library("port_interface") {
     "../rtc_base:dscp",
     "../rtc_base:net_helper",
     "../rtc_base:network",
+    "../rtc_base:sigslot_trampoline",
     "../rtc_base:socket",
     "../rtc_base:socket_address",
     "../rtc_base/network:sent_packet",

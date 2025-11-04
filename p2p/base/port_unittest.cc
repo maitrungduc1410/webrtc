@@ -3992,32 +3992,6 @@ TEST_F(PortTest, TestAddConnectionWithSameAddress) {
   EXPECT_TRUE(port->GetConnection(address) != nullptr);
 }
 
-#if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
-class DeathChannel : public sigslot::has_slots<> {
- public:
-  explicit DeathChannel(std::unique_ptr<Port> port) : port_(std::move(port)) {}
-  void IgnoredSlot(PortInterface* /* port */) {}
-  void AddSignal() {
-    port_->SignalRoleConflict.connect(this, &DeathChannel::IgnoredSlot);
-  }
-  void AddCallback() {
-    port_->SubscribeRoleConflict([]() {});
-  }
-
- private:
-  std::unique_ptr<Port> port_;
-};
-
-class PortDeathTest : public PortTest {};
-
-TEST_F(PortDeathTest, AddSignalThenCallback) {
-  DeathChannel dc(CreateRawTestPort());
-  dc.AddSignal();
-  EXPECT_DEATH(dc.AddCallback(), "");
-}
-
-#endif  // RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
-
 // TODO(webrtc:11463) : Move Connection tests into separate unit test
 // splitting out shared test code as needed.
 
