@@ -1167,6 +1167,8 @@ Call::Stats Call::GetStats() const {
 
   stats.sent_ccfb_stats_per_ssrc =
       receive_side_cc_.GetCongestionControllerStatsPerSsrc();
+  stats.received_ccfb_stats_per_ssrc =
+      transport_send_->GetCongestionControlFeedbackStatsPerSsrc();
 
   return stats;
 }

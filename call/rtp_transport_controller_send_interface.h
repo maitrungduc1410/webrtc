@@ -30,9 +30,11 @@
 #include "api/units/timestamp.h"
 #include "call/rtp_config.h"
 #include "common_video/frame_counts.h"
+#include "modules/congestion_controller/rtp/congestion_controller_feedback_stats.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/network_route.h"
 
 namespace webrtc {
@@ -163,6 +165,8 @@ class RtpTransportControllerSendInterface {
   virtual void EnableCongestionControlFeedbackAccordingToRfc8888() = 0;
   // Count of RFC8888 feedback reports received
   virtual std::optional<int> ReceivedCongestionControlFeedbackCount() const = 0;
+  virtual flat_map<uint32_t, ReceivedCongestionControlFeedbackStats>
+  GetCongestionControlFeedbackStatsPerSsrc() const = 0;
   // Count of transport-cc feedback reports received
   virtual std::optional<int> ReceivedTransportCcFeedbackCount() const = 0;
 };

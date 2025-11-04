@@ -149,7 +149,7 @@ class RtpTransportControllerSend final
 
   std::optional<int> ReceivedCongestionControlFeedbackCount() const override;
   flat_map<uint32_t, ReceivedCongestionControlFeedbackStats>
-  GetCongestionControlFeedbackStatsPerSsrc() const;
+  GetCongestionControlFeedbackStatsPerSsrc() const override;
   std::optional<int> ReceivedTransportCcFeedbackCount() const override;
 
   // Mimics callbacks for packets sent through this transport.
