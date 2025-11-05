@@ -361,6 +361,40 @@ TEST(RtpTransportTest, ReceivedPacketEcnMarkingPropagatedToDemuxedPacket) {
   transport.UnregisterRtpDemuxerSink(&observer);
 }
 
+TEST(RtpTransportTest, RtcpSentAsEct1IfReceivedRtpPacketAsEct1) {
+  AutoThread thread;
+  RtpTransport transport(kMuxDisabled, CreateTestFieldTrials());
+  // Setup FakePacketTransport to send packets to itself.
+  FakePacketTransport fake_rtp("fake_rtp");
+  fake_rtp.SetDestination(&fake_rtp, true);
+  transport.SetRtpPacketTransport(&fake_rtp);
+  // Setup RTCP transport to send to another fake transport.
+  FakePacketTransport fake_rtcp_recipient("rtcp_recipient");
+  FakePacketTransport fake_rtcp("fake_rtcp");
+  fake_rtcp.SetDestination(&fake_rtcp_recipient, true);
+  transport.SetRtcpPacketTransport(&fake_rtcp);
+
+  AsyncSocketPacketOptions rtp_options;
+  rtp_options.ect_1 = true;
+  const int flags = 0;
+  Buffer rtp_data(kRtpData, kRtpLen);
+  // Receive RTP packet as ECT1 (since `fake_rtp` sends packets to `transport`).
+  fake_rtp.SendPacket(rtp_data.data<char>(), kRtpLen, rtp_options, flags);
+
+  CopyOnWriteBuffer rtcp_packet_payload;
+  rtcp_packet_payload.SetData("hello");
+  transport.SendRtcpPacket(&rtcp_packet_payload, AsyncSocketPacketOptions(),
+                           flags);
+  EXPECT_TRUE(fake_rtcp.last_sent_packet_options().ect_1);
+
+  // but if next RTP packet is received as not ect, RTCP is sent as not ECT.
+  rtp_options.ect_1 = false;
+  fake_rtp.SendPacket(rtp_data.data<char>(), kRtpLen, rtp_options, flags);
+  transport.SendRtcpPacket(&rtcp_packet_payload, AsyncSocketPacketOptions(),
+                           flags);
+  EXPECT_FALSE(fake_rtcp.last_sent_packet_options().ect_1);
+}
+
 // Test that SignalPacketReceived does not fire when a RTP packet with an
 // unhandled payload type is received.
 TEST(RtpTransportTest, DontSignalUnhandledRtpPayloadType) {
