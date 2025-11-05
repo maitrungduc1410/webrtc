@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "api/rtp_parameters.h"
 #include "api/transport/ecn_marking.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -103,7 +104,7 @@ TEST(RtpTransportControllerSendTest,
      IgnoresFeedbackForReportedReceivedPacketThatWereNotSent) {
   AutoThread main_thread;
   RtpTransportControllerSend transport({.env = CreateTestEnvironment()});
-  transport.EnableCongestionControlFeedbackAccordingToRfc8888();
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
   PacketSender sender(transport);
   sender.SimulateSentPackets({.ssrc = 123,
                               .first_sequence_number = 111,
@@ -132,7 +133,7 @@ TEST(RtpTransportControllerSendTest,
   constexpr uint32_t kSsrc2 = 2'000;
   AutoThread main_thread;
   RtpTransportControllerSend transport({.env = CreateTestEnvironment()});
-  transport.EnableCongestionControlFeedbackAccordingToRfc8888();
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
 
   PacketSender sender(transport);
   sender.SimulateSentPackets(
@@ -177,7 +178,7 @@ TEST(RtpTransportControllerSendTest,
 TEST(RtpTransportControllerSendTest, CalculatesNumberOfBleachedPackets) {
   AutoThread main_thread;
   RtpTransportControllerSend transport({.env = CreateTestEnvironment()});
-  transport.EnableCongestionControlFeedbackAccordingToRfc8888();
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
   PacketSender sender(transport);
 
   // Packets send as ect1 and received without ect1 are the bleached packets.
@@ -212,7 +213,7 @@ TEST(RtpTransportControllerSendTest,
      AccumulatesNumberOfReportedLostAndRecoveredPackets) {
   AutoThread main_thread;
   RtpTransportControllerSend transport({.env = CreateTestEnvironment()});
-  transport.EnableCongestionControlFeedbackAccordingToRfc8888();
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
 
   PacketSender sender(transport);
   sender.SimulateSentPackets({.first_sequence_number = 1, .num_packets = 30});
@@ -259,7 +260,7 @@ TEST(RtpTransportControllerSendTest,
      DoesNotCountGapsInSequenceNumberBetweenReportsAsLoss) {
   AutoThread main_thread;
   RtpTransportControllerSend transport({.env = CreateTestEnvironment()});
-  transport.EnableCongestionControlFeedbackAccordingToRfc8888();
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
 
   PacketSender sender(transport);
   sender.SimulateSentPackets({.first_sequence_number = 1, .num_packets = 30});

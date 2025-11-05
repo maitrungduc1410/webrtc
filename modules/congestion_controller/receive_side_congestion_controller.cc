@@ -17,6 +17,7 @@
 
 #include "api/environment/environment.h"
 #include "api/media_types.h"
+#include "api/rtp_parameters.h"
 #include "api/sequence_checker.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
@@ -102,14 +103,19 @@ ReceiveSideCongestionController::ReceiveSideCongestionController(
       {&force_send_rfc8888_feedback},
       env.field_trials().Lookup("WebRTC-RFC8888CongestionControlFeedback"));
   if (force_send_rfc8888_feedback) {
-    EnableSendCongestionControlFeedbackAccordingToRfc8888();
+    SetPreferredRtcpCcAckType(RtcpFeedbackType::CCFB);
   }
 }
 
-void ReceiveSideCongestionController::
-    EnableSendCongestionControlFeedbackAccordingToRfc8888() {
+void ReceiveSideCongestionController::SetPreferredRtcpCcAckType(
+    RtcpFeedbackType preferred_rtcp_cc_ack_type) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  send_rfc8888_congestion_feedback_ = true;
+  send_rfc8888_congestion_feedback_ =
+      (preferred_rtcp_cc_ack_type == RtcpFeedbackType::CCFB);
+  RTC_LOG_F(LS_INFO) << " Sending "
+                     << (send_rfc8888_congestion_feedback_ ? " RFC8888"
+                                                           : " TWCC")
+                     << " RTCP feedback.";
 }
 
 void ReceiveSideCongestionController::OnReceivedPacket(
