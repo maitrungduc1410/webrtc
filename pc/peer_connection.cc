@@ -164,8 +164,8 @@ uint32_t ConvertIceTransportTypeToCandidateFilter(
   return CF_NONE;
 }
 
-IceCandidatePairType GetIceCandidatePairCounter(const Candidate& local,
-                                                const Candidate& remote) {
+IceCandidatePairType GetIceCandidatePairType(const Candidate& local,
+                                             const Candidate& remote) {
   if (local.is_local() && remote.is_local()) {
     bool local_hostname =
         !local.address().hostname().empty() && local.address().IsUnresolvedIP();
@@ -2926,14 +2926,15 @@ void PeerConnection::ReportBestConnectionState(const TransportStats& stats) {
       if (local.protocol() == TCP_PROTOCOL_NAME ||
           (local.is_relay() && local.relay_protocol() == TCP_PROTOCOL_NAME)) {
         RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.CandidatePairType_TCP",
-                                  GetIceCandidatePairCounter(local, remote),
+                                  GetIceCandidatePairType(local, remote),
                                   kIceCandidatePairMax);
       } else if (local.protocol() == UDP_PROTOCOL_NAME) {
         RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.CandidatePairType_UDP",
-                                  GetIceCandidatePairCounter(local, remote),
+                                  GetIceCandidatePairType(local, remote),
                                   kIceCandidatePairMax);
       } else {
-        RTC_CHECK_NOTREACHED();
+        RTC_LOG(LS_WARNING) << "ReportBestConnectionState: No histogram for "
+                            << local.protocol();
       }
 
       // Increment the counter for IP type.
