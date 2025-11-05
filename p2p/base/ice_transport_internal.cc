@@ -236,8 +236,7 @@ RTCError IceConfig::IsValid() const {
 
 IceTransportInternal::IceTransportInternal()
     : role_conflict_trampoline_(this),
-      ice_transport_state_changed_trampoline_(this),
-      destroyed_trampoline_(this) {}
+      ice_transport_state_changed_trampoline_(this) {}
 
 IceTransportInternal::~IceTransportInternal() = default;
 

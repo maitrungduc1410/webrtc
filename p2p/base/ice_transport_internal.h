@@ -26,7 +26,6 @@
 #include "api/transport/enums.h"
 #include "api/units/time_delta.h"
 #include "p2p/base/candidate_pair_interface.h"
-#include "p2p/base/connection.h"
 #include "p2p/base/connection_info.h"
 #include "p2p/base/packet_transport_internal.h"
 #include "p2p/base/port.h"
@@ -274,19 +273,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
 
   virtual void SetIceRole(IceRole role) = 0;
 
-  // Default implementation in order to allow downstream usage deletion.
-  // TODO: bugs.webrtc.org/42224914 - Remove when all downstream overrides are
-  // gone.
-  virtual void SetIceTiebreaker(uint64_t /* tiebreaker */) {
-    RTC_CHECK_NOTREACHED();
-  }
-
-  // Returns the latest remote ICE parameters or nullptr if there are no remote
-  // ICE parameters yet.
-  virtual const IceParameters* remote_ice_parameters() const {
-    RTC_CHECK_NOTREACHED();
-  }
-
   // The ufrag and pwd in `ice_params` must be set
   // before candidate gathering can start.
   virtual void SetIceParameters(const IceParameters& ice_params) = 0;
@@ -319,10 +305,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   // Returns RTT estimate over the currently active connection, or an empty
   // std::optional if there is none.
   virtual std::optional<int> GetRttEstimate() = 0;
-
-  // Default implementation in order to allow downstream override deletion.
-  // TODO(qingsi): Remove this method once Chrome does not depend on it anymore.
-  virtual const Connection* selected_connection() const { return nullptr; }
 
   // Returns the selected candidate pair, or an empty std::optional if there is
   // none.
@@ -383,13 +365,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   void SubscribeIceTransportStateChanged(
       absl::AnyInvocable<void(IceTransportInternal*)> callback);
 
-  // TODO: webrtc:457682036 - Remove once downstream callers have been removed
-  void SubscribeDestroyed(
-      void* tag,
-      absl::AnyInvocable<void(IceTransportInternal*)> callback) {}
-  // TODO: webrtc:457682036 - Remove once downstream callers have been removed
-  void UnsubscribeDestroyed(void* tag) {}
-
   // Invoked when remote dictionary has been updated,
   // i.e. modifications to attributes from remote ice agent has
   // reflected in our StunDictionaryView.
@@ -442,7 +417,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   // Slated for replacement with CallbackList.
   sigslot::signal1<IceTransportInternal*> SignalRoleConflict;
   sigslot::signal1<IceTransportInternal*> SignalIceTransportStateChanged;
-  sigslot::signal1<IceTransportInternal*> SignalDestroyed;
 
   CallbackList<IceTransportInternal*, const Candidate&>
       candidate_gathered_callbacks_;
@@ -452,8 +426,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
   SignalTrampoline<IceTransportInternal,
                    &IceTransportInternal::SignalIceTransportStateChanged>
       ice_transport_state_changed_trampoline_;
-  SignalTrampoline<IceTransportInternal, &IceTransportInternal::SignalDestroyed>
-      destroyed_trampoline_;
 };
 
 }  //  namespace webrtc
