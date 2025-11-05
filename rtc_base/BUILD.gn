@@ -408,6 +408,7 @@ rtc_library("platform_thread") {
     ":rtc_event",
     ":timeutils",
     "../api:sequence_checker",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
