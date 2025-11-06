@@ -118,7 +118,8 @@ GainController2::GainController2(
       config.adaptive_digital.enabled) {
     // Create dependencies.
     speech_level_estimator_ = SpeechLevelEstimator::Create(
-        &data_dumper_, config.adaptive_digital, kAdjacentSpeechFramesThreshold);
+        env.field_trials(), &data_dumper_, config.adaptive_digital,
+        kAdjacentSpeechFramesThreshold);
     if (use_internal_vad)
       vad_ = std::make_unique<VoiceActivityDetectorWrapper>(
           kVadResetPeriodMs, cpu_features_, sample_rate_hz);

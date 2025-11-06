@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "api/audio/audio_processing.h"
+#include "api/field_trials_view.h"
 
 namespace webrtc {
 class ApmDataDumper;
@@ -33,6 +34,7 @@ class SpeechLevelEstimator {
   virtual void Reset() = 0;
 
   static std::unique_ptr<SpeechLevelEstimator> Create(
+      const FieldTrialsView& field_trials,
       ApmDataDumper* apm_data_dumper,
       const AudioProcessing::Config::GainController2::AdaptiveDigital& config,
       int adjacent_speech_frames_threshold);
