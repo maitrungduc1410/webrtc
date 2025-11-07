@@ -778,13 +778,12 @@ TEST(L4STest, SendsEct1AfterRouteChange) {
   EXPECT_EQ(packets_sent_with_ect1_stats,
             wifi_feedback_counter.ect1() + cellular_feedback_counter.ect1());
 
-  auto callee_stats = GetStatsAndProcess(s, callee);
-  auto packets_received_with_ect1_stats =
-      GetPacketsReceivedWithEct1(callee_stats);
-  auto packets_received_with_ce_stats = GetPacketsReceivedWithCe(callee_stats);
-  EXPECT_EQ(packets_received_with_ect1_stats, wifi_feedback_counter.ect1());
+  scoped_refptr<const RTCStatsReport> callee_stats =
+      GetStatsAndProcess(s, callee);
+  EXPECT_EQ(GetPacketsReceivedWithEct1(callee_stats),
+            wifi_feedback_counter.ect1() + cellular_feedback_counter.ect1());
   // TODO: bugs.webrtc.org/42225697 - testing CE would be useful.
-  EXPECT_EQ(packets_received_with_ce_stats, 0);
+  EXPECT_EQ(GetPacketsReceivedWithCe(callee_stats), 0);
 }
 
 TEST(L4STest, RtcpSentAsEct1IfRtpWithEct1Received) {
