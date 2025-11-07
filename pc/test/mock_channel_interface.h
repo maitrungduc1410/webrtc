@@ -67,6 +67,10 @@ class MockChannelInterface : public ChannelInterface {
               SetFirstPacketSentCallback,
               (std::function<void()>),
               (override));
+  MOCK_METHOD(void,
+              SetPacketReceivedCallback_n,
+              (std::function<void()>),
+              (override));
   MOCK_METHOD(bool,
               SetLocalContent,
               (const webrtc::MediaContentDescription*, SdpType, std::string&),

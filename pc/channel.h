@@ -151,6 +151,9 @@ class BaseChannel : public ChannelInterface,
   void SetFirstPacketReceivedCallback(std::function<void()> callback) override;
   void SetFirstPacketSentCallback(std::function<void()> callback) override;
 
+  void SetPacketReceivedCallback_n(std::function<void()> callback) override
+      RTC_RUN_ON(network_thread());
+
   // From RtpTransport - public for testing only
   void OnTransportReadyToSend(bool ready);
 
@@ -319,6 +322,9 @@ class BaseChannel : public ChannelInterface,
   std::function<void()> on_first_packet_received_
       RTC_GUARDED_BY(network_thread());
   std::function<void()> on_first_packet_sent_ RTC_GUARDED_BY(network_thread());
+
+  // Used to unmute.
+  std::function<void()> on_packet_received_n_ RTC_GUARDED_BY(network_thread());
 
   RtpTransportInternal* rtp_transport_ RTC_GUARDED_BY(network_thread()) =
       nullptr;

@@ -20,6 +20,10 @@ public class RtpReceiver {
     // Called when the first audio or video packet is received.
     @CalledByNative("Observer")
     public void onFirstPacketReceived(MediaStreamTrack.MediaType media_type);
+    // Called when the first audio or video packet is received after
+    // receptiveness changed.
+    @CalledByNative("Observer")
+    public void onFirstPacketReceivedAfterReceptiveChange(MediaStreamTrack.MediaType media_type);
   }
 
   private long nativeRtpReceiver;
