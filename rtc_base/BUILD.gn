@@ -902,16 +902,12 @@ rtc_library("async_dns_resolver_unittests") {
   sources = [ "async_dns_resolver_unittest.cc" ]
   deps = [
     ":async_dns_resolver",
-    ":gunit_helpers",
     ":logging",
     ":net_helpers",
     ":socket_address",
     ":threading",
-    "../api:rtc_error_matchers",
-    "../api/units:time_delta",
     "../test:run_loop",
     "../test:test_support",
-    "../test:wait_until",
   ]
 }
 
