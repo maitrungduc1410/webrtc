@@ -9,12 +9,17 @@
  */
 #include "api/task_queue/task_queue_test.h"
 
+#ifdef BUILD_EXPERIMENTAL_TASK_QUEUE_COROUTINE_TESTS
+#include <coroutine>
+#endif
+
 #include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/ref_count.h"
 #include "api/task_queue/task_queue_base.h"
@@ -350,6 +355,68 @@ TEST_P(TaskQueueTest, PostTwoWithSharedUnprotectedState) {
   });
   EXPECT_TRUE(done.Wait(TimeDelta::Seconds(1)));
 }
+
+#ifdef BUILD_EXPERIMENTAL_TASK_QUEUE_COROUTINE_TESTS
+
+struct TaskQueueCoroutine {
+  TaskQueueBase* const tq;
+
+  bool await_ready() const noexcept { return tq->IsCurrent(); }
+  void await_suspend(std::coroutine_handle<> h) const {
+    tq->PostTask([h = std::move(h)]() { h.resume(); });
+  }
+  void await_resume() const noexcept {}
+};
+
+struct TaskQueueCoTask {
+  struct promise_type {
+    TaskQueueCoTask get_return_object() { return {}; }
+    std::suspend_never initial_suspend() { return {}; }
+    std::suspend_never final_suspend() noexcept { return {}; }
+    void return_void() {}
+    void unhandled_exception() { FAIL() << "exceptional!"; }
+  };
+};
+
+// A test implementation of a coroutine on top of task queues.
+// This method is called on one TQ, original, switches over to the
+// `hop_to` task queue to do some work and then switches back to
+// the original task queue again and invoke the `done_cb` callback.
+TaskQueueCoTask HoppingCoroutine(absl::AnyInvocable<void() &&> done_cb,
+                                 TaskQueueBase* hop_to) {
+  TaskQueueBase* original = TaskQueueBase::Current();
+
+  // Switch to the `hop_to` task queue.
+  co_await TaskQueueCoroutine{hop_to};
+  EXPECT_FALSE(original->IsCurrent());
+  EXPECT_TRUE(hop_to->IsCurrent());
+
+  // Switch back to the original task queue.
+  co_await TaskQueueCoroutine{original};
+  EXPECT_TRUE(original->IsCurrent());
+  EXPECT_FALSE(hop_to->IsCurrent());
+
+  // Try switching again to the same, original, task queue. This tests not
+  // continuing on without any switching.
+  co_await TaskQueueCoroutine{original};
+  EXPECT_TRUE(original->IsCurrent());
+  EXPECT_FALSE(hop_to->IsCurrent());
+
+  std::move(done_cb)();
+}
+
+TEST_P(TaskQueueTest, Coroutine) {
+  std::unique_ptr<TaskQueueFactory> factory = GetParam()(nullptr);
+  Event event;
+  auto queue1 = CreateTaskQueue(factory, "CoroutineTQ1");
+  auto queue2 = CreateTaskQueue(factory, "CoroutineTQ2");
+  queue1->PostTask([&event, &queue2] {
+    HoppingCoroutine([&event]() { event.Set(); }, queue2.get());
+  });
+  EXPECT_TRUE(event.Wait(TimeDelta::Seconds(1)));
+}
+
+#endif  // BUILD_EXPERIMENTAL_TASK_QUEUE_COROUTINE_TESTS
 
 // TaskQueueTest is a set of tests for any implementation of the TaskQueueBase.
 // Tests are instantiated next to the concrete implementation(s).
