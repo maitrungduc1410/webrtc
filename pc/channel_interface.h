@@ -79,9 +79,6 @@ class ChannelInterface {
       std::function<void()> callback) = 0;
   virtual void SetFirstPacketSentCallback(std::function<void()> callback) = 0;
 
-  // Used to unmute.
-  virtual void SetPacketReceivedCallback_n(std::function<void()> callback) = 0;
-
   // Channel control
   virtual bool SetLocalContent(const MediaContentDescription* content,
                                SdpType type,

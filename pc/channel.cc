@@ -429,13 +429,6 @@ void BaseChannel::SetFirstPacketSentCallback(std::function<void()> callback) {
   on_first_packet_sent_ = std::move(callback);
 }
 
-void BaseChannel::SetPacketReceivedCallback_n(std::function<void()> callback) {
-  RTC_DCHECK_RUN_ON(network_thread());
-  RTC_DCHECK(!on_packet_received_n_ || !callback);
-
-  on_packet_received_n_ = std::move(callback);
-}
-
 void BaseChannel::OnTransportReadyToSend(bool ready) {
   RTC_DCHECK_RUN_ON(network_thread());
   RTC_DCHECK(network_initialized());
@@ -518,9 +511,6 @@ void BaseChannel::OnRtpPacket(const RtpPacketReceived& parsed_packet) {
                            "SRTP is inactive and crypto is required "
                         << ToString();
     return;
-  }
-  if (on_packet_received_n_) {
-    on_packet_received_n_();
   }
   media_receive_channel()->OnPacketReceived(parsed_packet);
 }
