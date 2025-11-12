@@ -22,6 +22,7 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "call/payload_type_picker.h"
 #include "media/sctp/sctp_transport_internal.h"
@@ -39,7 +40,6 @@
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/ssl_stream_adapter.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -273,7 +273,7 @@ class JsepTransport {
                          TransportStats* stats) const;
 
   // Owning thread, for safety checks
-  const Thread* const network_thread_;
+  const TaskQueueBase* const network_thread_;
   const std::string mid_;
   // needs-ice-restart bit as described in JSEP.
   bool needs_ice_restart_ RTC_GUARDED_BY(network_thread_) = false;
