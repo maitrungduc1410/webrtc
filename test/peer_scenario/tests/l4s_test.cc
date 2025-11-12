@@ -28,6 +28,7 @@
 #include "api/test/network_emulation/network_queue.h"
 #include "api/test/network_emulation_manager.h"
 #include "api/transport/ecn_marking.h"
+#include "api/transport/stun.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -787,29 +788,32 @@ TEST(L4STest, SendsEct1AfterRouteChange) {
 }
 
 TEST(L4STest, RtcpSentAsEct1IfRtpWithEct1Received) {
+  int ecn_count = 0;
+  int not_ect_count = 0;
   PeerScenario s(*test_info_);
   PeerScenarioClient::Config config;
   config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
                           "Enabled,offer:true");
   config.field_trials.Set("WebRTC-Bwe-ScreamV2", "Enabled");
-  config.disable_encryption = true;
   PeerScenarioClient* caller = s.CreateClient(config);
   PeerScenarioClient* callee = s.CreateClient(config);
   EmulatedNetworkNode* caller_to_callee_node =
       s.net()->NodeBuilder().Build().node;
   EmulatedNetworkNode* callee_to_caller_node =
       s.net()->NodeBuilder().Build().node;
-  int rtcp_ecn_count = 0;
-  int rtcp_not_ect_count = 0;
+  // Callee is not sending media - Thus if Stun is ignored, most packets should
+  // be RTCP. Negotiation is still done using not ECT.
   callee_to_caller_node->router()->SetWatcher(
       [&](const EmulatedIpPacket& packet) {
-        if (!IsRtcpPacket(packet.data)) {
+        if (StunMessage::ValidateFingerprint(
+                reinterpret_cast<const char*>(packet.data.data()),
+                packet.data.size())) {
           return;
         }
         if (packet.ecn == EcnMarking::kEct1 || packet.ecn == EcnMarking::kCe) {
-          rtcp_ecn_count++;
+          ecn_count++;
         } else {
-          rtcp_not_ect_count++;
+          not_ect_count++;
         }
       });
 
@@ -822,11 +826,15 @@ TEST(L4STest, RtcpSentAsEct1IfRtpWithEct1Received) {
                      {callee_to_caller_node});
   s.ProcessMessages(TimeDelta::Seconds(1));
 
-  EXPECT_GT(rtcp_ecn_count, 0);
-  EXPECT_EQ(rtcp_not_ect_count, 0);
+  // Feedback is sent every 25ms. Expect more than 20 feedback packets during
+  // 1S.
+  EXPECT_GT(ecn_count, 20);
+  EXPECT_LT(not_ect_count, 10);
 }
 
 TEST(L4STest, RtcpSentAsNotEctIfRtpEcnBleached) {
+  int rtcp_ecn_count = 0;
+  int rtcp_not_ect_count = 0;
   PeerScenario s(*test_info_);
   PeerScenarioClient::Config config;
   config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
@@ -840,8 +848,6 @@ TEST(L4STest, RtcpSentAsNotEctIfRtpEcnBleached) {
       s.net()->NodeBuilder().config({.forward_ecn = false}).Build().node;
   EmulatedNetworkNode* callee_to_caller_node =
       s.net()->NodeBuilder().Build().node;
-  int rtcp_ecn_count = 0;
-  int rtcp_not_ect_count = 0;
 
   callee_to_caller_node->router()->SetWatcher(
       [&](const EmulatedIpPacket& packet) {

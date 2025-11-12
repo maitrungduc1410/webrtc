@@ -89,7 +89,7 @@ bool SrtpTransport::SendRtpPacket(CopyOnWriteBuffer* packet,
     return false;
   }
 
-  return SendPacket(/*rtcp=*/false, packet, updated_options, flags);
+  return RtpTransport::SendRtpPacket(packet, updated_options, flags);
 }
 
 bool SrtpTransport::SendRtcpPacket(CopyOnWriteBuffer* packet,
@@ -111,7 +111,7 @@ bool SrtpTransport::SendRtcpPacket(CopyOnWriteBuffer* packet,
     return false;
   }
 
-  return SendPacket(/*rtcp=*/true, packet, options, flags);
+  return RtpTransport::SendRtcpPacket(packet, options, flags);
 }
 
 void SrtpTransport::OnRtpPacketReceived(const ReceivedIpPacket& packet) {
