@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "api/array_view.h"
 #include "api/field_trials_view.h"
 #include "api/units/timestamp.h"
 #include "call/rtp_demuxer.h"
@@ -158,8 +159,8 @@ void SrtpTransport::OnRtcpPacketReceived(const ReceivedIpPacket& packet) {
                       << payload.size() << ", type=" << type;
     return;
   }
-  SendRtcpPacketReceived(
-      &payload, packet.arrival_time() ? packet.arrival_time()->us() : -1);
+  SendRtcpPacketReceived(std::move(payload), packet.arrival_time(),
+                         packet.ecn());
 }
 
 void SrtpTransport::OnNetworkRouteChanged(

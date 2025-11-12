@@ -292,6 +292,7 @@ rtc_library("jsep_transport_controller") {
     ":session_description",
     ":srtp_transport",
     ":transport_stats",
+    "../api:array_view",
     "../api:async_dns_resolver",
     "../api:candidate",
     "../api:dtls_transport_interface",
@@ -308,8 +309,10 @@ rtc_library("jsep_transport_controller") {
     "../api/environment",
     "../api/rtc_event_log",
     "../api/transport:datagram_transport_interface",
+    "../api/transport:ecn_marking",
     "../api/transport:enums",
     "../api/transport:sctp_transport_factory_interface",
+    "../api/units:timestamp",
     "../call:payload_type",
     "../call:payload_type_picker",
     "../media:codec",
@@ -623,7 +626,10 @@ rtc_source_set("rtp_transport_internal") {
   sources = [ "rtp_transport_internal.h" ]
   deps = [
     ":session_description",
+    "../api:array_view",
     "../api/task_queue:pending_task_safety_flag",
+    "../api/transport:ecn_marking",
+    "../api/units:timestamp",
     "../call:rtp_receiver",
     "../p2p:ice_transport_internal",
     "../rtc_base:async_packet_socket",
@@ -725,6 +731,7 @@ rtc_library("srtp_transport") {
   deps = [
     ":rtp_transport",
     ":srtp_session",
+    "../api:array_view",
     "../api:field_trials_view",
     "../api/units:timestamp",
     "../call:rtp_receiver",
