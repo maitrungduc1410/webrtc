@@ -822,11 +822,11 @@ deps = {
       'dep_type': 'cipd',
   },
 
-  'src/third_party/pipewire-1.4/linux-amd64': {
+  'src/third_party/pipewire/linux-amd64': {
     'packages': [
       {
-        'package': 'chromium/third_party/pipewire-1.4/linux-amd64',
-        'version': 'xAD2XsckE3TvjGoQxWHeV7wkJ_L-XVDOUJhqK91yIYgC',
+        'package': 'chromium/third_party/pipewire/linux-amd64',
+        'version': 'WccKnxvPRn8TBwQ4FUxoHaZRKvHXh0qJjODccy3gPTAC',
       },
       {
         'package': 'chromium/third_party/wireplumber/linux-amd64',
