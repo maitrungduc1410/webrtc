@@ -108,6 +108,7 @@ rtc_library("channel") {
     "../rtc_base/containers:flat_set",
     "../rtc_base/network:sent_packet",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -123,6 +124,7 @@ rtc_source_set("channel_interface") {
     "../media:media_channel",
     "../media:rtc_media_config",
     "../media:stream_params",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
