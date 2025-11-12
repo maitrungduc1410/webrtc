@@ -134,6 +134,12 @@ class SignalTrampoline
   using Base = internal::SignalTrampolineMemberBase<T, member_signal>;
 
  public:
+  // Because a SignalTrampoline is initialized with a pointer to its
+  // container, it's not possible to move or copy it.
+  SignalTrampoline(const SignalTrampoline&) = delete;
+  SignalTrampoline& operator=(const SignalTrampoline&) = delete;
+  SignalTrampoline(SignalTrampoline&&) = delete;
+  SignalTrampoline& operator=(SignalTrampoline&&) = delete;
   explicit SignalTrampoline(T* that) {
     (that->*member_signal).connect(static_cast<Base*>(this), &Base::Notify);
   }
