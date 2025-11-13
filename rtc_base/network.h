@@ -227,10 +227,7 @@ class RTC_EXPORT Network {
           int prefix_length,
           AdapterType type);
   // A Network is immovable.
-  // Until we can convert all users to Clone(), we have to preserve
-  // a Copy and Move operator.
-  // TODO: https://issues.webrtc.org/458708077 - delete this operator.
-  Network(const Network&);
+  Network(const Network&) = delete;
   Network& operator=(const Network&) = delete;
   Network(Network&&) = default;
   Network& operator=(Network&&) = delete;
