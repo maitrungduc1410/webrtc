@@ -1126,7 +1126,10 @@ if (is_android) {
       "log",
       "GLESv2",
     ]
-    deps = [ "//third_party/abseil-cpp/absl/cleanup" ]
+    deps = [
+      ":checks",
+      "//third_party/abseil-cpp/absl/cleanup",
+    ]
   }
 }
 
