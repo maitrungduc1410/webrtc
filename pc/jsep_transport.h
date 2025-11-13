@@ -11,12 +11,12 @@
 #ifndef PC_JSEP_TRANSPORT_H_
 #define PC_JSEP_TRANSPORT_H_
 
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/ice_transport_interface.h"
 #include "api/jsep.h"
 #include "api/rtc_error.h"
@@ -87,7 +87,7 @@ class JsepTransport {
                 std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
                 std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport,
                 std::unique_ptr<SctpTransportInternal> sctp_transport,
-                std::function<void()> rtcp_mux_active_callback,
+                absl::AnyInvocable<void()> rtcp_mux_active_callback,
                 PayloadTypePicker& suggester);
 
   ~JsepTransport();
@@ -313,7 +313,7 @@ class JsepTransport {
   // This is invoked when RTCP-mux becomes active and
   // `rtcp_dtls_transport_` is destroyed. The JsepTransportController will
   // receive the callback and update the aggregate transport states.
-  std::function<void()> rtcp_mux_active_callback_;
+  absl::AnyInvocable<void()> rtcp_mux_active_callback_;
 
   // Assigned PTs from the remote description, used when sending.
   PayloadTypeRecorder remote_payload_types_ RTC_GUARDED_BY(network_thread_);
