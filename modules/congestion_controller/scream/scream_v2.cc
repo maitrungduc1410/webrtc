@@ -42,15 +42,6 @@ DataSize DataUnitsAckedAndNotMarked(const TransportPacketsFeedback& msg) {
   return acked_not_marked;
 }
 
-bool HasCeMarking(const TransportPacketsFeedback& msg) {
-  for (const auto& packet : msg.PacketsWithFeedback()) {
-    if (packet.ecn == EcnMarking::kCe) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool HasLostPackets(const TransportPacketsFeedback& msg) {
   for (const auto& packet : msg.PacketsWithFeedback()) {
     if (!packet.IsReceived()) {
@@ -121,7 +112,7 @@ void ScreamV2::UpdateRefWindowAndTargetRate(
   const TimeDelta non_zero_smoothed_rtt =
       std::max(msg.smoothed_rtt, TimeDelta::Millis(1));
 
-  bool is_ce = HasCeMarking(msg);
+  bool is_ce = msg.HasPacketWithEcnCe();
   bool is_loss = HasLostPackets(msg);
   bool is_virtual_ce = false;
   double virtual_alpha_lim =
