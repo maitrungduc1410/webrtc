@@ -19,7 +19,9 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#ifdef BUILD_EXPERIMENTAL_TASK_QUEUE_COROUTINE_TESTS
 #include "absl/functional/any_invocable.h"
+#endif
 #include "absl/strings/string_view.h"
 #include "api/make_ref_counted.h"
 #include "api/ref_count.h"
