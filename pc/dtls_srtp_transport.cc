@@ -11,11 +11,11 @@
 #include "pc/dtls_srtp_transport.h"
 
 #include <cstdint>
-#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/dtls_transport_interface.h"
 #include "api/field_trials_view.h"
 #include "p2p/base/packet_transport_internal.h"
@@ -319,7 +319,7 @@ void DtlsSrtpTransport::OnWritableState(
 }
 
 void DtlsSrtpTransport::SetOnDtlsStateChange(
-    std::function<void(void)> callback) {
+    absl::AnyInvocable<void()> callback) {
   on_dtls_state_change_ = std::move(callback);
 }
 }  // namespace webrtc

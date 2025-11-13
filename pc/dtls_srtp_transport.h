@@ -12,10 +12,10 @@
 #define PC_DTLS_SRTP_TRANSPORT_H_
 
 #include <cstdint>
-#include <functional>
 #include <optional>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/dtls_transport_interface.h"
 #include "api/field_trials_view.h"
 #include "p2p/base/packet_transport_internal.h"
@@ -46,7 +46,7 @@ class DtlsSrtpTransport : public SrtpTransport {
   void UpdateRecvEncryptedHeaderExtensionIds(
       const std::vector<int>& recv_extension_ids);
 
-  void SetOnDtlsStateChange(std::function<void(void)> callback);
+  void SetOnDtlsStateChange(absl::AnyInvocable<void()> callback);
 
   // If `active_reset_srtp_params_` is set to be true, the SRTP parameters will
   // be reset whenever the DtlsTransports are reset.
@@ -86,7 +86,7 @@ class DtlsSrtpTransport : public SrtpTransport {
   std::optional<std::vector<int>> recv_extension_ids_;
 
   bool active_reset_srtp_params_ = false;
-  std::function<void(void)> on_dtls_state_change_;
+  absl::AnyInvocable<void()> on_dtls_state_change_;
 };
 
 }  // namespace webrtc
