@@ -12,7 +12,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -22,6 +21,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "api/audio_codecs/audio_codec_pair_id.h"
@@ -137,7 +137,7 @@ RtpTransceiver::RtpTransceiver(
     ConnectionContext* context,
     CodecLookupHelper* codec_lookup_helper,
     std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
-    std::function<void()> on_negotiation_needed)
+    absl::AnyInvocable<void()> on_negotiation_needed)
     : env_(env),
       thread_(GetCurrentTaskQueueOrThread()),
       unified_plan_(true),
@@ -210,7 +210,8 @@ RTCError RtpTransceiver::CreateChannel(
     const AudioOptions& audio_options,
     const VideoOptions& video_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
-    std::function<RtpTransportInternal*(absl::string_view)> transport_lookup) {
+    absl::AnyInvocable<RtpTransportInternal*(absl::string_view) &&>
+        transport_lookup) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!channel());
 
@@ -281,13 +282,14 @@ RTCError RtpTransceiver::CreateChannel(
           context()->ssrc_generator());
     });
   }
-  SetChannel(std::move(new_channel), transport_lookup);
+  SetChannel(std::move(new_channel), std::move(transport_lookup));
   return RTCError::OK();
 }
 
 void RtpTransceiver::SetChannel(
     std::unique_ptr<ChannelInterface> channel,
-    std::function<RtpTransportInternal*(const std::string&)> transport_lookup) {
+    absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
+        transport_lookup) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(channel);
   RTC_DCHECK(transport_lookup);
@@ -313,7 +315,7 @@ void RtpTransceiver::SetChannel(
   // helps with keeping the channel implementation requirements being met and
   // avoids synchronization for accessing the pointer or network related state.
   context()->network_thread()->BlockingCall([&]() {
-    channel_->SetRtpTransport(transport_lookup(channel_->mid()));
+    channel_->SetRtpTransport(std::move(transport_lookup)(channel_->mid()));
     channel_->SetFirstPacketReceivedCallback(
         [thread = thread_, flag = signaling_thread_safety_, this]() mutable {
           thread->PostTask(
