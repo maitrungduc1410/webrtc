@@ -344,7 +344,8 @@ ios_builder("iOS64 Release", "iOS|arm64|rel")
 ios_try_job("ios_compile_arm64_rel")
 ios_builder("iOS Debug (simulator)", "iOS|x64|sim")
 
-ios_try_job("ios_dbg_simulator")
+# TODO: https://issues.webrtc.org/460264453 - Re-enable when reliable
+ios_try_job("ios_dbg_simulator", cq = None)
 ios_builder("iOS API Framework Builder", "iOS|fat|size", recipe = "ios_api_framework", prioritized = True)
 ios_try_job("ios_api_framework", recipe = "ios_api_framework")
 
