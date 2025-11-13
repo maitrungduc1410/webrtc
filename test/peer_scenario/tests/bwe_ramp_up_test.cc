@@ -9,6 +9,8 @@
  */
 
 #include <atomic>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -20,7 +22,9 @@
 #include "api/scoped_refptr.h"
 #include "api/stats/rtc_stats_report.h"
 #include "api/stats/rtcstats_objects.h"
+#include "api/test/network_emulation/dual_pi2_network_queue.h"
 #include "api/test/network_emulation/network_emulation_interfaces.h"
+#include "api/test/network_emulation/network_queue.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
@@ -198,8 +202,11 @@ TEST(BweRampupTest, RampUpWithUndemuxableRtpPackets) {
 }
 
 struct InitialProbeTestParams {
+  std::string test_name;
+  bool l4s_network = false;
   DataRate network_capacity;
   DataRate expected_bwe_min;
+  std::optional<DataRate> max_bwe;
 };
 class BweRampupWithInitialProbeTest
     : public Test,
@@ -210,13 +217,36 @@ INSTANTIATE_TEST_SUITE_P(
     BweRampupWithInitialProbeTest,
     ValuesIn<InitialProbeTestParams>(
         {{
+             .test_name = "3Mbit",
              .network_capacity = DataRate::KilobitsPerSec(3000),
              .expected_bwe_min = DataRate::KilobitsPerSec(2500),
          },
          {
+             .test_name = "500Kbit",
              .network_capacity = DataRate::KilobitsPerSec(500),
              .expected_bwe_min = DataRate::KilobitsPerSec(400),
-         }}));
+         },
+         {
+             .test_name = "L4s3Mbit",
+             .l4s_network = true,
+             .network_capacity = DataRate::KilobitsPerSec(3000),
+             .expected_bwe_min = DataRate::KilobitsPerSec(2200),
+             // TODO: bugs.webrtc.org/447037083 - BWE should be less than
+             // network capacity.
+             .max_bwe = DataRate::KilobitsPerSec(3200),
+         },
+         {
+             .test_name = "L4s500Kbit",
+             .l4s_network = true,
+             .network_capacity = DataRate::KilobitsPerSec(500),
+             .expected_bwe_min = DataRate::KilobitsPerSec(250),
+             // TODO: bugs.webrtc.org/447037083 - BWE should be less than
+             // network capacity.
+             .max_bwe = DataRate::KilobitsPerSec(600),
+         }}),
+    [](const ::testing::TestParamInfo<InitialProbeTestParams>& info) {
+      return info.param.test_name;
+    });
 
 class MockRtpSenderObserver : public RtpSenderObserverInterface {
  public:
@@ -229,9 +259,14 @@ class MockRtpSenderObserver : public RtpSenderObserverInterface {
 TEST_P(BweRampupWithInitialProbeTest, BweRampUpBothDirectionsWithoutMedia) {
   PeerScenario s(*::testing::UnitTest::GetInstance()->current_test_info());
   InitialProbeTestParams test_params = GetParam();
-
-  PeerScenarioClient* caller = s.CreateClient({});
-  PeerScenarioClient* callee = s.CreateClient({});
+  PeerScenarioClient::Config config;
+  if (test_params.l4s_network) {
+    config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
+                            "Enabled,offer:true");
+    config.field_trials.Set("WebRTC-Bwe-ScreamV2", "Enabled");
+  }
+  PeerScenarioClient* caller = s.CreateClient(config);
+  PeerScenarioClient* callee = s.CreateClient(config);
 
   auto transceiver = caller->pc()->AddTransceiver(MediaType::VIDEO);
   ASSERT_TRUE(transceiver.error().ok());
@@ -245,8 +280,17 @@ TEST_P(BweRampupWithInitialProbeTest, BweRampUpBothDirectionsWithoutMedia) {
   callee->pc()->ReconfigureBandwidthEstimation(
       {.allow_probe_without_media = true});
 
-  auto node_builder =
-      s.net()->NodeBuilder().capacity_kbps(test_params.network_capacity.kbps());
+  auto node_builder = s.net()
+                          ->NodeBuilder()
+                          .capacity_kbps(test_params.network_capacity.kbps())
+                          .delay_ms(20);
+  std::unique_ptr<NetworkQueueFactory> queue_factory;
+  if (test_params.l4s_network) {
+    queue_factory = std::make_unique<DualPi2NetworkQueueFactory>(
+        DualPi2NetworkQueue::Config({.target_delay = TimeDelta::Millis(25)}));
+    node_builder.queue_factory(*queue_factory);
+  }
+
   auto caller_node = node_builder.Build().node;
   auto callee_node = node_builder.Build().node;
   s.net()->CreateRoute(caller->endpoint(), {caller_node}, callee->endpoint());
@@ -290,7 +334,12 @@ TEST_P(BweRampupWithInitialProbeTest, BweRampUpBothDirectionsWithoutMedia) {
 
   DataRate caller_bwe = GetAvailableSendBitrate(GetStatsAndProcess(s, caller));
   EXPECT_GT(caller_bwe.kbps(), test_params.expected_bwe_min.kbps());
-  EXPECT_LE(caller_bwe.kbps(), test_params.network_capacity.kbps());
+  if (test_params.max_bwe.has_value()) {
+    EXPECT_LE(caller_bwe.kbps(), test_params.max_bwe->kbps());
+  } else {
+    EXPECT_LE(caller_bwe.kbps(), test_params.network_capacity.kbps());
+  }
+
   DataRate callee_bwe = GetAvailableSendBitrate(GetStatsAndProcess(s, callee));
   EXPECT_GT(callee_bwe.kbps(), test_params.expected_bwe_min.kbps());
   EXPECT_LE(callee_bwe.kbps(), test_params.network_capacity.kbps());
