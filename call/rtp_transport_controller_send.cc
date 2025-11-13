@@ -650,6 +650,11 @@ void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
   packet_router_.ConfigureForRtcpFeedback(
       /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
       sending_packets_as_ect1_);
+  // TODO: bugs.webrtc.org/447037083 - Remove method
+  // IncludeOverheadInPacedSender once once support for RFC8888 is per default
+  // enabled. SetPreferredRtcpCcAckType is only called if field trial
+  // "WebRTC-RFC8888CongestionControlFeedback" is enabled.
+  pacer_.SetIncludeOverhead();
 }
 
 std::optional<int>
