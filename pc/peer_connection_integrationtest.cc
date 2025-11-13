@@ -215,61 +215,6 @@ TEST_P(PeerConnectionIntegrationTest,
                      }));
 }
 
-TEST_P(PeerConnectionIntegrationTest,
-       RtpReceiverObserverOnFirstPacketReceivedAfterInactive) {
-  if (sdp_semantics_ != SdpSemantics::kUnifiedPlan) {
-    GTEST_SKIP() << "Only supported in unified plan.";
-  }
-  ASSERT_TRUE(CreatePeerConnectionWrappers());
-  ConnectFakeSignaling();
-  caller()->AddAudioVideoTracks();
-  callee()->AddAudioVideoTracks();
-  // Start offer/answer exchange and wait for it to complete.
-  caller()->CreateAndSetAndSignalOffer();
-  ASSERT_THAT(WaitUntil([&] { return SignalingStateStable(); }, IsTrue()),
-              IsRtcOk());
-  // Should be one receiver each for audio/video.
-  EXPECT_EQ(2U, caller()->rtp_receiver_observers().size());
-  // Wait for all "first packet received" callbacks to be fired.
-  EXPECT_THAT(WaitUntil(
-                  [&] {
-                    return absl::c_all_of(
-                        caller()->rtp_receiver_observers(),
-                        [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
-                          return o->first_packet_received();
-                        });
-                  },
-                  IsTrue(), {.timeout = kMaxWaitForFrames}),
-              IsRtcOk());
-
-  // Renegotiate, going inactive and back to sendrecv.
-  for (auto& transceiver : caller()->pc()->GetTransceivers()) {
-    transceiver->SetDirectionWithError(RtpTransceiverDirection::kInactive);
-  }
-  caller()->CreateAndSetAndSignalOffer();
-  ASSERT_THAT(WaitUntil([&] { return SignalingStateStable(); }, IsTrue()),
-              IsRtcOk());
-
-  callee()->ResetRtpReceiverObservers();
-  for (auto& transceiver : caller()->pc()->GetTransceivers()) {
-    transceiver->SetDirectionWithError(RtpTransceiverDirection::kSendRecv);
-  }
-  caller()->CreateAndSetAndSignalOffer();
-  ASSERT_THAT(WaitUntil([&] { return SignalingStateStable(); }, IsTrue()),
-              IsRtcOk());
-  EXPECT_THAT(
-      WaitUntil(
-          [&] {
-            return absl::c_all_of(
-                caller()->rtp_receiver_observers(),
-                [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
-                  return o->first_packet_received_after_receptive_change();
-                });
-          },
-          IsTrue(), {.timeout = kMaxWaitForFrames}),
-      IsRtcOk());
-}
-
 TEST_P(PeerConnectionIntegrationTest, RtpSenderObserverOnFirstPacketSent) {
   ASSERT_TRUE(CreatePeerConnectionWrappers());
   ConnectFakeSignaling();

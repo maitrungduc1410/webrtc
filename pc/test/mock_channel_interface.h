@@ -67,10 +67,6 @@ class MockChannelInterface : public ChannelInterface {
               SetFirstPacketSentCallback,
               (absl::AnyInvocable<void() &&>),
               (override));
-  MOCK_METHOD(void,
-              SetPacketReceivedCallback_n,
-              (absl::AnyInvocable<void()>),
-              (override));
   MOCK_METHOD(bool,
               SetLocalContent,
               (const webrtc::MediaContentDescription*, SdpType, std::string&),

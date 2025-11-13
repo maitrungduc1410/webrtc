@@ -80,10 +80,6 @@ class ChannelInterface {
   virtual void SetFirstPacketSentCallback(
       absl::AnyInvocable<void() &&> callback) = 0;
 
-  // Used to unmute.
-  virtual void SetPacketReceivedCallback_n(
-      absl::AnyInvocable<void()> callback) = 0;
-
   // Channel control
   virtual bool SetLocalContent(const MediaContentDescription* content,
                                SdpType type,

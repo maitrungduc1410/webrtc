@@ -13,8 +13,6 @@
 
 #include <stddef.h>
 
-#include <atomic>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -315,7 +313,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
     return *codec_lookup_helper_->GetCodecVendor();
   }
   void OnFirstPacketReceived();
-  void OnPacketReceived() RTC_RUN_ON(context()->network_thread());
   void OnFirstPacketSent();
   void StopSendingAndReceiving();
   // Tell the senders and receivers about possibly-new media channels
@@ -354,9 +351,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   bool created_by_addtrack_ = false;
   bool reused_for_addtrack_ = false;
   bool has_ever_been_used_to_send_ = false;
-  std::atomic<bool> receptive_ = false;
-  bool packet_notified_after_receptive_
-      RTC_GUARDED_BY(context()->network_thread()) = false;
+  bool receptive_ RTC_GUARDED_BY(thread_) = false;
 
   // Accessed on both thread_ and the network thread. Considered safe
   // because all access on the network thread is within an invoke()

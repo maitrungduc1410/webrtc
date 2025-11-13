@@ -48,12 +48,6 @@ RTC_OBJC_EXPORT
     - (void)rtpReceiver : (RTC_OBJC_TYPE(RTCRtpReceiver) *)
                               rtpReceiver didReceiveFirstPacketForMediaType
     : (RTCRtpMediaType)mediaType;
-/** Called when the first RTP packet is received after a change in
- * receptiveness.
- */
-- (void)rtpReceiver:(RTC_OBJC_TYPE(RTCRtpReceiver) *)rtpReceiver
-    didReceiveFirstPacketForMediaTypeAfterReceptiveChange:
-        (RTCRtpMediaType)mediaType;
 
 @end
 
