@@ -102,8 +102,14 @@ void ScreamV2::UpdateL4SAlpha(const TransportPacketsFeedback& msg) {
   }
 
   double fraction_marked = data_units_marked / received_packets.size();
-  l4s_alpha_ = params_.l4s_avg_g.Get() * fraction_marked +
-               (1.0 - params_.l4s_avg_g.Get()) * l4s_alpha_;
+  // Fast attack slow decay EWMA filter.
+  if (fraction_marked > l4s_alpha_) {
+    l4s_alpha_ = std::min(params_.l4s_avg_g_up.Get() * fraction_marked +
+                              (1.0 - params_.l4s_avg_g_up.Get()) * l4s_alpha_,
+                          1.0);
+  } else {
+    l4s_alpha_ = (1.0 - params_.l4s_avg_g_down.Get()) * l4s_alpha_;
+  }
 }
 
 void ScreamV2::UpdateRefWindowAndTargetRate(
