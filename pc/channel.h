@@ -153,6 +153,9 @@ class BaseChannel : public ChannelInterface,
   void SetFirstPacketSentCallback(
       absl::AnyInvocable<void() &&> callback) override;
 
+  void SetPacketReceivedCallback_n(absl::AnyInvocable<void()> callback) override
+      RTC_RUN_ON(network_thread());
+
   // From RtpTransport - public for testing only
   void OnTransportReadyToSend(bool ready);
 
@@ -321,6 +324,10 @@ class BaseChannel : public ChannelInterface,
   absl::AnyInvocable<void() &&> on_first_packet_received_
       RTC_GUARDED_BY(network_thread());
   absl::AnyInvocable<void() &&> on_first_packet_sent_
+      RTC_GUARDED_BY(network_thread());
+
+  // Used to unmute.
+  absl::AnyInvocable<void()> on_packet_received_n_
       RTC_GUARDED_BY(network_thread());
 
   RtpTransportInternal* rtp_transport_ RTC_GUARDED_BY(network_thread()) =
