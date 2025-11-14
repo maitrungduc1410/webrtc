@@ -20,8 +20,6 @@ WEBRTC_GIT = "https://webrtc.googlesource.com/src"
 # useful when a failure can be safely ignored while fixing it without
 # blocking the LKGR finder on it.
 skipped_lkgr_bots = [
-    # TODO: b/459991548 - Re-enable once the root cause has been fixed.
-    "Android32 (more configs)",
     # TODO: https://issues.webrtc.org/460264453 - Re-enable when reliable
     "iOS Debug (simulator)",
 ]
