@@ -42,19 +42,14 @@
 #include "rtc_base/logging.h"
 #include "rtc_base/string_encode.h"
 #include "rtc_base/strings/string_builder.h"
+#include "rtc_base/thread.h"
 
 #ifdef RTC_ENABLE_H265
 #include "api/video_codecs/h265_profile_tier_level.h"
 #endif
 
 namespace webrtc {
-
 namespace {
-
-using webrtc::PayloadTypeSuggester;
-using webrtc::RTCError;
-using webrtc::RTCErrorOr;
-using webrtc::RtpTransceiverDirection;
 
 bool IsRtxCodec(const RtpCodecCapability& capability) {
   return absl::EqualsIgnoreCase(capability.name, kRtxCodecName);
@@ -72,8 +67,7 @@ bool IsComfortNoiseCodec(const Codec& codec) {
 std::optional<Codec> FindMatchingCodec(const CodecList& codecs1,
                                        const CodecList& codecs2,
                                        const Codec& codec_to_match) {
-  return webrtc::FindMatchingCodec(codecs1.codecs(), codecs2.codecs(),
-                                   codec_to_match);
+  return FindMatchingCodec(codecs1.codecs(), codecs2.codecs(), codec_to_match);
 }
 
 void StripCNCodecs(CodecList& audio_codecs) {
@@ -99,7 +93,7 @@ const Codec* GetAssociatedCodecForRtx(const CodecList& codec_list,
   }
 
   int associated_pt;
-  if (!webrtc::FromString(associated_pt_str, &associated_pt)) {
+  if (!FromString(associated_pt_str, &associated_pt)) {
     RTC_LOG(LS_WARNING) << "Couldn't convert payload type " << associated_pt_str
                         << " of RTX codec " << rtx_codec.id
                         << " to an integer.";
@@ -136,14 +130,14 @@ const RTCErrorOr<std::vector<const Codec*>> GetAssociatedCodecsForRed(
     return codecs;  // empty list
   }
 
-  std::vector<absl::string_view> redundant_payloads = webrtc::split(fmtp, '/');
+  std::vector<absl::string_view> redundant_payloads = split(fmtp, '/');
   if (redundant_payloads.size() < 2) {
     return codecs;  // empty
   }
   for (size_t index = 0; index < redundant_payloads.size(); ++index) {
     absl::string_view associated_pt_str = redundant_payloads[index];
     int associated_pt;
-    if (!webrtc::FromString(associated_pt_str, &associated_pt)) {
+    if (!FromString(associated_pt_str, &associated_pt)) {
       RTC_LOG(LS_WARNING) << "Couldn't convert payload type "
                           << associated_pt_str << " of RED codec " << red_codec
                           << " to an integer.";
@@ -292,6 +286,7 @@ CodecList MatchCodecPreference(
     const std::vector<RtpCodecCapability>& codec_preferences,
     const CodecList& codecs,
     const CodecList& supported_codecs) {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   CodecList filtered_codecs;
   bool want_rtx = false;
   bool want_red = false;
@@ -347,7 +342,7 @@ CodecList MatchCodecPreference(
                   codec.params.find(kCodecParamNotInNameValueFormat);
               if (fmtp != codec.params.end()) {
                 std::vector<absl::string_view> redundant_payloads =
-                    webrtc::split(fmtp->second, '/');
+                    split(fmtp->second, '/');
                 if (!redundant_payloads.empty() &&
                     redundant_payloads[0] == id) {
                   if (!red_was_added) {
@@ -408,7 +403,7 @@ void NegotiateVideoCodecLevelsForOffer(
     for (const Codec& supported_codec : supported_codecs) {
       if (absl::EqualsIgnoreCase(supported_codec.name, kH265CodecName)) {
         std::optional<H265ProfileTierLevel> supported_ptl =
-            webrtc::ParseSdpForH265ProfileTierLevel(supported_codec.params);
+            ParseSdpForH265ProfileTierLevel(supported_codec.params);
         if (supported_ptl.has_value()) {
           supported_h265_profiles[supported_ptl->profile] =
               supported_ptl->level;
@@ -423,14 +418,14 @@ void NegotiateVideoCodecLevelsForOffer(
     for (auto& filtered_codec : filtered_codecs) {
       if (absl::EqualsIgnoreCase(filtered_codec.name, kH265CodecName)) {
         std::optional<H265ProfileTierLevel> filtered_ptl =
-            webrtc::ParseSdpForH265ProfileTierLevel(filtered_codec.params);
+            ParseSdpForH265ProfileTierLevel(filtered_codec.params);
         if (filtered_ptl.has_value()) {
           auto it = supported_h265_profiles.find(filtered_ptl->profile);
 
           if (it != supported_h265_profiles.end() &&
               filtered_ptl->level != it->second) {
             filtered_codec.params[kH265FmtpLevelId] =
-                webrtc::H265LevelToString(it->second);
+                H265LevelToString(it->second);
           }
         }
       }
@@ -443,6 +438,7 @@ RTCError NegotiateCodecs(const CodecList& local_codecs,
                          const CodecList& offered_codecs,
                          CodecList& negotiated_codecs_out,
                          bool keep_offer_order) {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   std::map<int, int> pt_mapping_table;
   // Since we build the negotiated codec list one entry at a time,
   // the list will have inconsistencies during building.
@@ -471,13 +467,13 @@ RTCError NegotiateCodecs(const CodecList& local_codecs,
         }
       }
       if (absl::EqualsIgnoreCase(ours.name, kH264CodecName)) {
-        webrtc::H264GenerateProfileLevelIdForAnswer(ours.params, theirs->params,
-                                                    &negotiated.params);
+        H264GenerateProfileLevelIdForAnswer(ours.params, theirs->params,
+                                            &negotiated.params);
       }
 #ifdef RTC_ENABLE_H265
       if (absl::EqualsIgnoreCase(ours.name, kH265CodecName)) {
-        webrtc::H265GenerateProfileTierLevelForAnswer(
-            ours.params, theirs->params, &negotiated.params);
+        H265GenerateProfileTierLevelForAnswer(ours.params, theirs->params,
+                                              &negotiated.params);
         NegotiateTxMode(ours, *theirs, &negotiated);
       }
 #endif
@@ -499,7 +495,7 @@ RTCError NegotiateCodecs(const CodecList& local_codecs,
         continue;
       }
       int apt_value;
-      if (!webrtc::FromString(apt_str, &apt_value)) {
+      if (!FromString(apt_str, &apt_value)) {
         RTC_LOG(LS_WARNING) << "Unconvertable apt value";
         continue;
       }
@@ -642,8 +638,7 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         const MediaContentDescription* mcd =
             current_content->media_description();
         for (const Codec& codec : mcd->codecs()) {
-          if (webrtc::FindMatchingCodec(mcd->codecs(), codecs.codecs(),
-                                        codec)) {
+          if (FindMatchingCodec(mcd->codecs(), codecs.codecs(), codec)) {
             filtered_codecs.push_back(codec);
           }
         }
@@ -771,8 +766,8 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
         const MediaContentDescription* mcd =
             current_content->media_description();
         for (const Codec& codec : mcd->codecs()) {
-          if (std::optional<Codec> found_codec = webrtc::FindMatchingCodec(
-                  mcd->codecs(), codecs.codecs(), codec)) {
+          if (std::optional<Codec> found_codec =
+                  FindMatchingCodec(mcd->codecs(), codecs.codecs(), codec)) {
             filtered_codecs.push_back(*found_codec);
           }
         }
@@ -890,8 +885,7 @@ CodecList CodecVendor::GetVideoCodecsForAnswer(
     case RtpTransceiverDirection::kSendRecv:
     case RtpTransceiverDirection::kStopped:
     case RtpTransceiverDirection::kInactive:
-      return GetVideoCodecsForOffer(
-          webrtc::RtpTransceiverDirectionReversed(offer));
+      return GetVideoCodecsForOffer(RtpTransceiverDirectionReversed(offer));
     case RtpTransceiverDirection::kSendOnly:
       return video_send_codecs_.codecs();
     case RtpTransceiverDirection::kRecvOnly:
@@ -925,8 +919,7 @@ CodecList CodecVendor::GetAudioCodecsForAnswer(
     case RtpTransceiverDirection::kSendRecv:
     case RtpTransceiverDirection::kStopped:
     case RtpTransceiverDirection::kInactive:
-      return GetAudioCodecsForOffer(
-          webrtc::RtpTransceiverDirectionReversed(offer));
+      return GetAudioCodecsForOffer(RtpTransceiverDirectionReversed(offer));
     case RtpTransceiverDirection::kSendOnly:
       return audio_send_codecs_.codecs();
     case RtpTransceiverDirection::kRecvOnly:
