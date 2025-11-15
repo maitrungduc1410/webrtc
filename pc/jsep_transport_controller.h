@@ -227,9 +227,9 @@ class JsepTransportController : public PayloadTypeSuggester {
   // Media section is indicated by MID.
   // The function will either return a PT already in use on the connection
   // or a newly suggested one.
-  RTCErrorOr<PayloadType> SuggestPayloadType(const std::string& mid,
-                                             Codec codec) override;
-  RTCError AddLocalMapping(const std::string& mid,
+  RTCErrorOr<PayloadType> SuggestPayloadType(absl::string_view mid,
+                                             const Codec& codec) override;
+  RTCError AddLocalMapping(absl::string_view mid,
                            PayloadType payload_type,
                            const Codec& codec) override;
   const PayloadTypePicker& PayloadTypePickerForTesting() const {

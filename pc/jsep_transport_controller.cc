@@ -258,8 +258,8 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
 }
 
 RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType(
-    const std::string& mid,
-    Codec codec) {
+    absl::string_view mid,
+    const Codec& codec) {
   // Because SDP processing runs on the signal thread and Call processing
   // runs on the worker thread, we allow cross thread invocation until we
   // can clean up the thread work.
@@ -303,7 +303,7 @@ RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType(
   return payload_type_picker_.SuggestMapping(codec, nullptr);
 }
 
-RTCError JsepTransportController::AddLocalMapping(const std::string& mid,
+RTCError JsepTransportController::AddLocalMapping(absl::string_view mid,
                                                   PayloadType payload_type,
                                                   const Codec& codec) {
   // Because SDP processing runs on the signal thread and Call processing
