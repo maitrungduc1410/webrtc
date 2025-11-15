@@ -195,6 +195,8 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
   // The implementation of the Subscribe methods is in the .cc file due
   // to linking issues with Chrome.
   void SubscribeNetworksChanged(absl::AnyInvocable<void()> callback);
+  void SubscribeNetworksChanged(void* tag, absl::AnyInvocable<void()> callback);
+  void UnsubscribeNetworksChanged(void* tag);
   void NotifyNetworksChanged() { SignalNetworksChanged(); }
   void SubscribeError(absl::AnyInvocable<void()> callback);
   void NotifyError() { SignalError(); }

@@ -326,6 +326,16 @@ void NetworkManager::SubscribeNetworksChanged(
   networks_changed_trampoline_.Subscribe(std::move(callback));
 }
 
+void NetworkManager::SubscribeNetworksChanged(
+    void* tag,
+    absl::AnyInvocable<void()> callback) {
+  networks_changed_trampoline_.Subscribe(tag, std::move(callback));
+}
+
+void NetworkManager::UnsubscribeNetworksChanged(void* tag) {
+  networks_changed_trampoline_.Unsubscribe(tag);
+}
+
 void NetworkManager::SubscribeError(absl::AnyInvocable<void()> callback) {
   error_trampoline_.Subscribe(std::move(callback));
 }
