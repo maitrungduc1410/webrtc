@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '91861f3faeaa7b424d0bee3e4cb9c4a329ba6596',
+  'chromium_revision': 'a1aaea0ea381916dd5cb5427e41e2b5b1929d87b',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@8c573eeaffd455b318aa6cd79c9048cf4b8d33df',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@a1ab0fd161b5d1a9c420f7c0e8f59127985b957a',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@8ae1443925b53cbeb4421a330678ec492db0d60c',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@5a8d9e1810422f6ad261684fa000862eaaf82598',
+    'https://chromium.googlesource.com/chromium/src/third_party@4d95d01b48d63bc58ca458cd570700d204abce35',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -331,7 +331,7 @@ deps = {
   'src/third_party/clang-format/script':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@c2725e0622e1a86d55f14514f2177a39efea4a0e',
   'src/third_party/compiler-rt/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@508ec6abad69f88731aa08bd1d5cb6199b0386d0',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@685e57aca7c9e3755b84b8a7880cb5c20b4e25e7',
   'src/third_party/libc++/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git@ddfdbbc1ab109b4fc6171f3d8c38faf4586701d2',
   'src/third_party/libc++abi/src':
