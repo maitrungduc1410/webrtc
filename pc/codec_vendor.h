@@ -68,7 +68,7 @@ class CodecVendor {
   // The input is a vector of pairs of codecs.
   // For each pair, the first element is the codec to be replaced,
   // and the second element is the codec to replace it with.
-  void ModifyVideoCodecs(std::vector<std::pair<Codec, Codec>> changes);
+  void ModifyVideoCodecs(const std::vector<std::pair<Codec, Codec>>& changes);
   // Functions exposed for testing
   void set_audio_codecs(const CodecList& send_codecs,
                         const CodecList& recv_codecs);
