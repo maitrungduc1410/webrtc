@@ -154,7 +154,8 @@ DatagramConnectionInternal::DatagramConnectionInternal(
 
   if (wire_protocol_ == WireProtocol::kDtlsSrtp) {
     // Match everything for our fixed SSRC (should be everything).
-    RtpDemuxerCriteria demuxer_criteria(/*mid=*/"");
+    RtpDemuxerCriteria demuxer_criteria =
+        RtpDemuxerCriteria(/*mid=*/absl::string_view());
     demuxer_criteria.ssrcs().insert(kDatagramConnectionSsrc);
     dtls_srtp_transport_->RegisterRtpDemuxerSink(demuxer_criteria, this);
 
