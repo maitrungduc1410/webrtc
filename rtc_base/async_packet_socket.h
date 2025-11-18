@@ -146,9 +146,7 @@ class RTC_EXPORT AsyncPacketSocket {
   void SubscribeSentPacket(
       void* tag,
       absl::AnyInvocable<void(AsyncPacketSocket*, const SentPacketInfo&)>
-          callback) {
-    sent_packet_trampoline_.Subscribe(tag, std::move(callback));
-  }
+          callback);
   void UnsubscribeSentPacket(void* tag) {
     sent_packet_trampoline_.Unsubscribe(tag);
   }
