@@ -302,40 +302,6 @@ class JsepTransportController : public PayloadTypeSuggester {
   }
 
  private:
-  // All of these callbacks are fired on the network thread.
-
-  // If any transport failed => failed,
-  // Else if all completed => completed,
-  // Else if all connected => connected,
-  // Else => connecting
-  CallbackList<IceConnectionState> signal_ice_connection_state_
-      RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<PeerConnectionInterface::PeerConnectionState>
-      signal_connection_state_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<PeerConnectionInterface::IceConnectionState>
-      signal_standardized_ice_connection_state_ RTC_GUARDED_BY(network_thread_);
-
-  // If all transports done gathering => complete,
-  // Else if any are gathering => gathering,
-  // Else => new
-  CallbackList<IceGatheringState> signal_ice_gathering_state_
-      RTC_GUARDED_BY(network_thread_);
-
-  // [mid, candidates]
-  CallbackList<const std::string&, const std::vector<Candidate>&>
-      signal_ice_candidates_gathered_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<const IceCandidateErrorEvent&> signal_ice_candidate_error_
-      RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<IceTransportInternal*, const std::vector<Candidate>&>
-      signal_ice_candidates_removed_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<const CandidatePairChangeEvent&>
-      signal_ice_candidate_pair_changed_ RTC_GUARDED_BY(network_thread_);
-
   // Called from SetLocalDescription and SetRemoteDescription.
   // When `local` is true, local_desc must be valid. Similarly when
   // `local` is false, remote_desc must be valid. The description counterpart
@@ -502,6 +468,40 @@ class JsepTransportController : public PayloadTypeSuggester {
   BundleManager bundles_;
   // Reference to the SdpOfferAnswerHandler's payload type picker.
   PayloadTypePicker& payload_type_picker_;
+
+  // All of these callbacks are fired on the network thread.
+
+  // If any transport failed => failed,
+  // Else if all completed => completed,
+  // Else if all connected => connected,
+  // Else => connecting
+  CallbackList<IceConnectionState> signal_ice_connection_state_
+      RTC_GUARDED_BY(network_thread_);
+
+  CallbackList<PeerConnectionInterface::PeerConnectionState>
+      signal_connection_state_ RTC_GUARDED_BY(network_thread_);
+
+  CallbackList<PeerConnectionInterface::IceConnectionState>
+      signal_standardized_ice_connection_state_ RTC_GUARDED_BY(network_thread_);
+
+  // If all transports done gathering => complete,
+  // Else if any are gathering => gathering,
+  // Else => new
+  CallbackList<IceGatheringState> signal_ice_gathering_state_
+      RTC_GUARDED_BY(network_thread_);
+
+  // [mid, candidates]
+  CallbackList<const std::string&, const std::vector<Candidate>&>
+      signal_ice_candidates_gathered_ RTC_GUARDED_BY(network_thread_);
+
+  CallbackList<const IceCandidateErrorEvent&> signal_ice_candidate_error_
+      RTC_GUARDED_BY(network_thread_);
+
+  CallbackList<IceTransportInternal*, const std::vector<Candidate>&>
+      signal_ice_candidates_removed_ RTC_GUARDED_BY(network_thread_);
+
+  CallbackList<const CandidatePairChangeEvent&>
+      signal_ice_candidate_pair_changed_ RTC_GUARDED_BY(network_thread_);
 };
 
 }  // namespace webrtc
