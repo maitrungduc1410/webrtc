@@ -339,7 +339,7 @@ void AsyncTcpListenSocket::OnReadEvent(Socket* socket) {
 
 void AsyncTcpListenSocket::HandleIncomingConnection(
     std::unique_ptr<Socket> socket) {
-  NotifyNewConnection(this, new AsyncTCPSocket(env_, std::move(socket)));
+  SignalNewConnection(this, new AsyncTCPSocket(env_, std::move(socket)));
 }
 
 }  // namespace webrtc
