@@ -49,10 +49,8 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/thread.h"
 #include "rtc_base/unique_id_generator.h"
-
-#ifdef RTC_ENABLE_H265
-#endif
 
 namespace {
 
@@ -1185,6 +1183,9 @@ RTCError MediaSessionDescriptionFactory::AddRtpContentForOffer(
   if (!error_or_filtered_codecs.ok()) {
     return error_or_filtered_codecs.MoveError();
   }
+
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+
   codecs_to_include = error_or_filtered_codecs.MoveValue();
   std::unique_ptr<MediaContentDescription> content_description;
   if (media_description_options.type == MediaType::AUDIO) {
@@ -1354,6 +1355,9 @@ RTCError MediaSessionDescriptionFactory::AddRtpContentForAnswer(
   if (!error_or_filtered_codecs.ok()) {
     return error_or_filtered_codecs.MoveError();
   }
+
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+
   codecs_to_include = error_or_filtered_codecs.MoveValue();
   // Determine if we have media codecs in common.
   bool has_usable_media_codecs =

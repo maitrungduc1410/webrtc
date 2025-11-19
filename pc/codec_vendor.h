@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "api/field_trials_view.h"
 #include "api/rtc_error.h"
 #include "api/rtp_transceiver_direction.h"
@@ -35,19 +36,29 @@ namespace webrtc {
 // TODO: bugs.webrtc.org/360058654 - complete the architectural changes
 // The list of things to be done:
 // - Make as much as possible private.
+// - Make state const where possible while updates related to threading are
+// being done.
+// - Remove test code from the implementation.
 // - Split object usage into four objects: sender/receiver/audio/video.
 // - Remove audio/video from the call names, merge code where possible.
 // - Make the class instances owned by transceivers, so that codec
 //   lists can differ per transceiver.
 // For cleanliness:
 // - Thread guard
+// For performance:
+// - Ensure that no blocking calls are made.
 class CodecVendor {
  public:
-  CodecVendor(const MediaEngineInterface* media_engine,
+  // A null media_engine is permitted in order to allow unit testing where the
+  // codecs are explicitly set by the test.
+  // TODO: bugs.webrtc.org/360058654 - The tests can accomplish what they need
+  // by using the same interface as is used in production.
+  // Update the tests instead to supply a valid MediaEngineInterface object
+  // and rather test how CodecVendor works regularly.
+  CodecVendor(const MediaEngineInterface* absl_nullable media_engine,
               bool rtx_enabled,
               const FieldTrialsView& trials);
 
- public:
   RTCErrorOr<std::vector<Codec>> GetNegotiatedCodecsForOffer(
       const MediaDescriptionOptions& media_description_options,
       const MediaSessionOptions& session_options,

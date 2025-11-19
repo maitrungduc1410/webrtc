@@ -264,6 +264,8 @@ RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType(
   // runs on the worker thread, we allow cross thread invocation until we
   // can clean up the thread work.
   if (!network_thread_->IsCurrent()) {
+    // TODO: bugs.webrtc.org/412904801 - SuggestPayloadType should be called
+    // on the network thread. Remove this BlockingCall when that's fixed.
     return network_thread_->BlockingCall([&] {
       RTC_DCHECK_RUN_ON(network_thread_);
       return SuggestPayloadType(mid, codec);
