@@ -137,12 +137,6 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
                           // GetAnyAddressNetworks() should be used instead.
   };
 
-  // Called when network list is updated.
-  sigslot::signal0<> SignalNetworksChanged;
-
-  // Indicates a failure when getting list of network interfaces.
-  sigslot::signal0<> SignalError;
-
   // This should be called on the NetworkManager's thread before the
   // NetworkManager is used. Subclasses may override this if necessary.
   virtual void Initialize() {}
@@ -192,6 +186,10 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
   MdnsResponderInterface* GetMdnsResponder() const override;
 
   virtual void set_vpn_list(const std::vector<NetworkMask>& /* vpn */) {}
+
+  sigslot::signal0<> SignalNetworksChanged;
+  sigslot::signal0<> SignalError;
+
   // The implementation of the Subscribe methods is in the .cc file due
   // to linking issues with Chrome.
   void SubscribeNetworksChanged(absl::AnyInvocable<void()> callback);
@@ -199,6 +197,8 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
   void UnsubscribeNetworksChanged(void* tag);
   void NotifyNetworksChanged() { SignalNetworksChanged(); }
   void SubscribeError(absl::AnyInvocable<void()> callback);
+  void SubscribeError(void* tag, absl::AnyInvocable<void()> callback);
+  void UnsubscribeError(void* tag);
   void NotifyError() { SignalError(); }
 
  private:
@@ -229,7 +229,7 @@ class RTC_EXPORT Network {
   // A Network is immovable.
   Network(const Network&) = delete;
   Network& operator=(const Network&) = delete;
-  Network(Network&&) = default;
+  Network(Network&&) = delete;
   Network& operator=(Network&&) = delete;
   ~Network();
 
@@ -238,12 +238,21 @@ class RTC_EXPORT Network {
   std::unique_ptr<Network> Clone() const;
 
   // This signal is fired whenever type() or underlying_type_for_vpn() changes.
-  // Mutable, to support connecting on the const Network passed to Port
-  // constructor.
-  mutable sigslot::signal1<const Network*> SignalTypeChanged;
+  void SubscribeTypeChanged(absl::AnyInvocable<void(const Network*)> callback) {
+    type_changed_trampoline_.Subscribe(std::move(callback));
+  }
+  void NotifyTypeChanged(const Network* network) {
+    type_changed_trampoline_.Notify(network);
+  }
 
   // This signal is fired whenever network preference changes.
-  sigslot::signal1<const Network*> SignalNetworkPreferenceChanged;
+  void SubscribeNetworkPreferenceChanged(
+      absl::AnyInvocable<void(const Network*)> callback) {
+    network_preference_changed_trampoline_.Subscribe(std::move(callback));
+  }
+  void NotifyNetworkPreferenceChanged(Network* network) {
+    network_preference_changed_trampoline_.Notify(network);
+  }
 
   const DefaultLocalAddressProvider* default_local_address_provider() const {
     return default_local_address_provider_;
@@ -428,7 +437,12 @@ class RTC_EXPORT Network {
   bool active_ = true;
   uint16_t id_ = 0;
   NetworkPreference network_preference_ = NetworkPreference::NEUTRAL;
-
+  sigslot::signal1<const Network*> SignalTypeChanged;
+  sigslot::signal1<const Network*> SignalNetworkPreferenceChanged;
+  SignalTrampoline<Network, &Network::SignalTypeChanged>
+      type_changed_trampoline_;
+  SignalTrampoline<Network, &Network::SignalNetworkPreferenceChanged>
+      network_preference_changed_trampoline_;
   friend class NetworkManager;
 };
 

@@ -120,7 +120,10 @@ Port::Port(const PortParametersRef& args,
     ice_username_fragment_ = CreateRandomString(ICE_UFRAG_LENGTH);
     password_ = CreateRandomString(ICE_PWD_LENGTH);
   }
-  network_->SignalTypeChanged.connect(this, &Port::OnNetworkTypeChanged);
+  const_cast<::webrtc::Network*>(network_)->SubscribeTypeChanged(
+      [this](const ::webrtc::Network* network) {
+        OnNetworkTypeChanged(network);
+      });
 
   PostDestroyIfDead(/*delayed=*/true);
   RTC_LOG(LS_INFO) << ToString() << ": Port created with network cost "

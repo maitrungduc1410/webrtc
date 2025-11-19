@@ -336,8 +336,13 @@ void NetworkManager::UnsubscribeNetworksChanged(void* tag) {
   networks_changed_trampoline_.Unsubscribe(tag);
 }
 
-void NetworkManager::SubscribeError(absl::AnyInvocable<void()> callback) {
-  error_trampoline_.Subscribe(std::move(callback));
+void NetworkManager::SubscribeError(void* tag,
+                                    absl::AnyInvocable<void()> callback) {
+  error_trampoline_.Subscribe(tag, std::move(callback));
+}
+
+void NetworkManager::UnsubscribeError(void* tag) {
+  error_trampoline_.Unsubscribe(tag);
 }
 
 NetworkManagerBase::NetworkManagerBase()
@@ -976,7 +981,7 @@ void BasicNetworkManager::StartUpdating() {
     if (sent_first_update_)
       thread_->PostTask(SafeTask(task_safety_flag_, [this] {
         RTC_DCHECK_RUN_ON(thread_);
-        SignalNetworksChanged();
+        NotifyNetworksChanged();
       }));
   } else {
     RTC_DCHECK(task_safety_flag_ == nullptr);
@@ -1073,7 +1078,7 @@ void BasicNetworkManager::UpdateNetworksOnce() {
 
   std::vector<std::unique_ptr<Network>> list;
   if (!CreateNetworks(false, &list)) {
-    SignalError();
+    NotifyError();
   } else {
     bool changed;
     NetworkManager::Stats stats;
@@ -1081,7 +1086,7 @@ void BasicNetworkManager::UpdateNetworksOnce() {
     set_default_local_addresses(QueryDefaultLocalAddress(AF_INET),
                                 QueryDefaultLocalAddress(AF_INET6));
     if (changed || !sent_first_update_) {
-      SignalNetworksChanged();
+      NotifyNetworksChanged();
       sent_first_update_ = true;
     }
   }
@@ -1135,7 +1140,9 @@ Network::Network(absl::string_view name,
       scope_id_(0),
       ignored_(false),
       type_(type),
-      preference_(0) {}
+      preference_(0),
+      type_changed_trampoline_(this),
+      network_preference_changed_trampoline_(this) {}
 
 Network::~Network() = default;
 
