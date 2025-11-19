@@ -19,6 +19,7 @@
 #include "api/field_trials_view.h"
 #include "api/rtc_error.h"
 #include "api/rtp_transceiver_direction.h"
+#include "api/sequence_checker.h"
 #include "call/payload_type.h"
 #include "media/base/codec.h"
 #include "media/base/codec_list.h"
@@ -26,6 +27,8 @@
 #include "pc/media_options.h"
 #include "pc/session_description.h"
 #include "pc/typed_codec_vendor.h"
+#include "rtc_base/system/no_unique_address.h"
+#include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
 
@@ -80,21 +83,8 @@ class CodecVendor {
   // For each pair, the first element is the codec to be replaced,
   // and the second element is the codec to replace it with.
   void ModifyVideoCodecs(const std::vector<std::pair<Codec, Codec>>& changes);
+
   // Functions exposed for testing
-  void set_audio_codecs(const CodecList& send_codecs,
-                        const CodecList& recv_codecs);
-  void set_audio_codecs(const std::vector<Codec>& send_codecs,
-                        const std::vector<Codec>& recv_codecs) {
-    set_audio_codecs(CodecList::CreateFromTrustedData(send_codecs),
-                     CodecList::CreateFromTrustedData(recv_codecs));
-  }
-  void set_video_codecs(const CodecList& send_codecs,
-                        const CodecList& recv_codecs);
-  void set_video_codecs(const std::vector<Codec>& send_codecs,
-                        const std::vector<Codec>& recv_codecs) {
-    set_video_codecs(CodecList::CreateFromTrustedData(send_codecs),
-                     CodecList::CreateFromTrustedData(recv_codecs));
-  }
   CodecList audio_sendrecv_codecs() const;
   const CodecList& audio_send_codecs() const;
   const CodecList& audio_recv_codecs() const;
@@ -114,11 +104,19 @@ class CodecVendor {
       const RtpTransceiverDirection& offer,
       const RtpTransceiverDirection& answer) const;
 
-  TypedCodecVendor audio_send_codecs_;
-  TypedCodecVendor audio_recv_codecs_;
+  // Makes sure that modifications and reading data is done on the same thread
+  // and to makessure we consistently make calls to GetNegotiatedCodecsForOffer
+  // and GetNegotiatedCodecsForAnswer in the same calling context.
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
 
-  TypedCodecVendor video_send_codecs_;
-  TypedCodecVendor video_recv_codecs_;
+  const TypedCodecVendor audio_send_codecs_;
+  const TypedCodecVendor audio_recv_codecs_;
+
+  // TODO: bugs.webrtc.org/412904801 - Make const. In order to be able to do
+  // that, `ModifyVideoCodecs` needs to be removed. In the meantime, codec
+  // information must be read and modified on the same task queue.
+  TypedCodecVendor video_send_codecs_ RTC_GUARDED_BY(sequence_checker_);
+  TypedCodecVendor video_recv_codecs_ RTC_GUARDED_BY(sequence_checker_);
 };
 
 // A class to assist in looking up data for a codec mapping.

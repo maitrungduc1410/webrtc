@@ -26,6 +26,7 @@
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
+#include "api/sequence_checker.h"
 #include "call/payload_type.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
@@ -605,6 +606,7 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
     const MediaSessionOptions& session_options,
     const ContentInfo* current_content,
     PayloadTypeSuggester& pt_suggester) {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   // TODO: bugs.webrtc.org/360058654 - Currently blocking calls occur in
   // this context, e.g. 34 blocking calls in the `*.VerifyBestConnection*`
   // tests in `peerconnection_unittests`.
@@ -744,11 +746,11 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
     const ContentInfo* current_content,
     const std::vector<Codec> codecs_from_offer,
     PayloadTypeSuggester& pt_suggester) {
-  // TODO: bugs.webrtc.org/360058654 - This method needs to be invoked
-  // on the network thread. Currently multiple blocking calls occur
-  // in this context.
-  // Once running on the network thread, change `RTC_LOG_THREAD_BLOCK_COUNT()`
-  // to `RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS()`.
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  // TODO: bugs.webrtc.org/360058654 - This method makes blocking calls to
+  // the network thread. Once those calls run on the current (signaling) thread
+  // change `RTC_LOG_THREAD_BLOCK_COUNT()` to
+  // `RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS()`.
   RTC_LOG_THREAD_BLOCK_COUNT();
   CodecList codecs;
   std::string mid = media_description_options.mid;
@@ -839,24 +841,39 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
   return negotiated_codecs.codecs();
 }
 
+TypedCodecVendor InitTypedCodecVendor(const MediaEngineInterface* media_engine,
+                                      MediaType media_type,
+                                      bool is_sender,
+                                      bool rtx_enabled,
+                                      const FieldTrialsView& trials) {
+  return media_engine ? TypedCodecVendor(media_engine, media_type, is_sender,
+                                         rtx_enabled, trials)
+                      : TypedCodecVendor();
+}
+
 CodecVendor::CodecVendor(const MediaEngineInterface* media_engine,
                          bool rtx_enabled,
-                         const FieldTrialsView& trials) {
-  if (media_engine) {
-    audio_send_codecs_ =
-        TypedCodecVendor(media_engine, MediaType::AUDIO,
-                         /* is_sender= */ true, rtx_enabled, trials);
-    audio_recv_codecs_ =
-        TypedCodecVendor(media_engine, MediaType::AUDIO,
-                         /* is_sender= */ false, rtx_enabled, trials);
-    video_send_codecs_ =
-        TypedCodecVendor(media_engine, MediaType::VIDEO,
-                         /* is_sender= */ true, rtx_enabled, trials);
-    video_recv_codecs_ =
-        TypedCodecVendor(media_engine, MediaType::VIDEO,
-                         /* is_sender= */ false, rtx_enabled, trials);
-  }
-}
+                         const FieldTrialsView& trials)
+    : audio_send_codecs_(InitTypedCodecVendor(media_engine,
+                                              MediaType::AUDIO,
+                                              /*is_sender=*/true,
+                                              rtx_enabled,
+                                              trials)),
+      audio_recv_codecs_(InitTypedCodecVendor(media_engine,
+                                              MediaType::AUDIO,
+                                              /*is_sender=*/false,
+                                              rtx_enabled,
+                                              trials)),
+      video_send_codecs_(InitTypedCodecVendor(media_engine,
+                                              MediaType::VIDEO,
+                                              /*is_sender=*/true,
+                                              rtx_enabled,
+                                              trials)),
+      video_recv_codecs_(InitTypedCodecVendor(media_engine,
+                                              MediaType::VIDEO,
+                                              /*is_sender=*/false,
+                                              rtx_enabled,
+                                              trials)) {}
 
 const CodecList& CodecVendor::audio_send_codecs() const {
   return audio_send_codecs_.codecs();
@@ -866,28 +883,19 @@ const CodecList& CodecVendor::audio_recv_codecs() const {
   return audio_recv_codecs_.codecs();
 }
 
-void CodecVendor::set_audio_codecs(const CodecList& send_codecs,
-                                   const CodecList& recv_codecs) {
-  audio_send_codecs_.set_codecs(send_codecs);
-  audio_recv_codecs_.set_codecs(recv_codecs);
-}
-
 const CodecList& CodecVendor::video_send_codecs() const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   return video_send_codecs_.codecs();
 }
 
 const CodecList& CodecVendor::video_recv_codecs() const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   return video_recv_codecs_.codecs();
-}
-
-void CodecVendor::set_video_codecs(const CodecList& send_codecs,
-                                   const CodecList& recv_codecs) {
-  video_send_codecs_.set_codecs(send_codecs);
-  video_recv_codecs_.set_codecs(recv_codecs);
 }
 
 CodecList CodecVendor::GetVideoCodecsForOffer(
     const RtpTransceiverDirection& direction) const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   switch (direction) {
     // If stream is inactive - generate list as if sendrecv.
     case RtpTransceiverDirection::kSendRecv:
@@ -905,6 +913,7 @@ CodecList CodecVendor::GetVideoCodecsForOffer(
 CodecList CodecVendor::GetVideoCodecsForAnswer(
     const RtpTransceiverDirection& offer,
     const RtpTransceiverDirection& answer) const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   switch (answer) {
     // For inactive and sendrecv answers, generate lists as if we were to accept
     // the offer's direction. See RFC 3264 Section 6.1.
@@ -972,6 +981,7 @@ CodecList CodecVendor::audio_sendrecv_codecs() const {
 }
 
 CodecList CodecVendor::video_sendrecv_codecs() const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   // Use NegotiateCodecs to merge our codec lists, since the operation is
   // essentially the same. Put send_codecs as the offered_codecs, which is the
@@ -991,6 +1001,7 @@ CodecList CodecVendor::video_sendrecv_codecs() const {
 
 void CodecVendor::ModifyVideoCodecs(
     const std::vector<std::pair<Codec, Codec>>& changes) {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   // For each codec in the first element that occurs in our supported codecs,
   // replace it with the codec in the second element. Exact matches only.
@@ -1006,7 +1017,7 @@ void CodecVendor::ModifyVideoCodecs(
         }
       }
       if (changed) {
-        video_send_codecs_.set_codecs(send_codecs);
+        video_send_codecs_ = TypedCodecVendor(std::move(send_codecs));
       }
     }
     {
@@ -1019,7 +1030,7 @@ void CodecVendor::ModifyVideoCodecs(
         }
       }
       if (changed) {
-        video_recv_codecs_.set_codecs(recv_codecs);
+        video_recv_codecs_ = TypedCodecVendor(recv_codecs);
       }
     }
   }
