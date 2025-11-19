@@ -510,14 +510,14 @@ void RtpTransceiver::OnPacketReceived() {
     return;
   }
   packet_notified_after_receptive_ = true;
-  thread_->PostTask([this]() {
+  thread_->PostTask(SafeTask(signaling_thread_safety_, [this]() {
     if (stopping() || stopped()) {
       return;
     }
     for (const auto& receiver : receivers_) {
       receiver->internal()->NotifyFirstPacketReceivedAfterReceptiveChange();
     }
-  });
+  }));
 }
 
 void RtpTransceiver::OnFirstPacketSent() {
