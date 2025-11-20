@@ -167,15 +167,7 @@ class DtlsTransportInternalImpl : public DtlsTransportInternal {
   // this certificate on construction or "Start".
   bool SetLocalCertificate(
       const scoped_refptr<RTCCertificate>& certificate) override;
-  scoped_refptr<RTCCertificate> GetLocalCertificate() const override;
-
-  // SetRemoteFingerprint must be called after SetLocalCertificate, and any
-  // other methods like SetDtlsRole. It's what triggers the actual DTLS setup.
-  // TODO(deadbeef): Rename to "Start" like in ORTC?
-  bool SetRemoteFingerprint(absl::string_view digest_alg,
-                            const uint8_t* digest,
-                            size_t digest_len) override;
-
+  scoped_refptr<RTCCertificate> GetLocalCertificateForTesting() const;
   // SetRemoteParameters must be called after SetLocalCertificate.
   RTCError SetRemoteParameters(absl::string_view digest_alg,
                                const uint8_t* digest,
@@ -285,6 +277,13 @@ class DtlsTransportInternalImpl : public DtlsTransportInternal {
       absl::AnyInvocable<void(PacketTransportInternal* transport,
                               const ReceivedIpPacket& packet)> callback);
   void PeriodicRetransmitDtlsPacketUntilDtlsConnected();
+
+  // SetRemoteFingerprint must be called after SetLocalCertificate, and any
+  // other methods like SetDtlsRole. It's what triggers the actual DTLS setup.
+  // TODO(deadbeef): Rename to "Start" like in ORTC?
+  bool SetRemoteFingerprint(absl::string_view digest_alg,
+                            const uint8_t* digest,
+                            size_t digest_len);
 
   SslStreamFactory ssl_stream_factory_;
   const Environment env_;

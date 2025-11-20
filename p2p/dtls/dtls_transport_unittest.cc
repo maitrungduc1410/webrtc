@@ -1483,8 +1483,10 @@ TEST_F(DtlsTransportInternalImplTest, TestCertificatesBeforeConnect) {
 
   // After negotiation, each side has a distinct local certificate, but still no
   // remote certificate, because connection has not yet occurred.
-  auto certificate1 = client1_.dtls_transport()->GetLocalCertificate();
-  auto certificate2 = client2_.dtls_transport()->GetLocalCertificate();
+  auto certificate1 =
+      client1_.dtls_transport()->GetLocalCertificateForTesting();
+  auto certificate2 =
+      client2_.dtls_transport()->GetLocalCertificateForTesting();
   ASSERT_NE(certificate1->GetSSLCertificate().ToPEMString(),
             certificate2->GetSSLCertificate().ToPEMString());
   ASSERT_FALSE(client1_.dtls_transport()->GetRemoteSSLCertChain());
@@ -1497,8 +1499,10 @@ TEST_F(DtlsTransportInternalImplTest, TestCertificatesAfterConnect) {
   ASSERT_TRUE(Connect());
 
   // After connection, each side has a distinct local certificate.
-  auto certificate1 = client1_.dtls_transport()->GetLocalCertificate();
-  auto certificate2 = client2_.dtls_transport()->GetLocalCertificate();
+  auto certificate1 =
+      client1_.dtls_transport()->GetLocalCertificateForTesting();
+  auto certificate2 =
+      client2_.dtls_transport()->GetLocalCertificateForTesting();
   ASSERT_NE(certificate1->GetSSLCertificate().ToPEMString(),
             certificate2->GetSSLCertificate().ToPEMString());
 

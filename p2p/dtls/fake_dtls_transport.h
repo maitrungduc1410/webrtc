@@ -236,9 +236,6 @@ class FakeDtlsTransport : public DtlsTransportInternal {
     return "FakeTlsCipherSuite";
   }
   uint16_t GetSslPeerSignatureAlgorithm() const override { return 0; }
-  scoped_refptr<RTCCertificate> GetLocalCertificate() const override {
-    return local_cert_;
-  }
   std::unique_ptr<SSLCertChain> GetRemoteSSLCertChain() const override {
     if (!remote_cert_) {
       return nullptr;

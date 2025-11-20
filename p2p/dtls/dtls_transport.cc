@@ -288,8 +288,8 @@ bool DtlsTransportInternalImpl::SetLocalCertificate(
   return true;
 }
 
-scoped_refptr<RTCCertificate> DtlsTransportInternalImpl::GetLocalCertificate()
-    const {
+scoped_refptr<RTCCertificate>
+DtlsTransportInternalImpl::GetLocalCertificateForTesting() const {
   return local_certificate_;
 }
 
