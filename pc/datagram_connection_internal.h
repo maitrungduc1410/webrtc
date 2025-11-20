@@ -103,10 +103,8 @@ class RTC_EXPORT DatagramConnectionInternal : public DatagramConnection,
   const scoped_refptr<DtlsTransport> dtls_transport_;
   const std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport_;
 
-  bool last_writable_state_ = false;
   const SequenceChecker sequence_checker_;
-  uint16_t next_seq_num_ RTC_GUARDED_BY(sequence_checker_) = 0;
-  uint32_t next_ts_ RTC_GUARDED_BY(sequence_checker_) = 10000;
+  bool last_writable_state_ RTC_GUARDED_BY(sequence_checker_) = false;
 };
 
 }  // namespace webrtc

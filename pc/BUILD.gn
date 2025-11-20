@@ -2103,6 +2103,7 @@ rtc_library("datagram_connection_internal") {
     "../api:sequence_checker",
     "../api/crypto:options",
     "../api/environment",
+    "../api/transport:ecn_marking",
     "../api/transport:enums",
     "../api/units:timestamp",
     "../call:rtp_interfaces",
