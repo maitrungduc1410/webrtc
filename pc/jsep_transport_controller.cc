@@ -154,15 +154,19 @@ RTCError JsepTransportController::SetRemoteDescription(
     SdpType type,
     const SessionDescription* local_desc,
     const SessionDescription* remote_desc) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(remote_desc);
   TRACE_EVENT0("webrtc", "JsepTransportController::SetRemoteDescription");
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall([this, type, local_desc, remote_desc] {
-      return SetRemoteDescription(type, local_desc, remote_desc);
-    });
-  }
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return SetRemoteDescription_n(type, local_desc, remote_desc);
+  });
+}
 
-  RTC_DCHECK_RUN_ON(network_thread_);
+RTCError JsepTransportController::SetRemoteDescription_n(
+    SdpType type,
+    const SessionDescription* local_desc,
+    const SessionDescription* remote_desc) {
   return ApplyDescription_n(/*local=*/false, type, local_desc, remote_desc);
 }
 

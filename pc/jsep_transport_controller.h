@@ -310,6 +310,11 @@ class JsepTransportController : public PayloadTypeSuggester {
                                  const SessionDescription* remote_desc)
       RTC_RUN_ON(network_thread_);
 
+  RTCError SetRemoteDescription_n(SdpType type,
+                                  const SessionDescription* local_desc,
+                                  const SessionDescription* remote_desc)
+      RTC_RUN_ON(network_thread_);
+
   // Called from SetLocalDescription and SetRemoteDescription.
   // When `local` is true, local_desc must be valid. Similarly when
   // `local` is false, remote_desc must be valid. The description counterpart
