@@ -27,7 +27,6 @@
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
 #include "test/create_test_environment.h"
@@ -80,8 +79,7 @@ class AsyncStunServerTCPSocket : public AsyncTcpListenSocket {
   }
 };
 
-class AsyncStunTCPSocketTest : public ::testing::Test,
-                               public sigslot::has_slots<> {
+class AsyncStunTCPSocketTest : public ::testing::Test {
  protected:
   AsyncStunTCPSocketTest()
       : vss_(new VirtualSocketServer()), thread_(vss_.get()) {}
