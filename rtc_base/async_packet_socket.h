@@ -142,7 +142,6 @@ class RTC_EXPORT AsyncPacketSocket {
   void DeregisterReceivedPacketCallback();
 
   // Emitted each time a packet is sent.
-  sigslot::signal2<AsyncPacketSocket*, const SentPacketInfo&> SignalSentPacket;
   void SubscribeSentPacket(
       void* tag,
       absl::AnyInvocable<void(AsyncPacketSocket*, const SentPacketInfo&)>
@@ -155,7 +154,6 @@ class RTC_EXPORT AsyncPacketSocket {
   }
 
   // Emitted when the socket is currently able to send.
-  sigslot::signal1<AsyncPacketSocket*> SignalReadyToSend;
   void SubscribeReadyToSend(
       void* tag,
       absl::AnyInvocable<void(AsyncPacketSocket*)> callback) {
@@ -171,7 +169,6 @@ class RTC_EXPORT AsyncPacketSocket {
   // Emitted after address for the socket is allocated, i.e. binding
   // is finished. State of the socket is changed from BINDING to BOUND
   // (for UDP sockets).
-  sigslot::signal2<AsyncPacketSocket*, const SocketAddress&> SignalAddressReady;
   void SubscribeAddressReady(
       void* tag,
       absl::AnyInvocable<void(AsyncPacketSocket*, const SocketAddress&)>
@@ -188,7 +185,6 @@ class RTC_EXPORT AsyncPacketSocket {
 
   // Emitted for client TCP sockets when state is changed from
   // CONNECTING to CONNECTED.
-  sigslot::signal1<AsyncPacketSocket*> SignalConnect;
   void NotifyConnect(AsyncPacketSocket* socket) { SignalConnect(socket); }
   void SubscribeConnect(absl::AnyInvocable<void(AsyncPacketSocket*)> callback) {
     connect_trampoline_.Subscribe(std::move(callback));
@@ -223,12 +219,16 @@ class RTC_EXPORT AsyncPacketSocket {
       RTC_GUARDED_BY(&network_checker_);
   absl::AnyInvocable<void(AsyncPacketSocket*, const ReceivedIpPacket&)>
       received_packet_callback_ RTC_GUARDED_BY(&network_checker_);
+  sigslot::signal1<AsyncPacketSocket*> SignalConnect;
   SignalTrampoline<AsyncPacketSocket, &AsyncPacketSocket::SignalConnect>
       connect_trampoline_;
+  sigslot::signal2<AsyncPacketSocket*, const SentPacketInfo&> SignalSentPacket;
   SignalTrampoline<AsyncPacketSocket, &AsyncPacketSocket::SignalSentPacket>
       sent_packet_trampoline_;
+  sigslot::signal1<AsyncPacketSocket*> SignalReadyToSend;
   SignalTrampoline<AsyncPacketSocket, &AsyncPacketSocket::SignalReadyToSend>
       ready_to_send_trampoline_;
+  sigslot::signal2<AsyncPacketSocket*, const SocketAddress&> SignalAddressReady;
   SignalTrampoline<AsyncPacketSocket, &AsyncPacketSocket::SignalAddressReady>
       address_ready_trampoline_;
 };
@@ -251,7 +251,6 @@ class RTC_EXPORT AsyncListenSocket {
   // socket is not bound yet (GetState() returns kBinding).
   virtual SocketAddress GetLocalAddress() const = 0;
 
-  sigslot::signal2<AsyncListenSocket*, AsyncPacketSocket*> SignalNewConnection;
   void SubscribeNewConnection(
       void* tag,
       absl::AnyInvocable<void(AsyncListenSocket*, AsyncPacketSocket*)>
@@ -267,6 +266,7 @@ class RTC_EXPORT AsyncListenSocket {
   }
 
  private:
+  sigslot::signal2<AsyncListenSocket*, AsyncPacketSocket*> SignalNewConnection;
   SignalTrampoline<AsyncListenSocket, &AsyncListenSocket::SignalNewConnection>
       new_connection_trampoline_;
 };

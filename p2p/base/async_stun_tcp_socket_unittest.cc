@@ -76,7 +76,7 @@ class AsyncStunServerTCPSocket : public AsyncTcpListenSocket {
                            std::unique_ptr<Socket> socket)
       : AsyncTcpListenSocket(env, std::move(socket)) {}
   void HandleIncomingConnection(std::unique_ptr<Socket> socket) override {
-    SignalNewConnection(this, new AsyncStunTCPSocket(env(), std::move(socket)));
+    NotifyNewConnection(this, new AsyncStunTCPSocket(env(), std::move(socket)));
   }
 };
 
@@ -95,8 +95,11 @@ class AsyncStunTCPSocketTest : public ::testing::Test,
     server->Bind(kServerAddr);
     listen_socket_ =
         std::make_unique<AsyncStunServerTCPSocket>(env, std::move(server));
-    listen_socket_->SignalNewConnection.connect(
-        this, &AsyncStunTCPSocketTest::OnNewConnection);
+    listen_socket_->SubscribeNewConnection(
+        this, [this](AsyncListenSocket* listen_socket,
+                     AsyncPacketSocket* packet_socket) {
+          OnNewConnection(listen_socket, packet_socket);
+        });
 
     std::unique_ptr<Socket> client =
         vss_->Create(kClientAddr.family(), SOCK_STREAM);

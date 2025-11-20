@@ -339,7 +339,7 @@ void TCPPort::OnReadPacket(AsyncPacketSocket* socket,
 
 void TCPPort::OnSentPacket(AsyncPacketSocket* socket,
                            const SentPacketInfo& sent_packet) {
-  PortInterface::SignalSentPacket(sent_packet);
+  NotifySentPacket(sent_packet);
 }
 
 void TCPPort::OnReadyToSend(AsyncPacketSocket* socket) {
