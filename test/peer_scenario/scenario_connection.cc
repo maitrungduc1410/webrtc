@@ -144,6 +144,7 @@ ScenarioIceConnectionImpl::ScenarioIceConnectionImpl(
                                                &packet_socket_factory_)),
       jsep_controller_(
           new JsepTransportController(env,
+                                      signaling_thread_,
                                       network_thread_,
                                       port_allocator_.get(),
                                       /*async_resolver_factory*/ nullptr,

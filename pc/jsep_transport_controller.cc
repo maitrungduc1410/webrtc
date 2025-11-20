@@ -33,6 +33,7 @@
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "api/transport/ecn_marking.h"
 #include "api/transport/enums.h"
@@ -74,6 +75,7 @@ namespace webrtc {
 
 JsepTransportController::JsepTransportController(
     const Environment& env,
+    TaskQueueBase* signaling_thread,
     Thread* network_thread,
     PortAllocator* port_allocator,
     AsyncDnsResolverFactoryInterface* async_dns_resolver_factory,
@@ -81,6 +83,7 @@ JsepTransportController::JsepTransportController(
     PayloadTypePicker& payload_type_picker,
     Config config)
     : env_(env),
+      signaling_thread_(signaling_thread),
       network_thread_(network_thread),
       port_allocator_(port_allocator),
       async_dns_resolver_factory_(async_dns_resolver_factory),
@@ -97,6 +100,8 @@ JsepTransportController::JsepTransportController(
       active_reset_srtp_params_(config_.active_reset_srtp_params),
       bundles_(config_.bundle_policy),
       payload_type_picker_(payload_type_picker) {
+  RTC_DCHECK(signaling_thread_);
+  RTC_DCHECK(network_thread_);
   // The `transport_observer` is assumed to be non-null.
   RTC_DCHECK(config_.transport_observer);
   RTC_DCHECK(config_.rtcp_handler);
@@ -115,24 +120,32 @@ RTCError JsepTransportController::SetLocalDescription(
     SdpType type,
     const SessionDescription* local_desc,
     const SessionDescription* remote_desc) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(local_desc);
   TRACE_EVENT0("webrtc", "JsepTransportController::SetLocalDescription");
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return SetLocalDescription_n(type, local_desc, remote_desc);
+  });
+}
 
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall([this, type, local_desc, remote_desc] {
-      return SetLocalDescription(type, local_desc, remote_desc);
-    });
-  }
-
-  RTC_DCHECK_RUN_ON(network_thread_);
-
-  if (!initial_offerer_.has_value()) {
-    initial_offerer_.emplace(type == SdpType::kOffer);
-    if (*initial_offerer_) {
-      SetIceRole_n(ICEROLE_CONTROLLING);
-    } else {
-      SetIceRole_n(ICEROLE_CONTROLLED);
-    }
+// RTC_RUN_ON(network_thread_)
+RTCError JsepTransportController::SetLocalDescription_n(
+    SdpType type,
+    const SessionDescription* local_desc,
+    const SessionDescription* remote_desc) {
+  // ice_role_ is initialized to ICEROLE_CONTROLLING. Check if we still have the
+  // initialized value and might need to set the role. For a non-offer, we'll
+  // set the ice role to `controlled`. In the case where `type` is kOffer and
+  // the ice_role_ is already 'controlling' we'll still call `SetRole_n()`. That
+  // call will either will be a noop or initialization for the transports.
+  if (ice_role_ == ICEROLE_CONTROLLING) {
+    const IceRole role =
+        (type == SdpType::kOffer) ? ICEROLE_CONTROLLING : ICEROLE_CONTROLLED;
+    // Note that ApplyDescription_n() will always call DetermineIceRole() where
+    // SetIceRole_n() will be called again such as in the case where the answer
+    // side takes the controlling role. See "Section 5.1.1" below.
+    SetIceRole_n(role);
   }
   return ApplyDescription_n(/*local=*/true, type, local_desc, remote_desc);
 }

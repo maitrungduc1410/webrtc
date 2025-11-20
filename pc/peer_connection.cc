@@ -785,7 +785,7 @@ JsepTransportController* PeerConnection::InitializeTransportController_n(
       };
 
   transport_controller_.reset(new JsepTransportController(
-      env_, network_thread(), port_allocator_.get(),
+      env_, signaling_thread(), network_thread(), port_allocator_.get(),
       async_dns_resolver_factory_.get(), lna_permission_factory_.get(),
       payload_type_picker_, std::move(config)));
 

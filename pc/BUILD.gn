@@ -311,6 +311,7 @@ rtc_library("jsep_transport_controller") {
     "../api/crypto:options",
     "../api/environment",
     "../api/rtc_event_log",
+    "../api/task_queue",
     "../api/transport:datagram_transport_interface",
     "../api/transport:ecn_marking",
     "../api/transport:enums",

@@ -34,6 +34,7 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "api/transport/ecn_marking.h"
 #include "api/transport/sctp_transport_factory_interface.h"
@@ -139,6 +140,7 @@ class JsepTransportController : public PayloadTypeSuggester {
   // `network_thread`.
   JsepTransportController(
       const Environment& env,
+      TaskQueueBase* signaling_thread,
       Thread* network_thread,
       PortAllocator* port_allocator,
       AsyncDnsResolverFactoryInterface* async_dns_resolver_factory,
@@ -238,8 +240,6 @@ class JsepTransportController : public PayloadTypeSuggester {
 
   bool GetStats(const std::string& mid, TransportStats* stats) const;
 
-  bool initial_offerer() const { return initial_offerer_ && *initial_offerer_; }
-
   void SetActiveResetSrtpParams(bool active_reset_srtp_params);
 
   RTCError RollbackTransports();
@@ -302,6 +302,14 @@ class JsepTransportController : public PayloadTypeSuggester {
   }
 
  private:
+  // Private '_n' implementations of public methods that are always called from
+  // the signaling thread but have a BlockingCall() in order to hop over
+  // to the network thread.
+  RTCError SetLocalDescription_n(SdpType type,
+                                 const SessionDescription* local_desc,
+                                 const SessionDescription* remote_desc)
+      RTC_RUN_ON(network_thread_);
+
   // Called from SetLocalDescription and SetRemoteDescription.
   // When `local` is true, local_desc must be valid. Similarly when
   // `local` is false, remote_desc must be valid. The description counterpart
@@ -438,7 +446,8 @@ class JsepTransportController : public PayloadTypeSuggester {
   bool OnTransportChanged(const std::string& mid, JsepTransport* transport);
 
   const Environment env_;
-  Thread* const network_thread_ = nullptr;
+  TaskQueueBase* const signaling_thread_;
+  Thread* const network_thread_;
   PortAllocator* const port_allocator_ = nullptr;
   AsyncDnsResolverFactoryInterface* const async_dns_resolver_factory_ = nullptr;
   LocalNetworkAccessPermissionFactoryInterface* const lna_permission_factory_ =
@@ -458,8 +467,6 @@ class JsepTransportController : public PayloadTypeSuggester {
 
   const Config config_;
   bool active_reset_srtp_params_ RTC_GUARDED_BY(network_thread_);
-
-  std::optional<bool> initial_offerer_;
 
   IceConfig ice_config_;
   IceRole ice_role_ = ICEROLE_CONTROLLING;
