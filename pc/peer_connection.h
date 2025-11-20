@@ -520,6 +520,11 @@ class PeerConnection : public PeerConnectionInternal,
 
   void OnNegotiationNeeded();
 
+  const JsepTransportController* transport_controller_s() const
+      RTC_RUN_ON(signaling_thread()) {
+    return transport_controller_copy_;
+  }
+
   // Called when first configuring the port allocator.
   struct InitializePortAllocatorResult {
     bool enable_ipv6;

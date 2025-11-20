@@ -247,13 +247,18 @@ void JsepTransportController::SetNeedsIceRestartFlag() {
 
 bool JsepTransportController::NeedsIceRestart(
     const std::string& transport_name) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return NeedsIceRestart_n(transport_name);
+  });
+}
 
+bool JsepTransportController::NeedsIceRestart_n(
+    const std::string& transport_name) const {
+  RTC_DCHECK_RUN_ON(network_thread_);
   const JsepTransport* transport = GetJsepTransportByName(transport_name);
-  if (!transport) {
-    return false;
-  }
-  return transport->needs_ice_restart();
+  return transport ? transport->needs_ice_restart() : false;
 }
 
 std::optional<SSLRole> JsepTransportController::GetDtlsRole(
@@ -277,49 +282,56 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
 RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType(
     absl::string_view mid,
     const Codec& codec) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   // Because SDP processing runs on the signal thread and Call processing
   // runs on the worker thread, we allow cross thread invocation until we
   // can clean up the thread work.
-  if (!network_thread_->IsCurrent()) {
-    // TODO: bugs.webrtc.org/412904801 - SuggestPayloadType should be called
-    // on the network thread. Remove this BlockingCall when that's fixed.
-    return network_thread_->BlockingCall([&] {
-      RTC_DCHECK_RUN_ON(network_thread_);
-      return SuggestPayloadType(mid, codec);
-    });
-  }
-  RTC_DCHECK_RUN_ON(network_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return SuggestPayloadType_n(mid, codec);
+  });
+}
+
+RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType_n(
+    absl::string_view mid,
+    const Codec& codec) {
   const JsepTransport* transport = GetJsepTransportForMid(mid);
-  if (transport) {
-    RTCErrorOr<PayloadType> local_result =
-        transport->local_payload_types().LookupPayloadType(codec);
-    if (local_result.ok()) {
-      return local_result;
-    }
-    RTCErrorOr<PayloadType> remote_result =
-        transport->remote_payload_types().LookupPayloadType(codec);
-    if (remote_result.ok()) {
-      RTCErrorOr<Codec> local_codec =
-          transport->local_payload_types().LookupCodec(remote_result.value());
-      if (local_result.ok()) {
-        // Already in use, possibly for something else.
-        // Fall through to SuggestMapping.
-        RTC_LOG(LS_WARNING) << "Ignoring remote suggestion of PT "
-                            << static_cast<int>(remote_result.value())
-                            << " for " << codec << "; already in use";
-      } else {
-        // Tell the local payload type registry that we've taken this
-        RTC_DCHECK(local_result.error().type() ==
-                   RTCErrorType::INVALID_PARAMETER);
-        AddLocalMapping(mid, remote_result.value(), codec);
-        return remote_result;
-      }
-    }
+  if (!transport) {
+    // If there is no transport, there are no exclusions.
+    return payload_type_picker_.SuggestMapping(codec, nullptr);
+  }
+
+  RTCErrorOr<PayloadType> local_result =
+      transport->local_payload_types().LookupPayloadType(codec);
+  if (local_result.ok()) {
+    return local_result;
+  }
+
+  RTCErrorOr<PayloadType> remote_result =
+      transport->remote_payload_types().LookupPayloadType(codec);
+  if (!remote_result.ok()) {
     return payload_type_picker_.SuggestMapping(
         codec, &transport->local_payload_types());
   }
-  // If there is no transport, there are no exclusions.
-  return payload_type_picker_.SuggestMapping(codec, nullptr);
+
+  if (remote_result.ok()) {
+    RTCErrorOr<Codec> local_codec =
+        transport->local_payload_types().LookupCodec(remote_result.value());
+    if (local_codec.ok()) {
+      // Already in use, possibly for something else.
+      // Fall through to SuggestMapping.
+      RTC_LOG(LS_WARNING) << "Ignoring remote suggestion of PT "
+                          << static_cast<int>(remote_result.value()) << " for "
+                          << codec << "; already in use";
+    } else {
+      // Tell the local payload type registry that we've taken this
+      RTC_DCHECK(local_codec.error().type() == RTCErrorType::INVALID_PARAMETER);
+      AddLocalMapping(mid, remote_result.value(), codec);
+      return remote_result;
+    }
+  }
+  return payload_type_picker_.SuggestMapping(codec,
+                                             &transport->local_payload_types());
 }
 
 RTCError JsepTransportController::AddLocalMapping(absl::string_view mid,

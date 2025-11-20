@@ -2486,10 +2486,8 @@ bool PeerConnection::IceRestartPending(const std::string& content_name) const {
 }
 
 bool PeerConnection::NeedsIceRestart(const std::string& content_name) const {
-  return network_thread()->BlockingCall([this, &content_name] {
-    RTC_DCHECK_RUN_ON(network_thread());
-    return transport_controller_->NeedsIceRestart(content_name);
-  });
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  return transport_controller_s()->NeedsIceRestart(content_name);
 }
 
 void PeerConnection::OnTransportControllerConnectionState(
