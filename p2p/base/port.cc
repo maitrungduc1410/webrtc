@@ -120,28 +120,22 @@ Port::Port(const PortParametersRef& args,
     ice_username_fragment_ = CreateRandomString(ICE_UFRAG_LENGTH);
     password_ = CreateRandomString(ICE_PWD_LENGTH);
   }
+  // TODO: https://issues.webrtc.org/462023697 - remove need for const_cast
   const_cast<::webrtc::Network*>(network_)->SubscribeTypeChanged(
-      [this](const ::webrtc::Network* network) {
+      this, [this](const ::webrtc::Network* network) {
         OnNetworkTypeChanged(network);
       });
 
   PostDestroyIfDead(/*delayed=*/true);
   RTC_LOG(LS_INFO) << ToString() << ": Port created with network cost "
                    << network_cost_;
-
-  // This is a temporary solution to support sigslot signals from
-  // downstream. We also register a method to send the callbacks in callback
-  // list. This will no longer be needed once downstream stops using
-  // the sigslot directly.
-  SignalCandidateReady.connect(this, &Port::SendCandidateReadyCallbackList);
-  SignalPortComplete.connect(this, &Port::SendPortCompleteCallbackList);
-  SignalPortError.connect(this, &Port::SendPortErrorCallbackList);
 }
 
 Port::~Port() {
   RTC_DCHECK_RUN_ON(thread_);
   DestroyAllConnections();
   CancelPendingTasks();
+  const_cast<::webrtc::Network*>(network_)->UnsubscribeTypeChanged(this);
 }
 
 IceCandidateType Port::Type() const {
@@ -293,14 +287,14 @@ bool Port::MaybeObfuscateAddress(const Candidate& c, bool is_final) {
 
 void Port::FinishAddingAddress(const Candidate& c, bool is_final) {
   candidates_.push_back(c);
-  SignalCandidateReady(this, c);
+  NotifyCandidateReady(this, c);
 
   PostAddAddress(is_final);
 }
 
 void Port::PostAddAddress(bool is_final) {
   if (is_final) {
-    SignalPortComplete(this);
+    NotifyPortComplete(this);
   }
 }
 
@@ -309,15 +303,6 @@ void Port::SubscribePortComplete(absl::AnyInvocable<void(Port*)> callback) {
   port_complete_callback_list_.AddReceiver(std::move(callback));
 }
 
-void Port::SendPortCompleteCallbackList(Port*) {
-  RTC_DCHECK_RUN_ON(thread_);
-  port_complete_callback_list_.Send(this);
-}
-
-void Port::SendPortErrorCallbackList(Port*) {
-  RTC_DCHECK_RUN_ON(thread_);
-  port_error_callback_list_.Send(this);
-}
 
 void Port::SubscribeCandidateError(
     std::function<void(Port*, const IceCandidateErrorEvent&)> callback) {
@@ -334,11 +319,6 @@ void Port::SubscribeCandidateReadyCallback(
     absl::AnyInvocable<void(Port*, const Candidate&)> callback) {
   RTC_DCHECK_RUN_ON(thread_);
   candidate_ready_callback_list_.AddReceiver(std::move(callback));
-}
-
-void Port::SendCandidateReadyCallbackList(Port*, const Candidate& candidate) {
-  RTC_DCHECK_RUN_ON(thread_);
-  candidate_ready_callback_list_.Send(this, candidate);
 }
 
 void Port::SubscribePortError(absl::AnyInvocable<void(Port*)> callback) {

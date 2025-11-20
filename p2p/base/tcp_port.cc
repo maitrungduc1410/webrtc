@@ -310,7 +310,11 @@ void TCPPort::TryCreateServerSocket() {
         << ": TCP server socket creation failed; continuing anyway.";
     return;
   }
-  listen_socket_->SignalNewConnection.connect(this, &TCPPort::OnNewConnection);
+  listen_socket_->SubscribeNewConnection(
+      this, [this](AsyncListenSocket* listen_socket,
+                   AsyncPacketSocket* packet_socket) {
+        OnNewConnection(listen_socket, packet_socket);
+      });
 }
 
 AsyncPacketSocket* TCPPort::GetIncoming(const SocketAddress& addr,

@@ -241,6 +241,13 @@ class RTC_EXPORT Network {
   void SubscribeTypeChanged(absl::AnyInvocable<void(const Network*)> callback) {
     type_changed_trampoline_.Subscribe(std::move(callback));
   }
+  void SubscribeTypeChanged(void* tag,
+                            absl::AnyInvocable<void(const Network*)> callback) {
+    type_changed_trampoline_.Subscribe(tag, std::move(callback));
+  }
+  void UnsubscribeTypeChanged(void* tag) {
+    type_changed_trampoline_.Unsubscribe(tag);
+  }
   void NotifyTypeChanged(const Network* network) {
     type_changed_trampoline_.Notify(network);
   }
