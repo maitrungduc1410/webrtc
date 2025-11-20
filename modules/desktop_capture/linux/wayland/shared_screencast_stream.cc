@@ -166,7 +166,7 @@ class SharedScreenCastStreamPrivate {
   pw_core_events pw_core_events_ = {};
   pw_stream_events pw_stream_events_ = {};
 
-  struct spa_video_info_raw spa_video_format_;
+  struct spa_video_info_raw spa_video_format_ = {};
 
   void ProcessBuffer(pw_buffer* buffer);
   bool ProcessMemFDBuffer(pw_buffer* buffer,
@@ -296,6 +296,7 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
     return;
   }
 
+  that->spa_video_format_ = {};
   spa_format_video_raw_parse(format, &that->spa_video_format_);
 
   if (that->observer_ && that->spa_video_format_.max_framerate.denom) {
@@ -303,11 +304,6 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
         that->spa_video_format_.max_framerate.num /
         that->spa_video_format_.max_framerate.denom);
   }
-
-  auto width = that->spa_video_format_.size.width;
-  auto height = that->spa_video_format_.size.height;
-  auto stride = SPA_ROUND_UP_N(width * kBytesPerPixel, 4);
-  auto size = height * stride;
 
   // When SPA_FORMAT_VIDEO_modifier is present we can use DMA-BUFs as
   // the server announces support for it.
@@ -345,10 +341,8 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
   std::vector<const spa_pod*> params;
   params.push_back(reinterpret_cast<spa_pod*>(spa_pod_builder_add_object(
       &builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers,
-      SPA_PARAM_BUFFERS_size, SPA_POD_Int(size), SPA_PARAM_BUFFERS_stride,
-      SPA_POD_Int(stride), SPA_PARAM_BUFFERS_buffers,
-      SPA_POD_CHOICE_RANGE_Int(8, 1, 32), SPA_PARAM_BUFFERS_dataType,
-      SPA_POD_CHOICE_FLAGS_Int(buffer_types))));
+      SPA_PARAM_BUFFERS_buffers, SPA_POD_CHOICE_RANGE_Int(8, 1, 32),
+      SPA_PARAM_BUFFERS_dataType, SPA_POD_CHOICE_FLAGS_Int(buffer_types))));
   params.push_back(reinterpret_cast<spa_pod*>(spa_pod_builder_add_object(
       &builder, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type,
       SPA_POD_Id(SPA_META_Header), SPA_PARAM_META_size,
