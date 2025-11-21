@@ -1392,7 +1392,6 @@ rtc_library("async_packet_socket") {
     ":checks",
     ":dscp",
     ":macromagic",
-    ":sigslot_trampoline",
     ":socket",
     ":socket_address",
     ":timeutils",
@@ -1401,7 +1400,6 @@ rtc_library("async_packet_socket") {
     "network:sent_packet",
     "system:no_unique_address",
     "system:rtc_export",
-    "third_party/sigslot",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
