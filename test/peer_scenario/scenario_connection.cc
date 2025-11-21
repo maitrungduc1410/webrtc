@@ -151,6 +151,7 @@ ScenarioIceConnectionImpl::ScenarioIceConnectionImpl(
                                       /*lna_permission_factory*/ nullptr,
                                       payload_type_picker_,
                                       CreateJsepConfig())) {
+  jsep_controller_->SetLocalCertificate(certificate_);
   SendTask(network_thread_, [this] {
     RTC_DCHECK_RUN_ON(network_thread_);
     uint32_t flags = PORTALLOCATOR_DISABLE_TCP;
@@ -159,7 +160,6 @@ ScenarioIceConnectionImpl::ScenarioIceConnectionImpl(
     RTC_CHECK(port_allocator_->SetConfiguration(/*stun_servers*/ {},
                                                 /*turn_servers*/ {}, 0,
                                                 NO_PRUNE));
-    jsep_controller_->SetLocalCertificate(certificate_);
   });
 }
 

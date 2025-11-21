@@ -200,16 +200,6 @@ DtlsTransportInternal* JsepTransportController::GetDtlsTransport(
   return jsep_transport->rtp_dtls_transport();
 }
 
-const DtlsTransportInternal* JsepTransportController::GetRtcpDtlsTransport(
-    const std::string& mid) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
-  auto jsep_transport = GetJsepTransportForMid(mid);
-  if (!jsep_transport) {
-    return nullptr;
-  }
-  return jsep_transport->rtcp_dtls_transport();
-}
-
 scoped_refptr<DtlsTransport> JsepTransportController::LookupDtlsTransportByMid(
     const std::string& mid) {
   RTC_DCHECK_RUN_ON(network_thread_);
@@ -357,11 +347,15 @@ RTCError JsepTransportController::AddLocalMapping(absl::string_view mid,
 
 bool JsepTransportController::SetLocalCertificate(
     const scoped_refptr<RTCCertificate>& certificate) {
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall(
-        [&] { return SetLocalCertificate(certificate); });
-  }
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return SetLocalCertificate_n(certificate);
+  });
+}
 
+bool JsepTransportController::SetLocalCertificate_n(
+    const scoped_refptr<RTCCertificate>& certificate) {
   RTC_DCHECK_RUN_ON(network_thread_);
 
   // Can't change a certificate, or set a null certificate.
@@ -414,11 +408,15 @@ std::unique_ptr<SSLCertChain> JsepTransportController::GetRemoteSSLCertChain(
 }
 
 void JsepTransportController::MaybeStartGathering() {
-  if (!network_thread_->IsCurrent()) {
-    network_thread_->BlockingCall([&] { MaybeStartGathering(); });
-    return;
-  }
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    MaybeStartGathering_n();
+  });
+}
 
+void JsepTransportController::MaybeStartGathering_n() {
+  RTC_DCHECK_RUN_ON(network_thread_);
   for (auto& dtls : GetDtlsTransports()) {
     dtls->ice_transport()->MaybeStartGathering();
   }
@@ -439,11 +437,14 @@ RTCError JsepTransportController::AddRemoteCandidates(
 }
 
 bool JsepTransportController::RemoveRemoteCandidate(const IceCandidate* c) {
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall(
-        [&] { return RemoveRemoteCandidate(c); });
-  }
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return RemoveRemoteCandidate_n(c);
+  });
+}
 
+bool JsepTransportController::RemoveRemoteCandidate_n(const IceCandidate* c) {
   RTC_DCHECK_RUN_ON(network_thread_);
   std::string mid = c->sdp_mid();
   if (!VerifyCandidate(c->candidate()).ok() || mid.empty()) {
@@ -490,11 +491,14 @@ void JsepTransportController::SetActiveResetSrtpParams(
 }
 
 RTCError JsepTransportController::RollbackTransports() {
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall(
-        [this] { return RollbackTransports(); });
-  }
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return RollbackTransports_n();
+  });
+}
+
+RTCError JsepTransportController::RollbackTransports_n() {
   bundles_.Rollback();
   if (!transports_.RollbackTransports()) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INTERNAL_ERROR,

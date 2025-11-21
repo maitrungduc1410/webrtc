@@ -161,6 +161,8 @@ class JsepTransportController : public PayloadTypeSuggester {
   // been set via a call to `SetRemoteDescription()` then `remote_desc` should
   // point to that description object in order to keep the current local and
   // remote session descriptions in sync.
+  //
+  // Must be called on the signaling thread.
   RTCError SetLocalDescription(SdpType type,
                                const SessionDescription* local_desc,
                                const SessionDescription* remote_desc);
@@ -171,6 +173,8 @@ class JsepTransportController : public PayloadTypeSuggester {
   // been set via a call to `SetLocalDescription()` then `local_desc` should
   // point to that description object in order to keep the current local and
   // remote session descriptions in sync.
+  //
+  // Must be called on the signaling thread.
   RTCError SetRemoteDescription(SdpType type,
                                 const SessionDescription* local_desc,
                                 const SessionDescription* remote_desc);
@@ -179,8 +183,6 @@ class JsepTransportController : public PayloadTypeSuggester {
   // calling GetRtpTransport for multiple MIDs may yield the same object.
   RtpTransportInternal* GetRtpTransport(absl::string_view mid) const;
   DtlsTransportInternal* GetDtlsTransport(const std::string& mid);
-  const DtlsTransportInternal* GetRtcpDtlsTransport(
-      const std::string& mid) const;
   // Gets the externally sharable version of the DtlsTransport.
   scoped_refptr<DtlsTransport> LookupDtlsTransportByMid(const std::string& mid);
   scoped_refptr<SctpTransport> GetSctpTransport(const std::string& mid) const;
@@ -202,12 +204,17 @@ class JsepTransportController : public PayloadTypeSuggester {
   // occurred yet for this transport (by applying a local description with
   // changed ufrag/password). If the transport has been deleted as a result of
   // bundling, returns false.
+  //
+  // Must be called on the signaling thread.
   bool NeedsIceRestart(const std::string& mid) const;
   // Start gathering candidates for any new transports, or transports doing an
   // ICE restart.
+  //
+  // Must be called on the signaling thread.
   void MaybeStartGathering();
   RTCError AddRemoteCandidates(const std::string& mid,
                                const std::vector<Candidate>& candidates);
+  // Must be called on the signaling thread.
   bool RemoveRemoteCandidate(const IceCandidate* candidate);
 
   /**********************
@@ -215,6 +222,8 @@ class JsepTransportController : public PayloadTypeSuggester {
    *********************/
   // Specifies the identity to use in this session.
   // Can only be called once.
+  //
+  // Must be called on the signaling thread.
   bool SetLocalCertificate(const scoped_refptr<RTCCertificate>& certificate);
   scoped_refptr<RTCCertificate> GetLocalCertificate(
       const std::string& mid) const;
@@ -223,12 +232,16 @@ class JsepTransportController : public PayloadTypeSuggester {
   std::unique_ptr<SSLCertChain> GetRemoteSSLCertChain(
       const std::string& mid) const;
   // Get negotiated role, if one has been negotiated.
+  //
+  // Must be called on the signaling thread.
   std::optional<SSLRole> GetDtlsRole(const std::string& mid) const;
 
   // Suggest a payload type for a given codec on a given media section.
   // Media section is indicated by MID.
   // The function will either return a PT already in use on the connection
   // or a newly suggested one.
+  //
+  // Must be called on the signaling thread.
   RTCErrorOr<PayloadType> SuggestPayloadType(absl::string_view mid,
                                              const Codec& codec) override;
   RTCError AddLocalMapping(absl::string_view mid,
@@ -242,6 +255,7 @@ class JsepTransportController : public PayloadTypeSuggester {
 
   void SetActiveResetSrtpParams(bool active_reset_srtp_params);
 
+  // Must be called on the signaling thread.
   RTCError RollbackTransports();
 
   // F: void(const std::string&, const std::vector<webrtc::Candidate>&)
@@ -302,22 +316,37 @@ class JsepTransportController : public PayloadTypeSuggester {
   }
 
  private:
-  // Private '_n' implementations of public methods that are always called from
-  // the signaling thread but have a BlockingCall() in order to hop over
-  // to the network thread.
+  // Always called via a blocking call from the signaling thread.
   RTCError SetLocalDescription_n(SdpType type,
                                  const SessionDescription* local_desc,
                                  const SessionDescription* remote_desc)
       RTC_RUN_ON(network_thread_);
 
+  // Always called via a blocking call from the signaling thread.
   RTCError SetRemoteDescription_n(SdpType type,
                                   const SessionDescription* local_desc,
                                   const SessionDescription* remote_desc)
       RTC_RUN_ON(network_thread_);
 
+  // Always called via a blocking call from the signaling thread.
   bool NeedsIceRestart_n(const std::string& mid) const
       RTC_RUN_ON(network_thread_);
 
+  // Always called via a blocking call from the signaling thread.
+  bool RemoveRemoteCandidate_n(const IceCandidate* candidate)
+      RTC_RUN_ON(network_thread_);
+
+  // Always called via a blocking call from the signaling thread.
+  RTCError RollbackTransports_n() RTC_RUN_ON(network_thread_);
+
+  // Always called via a blocking call from the signaling thread.
+  void MaybeStartGathering_n() RTC_RUN_ON(network_thread_);
+
+  // Always called via a blocking call from the signaling thread.
+  bool SetLocalCertificate_n(const scoped_refptr<RTCCertificate>& certificate)
+      RTC_RUN_ON(network_thread_);
+
+  // Always called via a blocking call from the signaling thread.
   RTCErrorOr<PayloadType> SuggestPayloadType_n(absl::string_view mid,
                                                const Codec& codec)
       RTC_RUN_ON(network_thread_);

@@ -294,9 +294,9 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
         transport_controller_
             ->SetLocalDescription(SdpType::kOffer, description.get(), nullptr)
             .ok());
+    transport_controller_->MaybeStartGathering();
 
     SendTask(network_thread_.get(), [this] {
-      transport_controller_->MaybeStartGathering();
       auto fake_audio_dtls = static_cast<FakeDtlsTransport*>(
           transport_controller_->GetDtlsTransport(kAudioMid1));
       auto fake_video_dtls = static_cast<FakeDtlsTransport*>(
@@ -433,11 +433,9 @@ TEST_F(JsepTransportControllerTest, GetDtlsTransport) {
           ->SetLocalDescription(SdpType::kOffer, description.get(), nullptr)
           .ok());
   EXPECT_NE(nullptr, transport_controller_->GetDtlsTransport(kAudioMid1));
-  EXPECT_NE(nullptr, transport_controller_->GetRtcpDtlsTransport(kAudioMid1));
   EXPECT_NE(nullptr,
             transport_controller_->LookupDtlsTransportByMid(kAudioMid1));
   EXPECT_NE(nullptr, transport_controller_->GetDtlsTransport(kVideoMid1));
-  EXPECT_NE(nullptr, transport_controller_->GetRtcpDtlsTransport(kVideoMid1));
   EXPECT_NE(nullptr,
             transport_controller_->LookupDtlsTransportByMid(kVideoMid1));
   // Lookup for all MIDs should return different transports (no bundle)
@@ -445,7 +443,6 @@ TEST_F(JsepTransportControllerTest, GetDtlsTransport) {
             transport_controller_->LookupDtlsTransportByMid(kVideoMid1));
   // Return nullptr for non-existing ones.
   EXPECT_EQ(nullptr, transport_controller_->GetDtlsTransport(kVideoMid2));
-  EXPECT_EQ(nullptr, transport_controller_->GetRtcpDtlsTransport(kVideoMid2));
   EXPECT_EQ(nullptr,
             transport_controller_->LookupDtlsTransportByMid(kVideoMid2));
   // Take a pointer to a transport, shut down the transport controller,
@@ -469,9 +466,7 @@ TEST_F(JsepTransportControllerTest, GetDtlsTransportWithRtcpMux) {
           ->SetLocalDescription(SdpType::kOffer, description.get(), nullptr)
           .ok());
   EXPECT_NE(nullptr, transport_controller_->GetDtlsTransport(kAudioMid1));
-  EXPECT_EQ(nullptr, transport_controller_->GetRtcpDtlsTransport(kAudioMid1));
   EXPECT_NE(nullptr, transport_controller_->GetDtlsTransport(kVideoMid1));
-  EXPECT_EQ(nullptr, transport_controller_->GetRtcpDtlsTransport(kVideoMid1));
 }
 
 TEST_F(JsepTransportControllerTest, SetIceConfig) {

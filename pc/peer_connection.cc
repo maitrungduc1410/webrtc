@@ -2375,10 +2375,7 @@ bool PeerConnection::GetSslRole(const std::string& content_name,
     return false;
   }
 
-  auto dtls_role = network_thread()->BlockingCall([this, content_name]() {
-    RTC_DCHECK_RUN_ON(network_thread());
-    return transport_controller_->GetDtlsRole(content_name);
-  });
+  auto dtls_role = transport_controller_s()->GetDtlsRole(content_name);
   if (dtls_role) {
     *role = *dtls_role;
     return true;

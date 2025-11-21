@@ -3578,11 +3578,15 @@ void SdpOfferAnswerHandler::AllocateSctpSids() {
     return;
   }
 
+  std::optional<std::string> sctp_mid = pc_->sctp_mid();
+  std::optional<SSLRole> role =
+      sctp_mid ? transport_controller_s()->GetDtlsRole(*sctp_mid)
+               : std::nullopt;
+
   std::optional<SSLRole> guessed_role = GuessSslRole();
   network_thread()->BlockingCall(
       [&, data_channel_controller = data_channel_controller()] {
         RTC_DCHECK_RUN_ON(network_thread());
-        std::optional<SSLRole> role = pc_->GetSctpSslRole_n();
         if (!role)
           role = guessed_role;
         if (role)
