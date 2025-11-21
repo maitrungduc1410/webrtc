@@ -148,6 +148,14 @@ TEST_F(DatagramConnectionTest, CreateAndDestroy) {
   EXPECT_TRUE(conn2_);
 }
 
+TEST_F(DatagramConnectionTest, IceCredsGettersReturnCorrectValues) {
+  CreateConnections();
+
+  auto* ice_parameters = ice1_->local_ice_parameters();
+  EXPECT_EQ(ice_parameters->ufrag, conn1_->IceUsernameFragment());
+  EXPECT_EQ(ice_parameters->pwd, conn1_->IcePassword());
+}
+
 TEST_F(DatagramConnectionTest, TransportsBecomeWritable) {
   main_thread_.BlockingCall([&]() {
     CreateConnections();

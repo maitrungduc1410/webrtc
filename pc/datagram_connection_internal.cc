@@ -14,7 +14,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <string>
 #include <utility>
 
 #include "absl/functional/any_invocable.h"
@@ -56,6 +55,7 @@ namespace {
 using PacketMetadata = DatagramConnection::Observer::PacketMetadata;
 
 const size_t kMaxRtpPacketLen = 2048;
+const size_t kIceUfragLength = 16;
 
 // Helper function to create IceTransportInit
 IceTransportInit CreateIceTransportInit(const Environment& env,
@@ -113,7 +113,9 @@ DatagramConnectionInternal::DatagramConnectionInternal(
           wire_protocol_ == WireProtocol::kDtlsSrtp
               ? std::make_unique<DtlsSrtpTransport>(/*rtcp_mux_enabled=*/true,
                                                     env.field_trials())
-              : nullptr) {
+              : nullptr),
+      ice_username_fragment_(CreateRandomString(kIceUfragLength)),
+      ice_password_(CreateRandomString(ICE_PWD_LENGTH)) {
   RTC_CHECK(observer_);
 
   dtls_transport_->internal()->RegisterReceivedPacketCallback(
@@ -157,11 +159,8 @@ DatagramConnectionInternal::DatagramConnectionInternal(
 
   // TODO(crbug.com/443019066): Bind to SetCandidateErrorCallback() and
   // propagate back to the Observer.
-  constexpr int kIceUfragLength = 16;
-  std::string ufrag = CreateRandomString(kIceUfragLength);
-  std::string icepw = CreateRandomString(ICE_PWD_LENGTH);
   dtls_transport_->ice_transport()->internal()->SetIceParameters(
-      IceParameters(ufrag, icepw,
+      IceParameters(ice_username_fragment_, ice_password_,
                     /*ice_renomination=*/false));
   dtls_transport_->ice_transport()->internal()->SetIceRole(
       ice_controlling ? ICEROLE_CONTROLLING : ICEROLE_CONTROLLED);
