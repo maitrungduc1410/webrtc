@@ -762,11 +762,84 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
   }
 
   config.ice_transport_factory = ice_transport_factory_.get();
-  config.on_dtls_handshake_error_ =
+  config.on_dtls_handshake_error =
       [weak_ptr = weak_factory_.GetWeakPtr()](SSLHandshakeError s) {
         if (weak_ptr) {
           weak_ptr->OnTransportControllerDtlsHandshakeError(s);
         }
+      };
+  config.signal_ice_candidates_gathered =
+      [this](absl::string_view transport,
+             const std::vector<Candidate>& candidates) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        signaling_thread()->PostTask(
+            SafeTask(signaling_thread_safety_.flag(),
+                     [this, t = std::string(transport), c = candidates]() {
+                       RTC_DCHECK_RUN_ON(signaling_thread());
+                       OnTransportControllerCandidatesGathered(t, c);
+                     }));
+      };
+  config.signal_ice_connection_state = [this](webrtc::IceConnectionState s) {
+    RTC_DCHECK_RUN_ON(network_thread());
+    signaling_thread()->PostTask(
+        SafeTask(signaling_thread_safety_.flag(), [this, s]() {
+          RTC_DCHECK_RUN_ON(signaling_thread());
+          OnTransportControllerConnectionState(s);
+        }));
+  };
+  config.signal_connection_state =
+      [this](PeerConnectionInterface::PeerConnectionState s) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        signaling_thread()->PostTask(
+            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
+              RTC_DCHECK_RUN_ON(signaling_thread());
+              SetConnectionState(s);
+            }));
+      };
+  config.signal_standardized_ice_connection_state =
+      [this](PeerConnectionInterface::IceConnectionState s) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        signaling_thread()->PostTask(
+            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
+              RTC_DCHECK_RUN_ON(signaling_thread());
+              SetStandardizedIceConnectionState(s);
+            }));
+      };
+  config.signal_ice_gathering_state = [this](::webrtc::IceGatheringState s) {
+    RTC_DCHECK_RUN_ON(network_thread());
+    signaling_thread()->PostTask(
+        SafeTask(signaling_thread_safety_.flag(), [this, s]() {
+          RTC_DCHECK_RUN_ON(signaling_thread());
+          OnTransportControllerGatheringState(s);
+        }));
+  };
+  config.signal_ice_candidate_error =
+      [this](const IceCandidateErrorEvent& event) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        signaling_thread()->PostTask(
+            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
+              RTC_DCHECK_RUN_ON(signaling_thread());
+              OnTransportControllerCandidateError(event);
+            }));
+      };
+  config.signal_ice_candidates_removed =
+      [this](IceTransportInternal* transport, const std::vector<Candidate>& c) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        std::string mid = transport->transport_name();
+        signaling_thread()->PostTask(SafeTask(
+            signaling_thread_safety_.flag(), [this, mid = mid, c = c]() {
+              RTC_DCHECK_RUN_ON(signaling_thread());
+              OnTransportControllerCandidatesRemoved(mid, c);
+            }));
+      };
+  config.signal_ice_candidate_pair_changed =
+      [this](const CandidatePairChangeEvent& event) {
+        RTC_DCHECK_RUN_ON(network_thread());
+        signaling_thread()->PostTask(
+            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
+              RTC_DCHECK_RUN_ON(signaling_thread());
+              OnTransportControllerCandidateChanged(event);
+            }));
       };
 
   auto transport_controller = std::make_unique<JsepTransportController>(
@@ -794,82 +867,6 @@ JsepTransportController* PeerConnection::InitializeTransportController_n(
     std::unique_ptr<JsepTransportController> controller,
     const RTCConfiguration& configuration) {
   transport_controller_ = std::move(controller);
-
-  transport_controller_->SubscribeIceConnectionState(
-      [this](::webrtc::IceConnectionState s) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              OnTransportControllerConnectionState(s);
-            }));
-      });
-  transport_controller_->SubscribeConnectionState(
-      [this](PeerConnectionInterface::PeerConnectionState s) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              SetConnectionState(s);
-            }));
-      });
-  transport_controller_->SubscribeStandardizedIceConnectionState(
-      [this](PeerConnectionInterface::IceConnectionState s) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              SetStandardizedIceConnectionState(s);
-            }));
-      });
-  transport_controller_->SubscribeIceGatheringState(
-      [this](::webrtc::IceGatheringState s) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, s]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              OnTransportControllerGatheringState(s);
-            }));
-      });
-  transport_controller_->SubscribeIceCandidateGathered(
-      [this](const std::string& transport,
-             const std::vector<Candidate>& candidates) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(),
-                     [this, t = transport, c = candidates]() {
-                       RTC_DCHECK_RUN_ON(signaling_thread());
-                       OnTransportControllerCandidatesGathered(t, c);
-                     }));
-      });
-  transport_controller_->SubscribeIceCandidateError(
-      [this](const IceCandidateErrorEvent& event) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              OnTransportControllerCandidateError(event);
-            }));
-      });
-  transport_controller_->SubscribeIceCandidatesRemoved(
-      [this](IceTransportInternal* transport, const std::vector<Candidate>& c) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        std::string mid = transport->transport_name();
-        signaling_thread()->PostTask(SafeTask(
-            signaling_thread_safety_.flag(), [this, mid = mid, c = c]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              OnTransportControllerCandidatesRemoved(mid, c);
-            }));
-      });
-  transport_controller_->SubscribeIceCandidatePairChanged(
-      [this](const CandidatePairChangeEvent& event) {
-        RTC_DCHECK_RUN_ON(network_thread());
-        signaling_thread()->PostTask(
-            SafeTask(signaling_thread_safety_.flag(), [this, event = event]() {
-              RTC_DCHECK_RUN_ON(signaling_thread());
-              OnTransportControllerCandidateChanged(event);
-            }));
-      });
 
   IceConfig ice_config(configuration);
   ice_config.dtls_handshake_in_stun = CanAttemptDtlsStunPiggybacking();
@@ -2494,9 +2491,9 @@ bool PeerConnection::NeedsIceRestart(const std::string& content_name) const {
 }
 
 void PeerConnection::OnTransportControllerConnectionState(
-    ::webrtc::IceConnectionState state) {
+    webrtc::IceConnectionState state) {
   switch (state) {
-    case ::webrtc::kIceConnectionConnecting:
+    case webrtc::kIceConnectionConnecting:
       // If the current state is Connected or Completed, then there were
       // writable channels but now there are not, so the next state must
       // be Disconnected.
@@ -2511,10 +2508,10 @@ void PeerConnection::OnTransportControllerConnectionState(
             PeerConnectionInterface::kIceConnectionDisconnected);
       }
       break;
-    case ::webrtc::kIceConnectionFailed:
+    case webrtc::kIceConnectionFailed:
       SetIceConnectionState(PeerConnectionInterface::kIceConnectionFailed);
       break;
-    case ::webrtc::kIceConnectionConnected:
+    case webrtc::kIceConnectionConnected:
       RTC_LOG(LS_INFO) << "Changing to ICE connected state because "
                           "all transports are writable.";
       {
@@ -2534,7 +2531,7 @@ void PeerConnection::OnTransportControllerConnectionState(
       SetIceConnectionState(PeerConnectionInterface::kIceConnectionConnected);
       NoteUsageEvent(UsageEvent::ICE_STATE_CONNECTED);
       break;
-    case ::webrtc::kIceConnectionCompleted:
+    case webrtc::kIceConnectionCompleted:
       RTC_LOG(LS_INFO) << "Changing to ICE completed state because "
                           "all transports are complete.";
       if (ice_connection_state_ !=
@@ -2553,7 +2550,7 @@ void PeerConnection::OnTransportControllerConnectionState(
 }
 
 void PeerConnection::OnTransportControllerCandidatesGathered(
-    const std::string& transport_name,
+    absl::string_view transport_name,
     const Candidates& candidates) {
   // TODO(bugs.webrtc.org/12427): Expect this to come in on the network thread
   // (not signaling as it currently does), handle appropriately.
@@ -2602,9 +2599,8 @@ void PeerConnection::OnTransportControllerDtlsHandshakeError(
 }
 
 // Returns the media index for a local ice candidate given the content name.
-bool PeerConnection::GetLocalCandidateMediaIndex(
-    const std::string& content_name,
-    int* sdp_mline_index) {
+bool PeerConnection::GetLocalCandidateMediaIndex(absl::string_view content_name,
+                                                 int* sdp_mline_index) {
   if (!local_description() || !sdp_mline_index) {
     return false;
   }
@@ -2859,13 +2855,13 @@ bool PeerConnection::SrtpRequired() const {
 }
 
 void PeerConnection::OnTransportControllerGatheringState(
-    ::webrtc::IceGatheringState state) {
+    webrtc::IceGatheringState state) {
   RTC_DCHECK(signaling_thread()->IsCurrent());
-  if (state == ::webrtc::kIceGatheringGathering) {
+  if (state == webrtc::kIceGatheringGathering) {
     OnIceGatheringChange(PeerConnectionInterface::kIceGatheringGathering);
-  } else if (state == ::webrtc::kIceGatheringComplete) {
+  } else if (state == webrtc::kIceGatheringComplete) {
     OnIceGatheringChange(PeerConnectionInterface::kIceGatheringComplete);
-  } else if (state == ::webrtc::kIceGatheringNew) {
+  } else if (state == webrtc::kIceGatheringNew) {
     OnIceGatheringChange(PeerConnectionInterface::kIceGatheringNew);
   } else {
     RTC_LOG(LS_ERROR) << "Unknown state received: " << state;

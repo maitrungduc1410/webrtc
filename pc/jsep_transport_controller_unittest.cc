@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/crypto/crypto_options.h"
 #include "api/dtls_transport_interface.h"
@@ -136,38 +137,30 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
     };
     config.ice_transport_factory = fake_ice_transport_factory_.get();
     config.dtls_transport_factory = fake_dtls_transport_factory_.get();
-    config.on_dtls_handshake_error_ = [](SSLHandshakeError s) {};
+    config.signal_ice_candidates_gathered =
+        [this](absl::string_view transport,
+               const std::vector<Candidate>& candidates) {
+          OnCandidatesGathered(transport, candidates);
+        };
+    config.signal_ice_connection_state = [this](IceConnectionState s) {
+      OnConnectionState(s);
+    };
+    config.signal_connection_state =
+        [this](PeerConnectionInterface::PeerConnectionState s) {
+          OnCombinedConnectionState(s);
+        };
+    config.signal_standardized_ice_connection_state =
+        [this](PeerConnectionInterface::IceConnectionState s) {
+          OnStandardizedIceConnectionState(s);
+        };
+    config.signal_ice_gathering_state = [this](IceGatheringState s) {
+      OnGatheringState(s);
+    };
     transport_controller_ = std::make_unique<JsepTransportController>(
         env_, signaling_thread_, network_thread, port_allocator,
         /*async_resolver_factory=*/nullptr,
         /*lna_permission_factory=*/nullptr, payload_type_picker_,
         std::move(config));
-    SendTask(network_thread, [&] { ConnectTransportControllerSignals(); });
-  }
-
-  void ConnectTransportControllerSignals() {
-    transport_controller_->SubscribeIceConnectionState(
-        [this](IceConnectionState s) {
-          JsepTransportControllerTest::OnConnectionState(s);
-        });
-    transport_controller_->SubscribeConnectionState(
-        [this](PeerConnectionInterface::PeerConnectionState s) {
-          JsepTransportControllerTest::OnCombinedConnectionState(s);
-        });
-    transport_controller_->SubscribeStandardizedIceConnectionState(
-        [this](PeerConnectionInterface::IceConnectionState s) {
-          JsepTransportControllerTest::OnStandardizedIceConnectionState(s);
-        });
-    transport_controller_->SubscribeIceGatheringState(
-        [this](IceGatheringState s) {
-          JsepTransportControllerTest::OnGatheringState(s);
-        });
-    transport_controller_->SubscribeIceCandidateGathered(
-        [this](const std::string& transport,
-               const std::vector<Candidate>& candidates) {
-          JsepTransportControllerTest::OnCandidatesGathered(transport,
-                                                            candidates);
-        });
   }
 
   std::unique_ptr<SessionDescription> CreateSessionDescriptionWithoutBundle() {
@@ -347,11 +340,12 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
     ++gathering_state_signal_count_;
   }
 
-  void OnCandidatesGathered(const std::string& transport_name,
+  void OnCandidatesGathered(absl::string_view transport_name,
                             const Candidates& candidates) {
     ice_signaled_on_thread_ = Thread::Current();
-    candidates_[transport_name].insert(candidates_[transport_name].end(),
-                                       candidates.begin(), candidates.end());
+    std::string str_name(transport_name);
+    candidates_[str_name].insert(candidates_[str_name].end(),
+                                 candidates.begin(), candidates.end());
     ++candidates_signal_count_;
   }
 

@@ -11,7 +11,6 @@
 #include "pc/jsep_transport_controller.h"
 
 #include <cstddef>
-#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -69,8 +68,6 @@
 #include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 
-using webrtc::SdpType;
-
 namespace webrtc {
 
 JsepTransportController::JsepTransportController(
@@ -106,7 +103,15 @@ JsepTransportController::JsepTransportController(
   RTC_DCHECK(config_.transport_observer);
   RTC_DCHECK(config_.rtcp_handler);
   RTC_DCHECK(config_.ice_transport_factory);
-  RTC_DCHECK(config_.on_dtls_handshake_error_);
+  RTC_DCHECK(config_.on_dtls_handshake_error);
+  RTC_DCHECK(config_.signal_ice_candidates_gathered);
+  RTC_DCHECK(config_.signal_ice_connection_state);
+  RTC_DCHECK(config_.signal_connection_state);
+  RTC_DCHECK(config_.signal_standardized_ice_connection_state);
+  RTC_DCHECK(config_.signal_ice_gathering_state);
+  RTC_DCHECK(config_.signal_ice_candidate_error);
+  RTC_DCHECK(config_.signal_ice_candidates_removed);
+  RTC_DCHECK(config_.signal_ice_candidate_pair_changed);
 }
 
 JsepTransportController::~JsepTransportController() {
@@ -1001,7 +1006,7 @@ void JsepTransportController::HandleRejectedContent(
     const ContentInfo& content_info) {
   // If the content is rejected, let the
   // BaseChannel/SctpTransport change the RtpTransport/DtlsTransport first,
-  // then destroy the webrtc::JsepTransport.
+  // then destroy the JsepTransport.
   ContentGroup* bundle_group = bundles_.LookupGroupByMid(content_info.mid());
   if (bundle_group && !bundle_group->content_names().empty() &&
       content_info.mid() == *bundle_group->FirstContentName()) {
@@ -1031,7 +1036,7 @@ bool JsepTransportController::HandleBundledContent(
   RTC_DCHECK(jsep_transport);
   // If the content is bundled, let the
   // BaseChannel/SctpTransport change the RtpTransport/DtlsTransport first,
-  // then destroy the webrtc::JsepTransport.
+  // then destroy the JsepTransport.
   // TODO(bugs.webrtc.org/9719) For media transport this is far from ideal,
   // because it means that we first create media transport and start
   // connecting it, and then we destroy it. We will need to address it before
@@ -1264,7 +1269,7 @@ IceRole JsepTransportController::DetermineIceRole(
       ice_role = ICEROLE_CONTROLLING;
     }
   } else {
-    // If our role is webrtc::ICEROLE_CONTROLLED and the remote endpoint
+    // If our role is ICEROLE_CONTROLLED and the remote endpoint
     // supports only ice_lite, this local endpoint should take the CONTROLLING
     // role.
     // TODO(deadbeef): This is a session-level attribute, so it really shouldn't
@@ -1314,24 +1319,24 @@ void JsepTransportController::OnTransportCandidateGathered_n(
     return;
   }
 
-  signal_ice_candidates_gathered_.Send(transport->transport_name(),
-                                       std::vector<Candidate>{candidate});
+  config_.signal_ice_candidates_gathered(transport->transport_name(),
+                                         std::vector<Candidate>{candidate});
 }
 
 void JsepTransportController::OnTransportCandidateError_n(
     IceTransportInternal* transport,
     const IceCandidateErrorEvent& event) {
-  signal_ice_candidate_error_.Send(event);
+  config_.signal_ice_candidate_error(event);
 }
 void JsepTransportController::OnTransportCandidatesRemoved_n(
     IceTransportInternal* transport,
     const Candidates& candidates) {
-  signal_ice_candidates_removed_.Send(transport, candidates);
+  config_.signal_ice_candidates_removed(transport, candidates);
 }
 void JsepTransportController::OnTransportCandidatePairChanged_n(
     const CandidatePairChangeEvent& event) {
   RTC_DCHECK(!event.transport_name.empty());
-  signal_ice_candidate_pair_changed_.Send(event);
+  config_.signal_ice_candidate_pair_changed(event);
 }
 
 void JsepTransportController::OnTransportRoleConflict_n(
@@ -1404,8 +1409,7 @@ void JsepTransportController::UpdateAggregateStates_n() {
   }
   if (ice_connection_state_ != new_connection_state) {
     ice_connection_state_ = new_connection_state;
-
-    signal_ice_connection_state_.Send(new_connection_state);
+    config_.signal_ice_connection_state(new_connection_state);
   }
 
   // Compute the current RTCIceConnectionState as described in
@@ -1461,11 +1465,11 @@ void JsepTransportController::UpdateAggregateStates_n() {
         new_ice_connection_state ==
             PeerConnectionInterface::kIceConnectionCompleted) {
       // Ensure that we never skip over the "connected" state.
-      signal_standardized_ice_connection_state_.Send(
+      config_.signal_standardized_ice_connection_state(
           PeerConnectionInterface::kIceConnectionConnected);
     }
     standardized_ice_connection_state_ = new_ice_connection_state;
-    signal_standardized_ice_connection_state_.Send(new_ice_connection_state);
+    config_.signal_standardized_ice_connection_state(new_ice_connection_state);
   }
 
   // Compute the current RTCPeerConnectionState as described in
@@ -1515,7 +1519,7 @@ void JsepTransportController::UpdateAggregateStates_n() {
 
   if (combined_connection_state_ != new_combined_state) {
     combined_connection_state_ = new_combined_state;
-    signal_connection_state_.Send(new_combined_state);
+    config_.signal_connection_state(new_combined_state);
   }
 
   // Compute the gathering state.
@@ -1528,13 +1532,13 @@ void JsepTransportController::UpdateAggregateStates_n() {
   }
   if (ice_gathering_state_ != new_gathering_state) {
     ice_gathering_state_ = new_gathering_state;
-    signal_ice_gathering_state_.Send(new_gathering_state);
+    config_.signal_ice_gathering_state(new_gathering_state);
   }
 }
 
 void JsepTransportController::OnRtcpPacketReceived_n(
     CopyOnWriteBuffer packet,
-    std::optional<webrtc::Timestamp> arrival_time,
+    std::optional<Timestamp> arrival_time,
     EcnMarking ecn) {
   RTC_DCHECK(config_.rtcp_handler);
   config_.rtcp_handler(std::move(packet),
@@ -1548,7 +1552,7 @@ void JsepTransportController::OnUnDemuxableRtpPacketReceived_n(
 }
 
 void JsepTransportController::OnDtlsHandshakeError(SSLHandshakeError error) {
-  config_.on_dtls_handshake_error_(error);
+  config_.on_dtls_handshake_error(error);
 }
 
 bool JsepTransportController::OnTransportChanged(

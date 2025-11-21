@@ -18,7 +18,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -60,7 +59,6 @@
 #include "pc/sctp_transport.h"
 #include "pc/session_description.h"
 #include "pc/transport_stats.h"
-#include "rtc_base/callback_list.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_certificate.h"
@@ -131,7 +129,32 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
     // Factory for SCTP transports.
     SctpTransportFactoryInterface* sctp_factory = nullptr;
-    std::function<void(SSLHandshakeError)> on_dtls_handshake_error_;
+    absl::AnyInvocable<void(SSLHandshakeError) const> on_dtls_handshake_error =
+        [](SSLHandshakeError s) {};
+    absl::AnyInvocable<void(absl::string_view, const std::vector<Candidate>&)
+                           const>
+        signal_ice_candidates_gathered =
+            [](absl::string_view, const std::vector<Candidate>&) {};
+    absl::AnyInvocable<void(IceConnectionState) const>
+        signal_ice_connection_state = [](IceConnectionState) {};
+    absl::AnyInvocable<void(PeerConnectionInterface::PeerConnectionState) const>
+        signal_connection_state =
+            [](PeerConnectionInterface::PeerConnectionState) {};
+    absl::AnyInvocable<void(PeerConnectionInterface::IceConnectionState) const>
+        signal_standardized_ice_connection_state =
+            [](PeerConnectionInterface::IceConnectionState) {};
+    absl::AnyInvocable<void(webrtc::IceGatheringState) const>
+        signal_ice_gathering_state = [](webrtc::IceGatheringState) {};
+    absl::AnyInvocable<void(const webrtc::IceCandidateErrorEvent&) const>
+        signal_ice_candidate_error =
+            [](const webrtc::IceCandidateErrorEvent&) {};
+    absl::AnyInvocable<void(IceTransportInternal*,
+                            const std::vector<webrtc::Candidate>&) const>
+        signal_ice_candidates_removed =
+            [](IceTransportInternal*, const std::vector<webrtc::Candidate>&) {};
+    absl::AnyInvocable<void(const webrtc::CandidatePairChangeEvent&) const>
+        signal_ice_candidate_pair_changed =
+            [](const webrtc::CandidatePairChangeEvent&) {};
   };
 
   // The ICE related events are fired on the `network_thread`.
@@ -257,63 +280,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
   // Must be called on the signaling thread.
   RTCError RollbackTransports();
-
-  // F: void(const std::string&, const std::vector<webrtc::Candidate>&)
-  template <typename F>
-  void SubscribeIceCandidateGathered(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_candidates_gathered_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(webrtc::IceConnectionState)
-  template <typename F>
-  void SubscribeIceConnectionState(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_connection_state_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(PeerConnectionInterface::PeerConnectionState)
-  template <typename F>
-  void SubscribeConnectionState(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_connection_state_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(PeerConnectionInterface::IceConnectionState)
-  template <typename F>
-  void SubscribeStandardizedIceConnectionState(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_standardized_ice_connection_state_.AddReceiver(
-        std::forward<F>(callback));
-  }
-
-  // F: void(webrtc::IceGatheringState)
-  template <typename F>
-  void SubscribeIceGatheringState(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_gathering_state_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(const webrtc::IceCandidateErrorEvent&)
-  template <typename F>
-  void SubscribeIceCandidateError(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_candidate_error_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(const std::vector<webrtc::Candidate>&)
-  template <typename F>
-  void SubscribeIceCandidatesRemoved(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_candidates_removed_.AddReceiver(std::forward<F>(callback));
-  }
-
-  // F: void(const webrtc::CandidatePairChangeEvent&)
-  template <typename F>
-  void SubscribeIceCandidatePairChanged(F&& callback) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    signal_ice_candidate_pair_changed_.AddReceiver(std::forward<F>(callback));
-  }
 
  private:
   // Always called via a blocking call from the signaling thread.
@@ -516,40 +482,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
   BundleManager bundles_;
   // Reference to the SdpOfferAnswerHandler's payload type picker.
   PayloadTypePicker& payload_type_picker_;
-
-  // All of these callbacks are fired on the network thread.
-
-  // If any transport failed => failed,
-  // Else if all completed => completed,
-  // Else if all connected => connected,
-  // Else => connecting
-  CallbackList<IceConnectionState> signal_ice_connection_state_
-      RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<PeerConnectionInterface::PeerConnectionState>
-      signal_connection_state_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<PeerConnectionInterface::IceConnectionState>
-      signal_standardized_ice_connection_state_ RTC_GUARDED_BY(network_thread_);
-
-  // If all transports done gathering => complete,
-  // Else if any are gathering => gathering,
-  // Else => new
-  CallbackList<IceGatheringState> signal_ice_gathering_state_
-      RTC_GUARDED_BY(network_thread_);
-
-  // [mid, candidates]
-  CallbackList<const std::string&, const std::vector<Candidate>&>
-      signal_ice_candidates_gathered_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<const IceCandidateErrorEvent&> signal_ice_candidate_error_
-      RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<IceTransportInternal*, const std::vector<Candidate>&>
-      signal_ice_candidates_removed_ RTC_GUARDED_BY(network_thread_);
-
-  CallbackList<const CandidatePairChangeEvent&>
-      signal_ice_candidate_pair_changed_ RTC_GUARDED_BY(network_thread_);
 };
 
 }  // namespace webrtc

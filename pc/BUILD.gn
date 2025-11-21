@@ -331,7 +331,6 @@ rtc_library("jsep_transport_controller") {
     "../p2p:port_allocator",
     "../p2p:transport_description",
     "../p2p:transport_info",
-    "../rtc_base:callback_list",
     "../rtc_base:checks",
     "../rtc_base:copy_on_write_buffer",
     "../rtc_base:event_tracer",

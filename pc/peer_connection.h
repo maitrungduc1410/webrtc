@@ -564,7 +564,7 @@ class PeerConnection : public PeerConnectionInternal,
   // Returns the media index for a local ice candidate given the content name.
   // Returns false if the local session description does not have a media
   // content called  `content_name`.
-  bool GetLocalCandidateMediaIndex(const std::string& content_name,
+  bool GetLocalCandidateMediaIndex(absl::string_view content_name,
                                    int* sdp_mline_index)
       RTC_RUN_ON(signaling_thread());
 
@@ -574,7 +574,7 @@ class PeerConnection : public PeerConnectionInternal,
   void OnTransportControllerGatheringState(::webrtc::IceGatheringState state)
       RTC_RUN_ON(signaling_thread());
   void OnTransportControllerCandidatesGathered(
-      const std::string& transport_name,
+      absl::string_view transport_name,
       const std::vector<Candidate>& candidates) RTC_RUN_ON(signaling_thread());
   void OnTransportControllerCandidateError(const IceCandidateErrorEvent& event)
       RTC_RUN_ON(signaling_thread());

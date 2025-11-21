@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "api/candidate.h"
 #include "api/environment/environment.h"
@@ -86,7 +87,7 @@ class ScenarioIceConnectionImpl : public ScenarioIceConnection,
       DataChannelTransportInterface* data_channel_transport) override;
 
   void OnRtpPacket(const RtpPacketReceived& packet) override;
-  void OnCandidates(const std::string& mid,
+  void OnCandidates(absl::string_view mid,
                     const std::vector<Candidate>& candidates);
 
   IceConnectionObserver* const observer_;
@@ -173,16 +174,21 @@ ScenarioIceConnectionImpl::~ScenarioIceConnectionImpl() {
 }
 
 JsepTransportController::Config ScenarioIceConnectionImpl::CreateJsepConfig() {
-  JsepTransportController::Config config;
-  config.transport_observer = this;
-  config.bundle_policy =
-      PeerConnectionInterface::BundlePolicy::kBundlePolicyMaxBundle;
-  config.rtcp_handler = [this](const CopyOnWriteBuffer& packet,
-                               int64_t packet_time_us) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    observer_->OnPacketReceived(packet);
+  return {
+      .bundle_policy =
+          PeerConnectionInterface::BundlePolicy::kBundlePolicyMaxBundle,
+      .transport_observer = this,
+      .rtcp_handler =
+          [this](const CopyOnWriteBuffer& packet, int64_t packet_time_us) {
+            RTC_DCHECK_RUN_ON(network_thread_);
+            observer_->OnPacketReceived(packet);
+          },
+      .signal_ice_candidates_gathered =
+          [this](absl::string_view transport,
+                 const std::vector<Candidate>& candidate) {
+            OnCandidates(transport, candidate);
+          },
   };
-  return config;
 }
 
 void ScenarioIceConnectionImpl::SendRtpPacket(
@@ -212,12 +218,6 @@ void ScenarioIceConnectionImpl::SetRemoteSdp(SdpType type,
                                              const std::string& remote_sdp) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   remote_description_ = CreateSessionDescription(type, remote_sdp);
-  jsep_controller_->SubscribeIceCandidateGathered(
-      [this](const std::string& transport,
-             const std::vector<Candidate>& candidate) {
-        ScenarioIceConnectionImpl::OnCandidates(transport, candidate);
-      });
-
   auto res = jsep_controller_->SetRemoteDescription(
       remote_description_->GetType(),
       local_description_ ? local_description_->description() : nullptr,
@@ -273,7 +273,7 @@ void ScenarioIceConnectionImpl::OnRtpPacket(const RtpPacketReceived& packet) {
 }
 
 void ScenarioIceConnectionImpl::OnCandidates(
-    const std::string& mid,
+    absl::string_view mid,
     const std::vector<Candidate>& candidates) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   observer_->OnIceCandidates(mid, candidates);
