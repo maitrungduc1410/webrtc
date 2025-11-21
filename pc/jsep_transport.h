@@ -22,7 +22,6 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "call/payload_type_picker.h"
 #include "media/sctp/sctp_transport_internal.h"
@@ -40,6 +39,7 @@
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -102,13 +102,13 @@ class JsepTransport {
   // Needed in order to verify the local fingerprint.
   void SetLocalCertificate(
       const scoped_refptr<RTCCertificate>& local_certificate) {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     local_certificate_ = local_certificate;
   }
 
   // Return the local certificate provided by SetLocalCertificate.
   scoped_refptr<RTCCertificate> GetLocalCertificate() const {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     return local_certificate_;
   }
 
@@ -132,7 +132,7 @@ class JsepTransport {
   // occurred yet for this transport (by applying a local description with
   // changed ufrag/password).
   bool needs_ice_restart() const {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     return needs_ice_restart_;
   }
 
@@ -143,12 +143,12 @@ class JsepTransport {
   bool GetStats(TransportStats* stats) const;
 
   const JsepTransportDescription* local_description() const {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     return local_description_.get();
   }
 
   const JsepTransportDescription* remote_description() const {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     return remote_description_.get();
   }
 
@@ -178,7 +178,7 @@ class JsepTransport {
   }
 
   const DtlsTransportInternal* rtcp_dtls_transport() const {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     if (rtcp_dtls_transport_) {
       return rtcp_dtls_transport_->internal();
     }
@@ -186,7 +186,7 @@ class JsepTransport {
   }
 
   DtlsTransportInternal* rtcp_dtls_transport() {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     if (rtcp_dtls_transport_) {
       return rtcp_dtls_transport_->internal();
     }
@@ -233,7 +233,7 @@ class JsepTransport {
   }
   PayloadTypeRecorder& local_payload_types() { return local_payload_types_; }
   void CommitPayloadTypes() {
-    RTC_DCHECK_RUN_ON(network_thread_);
+    RTC_DCHECK_RUN_ON(&transport_sequence_);
     local_payload_types_.Commit();
     remote_payload_types_.Commit();
   }
@@ -241,7 +241,7 @@ class JsepTransport {
  private:
   bool SetRtcpMux(bool enable, SdpType type, ContentSource source);
 
-  void ActivateRtcpMux() RTC_RUN_ON(network_thread_);
+  void ActivateRtcpMux() RTC_RUN_ON(transport_sequence_);
 
   // Negotiates and sets the DTLS parameters based on the current local and
   // remote transport description, such as the DTLS role to use, and whether
@@ -273,16 +273,16 @@ class JsepTransport {
                          TransportStats* stats) const;
 
   // Owning thread, for safety checks
-  const TaskQueueBase* const network_thread_;
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker transport_sequence_;
   const std::string mid_;
   // needs-ice-restart bit as described in JSEP.
-  bool needs_ice_restart_ RTC_GUARDED_BY(network_thread_) = false;
+  bool needs_ice_restart_ RTC_GUARDED_BY(transport_sequence_) = false;
   scoped_refptr<RTCCertificate> local_certificate_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
   std::unique_ptr<JsepTransportDescription> local_description_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
   std::unique_ptr<JsepTransportDescription> remote_description_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
 
   // Ice transport which may be used by any of upper-layer transports (below).
   // Owned by JsepTransport and guaranteed to outlive the transports below.
@@ -298,17 +298,17 @@ class JsepTransport {
   // The RTCP transport is const for all usages, except that it is cleared
   // when RTCP multiplexing is turned on; this happens on the network thread.
   scoped_refptr<DtlsTransport> rtcp_dtls_transport_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
 
   const scoped_refptr<::webrtc::SctpTransport> sctp_transport_;
 
-  RtcpMuxFilter rtcp_mux_negotiator_ RTC_GUARDED_BY(network_thread_);
+  RtcpMuxFilter rtcp_mux_negotiator_ RTC_GUARDED_BY(transport_sequence_);
 
   // Cache the encrypted header extension IDs
   std::optional<std::vector<int>> send_extension_ids_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
   std::optional<std::vector<int>> recv_extension_ids_
-      RTC_GUARDED_BY(network_thread_);
+      RTC_GUARDED_BY(transport_sequence_);
 
   // This is invoked when RTCP-mux becomes active and
   // `rtcp_dtls_transport_` is destroyed. The JsepTransportController will
@@ -316,9 +316,9 @@ class JsepTransport {
   absl::AnyInvocable<void()> rtcp_mux_active_callback_;
 
   // Assigned PTs from the remote description, used when sending.
-  PayloadTypeRecorder remote_payload_types_ RTC_GUARDED_BY(network_thread_);
+  PayloadTypeRecorder remote_payload_types_ RTC_GUARDED_BY(transport_sequence_);
   // Assigned PTs from the local description, used when receiving.
-  PayloadTypeRecorder local_payload_types_ RTC_GUARDED_BY(network_thread_);
+  PayloadTypeRecorder local_payload_types_ RTC_GUARDED_BY(transport_sequence_);
 };
 
 }  //  namespace webrtc

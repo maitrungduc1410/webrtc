@@ -230,7 +230,6 @@ rtc_library("jsep_transport") {
     "../api:rtc_error",
     "../api:scoped_refptr",
     "../api:sequence_checker",
-    "../api/task_queue",
     "../api/transport:datagram_transport_interface",
     "../call:payload_type_picker",
     "../media:rtc_data_sctp_transport_internal",
@@ -240,14 +239,13 @@ rtc_library("jsep_transport") {
     "../p2p:p2p_transport_channel",
     "../p2p:transport_description",
     "../rtc_base:checks",
-    "../rtc_base:copy_on_write_buffer",
     "../rtc_base:event_tracer",
     "../rtc_base:logging",
     "../rtc_base:macromagic",
     "../rtc_base:ssl",
     "../rtc_base:ssl_adapter",
     "../rtc_base:stringutils",
-    "../rtc_base:threading",
+    "../rtc_base/system:no_unique_address",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }

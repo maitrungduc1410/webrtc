@@ -40,13 +40,11 @@
 #include "pc/session_description.h"
 #include "pc/transport_stats.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 
 using webrtc::SdpType;
@@ -99,8 +97,7 @@ JsepTransport::JsepTransport(
     std::unique_ptr<SctpTransportInternal> sctp_transport,
     absl::AnyInvocable<void()> rtcp_mux_active_callback,
     PayloadTypePicker& suggester)
-    : network_thread_(Thread::Current()),
-      mid_(mid),
+    : mid_(mid),
       local_certificate_(local_certificate),
       ice_transport_(std::move(ice_transport)),
       rtcp_ice_transport_(std::move(rtcp_ice_transport)),
@@ -159,7 +156,7 @@ RTCError JsepTransport::SetLocalJsepTransportDescription(
     SdpType type) {
   RTCError error;
   TRACE_EVENT0("webrtc", "JsepTransport::SetLocalJsepTransportDescription");
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
 
   IceParameters ice_parameters =
       jsep_description.transport_desc.GetIceParameters();
@@ -233,7 +230,7 @@ RTCError JsepTransport::SetRemoteJsepTransportDescription(
   TRACE_EVENT0("webrtc", "JsepTransport::SetLocalJsepTransportDescription");
   RTCError error;
 
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
 
   IceParameters ice_parameters =
       jsep_description.transport_desc.GetIceParameters();
@@ -280,7 +277,7 @@ RTCError JsepTransport::SetRemoteJsepTransportDescription(
 }
 
 RTCError JsepTransport::AddRemoteCandidates(const Candidates& candidates) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!remote_description_) {
     return RTCError(RTCErrorType::INVALID_STATE,
                     mid() +
@@ -304,7 +301,7 @@ RTCError JsepTransport::AddRemoteCandidates(const Candidates& candidates) {
 }
 
 void JsepTransport::SetNeedsIceRestartFlag() {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!needs_ice_restart_) {
     needs_ice_restart_ = true;
     RTC_LOG(LS_VERBOSE) << "needs-ice-restart flag set for transport " << mid();
@@ -312,7 +309,7 @@ void JsepTransport::SetNeedsIceRestartFlag() {
 }
 
 std::optional<SSLRole> JsepTransport::GetDtlsRole() const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   RTC_DCHECK(rtp_dtls_transport_);
   RTC_DCHECK(rtp_dtls_transport_->internal());
   SSLRole dtls_role;
@@ -325,7 +322,7 @@ std::optional<SSLRole> JsepTransport::GetDtlsRole() const {
 
 bool JsepTransport::GetStats(TransportStats* stats) const {
   TRACE_EVENT0("webrtc", "JsepTransport::GetStats");
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   stats->transport_name = mid();
   stats->channel_stats.clear();
   RTC_DCHECK(rtp_dtls_transport_->internal());
@@ -344,7 +341,7 @@ RTCError JsepTransport::VerifyCertificateFingerprint(
     const RTCCertificate* certificate,
     const SSLFingerprint* fingerprint) const {
   TRACE_EVENT0("webrtc", "JsepTransport::VerifyCertificateFingerprint");
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!fingerprint) {
     return RTCError(RTCErrorType::INVALID_PARAMETER, "No fingerprint");
   }
@@ -367,7 +364,7 @@ RTCError JsepTransport::VerifyCertificateFingerprint(
 }
 
 void JsepTransport::SetActiveResetSrtpParams(bool active_reset_srtp_params) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (dtls_srtp_transport_) {
     RTC_LOG(LS_INFO)
         << "Setting active_reset_srtp_params of DtlsSrtpTransport to: "
@@ -379,7 +376,7 @@ void JsepTransport::SetActiveResetSrtpParams(bool active_reset_srtp_params) {
 RTCError JsepTransport::RecordPayloadTypes(bool local,
                                            SdpType type,
                                            const ContentInfo& content) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (local) {
     local_payload_types_.DisallowRedefinition();
   } else {
@@ -408,7 +405,7 @@ void JsepTransport::SetRemoteIceParameters(
     const IceParameters& ice_parameters,
     IceTransportInternal* ice_transport) {
   TRACE_EVENT0("webrtc", "JsepTransport::SetRemoteIceParameters");
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   RTC_DCHECK(ice_transport);
   RTC_DCHECK(remote_description_);
   ice_transport->SetRemoteIceParameters(ice_parameters);
@@ -428,7 +425,7 @@ RTCError JsepTransport::SetNegotiatedDtlsParameters(
 bool JsepTransport::SetRtcpMux(bool enable,
                                SdpType type,
                                ContentSource source) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   bool ret = false;
   switch (type) {
     case SdpType::kOffer:
@@ -475,7 +472,7 @@ void JsepTransport::ActivateRtcpMux() {
 
 RTCError JsepTransport::NegotiateAndSetDtlsParameters(
     SdpType local_description_type) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!local_description_ || !remote_description_) {
     return RTCError(RTCErrorType::INVALID_STATE,
                     "Applying an answer transport description "
@@ -637,7 +634,7 @@ RTCError JsepTransport::NegotiateDtlsRole(
 bool JsepTransport::GetTransportStats(DtlsTransportInternal* dtls_transport,
                                       int component,
                                       TransportStats* stats) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
   RTC_DCHECK(dtls_transport);
   TransportChannelStats substats;
   substats.component = component;
