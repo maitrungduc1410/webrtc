@@ -484,6 +484,7 @@ class PeerConnection : public PeerConnectionInternal,
       const ServerAddresses& stun_servers,
       const std::vector<RelayServerConfig>& turn_servers);
   JsepTransportController* InitializeTransportController_n(
+      std::unique_ptr<JsepTransportController> controller,
       const RTCConfiguration& configuration) RTC_RUN_ON(network_thread());
 
   scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>
@@ -619,11 +620,11 @@ class PeerConnection : public PeerConnectionInternal,
 
   MediaEngineInterface* media_engine() const RTC_RUN_ON(worker_thread());
 
-  std::function<void(const webrtc::CopyOnWriteBuffer& packet,
-                     int64_t packet_time_us)>
+  absl::AnyInvocable<void(const CopyOnWriteBuffer& packet,
+                          int64_t packet_time_us) const>
   InitializeRtcpCallback();
 
-  std::function<void(const RtpPacketReceived& parsed_packet)>
+  absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
   InitializeUnDemuxablePacketHandler();
 
   bool CanAttemptDtlsStunPiggybacking();

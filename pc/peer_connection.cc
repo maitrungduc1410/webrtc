@@ -736,30 +736,15 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
   RTC_DCHECK_RUN_ON(signaling_thread());
 
   NoteServerUsage(usage_pattern_, stun_servers, turn_servers);
-  return network_thread()->BlockingCall([&, config = &configuration_] {
-    RTC_DCHECK_RUN_ON(network_thread());
-    RTC_DCHECK(network_thread_safety_->alive());
-    InitializePortAllocatorResult pa_result =
-        InitializePortAllocator_n(stun_servers, turn_servers, *config);
-    // Send information about IPv4/IPv6 status.
-    PeerConnectionAddressFamilyCounter address_family =
-        pa_result.enable_ipv6 ? kPeerConnection_IPv6 : kPeerConnection_IPv4;
-    RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.IPMetrics", address_family,
-                              kPeerConnectionAddressFamilyCounter_Max);
-    return InitializeTransportController_n(*config);
-  });
-}
 
-JsepTransportController* PeerConnection::InitializeTransportController_n(
-    const RTCConfiguration& configuration) {
   JsepTransportController::Config config;
   config.redetermine_role_on_ice_restart =
-      configuration.redetermine_role_on_ice_restart;
+      configuration_.redetermine_role_on_ice_restart;
   config.ssl_max_version = options_.ssl_max_version;
   config.disable_encryption = options_.disable_encryption;
-  config.bundle_policy = configuration.bundle_policy;
-  config.rtcp_mux_policy = configuration.rtcp_mux_policy;
-  config.crypto_options = configuration.crypto_options;
+  config.bundle_policy = configuration_.bundle_policy;
+  config.rtcp_mux_policy = configuration_.rtcp_mux_policy;
+  config.crypto_options = configuration_.crypto_options;
 
   // Maybe enable or disable PQC from FieldTrials
   config.crypto_options.ephemeral_key_exchange_cipher_groups.Update(&trials());
@@ -769,7 +754,7 @@ JsepTransportController* PeerConnection::InitializeTransportController_n(
 #if defined(ENABLE_EXTERNAL_AUTH)
   config.enable_external_auth = true;
 #endif
-  config.active_reset_srtp_params = configuration.active_reset_srtp_params;
+  config.active_reset_srtp_params = configuration_.active_reset_srtp_params;
 
   // DTLS has to be enabled to use SCTP.
   if (dtls_enabled_) {
@@ -784,10 +769,31 @@ JsepTransportController* PeerConnection::InitializeTransportController_n(
         }
       };
 
-  transport_controller_.reset(new JsepTransportController(
+  auto transport_controller = std::make_unique<JsepTransportController>(
       env_, signaling_thread(), network_thread(), port_allocator_.get(),
       async_dns_resolver_factory_.get(), lna_permission_factory_.get(),
-      payload_type_picker_, std::move(config)));
+      payload_type_picker_, std::move(config));
+
+  return network_thread()->BlockingCall([&, config = &configuration_,
+                                         controller = std::move(
+                                             transport_controller)]() mutable {
+    RTC_DCHECK_RUN_ON(network_thread());
+    RTC_DCHECK(network_thread_safety_->alive());
+    InitializePortAllocatorResult pa_result =
+        InitializePortAllocator_n(stun_servers, turn_servers, *config);
+    // Send information about IPv4/IPv6 status.
+    PeerConnectionAddressFamilyCounter address_family =
+        pa_result.enable_ipv6 ? kPeerConnection_IPv6 : kPeerConnection_IPv4;
+    RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.IPMetrics", address_family,
+                              kPeerConnectionAddressFamilyCounter_Max);
+    return InitializeTransportController_n(std::move(controller), *config);
+  });
+}
+
+JsepTransportController* PeerConnection::InitializeTransportController_n(
+    std::unique_ptr<JsepTransportController> controller,
+    const RTCConfiguration& configuration) {
+  transport_controller_ = std::move(controller);
 
   transport_controller_->SubscribeIceConnectionState(
       [this](::webrtc::IceConnectionState s) {
@@ -3124,10 +3130,9 @@ int PeerConnection::FeedbackAccordingToTransportCcCountForTesting() const {
   });
 }
 
-std::function<void(const webrtc::CopyOnWriteBuffer& packet,
-                   int64_t packet_time_us)>
+absl::AnyInvocable<void(const CopyOnWriteBuffer& packet, int64_t packet_time_us)
+                       const>
 PeerConnection::InitializeRtcpCallback() {
-  RTC_DCHECK_RUN_ON(network_thread());
   return [this](const CopyOnWriteBuffer& packet, int64_t /*packet_time_us*/) {
     worker_thread()->PostTask(SafeTask(worker_thread_safety_, [this, packet]() {
       call_ptr_->Receiver()->DeliverRtcpPacket(packet);
@@ -3135,9 +3140,8 @@ PeerConnection::InitializeRtcpCallback() {
   };
 }
 
-std::function<void(const RtpPacketReceived& parsed_packet)>
+absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
 PeerConnection::InitializeUnDemuxablePacketHandler() {
-  RTC_DCHECK_RUN_ON(network_thread());
   return [this](const RtpPacketReceived& parsed_packet) {
     worker_thread()->PostTask(
         SafeTask(worker_thread_safety_, [this, parsed_packet]() {

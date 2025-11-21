@@ -70,7 +70,7 @@
 
 namespace webrtc {
 
-class JsepTransportController : public PayloadTypeSuggester {
+class JsepTransportController final : public PayloadTypeSuggester {
  public:
   // Used when the RtpTransport/DtlsTransport of the m= section is changed
   // because the section is rejected or BUNDLE is enabled.
@@ -147,7 +147,7 @@ class JsepTransportController : public PayloadTypeSuggester {
       LocalNetworkAccessPermissionFactoryInterface* lna_permission_factory,
       PayloadTypePicker& payload_type_picker,
       Config config);
-  virtual ~JsepTransportController();
+  ~JsepTransportController() override;
 
   JsepTransportController(const JsepTransportController&) = delete;
   JsepTransportController& operator=(const JsepTransportController&) = delete;
