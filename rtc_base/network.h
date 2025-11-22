@@ -187,6 +187,9 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
 
   virtual void set_vpn_list(const std::vector<NetworkMask>& /* vpn */) {}
 
+  sigslot::signal0<> SignalNetworksChanged;
+  sigslot::signal0<> SignalError;
+
   // The implementation of the Subscribe methods is in the .cc file due
   // to linking issues with Chrome.
   void SubscribeNetworksChanged(absl::AnyInvocable<void()> callback);
@@ -199,9 +202,6 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
   void NotifyError() { SignalError(); }
 
  private:
-  sigslot::signal0<> SignalNetworksChanged;
-  sigslot::signal0<> SignalError;
-
   SignalTrampoline<NetworkManager, &NetworkManager::SignalNetworksChanged>
       networks_changed_trampoline_;
   SignalTrampoline<NetworkManager, &NetworkManager::SignalError>
@@ -525,7 +525,8 @@ class RTC_EXPORT NetworkManagerBase : public NetworkManager {
 // Basic implementation of the NetworkManager interface that gets list
 // of networks using OS APIs.
 class RTC_EXPORT BasicNetworkManager : public NetworkManagerBase,
-                                       public NetworkBinderInterface {
+                                       public NetworkBinderInterface,
+                                       public sigslot::has_slots<> {
  public:
   BasicNetworkManager(
       const Environment& env,
