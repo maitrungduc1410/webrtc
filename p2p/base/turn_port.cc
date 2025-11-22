@@ -798,7 +798,7 @@ void TurnPort::OnReadPacket(AsyncPacketSocket* socket,
 
 void TurnPort::OnSentPacket(AsyncPacketSocket* socket,
                             const SentPacketInfo& sent_packet) {
-  PortInterface::SignalSentPacket(sent_packet);
+  NotifySentPacket(sent_packet);
 }
 
 void TurnPort::OnReadyToSend(AsyncPacketSocket* socket) {

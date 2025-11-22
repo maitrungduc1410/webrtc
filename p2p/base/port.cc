@@ -1025,18 +1025,12 @@ void Port::SubscribeRoleConflict(absl::AnyInvocable<void()> callback) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(callback);
   RTC_DCHECK(!role_conflict_callback_);
-  RTC_DCHECK(SignalRoleConflict.is_empty());
   role_conflict_callback_ = std::move(callback);
 }
 
 void Port::NotifyRoleConflict() {
   RTC_DCHECK_RUN_ON(thread_);
-  if (role_conflict_callback_) {
-    RTC_DCHECK(SignalRoleConflict.is_empty());
-    role_conflict_callback_();
-  } else {
-    SignalRoleConflict(this);
-  }
+  role_conflict_callback_();
 }
 
 void Port::SubscribeUnknownAddress(absl::AnyInvocable<void(PortInterface*,
@@ -1045,7 +1039,7 @@ void Port::SubscribeUnknownAddress(absl::AnyInvocable<void(PortInterface*,
                                                            IceMessage*,
                                                            const std::string&,
                                                            bool)> callback) {
-  unknown_address_trampoline_.Subscribe(std::move(callback));
+  unknown_address_callbacks_.AddReceiver(std::move(callback));
 }
 
 void Port::NotifyUnknownAddress(PortInterface* port,
@@ -1054,30 +1048,30 @@ void Port::NotifyUnknownAddress(PortInterface* port,
                                 IceMessage* msg,
                                 const std::string& rf,
                                 bool port_muxed) {
-  SignalUnknownAddress(port, address, proto, msg, rf, port_muxed);
+  unknown_address_callbacks_.Send(port, address, proto, msg, rf, port_muxed);
 }
 
 void Port::SubscribeReadPacket(
     absl::AnyInvocable<
         void(PortInterface*, const char*, size_t, const SocketAddress&)>
         callback) {
-  read_packet_trampoline_.Subscribe(std::move(callback));
+  read_packet_callbacks_.AddReceiver(std::move(callback));
 }
 
 void Port::NotifyReadPacket(PortInterface* port,
                             const char* data,
                             size_t size,
                             const SocketAddress& remote_address) {
-  SignalReadPacket(port, data, size, remote_address);
+  read_packet_callbacks_.Send(port, data, size, remote_address);
 }
 
 void Port::SubscribeSentPacket(
     absl::AnyInvocable<void(const SentPacketInfo&)> callback) {
-  sent_packet_trampoline_.Subscribe(std::move(callback));
+  sent_packet_callbacks_.AddReceiver(std::move(callback));
 }
 
 void Port::NotifySentPacket(const SentPacketInfo& packet) {
-  SignalSentPacket(packet);
+  sent_packet_callbacks_.Send(packet);
 }
 
 }  // namespace webrtc

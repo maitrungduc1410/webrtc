@@ -576,6 +576,17 @@ class RTC_EXPORT Port : public PortInterface {
   std::vector<std::unique_ptr<LocalNetworkAccessPermissionInterface>>
       permission_queries_ RTC_GUARDED_BY(thread_);
 
+  CallbackList<PortInterface*,
+               const SocketAddress&,
+               ProtocolType,
+               IceMessage*,
+               const std::string&,
+               bool>
+      unknown_address_callbacks_;
+  CallbackList<PortInterface*, const char*, size_t, const SocketAddress&>
+      read_packet_callbacks_;
+  CallbackList<const SentPacketInfo&> sent_packet_callbacks_;
+
   CallbackList<PortInterface*> port_destroyed_callback_list_
       RTC_GUARDED_BY(thread_);
   CallbackList<Port*, const IceCandidateErrorEvent&>
