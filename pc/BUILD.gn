@@ -2701,7 +2701,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base:threading",
       "../rtc_base:timeutils",
       "../rtc_base:unique_id_generator",
-      "../rtc_base:weak_ptr",
       "../rtc_base/containers:flat_map",
       "../rtc_base/synchronization:mutex",
       "../system_wrappers",

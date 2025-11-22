@@ -42,7 +42,6 @@
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/scoped_refptr.h"
-#include "api/sctp_transport_interface.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/transport/bitrate_settings.h"
 #include "api/transport/enums.h"
@@ -60,6 +59,7 @@
 #include "media/base/codec.h"
 #include "media/base/media_config.h"
 #include "media/base/stream_params.h"
+#include "media/sctp/sctp_transport_internal.h"
 #include "p2p/base/p2p_constants.h"
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
@@ -88,7 +88,6 @@
 #include "rtc_base/socket_server.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
-#include "rtc_base/weak_ptr.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/wait_until.h"
@@ -102,7 +101,6 @@ namespace {
 
 using ::testing::Eq;
 using ::testing::Exactly;
-using ::testing::IsNull;
 using ::testing::IsTrue;
 using ::testing::NotNull;
 using ::testing::SizeIs;
@@ -662,12 +660,8 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    if (pc_) {
+    if (pc_)
       pc_->Close();
-      ReleasePeerConnection();
-    }
-
-    ASSERT_THAT(port_allocator_, IsNull());
   }
 
   void CreatePeerConnection() {
@@ -708,12 +702,11 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   void CreatePeerConnection(const RTCConfiguration& config) {
     if (pc_) {
       pc_->Close();
-      ReleasePeerConnection();
+      pc_ = nullptr;
     }
-    ASSERT_THAT(port_allocator_, IsNull());
     auto port_allocator =
         std::make_unique<FakePortAllocator>(CreateEnvironment(), vss_.get());
-    port_allocator_ = port_allocator->NewWeakPtr();
+    port_allocator_ = port_allocator.get();
 
     // Create certificate generator unless DTLS constraint is explicitly set to
     // false.
@@ -1259,7 +1252,7 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   std::unique_ptr<VirtualSocketServer> vss_;
   AutoSocketServerThread main_;
   scoped_refptr<FakeAudioCaptureModule> fake_audio_capture_module_;
-  WeakPtr<FakePortAllocator> port_allocator_;
+  FakePortAllocator* port_allocator_ = nullptr;
   FakeRTCCertificateGenerator* fake_certificate_generator_ = nullptr;
   scoped_refptr<PeerConnectionFactoryInterface> pc_factory_;
   scoped_refptr<PeerConnectionInterface> pc_;
@@ -1361,7 +1354,7 @@ TEST_P(PeerConnectionInterfaceTest,
   // Create fake port allocator.
   auto port_allocator =
       std::make_unique<FakePortAllocator>(CreateEnvironment(), socket_server());
-  WeakPtr<FakePortAllocator> raw_port_allocator = port_allocator->NewWeakPtr();
+  FakePortAllocator* raw_port_allocator = port_allocator.get();
 
   // Create RTCConfiguration with some network-related fields relevant to
   // PortAllocator populated.
@@ -2327,16 +2320,14 @@ TEST_P(PeerConnectionInterfaceTest,
 TEST_P(PeerConnectionInterfaceTest, PooledSessionsDiscardedAfterClose) {
   CreatePeerConnection();
 
-  bool candidate_pool_discarded = false;
-  port_allocator_->SetOnDiscardCandidatePool(
-      [&]() { candidate_pool_discarded = true; });
-
   PeerConnectionInterface::RTCConfiguration config = pc_->GetConfiguration();
   config.ice_candidate_pool_size = 3;
   EXPECT_TRUE(pc_->SetConfiguration(config).ok());
   pc_->Close();
 
-  EXPECT_TRUE(candidate_pool_discarded);
+  // Expect no pooled sessions to be left.
+  const PortAllocatorSession* session = port_allocator_->GetPooledSession();
+  EXPECT_EQ(nullptr, session);
 }
 
 // Test that SetConfiguration returns an invalid modification error if

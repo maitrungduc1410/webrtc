@@ -1075,9 +1075,7 @@ if (rtc_include_tests) {
       "../rtc_base:network",
       "../rtc_base:socket_factory",
       "../rtc_base:task_queue_for_test",
-      "../rtc_base:weak_ptr",
       "//third_party/abseil-cpp/absl/base:nullability",
-      "//third_party/abseil-cpp/absl/functional:any_invocable",
       "//third_party/abseil-cpp/absl/memory",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
