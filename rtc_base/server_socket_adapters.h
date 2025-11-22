@@ -28,8 +28,6 @@ class AsyncProxyServerSocket : public BufferedReadAdapter {
  public:
   AsyncProxyServerSocket(Socket* socket, size_t buffer_size);
   ~AsyncProxyServerSocket() override;
-  sigslot::signal2<AsyncProxyServerSocket*, const SocketAddress&>
-      SignalConnectRequest;
 
   void SubscribeConnectRequest(
       absl::AnyInvocable<void(AsyncProxyServerSocket*, const SocketAddress&)>
@@ -44,6 +42,8 @@ class AsyncProxyServerSocket : public BufferedReadAdapter {
   virtual void SendConnectResult(int err, const SocketAddress& addr) = 0;
 
  private:
+  sigslot::signal2<AsyncProxyServerSocket*, const SocketAddress&>
+      SignalConnectRequest;
   SignalTrampoline<AsyncProxyServerSocket,
                    &AsyncProxyServerSocket::SignalConnectRequest>
       connect_request_trampoline_;

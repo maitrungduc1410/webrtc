@@ -41,7 +41,6 @@ class ProxyBinding {
   ProxyBinding(const ProxyBinding&) = delete;
   ProxyBinding& operator=(const ProxyBinding&) = delete;
 
-  sigslot::signal1<ProxyBinding*> SignalDestroyed;
   void SubscribeDestroyed(
       absl::AnyInvocable<void(ProxyBinding* proxy)> callback) {
     destroyed_trampoline_.Subscribe(std::move(callback));
@@ -49,6 +48,7 @@ class ProxyBinding {
   void NotifyDestroyed(ProxyBinding* proxy) { SignalDestroyed(proxy); }
 
  private:
+  sigslot::signal1<ProxyBinding*> SignalDestroyed;
   void OnConnectRequest(AsyncProxyServerSocket* socket,
                         const SocketAddress& addr);
   void OnInternalRead(Socket* socket);

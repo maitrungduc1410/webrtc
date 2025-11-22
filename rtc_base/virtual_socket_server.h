@@ -388,7 +388,6 @@ class VirtualSocketServer : public SocketServer {
 
   // Sending was previously blocked, but now isn't.
   // Deprecated interface
-  sigslot::signal0<> SignalReadyToSend;
   // New interface
   void NotifyReadyToSend() { SignalReadyToSend(); }
   void SubscribeReadyToSend(absl::AnyInvocable<void()> callback) {
@@ -499,6 +498,7 @@ class VirtualSocketServer : public SocketServer {
   size_t max_udp_payload_ RTC_GUARDED_BY(mutex_) = 65507;
 
   bool sending_blocked_ RTC_GUARDED_BY(mutex_) = false;
+  sigslot::signal0<> SignalReadyToSend;
   SignalTrampoline<VirtualSocketServer, &VirtualSocketServer::SignalReadyToSend>
       ready_to_send_trampoline_;
 };
