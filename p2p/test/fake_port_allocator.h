@@ -264,12 +264,12 @@ class FakePortAllocator : public PortAllocator {
   void DiscardCandidatePool() override {
     PortAllocator::DiscardCandidatePool();
     if (on_candidate_pool_discarded_) {
-      std::move(on_candidate_pool_discarded_)();
+      on_candidate_pool_discarded_();
     }
   }
 
   void SetOnDiscardCandidatePool(
-      absl::AnyInvocable<void() &&> on_candidate_pool_discarded) {
+      absl::AnyInvocable<void()> on_candidate_pool_discarded) {
     on_candidate_pool_discarded_ = std::move(on_candidate_pool_discarded);
   }
 
@@ -280,7 +280,7 @@ class FakePortAllocator : public PortAllocator {
   TaskQueueBase* absl_nonnull network_thread_;
   BasicPacketSocketFactory factory_;
   bool mdns_obfuscation_enabled_ = false;
-  absl::AnyInvocable<void() &&> on_candidate_pool_discarded_;
+  absl::AnyInvocable<void()> on_candidate_pool_discarded_;
   WeakPtrFactory<FakePortAllocator> weak_factory_{this};
 };
 

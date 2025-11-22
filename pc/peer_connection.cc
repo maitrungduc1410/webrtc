@@ -705,19 +705,7 @@ PeerConnection::~PeerConnection() {
     sdp_handler_->ResetSessionDescFactory();
   }
 
-  // port_allocator_ and transport_controller_ live on the network thread and
-  // should be destroyed there.
-  transport_controller_copy_ = nullptr;
-  network_thread()->BlockingCall([this] {
-    RTC_DCHECK_RUN_ON(network_thread());
-    TeardownDataChannelTransport_n(RTCError::OK());
-    transport_controller_.reset();
-    port_allocator_.reset();
-    if (network_thread_safety_)
-      network_thread_safety_->SetNotAlive();
-  });
-  sctp_mid_s_.reset();
-  SetSctpTransportName("");
+  CloseOnNetworkThread();
 
   // call_ must be destroyed on the worker thread.
   worker_thread()->BlockingCall([this] {
@@ -861,6 +849,28 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
                               kPeerConnectionAddressFamilyCounter_Max);
     return InitializeTransportController_n(std::move(controller), *config);
   });
+}
+
+void PeerConnection::CloseOnNetworkThread() {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  if (!transport_controller_copy_) {
+    RTC_DCHECK(!sctp_mid_s_.has_value()) << "Should already be reset.";
+    return;
+  }
+  // port_allocator_ and transport_controller_ live on the network thread and
+  // should be destroyed there.
+  transport_controller_copy_ = nullptr;
+  network_thread()->BlockingCall([this] {
+    RTC_DCHECK_RUN_ON(network_thread());
+    RTC_DCHECK(network_thread_safety_->alive());
+    TeardownDataChannelTransport_n(RTCError::OK());
+    port_allocator_->DiscardCandidatePool();
+    transport_controller_.reset();
+    port_allocator_.reset();
+    network_thread_safety_->SetNotAlive();
+  });
+  sctp_mid_s_.reset();
+  SetSctpTransportName("");
 }
 
 JsepTransportController* PeerConnection::InitializeTransportController_n(
@@ -1927,18 +1937,7 @@ void PeerConnection::Close() {
     rtp_manager_->Close();
   }
 
-  network_thread()->BlockingCall([this] {
-    RTC_DCHECK_RUN_ON(network_thread());
-    TeardownDataChannelTransport_n({});
-    transport_controller_.reset();
-    port_allocator_->DiscardCandidatePool();
-    if (network_thread_safety_) {
-      network_thread_safety_->SetNotAlive();
-    }
-  });
-
-  sctp_mid_s_.reset();
-  SetSctpTransportName("");
+  CloseOnNetworkThread();
 
   worker_thread()->BlockingCall([this] {
     RTC_DCHECK_RUN_ON(worker_thread());
@@ -2244,6 +2243,13 @@ bool PeerConnection::CreateDataChannelTransport(absl::string_view mid) {
 
 void PeerConnection::DestroyDataChannelTransport(RTCError error) {
   RTC_DCHECK_RUN_ON(signaling_thread());
+
+  if (!sctp_mid_s_.has_value()) {
+    RTC_LOG(LS_INFO) << "Data channel not configured.";
+    RTC_DCHECK(sctp_transport_name_s_.empty());
+    return;
+  }
+
   network_thread()->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread());
     TeardownDataChannelTransport_n(error);

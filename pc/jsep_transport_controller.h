@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 
-#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
