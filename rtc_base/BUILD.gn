@@ -1828,6 +1828,7 @@ rtc_library("rtc_base_tests_utils") {
     ":buffer",
     ":byte_buffer",
     ":byte_order",
+    ":callback_list",
     ":checks",
     ":digest",
     ":ip_address",
