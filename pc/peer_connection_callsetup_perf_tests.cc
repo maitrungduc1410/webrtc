@@ -227,7 +227,10 @@ INSTANTIATE_TEST_SUITE_P(
             "Enabled/",
             // SPED + DTLS 1.3
             "WebRTC-IceHandshakeDtls/Enabled/WebRTC-ForceDtls13/"
-            "Enabled/"),
+            "Enabled/",
+            // SPED + DTLS 1.3 + SNAP
+            "WebRTC-IceHandshakeDtls/Enabled/WebRTC-ForceDtls13/"
+            "Enabled/WebRTC-Sctp-Snap/Enabled/"),
         testing::Bool(),  // Whether to skip signaling candidates from
                           // first connection.
         testing::Values(
