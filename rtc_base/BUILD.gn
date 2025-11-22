@@ -745,6 +745,7 @@ rtc_library("weak_ptr") {
     "../api:scoped_refptr",
     "../api:sequence_checker",
     "system:no_unique_address",
+    "system:rtc_export",
   ]
 }
 
