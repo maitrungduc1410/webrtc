@@ -59,6 +59,7 @@
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_content_type.h"
+#include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
 #include "api/video/video_rotation.h"
 #include "api/video/video_sink_interface.h"
@@ -9049,6 +9050,55 @@ TEST_F(WebRtcVideoChannelTest,
   EXPECT_TRUE(send_channel_->SetVideoSend(last_ssrc_, nullptr, nullptr));
 }
 
+TEST_F(WebRtcVideoChannelTest, RequestEncoderSwitchClearAllCodecs) {
+  StreamParams sp = CreateSimStreamParams("cname", {123, 456, 789});
+
+  std::vector<RidDescription> rid_descriptions;
+  rid_descriptions.emplace_back("f", RidDirection::kSend);
+  rid_descriptions.emplace_back("h", RidDirection::kSend);
+  rid_descriptions.emplace_back("q", RidDirection::kSend);
+  sp.set_rids(rid_descriptions);
+
+  ASSERT_TRUE(send_channel_->AddSendStream(sp));
+
+  Codec vp8 = GetEngineCodec("VP8");
+  Codec vp9 = GetEngineCodec("VP9");
+
+  // VP9 is set initially for all simulcast layers.
+  RtpParameters rtp_parameters =
+      send_channel_->GetRtpSendParameters(last_ssrc_);
+  EXPECT_EQ(3UL, rtp_parameters.encodings.size());
+  rtp_parameters.encodings[0].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[1].codec = vp9.ToCodecParameters();
+  rtp_parameters.encodings[2].codec = vp9.ToCodecParameters();
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+
+  // Switch to VP8
+  SendImpl()->RequestEncoderSwitch(SdpVideoFormat::VP8(),
+                                   /*allow_default_fallback=*/true);
+
+  // Verify that VP8 is set for all simulcast layers and RtpStreamConfig is
+  // cleared.
+  const auto& streams = fake_call_->GetVideoSendStreams();
+  ASSERT_EQ(1u, streams.size());
+  auto stream = streams[0];
+  ASSERT_NE(stream, nullptr);
+  const auto& config = stream->GetConfig();
+  EXPECT_EQ(vp8.name, config.rtp.payload_name);
+  EXPECT_EQ(vp8.id, config.rtp.payload_type);
+  EXPECT_THAT(config.rtp.stream_configs, SizeIs(0));
+
+  VideoEncoderConfig encoder_config = stream->GetEncoderConfig().Copy();
+  EXPECT_EQ(vp8.name, config.rtp.payload_name);
+  EXPECT_EQ(vp8.id, config.rtp.payload_type);
+  EXPECT_EQ(vp8.name, encoder_config.video_format.name);
+  ASSERT_THAT(encoder_config.simulcast_layers, SizeIs(3));
+  EXPECT_EQ(std::nullopt, encoder_config.simulcast_layers[0].video_format);
+  EXPECT_EQ(std::nullopt, encoder_config.simulcast_layers[1].video_format);
+  EXPECT_EQ(std::nullopt, encoder_config.simulcast_layers[2].video_format);
+}
+
 class WebRtcVideoChannelWithMixedCodecSimulcastTest
     : public WebRtcVideoChannelTest {
  public:
@@ -9100,6 +9150,77 @@ TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
   EXPECT_EQ(config.rtp.stream_configs[0].payload_type, vp8.id);
   EXPECT_EQ(config.rtp.stream_configs[1].payload_type, vp8.id);
   EXPECT_EQ(config.rtp.stream_configs[2].payload_type, vp9.id);
+}
+
+// Verify that RtpEncodingParameters::codec propagates to
+// VideoEncoderConfig::video_format.
+TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
+       CodecSettingsPropagatedToEncoder) {
+  FakeVideoSendStream* stream = SetUpSimulcast(true, /*with_rtx=*/false);
+
+  // Send a full size frame so all simulcast layers are used when reconfiguring.
+  FrameForwarder frame_forwarder;
+  VideoOptions options;
+  EXPECT_TRUE(
+      send_channel_->SetVideoSend(last_ssrc_, &options, &frame_forwarder));
+  send_channel_->SetSend(true);
+  frame_forwarder.IncomingCapturedFrame(frame_source_.GetFrame());
+
+  // Get and set the rtp encoding parameters.
+  RtpParameters parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+  EXPECT_EQ(kNumSimulcastStreams, parameters.encodings.size());
+
+  // Verify that the initial value is nullopt.
+  VideoEncoderConfig encoder_config = stream->GetEncoderConfig().Copy();
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+  EXPECT_FALSE(encoder_config.simulcast_layers[0].video_format);
+  EXPECT_FALSE(encoder_config.simulcast_layers[1].video_format);
+  EXPECT_FALSE(encoder_config.simulcast_layers[2].video_format);
+
+  // Set single-codec simulcast
+  parameters.encodings[0].codec.emplace(
+      GetEngineCodec("VP8").ToCodecParameters());
+  parameters.encodings[1].codec.emplace(
+      GetEngineCodec("VP8").ToCodecParameters());
+  parameters.encodings[2].codec.emplace(
+      GetEngineCodec("VP8").ToCodecParameters());
+  EXPECT_TRUE(send_channel_->SetRtpSendParameters(last_ssrc_, parameters).ok());
+
+  // Verify that the new value propagated down to the encoder.
+  stream = fake_call_->GetVideoSendStreams()[0];
+  encoder_config = stream->GetEncoderConfig().Copy();
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+  EXPECT_TRUE(encoder_config.simulcast_layers[0].video_format);
+  EXPECT_TRUE(encoder_config.simulcast_layers[1].video_format);
+  EXPECT_TRUE(encoder_config.simulcast_layers[2].video_format);
+  EXPECT_EQ("VP8", encoder_config.simulcast_layers[0].video_format->name);
+  EXPECT_EQ("VP8", encoder_config.simulcast_layers[1].video_format->name);
+  EXPECT_EQ("VP8", encoder_config.simulcast_layers[2].video_format->name);
+
+  // Set mixed-codec simulcast
+  parameters.encodings[0].codec.emplace(
+      GetEngineCodec("VP8").ToCodecParameters());
+  parameters.encodings[1].codec.emplace(
+      GetEngineCodec("VP8").ToCodecParameters());
+  parameters.encodings[2].codec.emplace(
+      GetEngineCodec("VP9").ToCodecParameters());
+  EXPECT_TRUE(send_channel_->SetRtpSendParameters(last_ssrc_, parameters).ok());
+
+  // Verify that the new value propagated down to the encoder.
+  stream = fake_call_->GetVideoSendStreams()[0];
+  encoder_config = stream->GetEncoderConfig().Copy();
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+  EXPECT_TRUE(encoder_config.simulcast_layers[0].video_format);
+  EXPECT_TRUE(encoder_config.simulcast_layers[1].video_format);
+  EXPECT_TRUE(encoder_config.simulcast_layers[2].video_format);
+  EXPECT_EQ("VP8", encoder_config.simulcast_layers[0].video_format->name);
+  EXPECT_EQ("VP8", encoder_config.simulcast_layers[1].video_format->name);
+  EXPECT_EQ("VP9", encoder_config.simulcast_layers[2].video_format->name);
+
+  EXPECT_TRUE(send_channel_->SetVideoSend(last_ssrc_, nullptr, nullptr));
 }
 
 #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
