@@ -58,7 +58,6 @@
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
 #include "p2p/base/port_interface.h"
-#include "p2p/base/regathering_controller.h"
 #include "p2p/base/stun_dictionary.h"
 #include "p2p/base/transport_description.h"
 #include "p2p/dtls/dtls_stun_piggyback_callbacks.h"
@@ -73,6 +72,7 @@
 #include "rtc_base/socket_address.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/system/rtc_export.h"
+#include "rtc_base/task_utils/repeating_task.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -473,8 +473,7 @@ class RTC_EXPORT P2PTransportChannel : public IceTransportInternal,
   IceMode remote_ice_mode_ RTC_GUARDED_BY(network_thread_);
   IceRole ice_role_ RTC_GUARDED_BY(network_thread_);
   IceGatheringState gathering_state_ RTC_GUARDED_BY(network_thread_);
-  std::unique_ptr<BasicRegatheringController> regathering_controller_
-      RTC_GUARDED_BY(network_thread_);
+  RepeatingTaskHandle regathering_task_handle_ RTC_GUARDED_BY(network_thread_);
   Timestamp last_ping_sent_ RTC_GUARDED_BY(network_thread_) = Timestamp::Zero();
   int weak_ping_interval_ RTC_GUARDED_BY(network_thread_) =
       kWeakPingInterval.ms();

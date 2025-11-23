@@ -7155,5 +7155,117 @@ TEST_F(P2PTransportChannelTestDtlsInStun, SupportedByBoth) {
   Run(true, true);
 }
 
+class P2PTransportChannelRegatheringTest : public P2PTransportChannelPingTest {
+ public:
+  void SetupChannel(IceConfig config) {
+    // Use a fixed environment for the allocator and channel.
+    env_ = std::make_unique<Environment>(CreateEnvironment());
+    allocator_ = std::make_unique<FakePortAllocator>(*env_, ss());
+    channel_ = std::make_unique<P2PTransportChannel>(*env_, "regather", 1,
+                                                     allocator_.get());
+    PrepareChannel(channel_.get());
+    channel_->SetIceConfig(config);
+    channel_->SetIceRole(ICEROLE_CONTROLLING);
+    channel_->SetIceParameters(kIceParams[0]);
+    channel_->SetRemoteIceParameters(kIceParams[1]);
+    channel_->MaybeStartGathering();
+
+    // Create a connection to trigger pinging which starts the regathering
+    // timer. We need to make sure the connection is pingable.
+    channel_->AddRemoteCandidate(
+        CreateUdpCandidate(IceCandidateType::kHost, "1.1.1.1", 1, 1));
+    connection_ = WaitForConnectionTo(channel_.get(), "1.1.1.1", 1);
+    EXPECT_TRUE(connection_ != nullptr);
+
+    channel_->allocator_session()->SubscribeIceRegathering(
+        [this](PortAllocatorSession*, IceRegatheringReason reason) {
+          regathering_counts_[reason]++;
+        });
+  }
+
+  int GetRegatheringCount(IceRegatheringReason reason) {
+    return regathering_counts_[reason];
+  }
+
+  std::unique_ptr<Environment> env_;
+  std::unique_ptr<FakePortAllocator> allocator_;
+  std::unique_ptr<P2PTransportChannel> channel_;
+  Connection* connection_ = nullptr;
+  std::map<IceRegatheringReason, int> regathering_counts_;
+};
+
+TEST_F(P2PTransportChannelRegatheringTest,
+       IceRegatheringDoesNotOccurIfSessionNotCleared) {
+  ScopedFakeClock clock;
+  IceConfig config;
+  config.regather_on_failed_networks_interval = TimeDelta::Millis(2000);
+  SetupChannel(config);
+
+  // Session is not cleared by default.
+  // Expect no regathering in the last 10s.
+  // We use WaitUntil with a condition that is always false to wait for timeout,
+  // but we expect it to fail (return false).
+  EXPECT_FALSE(WaitUntil([&] { return false; },
+                         {.timeout = TimeDelta::Seconds(10), .clock = &clock}));
+  EXPECT_EQ(0, GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE));
+}
+
+TEST_F(P2PTransportChannelRegatheringTest, IceRegatheringRepeatsAsScheduled) {
+  ScopedFakeClock clock;
+  IceConfig config;
+  config.regather_on_failed_networks_interval = TimeDelta::Millis(2000);
+  SetupChannel(config);
+
+  channel_->allocator_session()->ClearGettingPorts();
+
+  // Expect no regathering immediately (wait < 2000ms).
+  EXPECT_FALSE(
+      WaitUntil([&] { return false; },
+                {.timeout = TimeDelta::Millis(1900), .clock = &clock}));
+  EXPECT_EQ(0, GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE));
+
+  // Expect regathering to happen once after 2s.
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE) == 1;
+      },
+      {.timeout = TimeDelta::Millis(500), .clock = &clock}));
+
+  // Expect regathering to happen for another 5 times in 11s with 2s interval.
+  // Total 6.
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE) == 6;
+      },
+      {.timeout = TimeDelta::Seconds(11), .clock = &clock}));
+}
+
+TEST_F(P2PTransportChannelRegatheringTest,
+       ScheduleOfIceRegatheringOnFailedNetworksCanBeReplaced) {
+  ScopedFakeClock clock;
+  IceConfig config;
+  config.regather_on_failed_networks_interval = TimeDelta::Millis(2000);
+  SetupChannel(config);
+
+  channel_->allocator_session()->ClearGettingPorts();
+
+  config.regather_on_failed_networks_interval = TimeDelta::Millis(5000);
+  channel_->SetIceConfig(config);
+
+  // Expect no regathering from the previous schedule (Wait 3s, previous was
+  // 2s). Since we reset the schedule, it should restart counting 5s from now.
+  EXPECT_FALSE(WaitUntil([&] { return false; },
+                         {.timeout = TimeDelta::Seconds(3), .clock = &clock}));
+  EXPECT_EQ(0, GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE));
+
+  // Expect regathering to happen twice in the last 11s (total 14s) with 5s
+  // interval. First at 5s, second at 10s.
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return GetRegatheringCount(IceRegatheringReason::NETWORK_FAILURE) == 2;
+      },
+      {.timeout = TimeDelta::Seconds(8), .clock = &clock}));
+}
+
 }  // namespace
 }  // namespace webrtc

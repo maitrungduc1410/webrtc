@@ -491,7 +491,6 @@ rtc_library("p2p_transport_channel") {
     ":port",
     ":port_allocator",
     ":port_interface",
-    ":regathering_controller",
     ":stun_dictionary",
     ":transport_description",
     ":wrapping_active_ice_controller",
@@ -534,6 +533,7 @@ rtc_library("p2p_transport_channel") {
     "../rtc_base/network:received_packet",
     "../rtc_base/network:sent_packet",
     "../rtc_base/system:rtc_export",
+    "../rtc_base/task_utils:repeating_task",
     "../system_wrappers:metrics",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
@@ -672,26 +672,6 @@ rtc_library("port_interface") {
     "../rtc_base/network:sent_packet",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
-  ]
-}
-
-rtc_library("regathering_controller") {
-  sources = [
-    "base/regathering_controller.cc",
-    "base/regathering_controller.h",
-  ]
-  deps = [
-    ":connection",
-    ":ice_transport_internal",
-    ":p2p_constants",
-    ":packet_transport_internal",
-    ":port_allocator",
-    "../api:sequence_checker",
-    "../api/task_queue",
-    "../api/task_queue:pending_task_safety_flag",
-    "../api/units:time_delta",
-    "../rtc_base:checks",
-    "../rtc_base:network_route",
   ]
 }
 
@@ -1188,7 +1168,6 @@ if (rtc_include_tests) {
       "base/packet_transport_internal_unittest.cc",
       "base/port_allocator_unittest.cc",
       "base/port_unittest.cc",
-      "base/regathering_controller_unittest.cc",
       "base/stun_dictionary_unittest.cc",
       "base/stun_port_unittest.cc",
       "base/stun_request_unittest.cc",
@@ -1234,7 +1213,6 @@ if (rtc_include_tests) {
       ":port",
       ":port_allocator",
       ":port_interface",
-      ":regathering_controller",
       ":relay_port_factory_interface",
       ":stun_dictionary",
       ":stun_port",
