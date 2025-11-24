@@ -90,7 +90,7 @@ class JsepTransportController final : public PayloadTypeSuggester {
     // `data_channel_transport` or any fallback transport until
     // `negotiation_state` is final.
     virtual bool OnTransportChanged(
-        const std::string& mid,
+        absl::string_view mid,
         RtpTransportInternal* rtp_transport,
         scoped_refptr<DtlsTransport> dtls_transport,
         DataChannelTransportInterface* data_channel_transport) = 0;
@@ -273,7 +273,7 @@ class JsepTransportController final : public PayloadTypeSuggester {
     return payload_type_picker_;
   }
 
-  bool GetStats(const std::string& mid, TransportStats* stats) const;
+  bool GetStats(absl::string_view transport_name, TransportStats* stats) const;
 
   void SetActiveResetSrtpParams(bool active_reset_srtp_params);
 
@@ -370,8 +370,8 @@ class JsepTransportController final : public PayloadTypeSuggester {
   // Get the JsepTransport without considering the BUNDLE group. Return nullptr
   // if the JsepTransport is destroyed.
   const JsepTransport* GetJsepTransportByName(
-      const std::string& transport_name) const RTC_RUN_ON(network_thread_);
-  JsepTransport* GetJsepTransportByName(const std::string& transport_name)
+      absl::string_view transport_name) const RTC_RUN_ON(network_thread_);
+  JsepTransport* GetJsepTransportByName(absl::string_view transport_name)
       RTC_RUN_ON(network_thread_);
 
   // Creates jsep transport. Noop if transport is already created.
@@ -449,7 +449,7 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
   void OnDtlsHandshakeError(SSLHandshakeError error);
 
-  bool OnTransportChanged(const std::string& mid, JsepTransport* transport);
+  bool OnTransportChanged(absl::string_view mid, JsepTransport* transport);
 
   const Environment env_;
   TaskQueueBase* const signaling_thread_;

@@ -11,7 +11,6 @@
 #include "pc/jsep_transport_collection.h"
 
 #include <algorithm>
-#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -82,11 +81,11 @@ void BundleManager::Update(const SessionDescription* description,
 }
 
 const ContentGroup* BundleManager::LookupGroupByMid(
-    const std::string& mid) const {
+    absl::string_view mid) const {
   auto it = established_bundle_groups_by_mid_.find(mid);
   return it != established_bundle_groups_by_mid_.end() ? it->second : nullptr;
 }
-bool BundleManager::IsFirstMidInGroup(const std::string& mid) const {
+bool BundleManager::IsFirstMidInGroup(absl::string_view mid) const {
   auto group = LookupGroupByMid(mid);
   if (!group) {
     return true;  // Unbundled MIDs are considered group leaders
@@ -94,13 +93,13 @@ bool BundleManager::IsFirstMidInGroup(const std::string& mid) const {
   return mid == *(group->FirstContentName());
 }
 
-ContentGroup* BundleManager::LookupGroupByMid(const std::string& mid) {
+ContentGroup* BundleManager::LookupGroupByMid(absl::string_view mid) {
   auto it = established_bundle_groups_by_mid_.find(mid);
   return it != established_bundle_groups_by_mid_.end() ? it->second : nullptr;
 }
 
 void BundleManager::DeleteMid(const ContentGroup* bundle_group,
-                              const std::string& mid) {
+                              absl::string_view mid) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_LOG(LS_VERBOSE) << "Deleting mid " << mid << " from bundle group "
                       << bundle_group->ToString();
@@ -163,11 +162,14 @@ void BundleManager::RefreshEstablishedBundleGroupsByMid() {
 }
 
 void JsepTransportCollection::RegisterTransport(
-    const std::string& mid,
+    absl::string_view transport_name,
     std::unique_ptr<JsepTransport> transport) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  SetTransportForMid(mid, transport.get());
-  jsep_transports_by_name_[mid] = std::move(transport);
+  RTC_DCHECK_EQ(transport_name, transport->mid());  // Unnecessary param?
+  SetTransportForMid(transport_name, transport.get());
+  auto inserted = jsep_transports_by_name_.insert(
+      std::make_pair(std::string(transport_name), std::move(transport)));
+  RTC_DCHECK(inserted.second);
   RTC_DCHECK(IsConsistent());
 }
 
@@ -199,51 +201,35 @@ void JsepTransportCollection::DestroyAllTransports() {
 }
 
 const JsepTransport* JsepTransportCollection::GetTransportByName(
-    const std::string& transport_name) const {
+    absl::string_view transport_name) const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   auto it = jsep_transports_by_name_.find(transport_name);
   return (it == jsep_transports_by_name_.end()) ? nullptr : it->second.get();
 }
 
 JsepTransport* JsepTransportCollection::GetTransportByName(
-    const std::string& transport_name) {
+    absl::string_view transport_name) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   auto it = jsep_transports_by_name_.find(transport_name);
   return (it == jsep_transports_by_name_.end()) ? nullptr : it->second.get();
 }
 
 JsepTransport* JsepTransportCollection::GetTransportForMid(
-    const std::string& mid) {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
-  auto it = mid_to_transport_.find(mid);
-  return it == mid_to_transport_.end() ? nullptr : it->second;
-}
-
-const JsepTransport* JsepTransportCollection::GetTransportForMid(
-    const std::string& mid) const {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
-  auto it = mid_to_transport_.find(mid);
-  return it == mid_to_transport_.end() ? nullptr : it->second;
-}
-
-JsepTransport* JsepTransportCollection::GetTransportForMid(
     absl::string_view mid) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  // TODO(hta): should be a better way.
-  auto it = mid_to_transport_.find(std::string(mid));
+  auto it = mid_to_transport_.find(mid);
   return it == mid_to_transport_.end() ? nullptr : it->second;
 }
 
 const JsepTransport* JsepTransportCollection::GetTransportForMid(
     absl::string_view mid) const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  // TODO(hta): Should be a better way
-  auto it = mid_to_transport_.find(std::string(mid));
+  auto it = mid_to_transport_.find(mid);
   return it == mid_to_transport_.end() ? nullptr : it->second;
 }
 
 bool JsepTransportCollection::SetTransportForMid(
-    const std::string& mid,
+    absl::string_view mid,
     JsepTransport* jsep_transport) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK(jsep_transport);
@@ -258,7 +244,7 @@ bool JsepTransportCollection::SetTransportForMid(
   bool result = map_change_callback_(mid, jsep_transport);
 
   if (it == mid_to_transport_.end()) {
-    mid_to_transport_.insert(std::make_pair(mid, jsep_transport));
+    mid_to_transport_.insert(std::make_pair(std::string(mid), jsep_transport));
   } else {
     auto old_transport = it->second;
     it->second = jsep_transport;
@@ -268,7 +254,7 @@ bool JsepTransportCollection::SetTransportForMid(
   return result;
 }
 
-void JsepTransportCollection::RemoveTransportForMid(const std::string& mid) {
+void JsepTransportCollection::RemoveTransportForMid(absl::string_view mid) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK(IsConsistent());
   bool ret = map_change_callback_(mid, nullptr);

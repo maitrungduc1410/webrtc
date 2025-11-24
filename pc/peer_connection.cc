@@ -106,6 +106,7 @@
 #include "pc/transport_stats.h"
 #include "pc/usage_pattern.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/ip_address.h"
@@ -2880,12 +2881,12 @@ void PeerConnection::ReportTransportStats(
     std::vector<RtpTransceiverProxyRefPtr> transceivers) {
   TRACE_EVENT0("webrtc", "PeerConnection::ReportTransportStats");
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-  std::map<std::string, std::set<webrtc::MediaType>>
+  flat_map<absl::string_view, std::set<webrtc::MediaType>>
       media_types_by_transport_name;
   for (const auto& transceiver : transceivers) {
     if (transceiver->internal()->channel()) {
-      std::string transport_name(
-          transceiver->internal()->channel()->transport_name());
+      const absl::string_view transport_name =
+          transceiver->internal()->channel()->transport_name();
       media_types_by_transport_name[transport_name].insert(
           transceiver->media_type());
     }
@@ -2901,7 +2902,7 @@ void PeerConnection::ReportTransportStats(
   }
 
   for (const auto& entry : media_types_by_transport_name) {
-    const std::string& transport_name = entry.first;
+    const absl::string_view transport_name = entry.first;
     const std::set<webrtc::MediaType> media_types = entry.second;
     TransportStats stats;
     if (transport_controller_->GetStats(transport_name, &stats)) {
@@ -3029,7 +3030,7 @@ void PeerConnection::ReportNegotiatedCiphers(
 }
 
 bool PeerConnection::OnTransportChanged(
-    const std::string& mid,
+    absl::string_view mid,
     RtpTransportInternal* rtp_transport,
     scoped_refptr<DtlsTransport> dtls_transport,
     DataChannelTransportInterface* data_channel_transport) {

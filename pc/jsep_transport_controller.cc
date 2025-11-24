@@ -86,7 +86,7 @@ JsepTransportController::JsepTransportController(
       async_dns_resolver_factory_(async_dns_resolver_factory),
       lna_permission_factory_(lna_permission_factory),
       transports_(
-          [this](const std::string& mid, JsepTransport* transport) {
+          [this](absl::string_view mid, JsepTransport* transport) {
             return OnTransportChanged(mid, transport);
           },
           [this]() {
@@ -472,7 +472,7 @@ bool JsepTransportController::RemoveRemoteCandidate_n(const IceCandidate* c) {
   return true;
 }
 
-bool JsepTransportController::GetStats(const std::string& transport_name,
+bool JsepTransportController::GetStats(absl::string_view transport_name,
                                        TransportStats* stats) const {
   RTC_DCHECK_RUN_ON(network_thread_);
 
@@ -1150,12 +1150,12 @@ JsepTransport* JsepTransportController::GetJsepTransportForMid(
 }
 
 const JsepTransport* JsepTransportController::GetJsepTransportByName(
-    const std::string& transport_name) const {
+    absl::string_view transport_name) const {
   return transports_.GetTransportByName(transport_name);
 }
 
 JsepTransport* JsepTransportController::GetJsepTransportByName(
-    const std::string& transport_name) {
+    absl::string_view transport_name) {
   return transports_.GetTransportByName(transport_name);
 }
 
@@ -1556,7 +1556,7 @@ void JsepTransportController::OnDtlsHandshakeError(SSLHandshakeError error) {
 }
 
 bool JsepTransportController::OnTransportChanged(
-    const std::string& mid,
+    absl::string_view mid,
     JsepTransport* jsep_transport) {
   if (config_.transport_observer) {
     if (jsep_transport) {

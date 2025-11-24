@@ -351,16 +351,14 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
 
   // JsepTransportController::Observer overrides.
   bool OnTransportChanged(
-      const std::string& mid,
+      absl::string_view mid,
       RtpTransportInternal* rtp_transport,
       scoped_refptr<DtlsTransport> dtls_transport,
       DataChannelTransportInterface* data_channel_transport) override {
-    changed_rtp_transport_by_mid_[mid] = rtp_transport;
-    if (dtls_transport) {
-      changed_dtls_transport_by_mid_[mid] = dtls_transport->internal();
-    } else {
-      changed_dtls_transport_by_mid_[mid] = nullptr;
-    }
+    std::string str_mid(mid);
+    changed_rtp_transport_by_mid_[str_mid] = rtp_transport;
+    changed_dtls_transport_by_mid_[str_mid] =
+        dtls_transport ? dtls_transport->internal() : nullptr;
     return true;
   }
 

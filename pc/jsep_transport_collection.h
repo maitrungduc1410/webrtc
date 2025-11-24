@@ -11,7 +11,6 @@
 #ifndef PC_JSEP_TRANSPORT_COLLECTION_H_
 #define PC_JSEP_TRANSPORT_COLLECTION_H_
 
-#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,6 +23,7 @@
 #include "api/sequence_checker.h"
 #include "pc/jsep_transport.h"
 #include "pc/session_description.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -50,16 +50,16 @@ class BundleManager {
     return bundle_groups_;
   }
   // Lookup a bundle group by a member mid name.
-  const ContentGroup* LookupGroupByMid(const std::string& mid) const;
-  ContentGroup* LookupGroupByMid(const std::string& mid);
+  const ContentGroup* LookupGroupByMid(absl::string_view mid) const;
+  ContentGroup* LookupGroupByMid(absl::string_view mid);
   // Returns true if the MID is the first item of a group, or if
   // the MID is not a member of a group.
-  bool IsFirstMidInGroup(const std::string& mid) const;
+  bool IsFirstMidInGroup(absl::string_view mid) const;
   // Update the groups description. This completely replaces the group
   // description with the one from the SessionDescription.
   void Update(const SessionDescription* description, SdpType type);
   // Delete a MID from the group that contains it.
-  void DeleteMid(const ContentGroup* bundle_group, const std::string& mid);
+  void DeleteMid(const ContentGroup* bundle_group, absl::string_view mid);
   // Delete a group.
   void DeleteGroup(const ContentGroup* bundle_group);
   // Roll back to previous stable state.
@@ -78,7 +78,7 @@ class BundleManager {
       RTC_GUARDED_BY(sequence_checker_);
   std::vector<std::unique_ptr<ContentGroup>> stable_bundle_groups_
       RTC_GUARDED_BY(sequence_checker_);
-  std::map<std::string, ContentGroup*> established_bundle_groups_by_mid_;
+  flat_map<std::string, ContentGroup*> established_bundle_groups_by_mid_;
 };
 
 // This class keeps the mapping of MIDs to transports.
@@ -88,14 +88,14 @@ class BundleManager {
 class JsepTransportCollection {
  public:
   JsepTransportCollection(
-      absl::AnyInvocable<bool(const std::string& mid,
+      absl::AnyInvocable<bool(absl::string_view mid,
                               webrtc::JsepTransport* transport)>
           map_change_callback,
       absl::AnyInvocable<void()> state_change_callback)
       : map_change_callback_(std::move(map_change_callback)),
         state_change_callback_(std::move(state_change_callback)) {}
 
-  void RegisterTransport(const std::string& mid,
+  void RegisterTransport(absl::string_view transport_name,
                          std::unique_ptr<JsepTransport> transport);
   // Returns all transports, including those not currently mapped to any MID
   // because they're being kept alive in case of rollback.
@@ -104,20 +104,18 @@ class JsepTransportCollection {
   std::vector<JsepTransport*> ActiveTransports();
   void DestroyAllTransports();
   // Lookup a JsepTransport by the MID that was used to register it.
-  JsepTransport* GetTransportByName(const std::string& mid);
-  const JsepTransport* GetTransportByName(const std::string& mid) const;
+  JsepTransport* GetTransportByName(absl::string_view transport_name);
+  const JsepTransport* GetTransportByName(
+      absl::string_view transport_name) const;
   // Lookup a JsepTransport by any MID that refers to it.
-  JsepTransport* GetTransportForMid(const std::string& mid);
-  const JsepTransport* GetTransportForMid(const std::string& mid) const;
   JsepTransport* GetTransportForMid(absl::string_view mid);
   const JsepTransport* GetTransportForMid(absl::string_view mid) const;
   // Set transport for a MID. This may destroy a transport if it is no
   // longer in use.
-  bool SetTransportForMid(const std::string& mid,
-                          JsepTransport* jsep_transport);
+  bool SetTransportForMid(absl::string_view mid, JsepTransport* jsep_transport);
   // Remove a transport for a MID. This may destroy a transport if it is
   // no longer in use.
-  void RemoveTransportForMid(const std::string& mid);
+  void RemoveTransportForMid(absl::string_view mid);
   // Roll back to previous stable mid-to-transport mappings.
   bool RollbackTransports();
   // Commit pending mid-transport mappings (rollback is no longer possible),
@@ -145,19 +143,19 @@ class JsepTransportCollection {
   RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_{
       SequenceChecker::kDetached};
   // This member owns the JSEP transports.
-  std::map<std::string, std::unique_ptr<JsepTransport>> jsep_transports_by_name_
+  flat_map<std::string, std::unique_ptr<JsepTransport>> jsep_transports_by_name_
       RTC_GUARDED_BY(sequence_checker_);
 
   // This keeps track of the mapping between media section
   // (BaseChannel/SctpTransport) and the JsepTransport underneath.
-  std::map<std::string, JsepTransport*> mid_to_transport_
+  flat_map<std::string, JsepTransport*> mid_to_transport_
       RTC_GUARDED_BY(sequence_checker_);
   // A snapshot of mid_to_transport_ at the last stable state. Used for
   // rollback.
-  std::map<std::string, JsepTransport*> stable_mid_to_transport_
+  flat_map<std::string, JsepTransport*> stable_mid_to_transport_
       RTC_GUARDED_BY(sequence_checker_);
   // Callback used to inform subscribers of altered transports.
-  absl::AnyInvocable<bool(const std::string& mid,
+  absl::AnyInvocable<bool(absl::string_view mid,
                           webrtc::JsepTransport* transport)>
       map_change_callback_;
   // Callback used to inform subscribers of possibly altered state.
