@@ -91,15 +91,6 @@ PortInterface::CandidateOrigin GetOrigin(PortInterface* port,
     return PortInterface::ORIGIN_OTHER_PORT;
 }
 
-uint32_t GetWeakPingIntervalInFieldTrial(const FieldTrialsView& field_trials) {
-  uint32_t weak_ping_interval = ::strtoul(
-      field_trials.Lookup("WebRTC-StunInterPacketDelay").c_str(), nullptr, 10);
-  if (weak_ping_interval) {
-    return static_cast<int>(weak_ping_interval);
-  }
-  return kWeakPingInterval.ms();
-}
-
 RouteEndpoint CreateRouteEndpointFromCandidate(bool local,
                                                const Candidate& candidate,
                                                bool uses_turn) {
@@ -185,7 +176,6 @@ P2PTransportChannel::P2PTransportChannel(
       remote_ice_mode_(ICEMODE_FULL),
       ice_role_(ICEROLE_UNKNOWN),
       gathering_state_(kIceGatheringNew),
-      weak_ping_interval_(GetWeakPingIntervalInFieldTrial(env_.field_trials())),
       config_(kReceivingTimeout,
               kBackupConnectionPingInterval,
               GATHER_ONCE /* continual_gathering_policy */,

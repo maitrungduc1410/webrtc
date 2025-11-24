@@ -52,7 +52,6 @@
 #include "p2p/base/ice_controller_factory_interface.h"
 #include "p2p/base/ice_switch_reason.h"
 #include "p2p/base/ice_transport_internal.h"
-#include "p2p/base/p2p_constants.h"
 #include "p2p/base/p2p_transport_channel_ice_field_trials.h"
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
@@ -474,8 +473,6 @@ class RTC_EXPORT P2PTransportChannel : public IceTransportInternal,
   RepeatingTaskHandle regathering_task_handle_ RTC_GUARDED_BY(&network_thread_);
   Timestamp last_ping_sent_ RTC_GUARDED_BY(&network_thread_) =
       Timestamp::Zero();
-  int weak_ping_interval_ RTC_GUARDED_BY(&network_thread_) =
-      kWeakPingInterval.ms();
   // TODO(jonasolsson): Remove state_ and rename standardized_state_ once state_
   // is no longer used to compute the ICE connection state.
   IceTransportStateInternal state_ RTC_GUARDED_BY(&network_thread_) =
