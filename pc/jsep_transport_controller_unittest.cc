@@ -99,8 +99,8 @@ class FakeIceTransportFactory : public IceTransportFactory {
       const std::string& transport_name,
       int component,
       IceTransportInit init) override {
-    return make_ref_counted<FakeIceTransportWrapper>(
-        std::make_unique<FakeIceTransport>(transport_name, component));
+    return make_ref_counted<FakeIceTransport>(
+        std::make_unique<FakeIceTransportInternal>(transport_name, component));
   }
 };
 
@@ -111,7 +111,7 @@ class FakeDtlsTransportFactory : public DtlsTransportFactory {
       const CryptoOptions& crypto_options,
       SSLProtocolVersion max_version) override {
     return std::make_unique<FakeDtlsTransport>(
-        static_cast<FakeIceTransport*>(ice));
+        static_cast<FakeIceTransportInternal*>(ice));
   }
 };
 
@@ -682,7 +682,7 @@ TEST_F(JsepTransportControllerTest, SignalConnectionStateFailed) {
           ->SetLocalDescription(SdpType::kOffer, description.get(), nullptr)
           .ok());
 
-  auto fake_ice = static_cast<FakeIceTransport*>(
+  auto fake_ice = static_cast<FakeIceTransportInternal*>(
       transport_controller_->GetDtlsTransport(kAudioMid1)->ice_transport());
   fake_ice->SetCandidatesGatheringComplete();
   fake_ice->SetConnectionCount(1);
@@ -750,8 +750,8 @@ TEST_F(JsepTransportControllerTest,
 
   fake_audio_dtls->SetDtlsState(DtlsTransportState::kConnected);
   fake_video_dtls->SetDtlsState(DtlsTransportState::kConnected);
-  // Set the connection count to be 2 and the webrtc::FakeIceTransport will set
-  // the transport state to be STATE_CONNECTING.
+  // Set the connection count to be 2 and the webrtc::FakeIceTransportInternal
+  // will set the transport state to be STATE_CONNECTING.
   fake_video_dtls->fake_ice_transport()->SetConnectionCount(2);
   fake_video_dtls->SetWritable(true);
   EXPECT_THAT(
@@ -834,8 +834,8 @@ TEST_F(JsepTransportControllerTest, SignalConnectionStateComplete) {
 
   fake_audio_dtls->SetDtlsState(DtlsTransportState::kConnected);
   fake_video_dtls->SetDtlsState(DtlsTransportState::kConnected);
-  // Set the connection count to be 1 and the webrtc::FakeIceTransport will set
-  // the transport state to be STATE_COMPLETED.
+  // Set the connection count to be 1 and the webrtc::FakeIceTransportInternal
+  // will set the transport state to be STATE_COMPLETED.
   fake_video_dtls->fake_ice_transport()->SetTransportState(
       IceTransportState::kCompleted,
       IceTransportStateInternal::STATE_COMPLETED);

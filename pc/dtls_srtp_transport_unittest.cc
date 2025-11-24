@@ -227,8 +227,8 @@ class DtlsSrtpTransportTest : public ::testing::Test {
     // data and header extension are actually encrypted.
     auto fake_dtls_transport = static_cast<FakeDtlsTransport*>(
         dtls_srtp_transport1_->rtp_packet_transport());
-    auto fake_ice_transport =
-        static_cast<FakeIceTransport*>(fake_dtls_transport->ice_transport());
+    auto fake_ice_transport = static_cast<FakeIceTransportInternal*>(
+        fake_dtls_transport->ice_transport());
     EXPECT_NE(0, memcmp(fake_ice_transport->last_sent_packet().data(),
                         original_rtp_data, rtp_len));
     CompareHeaderExtensions(reinterpret_cast<const char*>(
@@ -247,8 +247,8 @@ class DtlsSrtpTransportTest : public ::testing::Test {
     // data and header extension are actually encrypted.
     fake_dtls_transport = static_cast<FakeDtlsTransport*>(
         dtls_srtp_transport2_->rtp_packet_transport());
-    fake_ice_transport =
-        static_cast<FakeIceTransport*>(fake_dtls_transport->ice_transport());
+    fake_ice_transport = static_cast<FakeIceTransportInternal*>(
+        fake_dtls_transport->ice_transport());
     EXPECT_NE(0, memcmp(fake_ice_transport->last_sent_packet().data(),
                         original_rtp_data, rtp_len));
     CompareHeaderExtensions(reinterpret_cast<const char*>(

@@ -54,7 +54,7 @@ constexpr int kTimeout = 10000;
 
 /* A test using a DTLS-SRTP transport on one side and
  * SrtpTransport+DtlsTransport on the other side, connected by a
- * FakeIceTransport.
+ * FakeIceTransportInternal.
  */
 class DtlsSrtpTransportIntegrationTest : public ::testing::Test {
  protected:
@@ -87,8 +87,8 @@ class DtlsSrtpTransportIntegrationTest : public ::testing::Test {
   scoped_refptr<RTCCertificate> MakeCertificate() {
     return RTCCertificate::Create(SSLIdentity::Create("test", KT_DEFAULT));
   }
-  std::unique_ptr<FakeIceTransport> MakeIceTransport(IceRole role) {
-    auto ice_transport = std::make_unique<FakeIceTransport>(
+  std::unique_ptr<FakeIceTransportInternal> MakeIceTransport(IceRole role) {
+    auto ice_transport = std::make_unique<FakeIceTransportInternal>(
         "fake_" + absl::StrCat(static_cast<int>(role)), 0);
     ice_transport->SetAsync(true);
     ice_transport->SetAsyncDelay(0);
@@ -97,7 +97,7 @@ class DtlsSrtpTransportIntegrationTest : public ::testing::Test {
   }
 
   std::unique_ptr<DtlsTransportInternalImpl> MakeDtlsTransport(
-      FakeIceTransport* ice_transport) {
+      FakeIceTransportInternal* ice_transport) {
     return std::make_unique<DtlsTransportInternalImpl>(
         env_, ice_transport, CryptoOptions(), SSL_PROTOCOL_DTLS_12);
   }
@@ -221,8 +221,8 @@ class DtlsSrtpTransportIntegrationTest : public ::testing::Test {
   ScopedFakeClock fake_clock_;
   const Environment env_ = CreateTestEnvironment();
 
-  std::unique_ptr<FakeIceTransport> client_ice_transport_;
-  std::unique_ptr<FakeIceTransport> server_ice_transport_;
+  std::unique_ptr<FakeIceTransportInternal> client_ice_transport_;
+  std::unique_ptr<FakeIceTransportInternal> server_ice_transport_;
 
   std::unique_ptr<DtlsTransportInternalImpl> client_dtls_transport_;
   std::unique_ptr<DtlsTransportInternalImpl> server_dtls_transport_;

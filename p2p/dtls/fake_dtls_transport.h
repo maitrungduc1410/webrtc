@@ -48,7 +48,7 @@ namespace webrtc {
 // sending packets.
 class FakeDtlsTransport : public DtlsTransportInternal {
  public:
-  explicit FakeDtlsTransport(FakeIceTransport* ice_transport)
+  explicit FakeDtlsTransport(FakeIceTransportInternal* ice_transport)
       : ice_transport_(ice_transport),
         transport_name_(ice_transport->transport_name()),
         component_(ice_transport->component()),
@@ -65,7 +65,7 @@ class FakeDtlsTransport : public DtlsTransportInternal {
         });
   }
 
-  explicit FakeDtlsTransport(std::unique_ptr<FakeIceTransport> ice)
+  explicit FakeDtlsTransport(std::unique_ptr<FakeIceTransportInternal> ice)
       : owned_ice_transport_(std::move(ice)),
         transport_name_(owned_ice_transport_->transport_name()),
         component_(owned_ice_transport_->component()),
@@ -85,14 +85,15 @@ class FakeDtlsTransport : public DtlsTransportInternal {
   // If this constructor is called, a new fake ICE transport will be created,
   // and this FakeDtlsTransport will take the ownership.
   FakeDtlsTransport(const std::string& name, int component)
-      : FakeDtlsTransport(std::make_unique<FakeIceTransport>(name, component)) {
-  }
+      : FakeDtlsTransport(
+            std::make_unique<FakeIceTransportInternal>(name, component)) {}
   FakeDtlsTransport(const std::string& name,
                     int component,
                     Thread* network_thread)
-      : FakeDtlsTransport(std::make_unique<FakeIceTransport>(name,
-                                                             component,
-                                                             network_thread)) {}
+      : FakeDtlsTransport(
+            std::make_unique<FakeIceTransportInternal>(name,
+                                                       component,
+                                                       network_thread)) {}
 
   ~FakeDtlsTransport() override {
     if (dest_ && dest_->dest_ == this) {
@@ -102,7 +103,7 @@ class FakeDtlsTransport : public DtlsTransportInternal {
   }
 
   // Get inner fake ICE transport.
-  FakeIceTransport* fake_ice_transport() { return ice_transport_; }
+  FakeIceTransportInternal* fake_ice_transport() { return ice_transport_; }
 
   // If async, will send packets by "Post"-ing to message queue instead of
   // synchronously "Send"-ing.
@@ -153,7 +154,8 @@ class FakeDtlsTransport : public DtlsTransportInternal {
       }
       SetDtlsState(DtlsTransportState::kConnected);
       ice_transport_->SetDestination(
-          static_cast<FakeIceTransport*>(dest->ice_transport()), asymmetric);
+          static_cast<FakeIceTransportInternal*>(dest->ice_transport()),
+          asymmetric);
     } else {
       // Simulates loss of connectivity, by asymmetrically forgetting dest_.
       dest_ = nullptr;
@@ -313,8 +315,8 @@ class FakeDtlsTransport : public DtlsTransportInternal {
     NotifyNetworkRouteChanged(network_route);
   }
 
-  FakeIceTransport* ice_transport_;
-  std::unique_ptr<FakeIceTransport> owned_ice_transport_;
+  FakeIceTransportInternal* ice_transport_;
+  std::unique_ptr<FakeIceTransportInternal> owned_ice_transport_;
   std::string transport_name_;
   int component_;
   FakeDtlsTransport* dest_ = nullptr;

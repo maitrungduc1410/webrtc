@@ -125,7 +125,7 @@ class DtlsTestClient {
       crypto_options.ephemeral_key_exchange_cipher_groups.Update(&field_trials);
     }
 
-    fake_ice_transport_.reset(new FakeIceTransport(
+    fake_ice_transport_.reset(new FakeIceTransportInternal(
         absl::StrCat("fake-", name_), 0,
         /* network_thread= */ nullptr, /* field_trials_string= */ ""));
     if (rtt_estimate) {
@@ -165,8 +165,9 @@ class DtlsTestClient {
         });
   }
 
-  FakeIceTransport* fake_ice_transport() {
-    return static_cast<FakeIceTransport*>(dtls_transport_->ice_transport());
+  FakeIceTransportInternal* fake_ice_transport() {
+    return static_cast<FakeIceTransportInternal*>(
+        dtls_transport_->ice_transport());
   }
 
   DtlsTransportInternalImpl* dtls_transport() { return dtls_transport_.get(); }
@@ -400,7 +401,7 @@ class DtlsTestClient {
  private:
   std::string name_;
   scoped_refptr<RTCCertificate> certificate_;
-  std::unique_ptr<FakeIceTransport> fake_ice_transport_;
+  std::unique_ptr<FakeIceTransportInternal> fake_ice_transport_;
   std::unique_ptr<DtlsTransportInternalImpl> dtls_transport_;
   size_t packet_size_ = 0u;
   std::set<int> received_;
@@ -850,7 +851,7 @@ TEST_F(DtlsTransportInternalImplTest, TestTransferDtlsCombineRecords) {
   // an endpoint that sends multiple records per packet, we configure the fake
   // ICE transport to combine every two consecutive packets into a single
   // packet.
-  FakeIceTransport* transport = client1_.fake_ice_transport();
+  FakeIceTransportInternal* transport = client1_.fake_ice_transport();
   transport->combine_outgoing_packets(true);
   TestTransfer(500, 100, /*srtp=*/false);
 }

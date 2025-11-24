@@ -85,11 +85,11 @@ class DatagramConnectionTest : public ::testing::Test {
     std::string transport_name1 = "FakeTransport1";
     std::string transport_name2 = "FakeTransport2";
 
-    auto ice1 = std::make_unique<FakeIceTransport>(transport_name1,
-                                                   ICE_CANDIDATE_COMPONENT_RTP);
+    auto ice1 = std::make_unique<FakeIceTransportInternal>(
+        transport_name1, ICE_CANDIDATE_COMPONENT_RTP);
     ice1->SetAsync(true);
-    auto ice2 = std::make_unique<FakeIceTransport>(transport_name2,
-                                                   ICE_CANDIDATE_COMPONENT_RTP);
+    auto ice2 = std::make_unique<FakeIceTransportInternal>(
+        transport_name2, ICE_CANDIDATE_COMPONENT_RTP);
     ice2->SetAsync(true);
     ice1_ = ice1.get();
     ice2_ = ice2.get();
@@ -126,8 +126,8 @@ class DatagramConnectionTest : public ::testing::Test {
   scoped_refptr<RTCCertificate> cert2_;
   scoped_refptr<DatagramConnectionInternal> conn1_;
   scoped_refptr<DatagramConnectionInternal> conn2_;
-  FakeIceTransport* ice1_;
-  FakeIceTransport* ice2_;
+  FakeIceTransportInternal* ice1_;
+  FakeIceTransportInternal* ice2_;
 };
 
 CopyOnWriteBuffer MakeRtpPacketBuffer(int sequence_number = 1) {

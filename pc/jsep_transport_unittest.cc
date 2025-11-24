@@ -87,12 +87,12 @@ std::ostream& operator<<(std::ostream& os, const NegotiateRoleParams& param) {
 }
 
 scoped_refptr<IceTransportInterface> CreateIceTransport(
-    std::unique_ptr<FakeIceTransport> internal) {
+    std::unique_ptr<FakeIceTransportInternal> internal) {
   if (!internal) {
     return nullptr;
   }
 
-  return make_ref_counted<FakeIceTransportWrapper>(std::move(internal));
+  return make_ref_counted<FakeIceTransport>(std::move(internal));
 }
 
 class JsepTransport2Test : public ::testing::Test {
@@ -121,18 +121,18 @@ class JsepTransport2Test : public ::testing::Test {
   }
 
   // Create a new JsepTransport with a FakeDtlsTransport and a
-  // FakeIceTransport.
+  // FakeIceTransportInternal.
   std::unique_ptr<JsepTransport> CreateJsepTransport2(bool rtcp_mux_enabled) {
-    auto ice_internal = std::make_unique<FakeIceTransport>(
+    auto ice_internal = std::make_unique<FakeIceTransportInternal>(
         kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
     auto rtp_dtls_transport =
         std::make_unique<FakeDtlsTransport>(ice_internal.get());
     auto ice = CreateIceTransport(std::move(ice_internal));
 
-    std::unique_ptr<FakeIceTransport> rtcp_ice_internal;
+    std::unique_ptr<FakeIceTransportInternal> rtcp_ice_internal;
     std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
     if (!rtcp_mux_enabled) {
-      rtcp_ice_internal = std::make_unique<FakeIceTransport>(
+      rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
           kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
       rtcp_dtls_transport =
           std::make_unique<FakeDtlsTransport>(rtcp_ice_internal.get());
@@ -210,13 +210,13 @@ TEST_P(JsepTransport2WithRtcpMux, SetIceParameters) {
       jsep_transport_
           ->SetLocalJsepTransportDescription(jsep_description, SdpType::kOffer)
           .ok());
-  auto fake_ice_transport = static_cast<FakeIceTransport*>(
+  auto fake_ice_transport = static_cast<FakeIceTransportInternal*>(
       jsep_transport_->rtp_dtls_transport()->ice_transport());
   EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
   EXPECT_EQ(kIceUfrag1, fake_ice_transport->local_ice_parameters()->ufrag);
   EXPECT_EQ(kIcePwd1, fake_ice_transport->local_ice_parameters()->pwd);
   if (!rtcp_mux_enabled) {
-    fake_ice_transport = static_cast<FakeIceTransport*>(
+    fake_ice_transport = static_cast<FakeIceTransportInternal*>(
         jsep_transport_->rtcp_dtls_transport()->ice_transport());
     ASSERT_TRUE(fake_ice_transport);
     EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
@@ -229,13 +229,13 @@ TEST_P(JsepTransport2WithRtcpMux, SetIceParameters) {
                   ->SetRemoteJsepTransportDescription(jsep_description,
                                                       SdpType::kAnswer)
                   .ok());
-  fake_ice_transport = static_cast<FakeIceTransport*>(
+  fake_ice_transport = static_cast<FakeIceTransportInternal*>(
       jsep_transport_->rtp_dtls_transport()->ice_transport());
   EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
   EXPECT_EQ(kIceUfrag2, fake_ice_transport->remote_ice_parameters()->ufrag);
   EXPECT_EQ(kIcePwd2, fake_ice_transport->remote_ice_parameters()->pwd);
   if (!rtcp_mux_enabled) {
-    fake_ice_transport = static_cast<FakeIceTransport*>(
+    fake_ice_transport = static_cast<FakeIceTransportInternal*>(
         jsep_transport_->rtcp_dtls_transport()->ice_transport());
     ASSERT_TRUE(fake_ice_transport);
     EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
@@ -1058,7 +1058,7 @@ TEST_F(JsepTransport2Test, RtcpMuxNegotiation) {
 // local and remote descriptions are set.
 TEST_F(JsepTransport2Test, AddRemoteCandidates) {
   jsep_transport_ = CreateJsepTransport2(/*rtcp_mux_enabled=*/true);
-  auto fake_ice_transport = static_cast<FakeIceTransport*>(
+  auto fake_ice_transport = static_cast<FakeIceTransportInternal*>(
       jsep_transport_->rtp_dtls_transport()->ice_transport());
 
   Candidates candidates;
@@ -1306,7 +1306,7 @@ TEST_F(JsepTransport2Test, SetIceParametersWithRenomination) {
       jsep_transport_
           ->SetLocalJsepTransportDescription(jsep_description, SdpType::kOffer)
           .ok());
-  auto fake_ice_transport = static_cast<FakeIceTransport*>(
+  auto fake_ice_transport = static_cast<FakeIceTransportInternal*>(
       jsep_transport_->rtp_dtls_transport()->ice_transport());
   EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
   EXPECT_EQ(kIceUfrag1, fake_ice_transport->local_ice_parameters()->ufrag);
@@ -1319,7 +1319,7 @@ TEST_F(JsepTransport2Test, SetIceParametersWithRenomination) {
                   ->SetRemoteJsepTransportDescription(jsep_description,
                                                       SdpType::kAnswer)
                   .ok());
-  fake_ice_transport = static_cast<FakeIceTransport*>(
+  fake_ice_transport = static_cast<FakeIceTransportInternal*>(
       jsep_transport_->rtp_dtls_transport()->ice_transport());
   EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
   EXPECT_EQ(kIceUfrag2, fake_ice_transport->remote_ice_parameters()->ufrag);
