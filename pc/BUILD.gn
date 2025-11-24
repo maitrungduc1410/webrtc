@@ -261,6 +261,7 @@ rtc_library("jsep_transport_collection") {
   deps = [
     ":jsep_transport",
     ":session_description",
+    "../api:function_view",
     "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:sequence_checker",
@@ -271,6 +272,7 @@ rtc_library("jsep_transport_collection") {
     "../rtc_base/containers:flat_map",
     "../rtc_base/system:no_unique_address",
     "../system_wrappers:metrics",
+    "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]

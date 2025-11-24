@@ -11,12 +11,14 @@
 #include "pc/jsep_transport_collection.h"
 
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/strings/string_view.h"
 #include "api/jsep.h"
 #include "api/peer_connection_interface.h"
@@ -164,52 +166,47 @@ void BundleManager::RefreshEstablishedBundleGroupsByMid() {
 void JsepTransportCollection::RegisterTransport(
     std::unique_ptr<JsepTransport> transport) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
+  RTC_DCHECK(!GetTransportByName(transport->name()));
   SetTransportForMid(transport->name(), transport.get());
-  auto inserted = jsep_transports_by_name_.insert(
-      std::make_pair(std::string(transport->name()), std::move(transport)));
-  RTC_DCHECK(inserted.second);
+  transports_.push_back(std::move(transport));
   RTC_DCHECK(IsConsistent());
 }
 
-std::vector<JsepTransport*> JsepTransportCollection::Transports() {
+void JsepTransportCollection::ForEachTransport(
+    FunctionView<void(JsepTransport&)> callback) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  std::vector<JsepTransport*> result;
-  for (auto& kv : jsep_transports_by_name_) {
-    result.push_back(kv.second.get());
-  }
-  return result;
+  absl::c_for_each(transports_, [&](auto& t) { callback(*t); });
 }
 
-std::vector<JsepTransport*> JsepTransportCollection::ActiveTransports() {
+void JsepTransportCollection::ForEachActiveTransport(
+    FunctionView<void(JsepTransport&)> callback) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  std::set<JsepTransport*> transports;
-  for (const auto& kv : mid_to_transport_) {
-    transports.insert(kv.second);
-  }
-  return std::vector<JsepTransport*>(transports.begin(), transports.end());
+  absl::c_for_each(mid_to_transport_, [&](auto& kv) { callback(*kv.second); });
 }
 
 void JsepTransportCollection::DestroyAllTransports() {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  for (const auto& jsep_transport : jsep_transports_by_name_) {
-    map_change_callback_(jsep_transport.first, nullptr);
+  for (const auto& jsep_transport : transports_) {
+    map_change_callback_(jsep_transport->name(), nullptr);
   }
-  jsep_transports_by_name_.clear();
+  transports_.clear();
   RTC_DCHECK(IsConsistent());
 }
 
 const JsepTransport* JsepTransportCollection::GetTransportByName(
     absl::string_view transport_name) const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  auto it = jsep_transports_by_name_.find(transport_name);
-  return (it == jsep_transports_by_name_.end()) ? nullptr : it->second.get();
+  auto it = absl::c_find_if(
+      transports_, [&](const auto& t) { return t->name() == transport_name; });
+  return (it == transports_.end()) ? nullptr : it->get();
 }
 
 JsepTransport* JsepTransportCollection::GetTransportByName(
     absl::string_view transport_name) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  auto it = jsep_transports_by_name_.find(transport_name);
-  return (it == jsep_transports_by_name_.end()) ? nullptr : it->second.get();
+  auto it = absl::c_find_if(
+      transports_, [&](const auto& t) { return t->name() == transport_name; });
+  return (it == transports_.end()) ? nullptr : it->get();
 }
 
 JsepTransport* JsepTransportCollection::GetTransportForMid(
@@ -297,41 +294,33 @@ void JsepTransportCollection::CommitTransports() {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   stable_mid_to_transport_ = mid_to_transport_;
   DestroyUnusedTransports();
-  for (auto& transport : jsep_transports_by_name_) {
-    transport.second->CommitPayloadTypes();
-  }
+  absl::c_for_each(transports_, [](auto& t) { t->CommitPayloadTypes(); });
   RTC_HISTOGRAM_COUNTS_LINEAR("WebRTC.PeerConnection.RtpTransportCount",
-                              jsep_transports_by_name_.size(), 1, 49, 50);
+                              transports_.size(), 1, 49, 50);
   RTC_DCHECK(IsConsistent());
 }
 
 bool JsepTransportCollection::TransportInUse(
     JsepTransport* jsep_transport) const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  for (const auto& kv : mid_to_transport_) {
-    if (kv.second == jsep_transport) {
-      return true;
-    }
-  }
-  return false;
+  return absl::c_any_of(mid_to_transport_, [&](const auto& kv) {
+    return kv.second == jsep_transport;
+  });
 }
 
 bool JsepTransportCollection::TransportNeededForRollback(
     JsepTransport* jsep_transport) const {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  for (const auto& kv : stable_mid_to_transport_) {
-    if (kv.second == jsep_transport) {
-      return true;
-    }
-  }
-  return false;
+  return absl::c_any_of(stable_mid_to_transport_, [&](const auto& kv) {
+    return kv.second == jsep_transport;
+  });
 }
 
 void JsepTransportCollection::MaybeDestroyJsepTransport(
     JsepTransport* transport) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  // Don't destroy the JsepTransport if there are still media sections referring
-  // to it, or if it will be needed in case of rollback.
+  // Don't destroy the JsepTransport if there are still media sections
+  // referring to it, or if it will be needed in case of rollback.
   if (TransportInUse(transport)) {
     return;
   }
@@ -342,12 +331,11 @@ void JsepTransportCollection::MaybeDestroyJsepTransport(
     state_change_callback_();
     return;
   }
-  for (const auto& it : jsep_transports_by_name_) {
-    if (it.second.get() == transport) {
-      jsep_transports_by_name_.erase(it.first);
-      state_change_callback_();
-      break;
-    }
+  auto it = absl::c_find_if(
+      transports_, [&](const auto& t) { return t.get() == transport; });
+  if (it != transports_.end()) {
+    transports_.erase(it);
+    state_change_callback_();
   }
   RTC_DCHECK(IsConsistent());
 }
@@ -355,13 +343,12 @@ void JsepTransportCollection::MaybeDestroyJsepTransport(
 void JsepTransportCollection::DestroyUnusedTransports() {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   bool need_state_change_callback = false;
-  auto it = jsep_transports_by_name_.begin();
-  while (it != jsep_transports_by_name_.end()) {
-    if (TransportInUse(it->second.get()) ||
-        TransportNeededForRollback(it->second.get())) {
+  auto it = transports_.begin();
+  while (it != transports_.end()) {
+    if (TransportInUse(it->get()) || TransportNeededForRollback(it->get())) {
       ++it;
     } else {
-      it = jsep_transports_by_name_.erase(it);
+      it = transports_.erase(it);
       need_state_change_callback = true;
     }
   }
@@ -372,15 +359,15 @@ void JsepTransportCollection::DestroyUnusedTransports() {
 
 bool JsepTransportCollection::IsConsistent() {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  for (const auto& it : jsep_transports_by_name_) {
-    if (!TransportInUse(it.second.get()) &&
-        !TransportNeededForRollback(it.second.get())) {
-      RTC_LOG(LS_ERROR) << "Transport registered with mid " << it.first
-                        << " is not in use, transport " << it.second.get();
-      return false;
+  bool consistent = true;
+  for (const auto& t : transports_) {
+    if (!TransportInUse(t.get()) && !TransportNeededForRollback(t.get())) {
+      RTC_LOG(LS_ERROR) << "Transport registered with mid " << t->name()
+                        << " is not in use";
+      consistent = false;
     }
   }
-  return true;
+  return consistent;
 }
 
 }  // namespace webrtc

@@ -235,9 +235,8 @@ void JsepTransportController::SetIceConfig(const IceConfig& config) {
 
 void JsepTransportController::SetNeedsIceRestartFlag() {
   RTC_DCHECK_RUN_ON(network_thread_);
-  for (auto& transport : transports_.Transports()) {
-    transport->SetNeedsIceRestartFlag();
-  }
+  transports_.ForEachTransport(
+      [](JsepTransport& t) { t.SetNeedsIceRestartFlag(); });
 }
 
 bool JsepTransportController::NeedsIceRestart(
@@ -372,9 +371,9 @@ bool JsepTransportController::SetLocalCertificate_n(
   // Set certificate for JsepTransport, which verifies it matches the
   // fingerprint in SDP, and DTLS transport.
   // Fallback from DTLS to SDES is not supported.
-  for (auto& transport : transports_.Transports()) {
-    transport->SetLocalCertificate(certificate_);
-  }
+  transports_.ForEachTransport(
+      [&](JsepTransport& t) { t.SetLocalCertificate(certificate_); });
+
   for (auto& dtls : GetDtlsTransports()) {
     bool set_cert_success = dtls->SetLocalCertificate(certificate_);
     RTC_DCHECK(set_cert_success);
@@ -490,9 +489,9 @@ void JsepTransportController::SetActiveResetSrtpParams(
       << "Updating the active_reset_srtp_params for JsepTransportController: "
       << active_reset_srtp_params;
   active_reset_srtp_params_ = active_reset_srtp_params;
-  for (auto& transport : transports_.Transports()) {
-    transport->SetActiveResetSrtpParams(active_reset_srtp_params);
-  }
+  transports_.ForEachTransport([&](JsepTransport& t) {
+    t.SetActiveResetSrtpParams(active_reset_srtp_params);
+  });
 }
 
 RTCError JsepTransportController::RollbackTransports() {
@@ -648,16 +647,14 @@ std::vector<DtlsTransportInternal*>
 JsepTransportController::GetDtlsTransports() {
   RTC_DCHECK_RUN_ON(network_thread_);
   std::vector<DtlsTransportInternal*> dtls_transports;
-  for (auto jsep_transport : transports_.Transports()) {
-    RTC_DCHECK(jsep_transport);
-    if (jsep_transport->rtp_dtls_transport()) {
-      dtls_transports.push_back(jsep_transport->rtp_dtls_transport());
+  transports_.ForEachTransport([&](JsepTransport& t) {
+    if (t.rtp_dtls_transport()) {
+      dtls_transports.push_back(t.rtp_dtls_transport());
     }
-
-    if (jsep_transport->rtcp_dtls_transport()) {
-      dtls_transports.push_back(jsep_transport->rtcp_dtls_transport());
+    if (t.rtcp_dtls_transport()) {
+      dtls_transports.push_back(t.rtcp_dtls_transport());
     }
-  }
+  });
   return dtls_transports;
 }
 
@@ -665,16 +662,14 @@ std::vector<DtlsTransportInternal*>
 JsepTransportController::GetActiveDtlsTransports() {
   RTC_DCHECK_RUN_ON(network_thread_);
   std::vector<DtlsTransportInternal*> dtls_transports;
-  for (auto jsep_transport : transports_.ActiveTransports()) {
-    RTC_DCHECK(jsep_transport);
-    if (jsep_transport->rtp_dtls_transport()) {
-      dtls_transports.push_back(jsep_transport->rtp_dtls_transport());
+  transports_.ForEachActiveTransport([&](JsepTransport& t) {
+    if (t.rtp_dtls_transport()) {
+      dtls_transports.push_back(t.rtp_dtls_transport());
     }
-
-    if (jsep_transport->rtcp_dtls_transport()) {
-      dtls_transports.push_back(jsep_transport->rtcp_dtls_transport());
+    if (t.rtcp_dtls_transport()) {
+      dtls_transports.push_back(t.rtcp_dtls_transport());
     }
-  }
+  });
   return dtls_transports;
 }
 

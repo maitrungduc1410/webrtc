@@ -16,8 +16,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
+#include "api/function_view.h"
 #include "api/jsep.h"
 #include "api/peer_connection_interface.h"
 #include "api/sequence_checker.h"
@@ -96,27 +98,36 @@ class JsepTransportCollection {
         state_change_callback_(std::move(state_change_callback)) {}
 
   void RegisterTransport(std::unique_ptr<JsepTransport> transport);
-  // Returns all transports, including those not currently mapped to any MID
-  // because they're being kept alive in case of rollback.
-  std::vector<JsepTransport*> Transports();
-  // Only returns transports currently mapped to a MID.
-  std::vector<JsepTransport*> ActiveTransports();
+
+  // Iterates through all transports, including those not currently mapped to
+  // any MID because they're being kept alive in case of rollback.
+  void ForEachTransport(FunctionView<void(JsepTransport&)> callback);
+
+  // Only iterates through transports currently mapped to a MID.
+  void ForEachActiveTransport(FunctionView<void(JsepTransport&)> callback);
+
   void DestroyAllTransports();
+
   // Lookup a JsepTransport by the MID that was used to register it.
   JsepTransport* GetTransportByName(absl::string_view transport_name);
   const JsepTransport* GetTransportByName(
       absl::string_view transport_name) const;
+
   // Lookup a JsepTransport by any MID that refers to it.
   JsepTransport* GetTransportForMid(absl::string_view mid);
   const JsepTransport* GetTransportForMid(absl::string_view mid) const;
+
   // Set transport for a MID. This may destroy a transport if it is no
   // longer in use.
   bool SetTransportForMid(absl::string_view mid, JsepTransport* jsep_transport);
+
   // Remove a transport for a MID. This may destroy a transport if it is
   // no longer in use.
   void RemoveTransportForMid(absl::string_view mid);
+
   // Roll back to previous stable mid-to-transport mappings.
   bool RollbackTransports();
+
   // Commit pending mid-transport mappings (rollback is no longer possible),
   // and destroy unused transports because we know now we'll never need them
   // again.
@@ -142,9 +153,8 @@ class JsepTransportCollection {
   RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_{
       SequenceChecker::kDetached};
   // This member owns the JSEP transports.
-  flat_map<std::string, std::unique_ptr<JsepTransport>> jsep_transports_by_name_
+  std::vector<std::unique_ptr<JsepTransport>> transports_
       RTC_GUARDED_BY(sequence_checker_);
-
   // This keeps track of the mapping between media section
   // (BaseChannel/SctpTransport) and the JsepTransport underneath.
   flat_map<std::string, JsepTransport*> mid_to_transport_
