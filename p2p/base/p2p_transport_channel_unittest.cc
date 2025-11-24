@@ -91,7 +91,6 @@
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/socket_server.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
 #include "rtc_base/virtual_socket_server.h"
@@ -3589,8 +3588,7 @@ TEST_F(P2PTransportChannelMultihomedTest, StunDictionaryPerformsSync) {
 
 // A collection of tests which tests a single P2PTransportChannel by sending
 // pings.
-class P2PTransportChannelPingTest : public ::testing::Test,
-                                    public sigslot::has_slots<> {
+class P2PTransportChannelPingTest : public ::testing::Test {
  public:
   P2PTransportChannelPingTest()
       : vss_(std::make_unique<VirtualSocketServer>()),

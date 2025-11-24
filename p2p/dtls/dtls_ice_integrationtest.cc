@@ -50,7 +50,6 @@
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/ssl_stream_adapter.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
 #include "test/create_test_field_trials.h"
@@ -79,8 +78,7 @@ class DtlsIceIntegrationTest : public ::testing::TestWithParam<std::tuple<
                                    SSLProtocolVersion,
                                    /* 3 client_dtls_is_ice_controlling= */ bool,
                                    /* 4 client_pqc= */ bool,
-                                   /* 5 server_pqc= */ bool>>,
-                               public sigslot::has_slots<> {
+                                   /* 5 server_pqc= */ bool>> {
  public:
   void CandidateC2S(IceTransportInternal*, const Candidate& c) {
     server_thread()->PostTask(

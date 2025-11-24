@@ -1029,7 +1029,6 @@ rtc_library("threading") {
     "synchronization:mutex",
     "system:no_unique_address",
     "system:rtc_export",
-    "third_party/sigslot",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/cleanup",
@@ -1254,26 +1253,6 @@ rtc_library("network") {
   }
 }
 
-rtc_source_set("sigslot_trampoline") {
-  sources = [ "sigslot_trampoline.h" ]
-  deps = [
-    ":callback_list",
-    "third_party/sigslot",
-    "//third_party/abseil-cpp/absl/functional:any_invocable",
-  ]
-}
-
-rtc_library("sigslot_trampoline_unittest") {
-  testonly = true
-  sources = [ "sigslot_trampoline_unittest.cc" ]
-  deps = [
-    ":sigslot_trampoline",
-    "../test:test_support",
-    "third_party/sigslot",
-    "//third_party/abseil-cpp/absl/functional:any_invocable",
-  ]
-}
-
 rtc_library("socket_address_pair") {
   sources = [
     "socket_address_pair.cc",
@@ -1450,7 +1429,6 @@ if (rtc_include_tests) {
       ":socket",
       "../test:create_test_environment",
       "../test:test_support",
-      "third_party/sigslot",
     ]
   }
 }
@@ -1773,7 +1751,6 @@ rtc_library("testclient") {
     "../test:wait_until",
     "network:received_packet",
     "synchronization:mutex",
-    "third_party/sigslot",
   ]
 }
 
@@ -1838,7 +1815,6 @@ rtc_library("rtc_base_tests_utils") {
     ":network",
     ":network_constants",
     ":rtc_event",
-    ":sigslot_trampoline",
     ":socket",
     ":socket_adapters",
     ":socket_address",
@@ -1866,7 +1842,6 @@ rtc_library("rtc_base_tests_utils") {
     "memory:less_unique_ptr",
     "network:received_packet",
     "synchronization:mutex",
-    "third_party/sigslot",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
@@ -2384,7 +2359,6 @@ if (rtc_include_tests) {
         "memory:fifo_buffer",
         "network:received_packet",
         "synchronization:mutex",
-        "third_party/sigslot",
         "//testing/gtest",
         "//third_party/abseil-cpp/absl/algorithm:container",
         "//third_party/abseil-cpp/absl/functional:any_invocable",

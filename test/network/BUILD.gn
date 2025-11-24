@@ -172,7 +172,6 @@ if (rtc_include_tests) {
       "../../rtc_base:task_queue_for_test",
       "../../rtc_base:threading",
       "../../rtc_base/synchronization:mutex",
-      "../../rtc_base/third_party/sigslot",
       "//third_party/abseil-cpp/absl/functional:any_invocable",
     ]
   }

@@ -51,14 +51,12 @@
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/task_queue_for_test.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
 #include "test/network/network_emulation_manager.h"
 
 namespace webrtc {
 class ScenarioIceConnectionImpl : public ScenarioIceConnection,
-                                  public sigslot::has_slots<>,
                                   private JsepTransportController::Observer,
                                   private RtpPacketSinkInterface {
  public:

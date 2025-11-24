@@ -40,7 +40,6 @@
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/ssl_fingerprint.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -64,12 +63,11 @@ bool IsRtpOrRtcpPacket(uint8_t first_byte) {
   return (first_byte & 0xc0) == 0x80;
 }
 
-class DatagramConnectionTest : public ::testing::Test,
-                               public sigslot::has_slots<> {
+class DatagramConnectionTest : public ::testing::Test {
  public:
   DatagramConnectionTest() : env_(CreateEnvironment()) {}
 
-  ~DatagramConnectionTest() override {
+  ~DatagramConnectionTest() {
     conn1_->Terminate([] {});
     conn2_->Terminate([] {});
   }

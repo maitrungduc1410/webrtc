@@ -95,7 +95,6 @@ if (rtc_include_tests) {
       "../../rtc_base:stringutils",
       "../../rtc_base:task_queue_for_test",
       "../../rtc_base:threading",
-      "../../rtc_base/third_party/sigslot",
       "../../system_wrappers",
       "../logging:log_writer",
       "../network:emulated_network",

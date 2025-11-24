@@ -64,7 +64,6 @@
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/task_queue_for_test.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "system_wrappers/include/metrics.h"
 #include "test/create_test_field_trials.h"
@@ -117,8 +116,7 @@ class FakeDtlsTransportFactory : public DtlsTransportFactory {
 };
 
 class JsepTransportControllerTest : public JsepTransportController::Observer,
-                                    public ::testing::Test,
-                                    public sigslot::has_slots<> {
+                                    public ::testing::Test {
  public:
   JsepTransportControllerTest()
       : env_(CreateEnvironment(&field_trials_)),
