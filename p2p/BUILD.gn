@@ -1063,6 +1063,7 @@ if (rtc_include_tests) {
 
   rtc_library("p2p_test_utils") {
     testonly = true
+    visibility = [ "*" ]
     sources = [
       "base/mock_ice_agent.h",
       "base/mock_ice_controller.h",
