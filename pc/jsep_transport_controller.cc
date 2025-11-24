@@ -1208,7 +1208,7 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
 
   std::unique_ptr<JsepTransport> jsep_transport =
       std::make_unique<JsepTransport>(
-          content_info.mid(), certificate_, std::move(ice), std::move(rtcp_ice),
+          certificate_, std::move(ice), std::move(rtcp_ice),
           std::move(unencrypted_rtp_transport), std::move(dtls_srtp_transport),
           std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport),
           std::move(sctp_transport),
@@ -1230,7 +1230,7 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
         OnUnDemuxableRtpPacketReceived_n(packet);
       });
 
-  transports_.RegisterTransport(content_info.mid(), std::move(jsep_transport));
+  transports_.RegisterTransport(std::move(jsep_transport));
   UpdateAggregateStates_n();
   return RTCError::OK();
 }

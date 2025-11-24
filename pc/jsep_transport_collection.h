@@ -95,8 +95,7 @@ class JsepTransportCollection {
       : map_change_callback_(std::move(map_change_callback)),
         state_change_callback_(std::move(state_change_callback)) {}
 
-  void RegisterTransport(absl::string_view transport_name,
-                         std::unique_ptr<JsepTransport> transport);
+  void RegisterTransport(std::unique_ptr<JsepTransport> transport);
   // Returns all transports, including those not currently mapped to any MID
   // because they're being kept alive in case of rollback.
   std::vector<JsepTransport*> Transports();

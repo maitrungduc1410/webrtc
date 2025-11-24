@@ -162,13 +162,11 @@ void BundleManager::RefreshEstablishedBundleGroupsByMid() {
 }
 
 void JsepTransportCollection::RegisterTransport(
-    absl::string_view transport_name,
     std::unique_ptr<JsepTransport> transport) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  RTC_DCHECK_EQ(transport_name, transport->mid());  // Unnecessary param?
-  SetTransportForMid(transport_name, transport.get());
+  SetTransportForMid(transport->name(), transport.get());
   auto inserted = jsep_transports_by_name_.insert(
-      std::make_pair(std::string(transport_name), std::move(transport)));
+      std::make_pair(std::string(transport->name()), std::move(transport)));
   RTC_DCHECK(inserted.second);
   RTC_DCHECK(IsConsistent());
 }

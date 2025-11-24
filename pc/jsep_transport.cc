@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "api/candidate.h"
 #include "api/ice_transport_interface.h"
@@ -86,7 +87,6 @@ JsepTransportDescription& JsepTransportDescription::operator=(
 }
 
 JsepTransport::JsepTransport(
-    const std::string& mid,
     const scoped_refptr<RTCCertificate>& local_certificate,
     scoped_refptr<IceTransportInterface> ice_transport,
     scoped_refptr<IceTransportInterface> rtcp_ice_transport,
@@ -97,8 +97,7 @@ JsepTransport::JsepTransport(
     std::unique_ptr<SctpTransportInternal> sctp_transport,
     absl::AnyInvocable<void()> rtcp_mux_active_callback,
     PayloadTypePicker& suggester)
-    : mid_(mid),
-      local_certificate_(local_certificate),
+    : local_certificate_(local_certificate),
       ice_transport_(std::move(ice_transport)),
       rtcp_ice_transport_(std::move(rtcp_ice_transport)),
       unencrypted_rtp_transport_(std::move(unencrypted_rtp_transport)),
@@ -218,7 +217,7 @@ RTCError JsepTransport::SetLocalJsepTransportDescription(
   if (needs_ice_restart_ && ice_restarting) {
     needs_ice_restart_ = false;
     RTC_LOG(LS_VERBOSE) << "needs-ice-restart flag cleared for transport "
-                        << mid();
+                        << name();
   }
 
   return RTCError::OK();
@@ -279,10 +278,11 @@ RTCError JsepTransport::SetRemoteJsepTransportDescription(
 RTCError JsepTransport::AddRemoteCandidates(const Candidates& candidates) {
   RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!remote_description_) {
-    return RTCError(RTCErrorType::INVALID_STATE,
-                    mid() +
-                        " is not ready to use the remote candidate because the "
-                        "remote description is not set.");
+    StringBuilder sb;
+    sb << name()
+       << " is not ready to use the remote candidate because the "
+          "remote description is not set.";
+    return RTCError(RTCErrorType::INVALID_STATE, sb.Release());
   }
 
   for (const Candidate& candidate : candidates) {
@@ -290,9 +290,10 @@ RTCError JsepTransport::AddRemoteCandidates(const Candidates& candidates) {
                          ? rtp_dtls_transport_
                          : rtcp_dtls_transport_;
     if (!transport) {
-      return RTCError(RTCErrorType::INVALID_PARAMETER,
-                      "Candidate has an unknown component: " +
-                          candidate.ToSensitiveString() + " for mid " + mid());
+      StringBuilder sb;
+      sb << "Candidate has an unknown component: "
+         << candidate.ToSensitiveString() << " for mid " << name();
+      return RTCError(RTCErrorType::INVALID_PARAMETER, sb.Release());
     }
     RTC_DCHECK(transport->internal() && transport->internal()->ice_transport());
     transport->internal()->ice_transport()->AddRemoteCandidate(candidate);
@@ -304,7 +305,8 @@ void JsepTransport::SetNeedsIceRestartFlag() {
   RTC_DCHECK_RUN_ON(&transport_sequence_);
   if (!needs_ice_restart_) {
     needs_ice_restart_ = true;
-    RTC_LOG(LS_VERBOSE) << "needs-ice-restart flag set for transport " << mid();
+    RTC_LOG(LS_VERBOSE) << "needs-ice-restart flag set for transport "
+                        << name();
   }
 }
 
@@ -323,7 +325,7 @@ std::optional<SSLRole> JsepTransport::GetDtlsRole() const {
 bool JsepTransport::GetStats(TransportStats* stats) const {
   TRACE_EVENT0("webrtc", "JsepTransport::GetStats");
   RTC_DCHECK_RUN_ON(&transport_sequence_);
-  stats->transport_name = mid();
+  stats->transport_name = name();
   stats->channel_stats.clear();
   RTC_DCHECK(rtp_dtls_transport_->internal());
   bool ret = GetTransportStats(rtp_dtls_transport_->internal(),

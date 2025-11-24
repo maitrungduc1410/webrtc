@@ -13,10 +13,10 @@
 
 #include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/string_view.h"
 #include "api/ice_transport_interface.h"
 #include "api/jsep.h"
 #include "api/rtc_error.h"
@@ -75,11 +75,9 @@ struct JsepTransportDescription {
 // so its methods should only be called on the network thread.
 class JsepTransport {
  public:
-  // `mid` is just used for log statements in order to identify the Transport.
-  // Note that `local_certificate` is allowed to be null since a remote
-  // description may be set before a local certificate is generated.
-  JsepTransport(const std::string& mid,
-                const scoped_refptr<RTCCertificate>& local_certificate,
+  // `local_certificate` is allowed to be null since a remote description may be
+  // set before a local certificate is generated.
+  JsepTransport(const scoped_refptr<RTCCertificate>& local_certificate,
                 scoped_refptr<IceTransportInterface> ice_transport,
                 scoped_refptr<IceTransportInterface> rtcp_ice_transport,
                 std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
@@ -95,8 +93,11 @@ class JsepTransport {
   JsepTransport(const JsepTransport&) = delete;
   JsepTransport& operator=(const JsepTransport&) = delete;
 
-  // Returns the MID of this transport. This is only used for logging.
-  const std::string& mid() const { return mid_; }
+  // Returns the name of this transport. This is used for uniquely identifying
+  // the transport, logging, error reporting and transport stats.
+  absl::string_view name() const {
+    return ice_transport_->internal()->transport_name();
+  }
 
   // Must be called before applying local session description.
   // Needed in order to verify the local fingerprint.
@@ -274,7 +275,6 @@ class JsepTransport {
 
   // Owning thread, for safety checks
   RTC_NO_UNIQUE_ADDRESS SequenceChecker transport_sequence_;
-  const std::string mid_;
   // needs-ice-restart bit as described in JSEP.
   bool needs_ice_restart_ RTC_GUARDED_BY(transport_sequence_) = false;
   scoped_refptr<RTCCertificate> local_certificate_

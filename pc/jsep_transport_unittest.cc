@@ -145,10 +145,9 @@ class JsepTransport2Test : public ::testing::Test {
                                                   rtcp_dtls_transport.get());
 
     auto jsep_transport = std::make_unique<JsepTransport>(
-        kTransportName, /*local_certificate=*/nullptr, std::move(ice),
-        std::move(rtcp_ice), std::move(unencrypted_rtp_transport),
-        std::move(dtls_srtp_transport), std::move(rtp_dtls_transport),
-        std::move(rtcp_dtls_transport),
+        /*local_certificate=*/nullptr, std::move(ice), std::move(rtcp_ice),
+        std::move(unencrypted_rtp_transport), std::move(dtls_srtp_transport),
+        std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport),
         /*sctp_transport=*/nullptr,
         /*rtcp_mux_active_callback=*/[&]() { OnRtcpMuxActive(); },
         payload_type_picker_);
