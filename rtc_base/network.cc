@@ -323,26 +323,26 @@ MdnsResponderInterface* NetworkManager::GetMdnsResponder() const {
 
 void NetworkManager::SubscribeNetworksChanged(
     absl::AnyInvocable<void()> callback) {
-  networks_changed_trampoline_.Subscribe(std::move(callback));
+  networks_changed_callbacks_.AddReceiver(std::move(callback));
 }
 
 void NetworkManager::SubscribeNetworksChanged(
     void* tag,
     absl::AnyInvocable<void()> callback) {
-  networks_changed_trampoline_.Subscribe(tag, std::move(callback));
+  networks_changed_callbacks_.AddReceiver(tag, std::move(callback));
 }
 
 void NetworkManager::UnsubscribeNetworksChanged(void* tag) {
-  networks_changed_trampoline_.Unsubscribe(tag);
+  networks_changed_callbacks_.RemoveReceivers(tag);
 }
 
 void NetworkManager::SubscribeError(void* tag,
                                     absl::AnyInvocable<void()> callback) {
-  error_trampoline_.Subscribe(tag, std::move(callback));
+  error_callbacks_.AddReceiver(tag, std::move(callback));
 }
 
 void NetworkManager::UnsubscribeError(void* tag) {
-  error_trampoline_.Unsubscribe(tag);
+  error_callbacks_.RemoveReceivers(tag);
 }
 
 NetworkManagerBase::NetworkManagerBase()
@@ -1140,9 +1140,7 @@ Network::Network(absl::string_view name,
       scope_id_(0),
       ignored_(false),
       type_(type),
-      preference_(0),
-      type_changed_trampoline_(this),
-      network_preference_changed_trampoline_(this) {}
+      preference_(0) {}
 
 Network::~Network() = default;
 

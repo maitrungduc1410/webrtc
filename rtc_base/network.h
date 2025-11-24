@@ -28,16 +28,15 @@
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
+#include "rtc_base/callback_list.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/ip_address.h"
 #include "rtc_base/mdns_responder_interface.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/network_monitor.h"
 #include "rtc_base/network_monitor_factory.h"
-#include "rtc_base/sigslot_trampoline.h"
 #include "rtc_base/socket_factory.h"
 #include "rtc_base/system/rtc_export.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -126,8 +125,7 @@ class NetworkMask {
 class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
                                   public MdnsResponderProvider {
  public:
-  NetworkManager()
-      : networks_changed_trampoline_(this), error_trampoline_(this) {}
+  NetworkManager() = default;
   // This enum indicates whether adapter enumeration is allowed.
   enum EnumerationPermission {
     ENUMERATION_ALLOWED,  // Adapter enumeration is allowed. Getting 0 network
@@ -187,25 +185,20 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
 
   virtual void set_vpn_list(const std::vector<NetworkMask>& /* vpn */) {}
 
-  sigslot::signal0<> SignalNetworksChanged;
-  sigslot::signal0<> SignalError;
-
   // The implementation of the Subscribe methods is in the .cc file due
   // to linking issues with Chrome.
   void SubscribeNetworksChanged(absl::AnyInvocable<void()> callback);
   void SubscribeNetworksChanged(void* tag, absl::AnyInvocable<void()> callback);
   void UnsubscribeNetworksChanged(void* tag);
-  void NotifyNetworksChanged() { SignalNetworksChanged(); }
+  void NotifyNetworksChanged() { networks_changed_callbacks_.Send(); }
   void SubscribeError(absl::AnyInvocable<void()> callback);
   void SubscribeError(void* tag, absl::AnyInvocable<void()> callback);
   void UnsubscribeError(void* tag);
-  void NotifyError() { SignalError(); }
+  void NotifyError() { error_callbacks_.Send(); }
 
  private:
-  SignalTrampoline<NetworkManager, &NetworkManager::SignalNetworksChanged>
-      networks_changed_trampoline_;
-  SignalTrampoline<NetworkManager, &NetworkManager::SignalError>
-      error_trampoline_;
+  CallbackList<> networks_changed_callbacks_;
+  CallbackList<> error_callbacks_;
 };
 
 // Represents a Unix-type network interface, with a name and single address.
@@ -239,26 +232,26 @@ class RTC_EXPORT Network {
 
   // This signal is fired whenever type() or underlying_type_for_vpn() changes.
   void SubscribeTypeChanged(absl::AnyInvocable<void(const Network*)> callback) {
-    type_changed_trampoline_.Subscribe(std::move(callback));
+    type_changed_callbacks_.AddReceiver(std::move(callback));
   }
   void SubscribeTypeChanged(void* tag,
                             absl::AnyInvocable<void(const Network*)> callback) {
-    type_changed_trampoline_.Subscribe(tag, std::move(callback));
+    type_changed_callbacks_.AddReceiver(tag, std::move(callback));
   }
   void UnsubscribeTypeChanged(void* tag) {
-    type_changed_trampoline_.Unsubscribe(tag);
+    type_changed_callbacks_.RemoveReceivers(tag);
   }
   void NotifyTypeChanged(const Network* network) {
-    type_changed_trampoline_.Notify(network);
+    type_changed_callbacks_.Send(network);
   }
 
   // This signal is fired whenever network preference changes.
   void SubscribeNetworkPreferenceChanged(
       absl::AnyInvocable<void(const Network*)> callback) {
-    network_preference_changed_trampoline_.Subscribe(std::move(callback));
+    network_preference_changed_callbacks_.AddReceiver(std::move(callback));
   }
   void NotifyNetworkPreferenceChanged(Network* network) {
-    network_preference_changed_trampoline_.Notify(network);
+    network_preference_changed_callbacks_.Send(network);
   }
 
   const DefaultLocalAddressProvider* default_local_address_provider() const {
@@ -358,7 +351,7 @@ class RTC_EXPORT Network {
     if (type != ADAPTER_TYPE_VPN) {
       underlying_type_for_vpn_ = ADAPTER_TYPE_UNKNOWN;
     }
-    SignalTypeChanged(this);
+    NotifyTypeChanged(this);
   }
 
   void set_underlying_type_for_vpn(AdapterType type) {
@@ -366,7 +359,7 @@ class RTC_EXPORT Network {
       return;
     }
     underlying_type_for_vpn_ = type;
-    SignalTypeChanged(this);
+    NotifyTypeChanged(this);
   }
 
   bool IsVpn() const { return type_ == ADAPTER_TYPE_VPN; }
@@ -418,7 +411,7 @@ class RTC_EXPORT Network {
       return;
     }
     network_preference_ = val;
-    SignalNetworkPreferenceChanged(this);
+    NotifyNetworkPreferenceChanged(this);
   }
 
   static std::pair<AdapterType, bool /* vpn */> GuessAdapterFromNetworkCost(
@@ -444,12 +437,8 @@ class RTC_EXPORT Network {
   bool active_ = true;
   uint16_t id_ = 0;
   NetworkPreference network_preference_ = NetworkPreference::NEUTRAL;
-  sigslot::signal1<const Network*> SignalTypeChanged;
-  sigslot::signal1<const Network*> SignalNetworkPreferenceChanged;
-  SignalTrampoline<Network, &Network::SignalTypeChanged>
-      type_changed_trampoline_;
-  SignalTrampoline<Network, &Network::SignalNetworkPreferenceChanged>
-      network_preference_changed_trampoline_;
+  CallbackList<const Network*> type_changed_callbacks_;
+  CallbackList<const Network*> network_preference_changed_callbacks_;
   friend class NetworkManager;
 };
 
@@ -525,15 +514,14 @@ class RTC_EXPORT NetworkManagerBase : public NetworkManager {
 // Basic implementation of the NetworkManager interface that gets list
 // of networks using OS APIs.
 class RTC_EXPORT BasicNetworkManager : public NetworkManagerBase,
-                                       public NetworkBinderInterface,
-                                       public sigslot::has_slots<> {
+                                       public NetworkBinderInterface {
  public:
   BasicNetworkManager(
       const Environment& env,
       SocketFactory* absl_nonnull socket_factory,
       NetworkMonitorFactory* absl_nullable network_monitor_factory = nullptr);
 
-  ~BasicNetworkManager() override;
+  ~BasicNetworkManager();
 
   void StartUpdating() override;
   void StopUpdating() override;
