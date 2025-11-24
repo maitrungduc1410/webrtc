@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'cb510764022724593771cb178e1dc5e986c82854',
+  'chromium_revision': '87b66865e62850f46ab11053078c6908f118152e',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,19 +78,19 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@a1bd5003d085517542c8e6853b047ae9fa2443f5',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@777a0a46e6b4a37676a1bbabacd1fa47a383ebd6',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@5081953b29c7c64996c19c3fb4fbfe11e44ede51',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@1d23f222c541f1e398d278552e0692510ada49ce',
+    'https://chromium.googlesource.com/chromium/src/third_party@c8179e9b8b634e8b103973a5ac1743357abd91ba',
 
   'src/buildtools/linux64': {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:a156d0b1306b09bf676a72e345ca978ef6093d95',
+        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
       }
     ],
     'dep_type': 'cipd',
@@ -100,7 +100,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:a156d0b1306b09bf676a72e345ca978ef6093d95',
+        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
       }
     ],
     'dep_type': 'cipd',
@@ -110,7 +110,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:a156d0b1306b09bf676a72e345ca978ef6093d95',
+        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
       }
     ],
     'dep_type': 'cipd',
@@ -331,7 +331,7 @@ deps = {
   'src/third_party/clang-format/script':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@c2725e0622e1a86d55f14514f2177a39efea4a0e',
   'src/third_party/compiler-rt/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@553af1549bcef8047b5a87d64e00f1afa02c1d9d',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@e056a80c98d53a209920acc7493a3c11c46e9162',
   'src/third_party/libc++/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git@99d9ab2603b02b6fb974cf19be99777f5cd99e7a',
   'src/third_party/libc++abi/src':
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@187240970746d00bbd26b0f5873ed54d2477f9f3',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@345f048b5bebda1e03eb1c520ee0e18d7a694d11',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@a40eea6df7d7e654bae614472629640ed3e4a54a',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@f8365fb23ad897fc7ba78e5820ddb449518f919d',
+    'https://chromium.googlesource.com/chromium/src/tools@e82be0953987eee122a49956fed2d82ebb491648',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'C387JikcW3T2k1ziXlpju-cWN__-5rzinwR9wLGI-9cC',
+          'version': 'IzwpvWNdSUtzHmFGeMtjltBT2V3z4QxwQDQmAUuumN8C',
       },
     ],
     'condition': 'checkout_android and non_git_source',
