@@ -65,11 +65,9 @@ ABSL_FLAG(int32_t,
 ABSL_FLAG(int32_t, long_running_run_time_minutes, 7, "");
 ABSL_FLAG(bool, long_running_send_data, false, "");
 
+namespace webrtc {
 namespace {
 constexpr int kDefaultTimeout = 30000;
-}  // namespace
-
-namespace webrtc {
 
 using ::testing::Eq;
 using ::testing::IsTrue;
@@ -490,7 +488,7 @@ TEST_P(DtlsIceIntegrationTest, LongRunningTestWithPacketLoss) {
     seed = 1 + time(0);
   }
   RTC_LOG(LS_INFO) << "seed: " << seed;
-  webrtc::Random rand(seed);
+  Random rand(seed);
   ConfigureEmulatedNetwork();
   Prepare();
 
@@ -648,4 +646,5 @@ INSTANTIATE_TEST_SUITE_P(
                        testing::Bool(),
                        testing::Bool()));
 
+}  // namespace
 }  // namespace webrtc

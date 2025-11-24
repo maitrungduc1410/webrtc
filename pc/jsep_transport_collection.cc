@@ -11,15 +11,14 @@
 #include "pc/jsep_transport_collection.h"
 
 #include <algorithm>
-#include <iterator>
 #include <memory>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/strings/string_view.h"
+#include "api/function_view.h"
 #include "api/jsep.h"
 #include "api/peer_connection_interface.h"
 #include "api/sequence_checker.h"

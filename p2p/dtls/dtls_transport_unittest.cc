@@ -61,7 +61,7 @@
 #include "test/wait_until.h"
 
 namespace webrtc {
-
+namespace {
 using ::testing::Eq;
 using ::testing::IsTrue;
 
@@ -414,9 +414,9 @@ class DtlsTestClient {
   DtlsTransportInternalImpl::SslStreamFactory ssl_stream_factory_;
 };
 
-class FakeSSLStreamAdapter : public webrtc::SSLStreamAdapter {
+class FakeSSLStreamAdapter : public SSLStreamAdapter {
  public:
-  explicit FakeSSLStreamAdapter(std::unique_ptr<webrtc::SSLStreamAdapter> impl_)
+  explicit FakeSSLStreamAdapter(std::unique_ptr<SSLStreamAdapter> impl_)
       : impl_(std::move(impl_)) {}
 
   void Init() {
@@ -429,23 +429,21 @@ class FakeSSLStreamAdapter : public webrtc::SSLStreamAdapter {
   void SetWriteError(std::optional<int> error) { write_error_ = error; }
 
   // SSLStreamAdapter overrides.
-  void SetIdentity(std::unique_ptr<webrtc::SSLIdentity> identity) override {
+  void SetIdentity(std::unique_ptr<SSLIdentity> identity) override {
     impl_->SetIdentity(std::move(identity));
   }
-  webrtc::SSLIdentity* GetIdentityForTesting() const override {
+  SSLIdentity* GetIdentityForTesting() const override {
     return impl_->GetIdentityForTesting();
   }
-  void SetServerRole(webrtc::SSLRole role) override {
-    impl_->SetServerRole(role);
-  }
+  void SetServerRole(SSLRole role) override { impl_->SetServerRole(role); }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  void SetMode(webrtc::SSLMode mode) override { impl_->SetMode(mode); }
-  webrtc::SSLProtocolVersion GetSslVersion() const override {
+  void SetMode(SSLMode mode) override { impl_->SetMode(mode); }
+  SSLProtocolVersion GetSslVersion() const override {
     return impl_->GetSslVersion();
   }
 #pragma clang diagnostic pop
-  void SetMaxProtocolVersion(webrtc::SSLProtocolVersion version) override {
+  void SetMaxProtocolVersion(SSLProtocolVersion version) override {
     impl_->SetMaxProtocolVersion(version);
   }
   void SetInitialRetransmissionTimeout(int timeout_ms) override {
@@ -453,12 +451,12 @@ class FakeSSLStreamAdapter : public webrtc::SSLStreamAdapter {
   }
   void SetMTU(int mtu) override { impl_->SetMTU(mtu); }
   int StartSSL() override { return impl_->StartSSL(); }
-  webrtc::SSLPeerCertificateDigestError SetPeerCertificateDigest(
+  SSLPeerCertificateDigestError SetPeerCertificateDigest(
       absl::string_view digest_alg,
-      webrtc::ArrayView<const uint8_t> digest_val) override {
+      ArrayView<const uint8_t> digest_val) override {
     return impl_->SetPeerCertificateDigest(digest_alg, digest_val);
   }
-  std::unique_ptr<webrtc::SSLCertChain> GetPeerSSLCertChain() const override {
+  std::unique_ptr<SSLCertChain> GetPeerSSLCertChain() const override {
     return impl_->GetPeerSSLCertChain();
   }
   bool GetSslCipherSuite(int* cipher_suite) const override {
@@ -471,7 +469,7 @@ class FakeSSLStreamAdapter : public webrtc::SSLStreamAdapter {
     return impl_->GetSslVersionBytes(version);
   }
   bool ExportSrtpKeyingMaterial(
-      webrtc::ZeroOnFreeBuffer<uint8_t>& keying_material) override {
+      ZeroOnFreeBuffer<uint8_t>& keying_material) override {
     return impl_->ExportSrtpKeyingMaterial(keying_material);
   }
   uint16_t GetPeerSignatureAlgorithm() const override {
@@ -493,27 +491,27 @@ class FakeSSLStreamAdapter : public webrtc::SSLStreamAdapter {
   uint16_t GetSslGroupId() const override { return impl_->GetSslGroupId(); }
 
   // StreamInterface overrides.
-  webrtc::StreamState GetState() const override { return impl_->GetState(); }
+  StreamState GetState() const override { return impl_->GetState(); }
   void Close() override { impl_->Close(); }
-  webrtc::StreamResult Read(webrtc::ArrayView<uint8_t> buffer,
-                            size_t& read,
-                            int& error) override {
+  StreamResult Read(ArrayView<uint8_t> buffer,
+                    size_t& read,
+                    int& error) override {
     return impl_->Read(buffer, read, error);
   }
-  webrtc::StreamResult Write(webrtc::ArrayView<const uint8_t> data,
-                             size_t& written,
-                             int& error) override {
+  StreamResult Write(ArrayView<const uint8_t> data,
+                     size_t& written,
+                     int& error) override {
     if (write_error_) {
       error = *write_error_;
-      return webrtc::SR_ERROR;
+      return SR_ERROR;
     }
     return impl_->Write(data, written, error);
   }
   bool Flush() override { return impl_->Flush(); }
 
  private:
-  std::unique_ptr<webrtc::StreamInterface> stream_;
-  std::unique_ptr<webrtc::SSLStreamAdapter> impl_;
+  std::unique_ptr<StreamInterface> stream_;
+  std::unique_ptr<SSLStreamAdapter> impl_;
   std::optional<int> write_error_;
 };
 
@@ -776,7 +774,7 @@ TEST_F(DtlsTransportInternalImplTest, TestWriteError) {
   PrepareDtls(KT_DEFAULT);
   FakeSSLStreamAdapter* fake_stream = nullptr;
   client1_.set_ssl_stream_factory(
-      [&](std::unique_ptr<webrtc::StreamInterface> stream,
+      [&](std::unique_ptr<StreamInterface> stream,
           absl::AnyInvocable<void(SSLHandshakeError)> handshake_error_callback,
           const FieldTrialsView* field_trials) {
         auto fake =
@@ -799,7 +797,7 @@ TEST_F(DtlsTransportInternalImplTest, TestPacketOptionsResetAfterWriteError) {
   PrepareDtls(KT_DEFAULT);
   FakeSSLStreamAdapter* fake_stream = nullptr;
   client1_.set_ssl_stream_factory(
-      [&](std::unique_ptr<webrtc::StreamInterface> stream,
+      [&](std::unique_ptr<StreamInterface> stream,
           absl::AnyInvocable<void(SSLHandshakeError)> handshake_error_callback,
           const FieldTrialsView* field_trials) {
         auto fake =
@@ -2140,5 +2138,5 @@ TEST_P(DtlsInStunTest, OptimalDtls13Handshake) {
 
   ClearPacketFilters();
 }
-
+}  // namespace
 }  // namespace webrtc

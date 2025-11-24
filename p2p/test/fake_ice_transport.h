@@ -53,8 +53,6 @@
 #include "test/create_test_field_trials.h"
 
 namespace webrtc {
-using ::webrtc::SafeTask;
-using ::webrtc::TimeDelta;
 
 // All methods must be called on the network thread (which is either the thread
 // calling the constructor, or the separate thread explicitly passed to the
