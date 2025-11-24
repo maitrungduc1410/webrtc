@@ -16,6 +16,7 @@
 #include "api/async_dns_resolver.h"
 #include "api/transport/ecn_marking.h"
 #include "api/units/time_delta.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/net_helpers.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
@@ -251,7 +252,7 @@ class PhysicalSocket : public Socket, public sigslot::has_slots<> {
   uint8_t dscp_ = 0;  // 6bit.
   uint8_t ecn_ = 0;   // 2bits.
 
-#if !defined(NDEBUG)
+#if RTC_DCHECK_IS_ON
   std::string dbg_addr_;
 #endif
 
