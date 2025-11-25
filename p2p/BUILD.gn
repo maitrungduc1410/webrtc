@@ -443,6 +443,7 @@ rtc_library("ice_transport_internal") {
     "../api:candidate",
     "../api:field_trials_view",
     "../api:libjingle_peerconnection_api",
+    "../api:peer_connection_interface",
     "../api:rtc_error",
     "../api/transport:enums",
     "../api/transport:stun_types",
