@@ -490,6 +490,59 @@ TEST(SourceTrackerTest, OnFrameDeliveredUpdatesSources) {
                                     kRtpTimestamp0, extensions0)));
 }
 
+TEST(SourceTrackerTest, OnSourceChangedCallbackFiresOnChange) {
+  constexpr uint32_t kSsrc1 = 10;
+  constexpr uint32_t kSsrc2 = 11;
+  constexpr uint32_t kCsrc1 = 21;
+  constexpr uint32_t kCsrc2 = 22;
+  // Timestamps are not important in this test (as long as delivery time is not
+  // older than 10 seconds). Whatever frame was last delivered has by definition
+  // the "latest" SSRC/CSRC information.
+  constexpr uint32_t kRtpTimestamp = 123;
+  constexpr Timestamp kReceiveTime = Timestamp::Millis(321);
+
+  int fired_count = 0;
+  int ssrc_changed_count = 0;
+  int csrcs_changed_count = 0;
+  GlobalSimulatedTimeController time_controller(Timestamp::Seconds(1000));
+  SourceTracker tracker(time_controller.GetClock(),
+                        [&](bool ssrc_changed, bool csrcs_changed) {
+                          ++fired_count;
+                          if (ssrc_changed) {
+                            ++ssrc_changed_count;
+                          }
+                          if (csrcs_changed) {
+                            ++csrcs_changed_count;
+                          }
+                        });
+
+  // First packet always fires.
+  tracker.OnFrameDelivered(
+      RtpPacketInfos({RtpPacketInfo(kSsrc1, {}, kRtpTimestamp, kReceiveTime)}));
+  EXPECT_EQ(fired_count, 1);
+  EXPECT_EQ(ssrc_changed_count, 1);
+  EXPECT_EQ(csrcs_changed_count, 0);
+
+  // Change SSRC and add CSRC in the same frame.
+  tracker.OnFrameDelivered(RtpPacketInfos(
+      {RtpPacketInfo(kSsrc2, {kCsrc1}, kRtpTimestamp, kReceiveTime)}));
+  EXPECT_EQ(fired_count, 2);
+  EXPECT_EQ(ssrc_changed_count, 2);
+  EXPECT_EQ(csrcs_changed_count, 1);
+
+  // Change CSRC list.
+  tracker.OnFrameDelivered(RtpPacketInfos(
+      {RtpPacketInfo(kSsrc2, {kCsrc1, kCsrc2}, kRtpTimestamp, kReceiveTime)}));
+  EXPECT_EQ(fired_count, 3);
+  EXPECT_EQ(ssrc_changed_count, 2);
+  EXPECT_EQ(csrcs_changed_count, 2);
+
+  // Receive same SSRC/CSRC information as before and the event does not fire.
+  tracker.OnFrameDelivered(RtpPacketInfos(
+      {RtpPacketInfo(kSsrc2, {kCsrc1, kCsrc2}, kRtpTimestamp, kReceiveTime)}));
+  EXPECT_EQ(fired_count, 3);
+}
+
 TEST(SourceTrackerTest, TimedOutSourcesAreRemoved) {
   constexpr uint32_t kSsrc = 10;
   constexpr uint32_t kCsrcs0 = 20;

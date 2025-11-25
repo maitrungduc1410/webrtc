@@ -11,9 +11,11 @@
 #include "modules/rtp_rtcp/source/source_tracker.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/rtp_packet_info.h"
 #include "api/rtp_packet_infos.h"
 #include "api/transport/rtp/rtp_source.h"
@@ -24,7 +26,13 @@
 
 namespace webrtc {
 
-SourceTracker::SourceTracker(Clock* clock) : clock_(clock) {
+SourceTracker::SourceTracker(Clock* clock)
+    : SourceTracker(clock, absl::AnyInvocable<void(bool, bool)>()) {}
+
+SourceTracker::SourceTracker(
+    Clock* clock,
+    absl::AnyInvocable<void(bool, bool)> on_source_changed)
+    : clock_(clock), on_source_changed_(std::move(on_source_changed)) {
   RTC_DCHECK(clock_);
 }
 
@@ -38,10 +46,14 @@ void SourceTracker::OnFrameDelivered(const RtpPacketInfos& packet_infos,
     delivery_time = clock_->CurrentTime();
   }
 
+  std::optional<uint32_t> prev_ssrc = last_received_ssrc_;
+  std::vector<uint32_t> prev_csrcs = last_received_csrcs_;
+  last_received_csrcs_.clear();
   for (const RtpPacketInfo& packet_info : packet_infos) {
     for (uint32_t csrc : packet_info.csrcs()) {
       SourceKey key(RtpSourceType::CSRC, csrc);
       SourceEntry& entry = UpdateEntry(key);
+      last_received_csrcs_.push_back(csrc);
 
       entry.timestamp = delivery_time;
       entry.audio_level = packet_info.audio_level();
@@ -53,6 +65,7 @@ void SourceTracker::OnFrameDelivered(const RtpPacketInfos& packet_infos,
 
     SourceKey key(RtpSourceType::SSRC, packet_info.ssrc());
     SourceEntry& entry = UpdateEntry(key);
+    last_received_ssrc_ = packet_info.ssrc();
 
     entry.timestamp = delivery_time;
     entry.audio_level = packet_info.audio_level();
@@ -62,6 +75,12 @@ void SourceTracker::OnFrameDelivered(const RtpPacketInfos& packet_infos,
   }
 
   PruneEntries(delivery_time);
+
+  bool fire_ssrc_change = last_received_ssrc_ != prev_ssrc;
+  bool fire_csrc_change = last_received_csrcs_ != prev_csrcs;
+  if ((fire_ssrc_change || fire_csrc_change) && on_source_changed_) {
+    on_source_changed_(fire_ssrc_change, fire_csrc_change);
+  }
 }
 
 std::vector<RtpSource> SourceTracker::GetSources() const {

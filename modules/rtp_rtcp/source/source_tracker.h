@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_packet_infos.h"
 #include "api/transport/rtp/rtp_source.h"
@@ -33,6 +34,9 @@ namespace webrtc {
 //   - https://w3c.github.io/webrtc-pc/#dom-rtcrtpcontributingsource
 //   - https://w3c.github.io/webrtc-pc/#dom-rtcrtpsynchronizationsource
 //
+// Also used to implement `onssrcchange`/`oncsrcchange` events:
+//  - https://w3c.github.io/webrtc-extensions/#source-change-event
+//
 // This class is thread unsafe.
 class SourceTracker {
  public:
@@ -40,7 +44,11 @@ class SourceTracker {
   // https://w3c.github.io/webrtc-pc/#dom-rtcrtpreceiver-getcontributingsources
   static constexpr TimeDelta kTimeout = TimeDelta::Seconds(10);
 
+  // TODO(https://crbug.com/463591201): Consider deleting when the version that
+  // takes a callback has been wired up to upper layers.
   explicit SourceTracker(Clock* clock);
+  SourceTracker(Clock* clock,
+                absl::AnyInvocable<void(bool, bool)> on_source_changed);
 
   SourceTracker(const SourceTracker& other) = delete;
   SourceTracker(SourceTracker&& other) = delete;
@@ -132,6 +140,10 @@ class SourceTracker {
   // pruning in const functions.
   mutable SourceList list_;
   mutable SourceMap map_;
+  std::optional<uint32_t> last_received_ssrc_;
+  std::vector<uint32_t> last_received_csrcs_;
+  // Arguments: `bool ssrc_changed, bool csrcs_changed`
+  absl::AnyInvocable<void(bool, bool)> on_source_changed_;
 };
 
 }  // namespace webrtc
