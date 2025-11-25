@@ -231,11 +231,9 @@ class RTC_EXPORT P2PTransportChannel : public IceTransportInternal,
 
   std::string ToString() const {
     RTC_DCHECK_RUN_ON(&network_thread_);
-    const absl::string_view RECEIVING_ABBREV[2] = {"_", "R"};
-    const absl::string_view WRITABLE_ABBREV[2] = {"_", "W"};
     StringBuilder ss;
     ss << "Channel[" << transport_name_ << "|" << component_ << "|"
-       << RECEIVING_ABBREV[receiving_] << WRITABLE_ABBREV[writable_] << "]";
+       << (receiving_ ? "R" : "_") << (writable_ ? "W" : "_");
     return ss.Release();
   }
 
