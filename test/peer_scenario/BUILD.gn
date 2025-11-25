@@ -49,6 +49,7 @@ if (rtc_include_tests) {
       "../../api:scoped_refptr",
       "../../api:sequence_checker",
       "../../api:set_local_description_observer_interface",
+      "../../api:set_remote_description_observer_interface",
       "../../api:time_controller",
       "../../api/environment",
       "../../api/environment:environment_factory",

@@ -33,7 +33,6 @@ rtc_library("enable_media") {
     "enable_media.h",
   ]
   deps = [
-    ":libjingle_peerconnection_api",
     ":peer_connection_interface",
     ":scoped_refptr",
     "../call",
@@ -60,7 +59,6 @@ rtc_library("enable_media_with_defaults") {
   ]
   deps = [
     ":enable_media",
-    ":libjingle_peerconnection_api",
     ":peer_connection_interface",
     ":scoped_refptr",
     "../rtc_base/system:rtc_export",
@@ -80,7 +78,6 @@ rtc_library("create_modular_peer_connection_factory") {
     "create_modular_peer_connection_factory.h",
   ]
   deps = [
-    ":libjingle_peerconnection_api",
     ":peer_connection_interface",
     ":scoped_refptr",
     ":sequence_checker",
@@ -104,7 +101,6 @@ if (!build_with_chromium) {
       ":create_modular_peer_connection_factory",
       ":enable_media",
       ":field_trials_view",
-      ":libjingle_peerconnection_api",
       ":peer_connection_interface",
       ":scoped_refptr",
       "../rtc_base:threading",
@@ -435,6 +431,7 @@ rtc_library("peer_connection_interface") {
     ":scoped_refptr",
     ":sctp_transport_interface",
     ":set_local_description_observer_interface",
+    ":set_remote_description_observer_interface",
     ":turn_customizer",
     "../media:rtc_media_config",
     "../p2p:dtls_transport_factory",
@@ -513,13 +510,38 @@ rtc_library("rtp_transceiver_interface") {
 }
 
 rtc_library("set_local_description_observer_interface") {
-  sources = [
-    "set_local_description_observer_interface.h",
-    "set_remote_description_observer_interface.h",
-  ]
+  sources = [ "set_local_description_observer_interface.h" ]
   deps = [
     ":ref_count",
     ":rtc_error",
+  ]
+}
+
+rtc_library("set_remote_description_observer_interface") {
+  sources = [ "set_remote_description_observer_interface.h" ]
+  deps = [
+    ":ref_count",
+    ":rtc_error",
+  ]
+}
+
+rtc_library("uma_metrics") {
+  sources = [ "uma_metrics.h" ]
+  deps = [
+    ":ref_count",
+    ":rtc_error",
+  ]
+}
+
+rtc_library("video_track_source_proxy_factory") {
+  sources = [ "video_track_source_proxy_factory.h" ]
+  deps = [
+    ":media_stream_interface",
+    ":ref_count",
+    ":rtc_error",
+    ":scoped_refptr",
+    "../rtc_base:threading",
+    "../rtc_base/system:rtc_export",
   ]
 }
 
@@ -1622,6 +1644,7 @@ if (rtc_include_tests) {
       ":rtp_transceiver_interface",
       ":sctp_transport_interface",
       ":set_local_description_observer_interface",
+      ":set_remote_description_observer_interface",
       "../api:scoped_refptr",
       "../rtc_base:refcount",
       "../rtc_base:threading",

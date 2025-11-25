@@ -55,6 +55,7 @@ rtc_executable("data_channel_benchmark") {
     "../../api:rtc_error",
     "../../api:scoped_refptr",
     "../../api:set_local_description_observer_interface",
+    "../../api:set_remote_description_observer_interface",
     "../../api/audio_codecs:builtin_audio_decoder_factory",
     "../../api/audio_codecs:builtin_audio_encoder_factory",
     "../../api/video_codecs:video_decoder_factory_template",
