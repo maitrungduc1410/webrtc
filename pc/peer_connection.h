@@ -65,7 +65,6 @@
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
 #include "p2p/base/transport_description.h"
-#include "p2p/dtls/dtls_transport_factory.h"
 #include "pc/channel_interface.h"
 #include "pc/codec_vendor.h"
 #include "pc/connection_context.h"
@@ -677,7 +676,6 @@ class PeerConnection : public PeerConnectionInternal,
                                // pointer is given to
                                // `jsep_transport_controller_` and used on the
                                // network thread.
-  const std::unique_ptr<DtlsTransportFactory> dtls_transport_factory_;
   const std::unique_ptr<SSLCertificateVerifier> tls_cert_verifier_
       RTC_GUARDED_BY(network_thread());
 

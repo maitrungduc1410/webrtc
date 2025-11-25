@@ -333,6 +333,8 @@ rtc_library("dtls_transport") {
 rtc_source_set("dtls_transport_factory") {
   sources = [ "dtls/dtls_transport_factory.h" ]
   deps = [
+    ":dtls_transport_internal",
+    ":ice_transport_internal",
     "../api:ice_transport_interface",
     "../api:scoped_refptr",
     "../api/crypto:options",

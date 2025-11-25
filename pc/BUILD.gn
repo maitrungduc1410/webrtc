@@ -1340,7 +1340,6 @@ rtc_library("peer_connection") {
     "../media:stream_params",
     "../modules/rtp_rtcp:rtp_rtcp_format",
     "../p2p:connection_info",
-    "../p2p:dtls_transport_factory",
     "../p2p:dtls_transport_internal",
     "../p2p:ice_transport_internal",
     "../p2p:p2p_constants",
