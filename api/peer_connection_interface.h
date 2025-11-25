@@ -641,14 +641,6 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
     // process).
     SdpSemantics sdp_semantics = SdpSemantics::kUnifiedPlan;
 
-    // TODO(bugs.webrtc.org/9891) - Move to crypto_options or remove.
-    // Actively reset the SRTP parameters whenever the DTLS transports
-    // underneath are reset for every offer/answer negotiation.
-    // This is only intended to be a workaround for crbug.com/835958
-    // WARNING: This would cause RTP/RTCP packets decryption failure if not used
-    // correctly. This flag will be deprecated soon. Do not rely on it.
-    bool active_reset_srtp_params = false;
-
     // Defines advanced optional cryptographic settings related to SRTP and
     // frame encryption for native WebRTC.
     CryptoOptions crypto_options;

@@ -303,8 +303,6 @@ RTCErrorOr<PeerConnectionInterface::RTCConfiguration> ApplyConfiguration(
   modified_config.crypto_options = configuration.crypto_options;
   modified_config.always_negotiate_data_channels =
       configuration.always_negotiate_data_channels;
-  modified_config.active_reset_srtp_params =
-      configuration.active_reset_srtp_params;
 
   // ICE configuration.
   modified_config.servers = configuration.servers;
@@ -469,7 +467,6 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
     TurnCustomizer* turn_customizer;
     SdpSemantics sdp_semantics;
     std::optional<AdapterType> network_preference;
-    bool active_reset_srtp_params;
     CryptoOptions crypto_options;
     bool offer_extmap_allow_mixed;
     std::string turn_logging_id;
@@ -530,7 +527,6 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
          turn_customizer == o.turn_customizer &&
          sdp_semantics == o.sdp_semantics &&
          network_preference == o.network_preference &&
-         active_reset_srtp_params == o.active_reset_srtp_params &&
          crypto_options == o.crypto_options &&
          offer_extmap_allow_mixed == o.offer_extmap_allow_mixed &&
          turn_logging_id == o.turn_logging_id &&
@@ -744,7 +740,6 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
 #if defined(ENABLE_EXTERNAL_AUTH)
   config.enable_external_auth = true;
 #endif
-  config.active_reset_srtp_params = configuration_.active_reset_srtp_params;
 
   // DTLS has to be enabled to use SCTP.
   if (dtls_enabled_) {
@@ -1650,8 +1645,6 @@ RTCError PeerConnection::SetConfiguration(
               transport_controller_->SetNeedsIceRestartFlag();
 
             transport_controller_->SetIceConfig(ice_config);
-            transport_controller_->SetActiveResetSrtpParams(
-                modified_config.active_reset_srtp_params);
             return ReconfigurePortAllocator_n(
                 stun_servers, turn_servers, modified_config.type,
                 modified_config.ice_candidate_pool_size,

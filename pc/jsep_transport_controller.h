@@ -122,9 +122,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
         rtcp_handler;
     absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
         un_demuxable_packet_handler;
-    // Initial value for whether DtlsTransport reset causes a reset
-    // of SRTP parameters.
-    bool active_reset_srtp_params = false;
 
     // Factory for SCTP transports.
     SctpTransportFactoryInterface* sctp_factory = nullptr;
@@ -274,8 +271,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
   }
 
   bool GetStats(absl::string_view transport_name, TransportStats* stats) const;
-
-  void SetActiveResetSrtpParams(bool active_reset_srtp_params);
 
   // Must be called on the signaling thread.
   RTCError RollbackTransports();
@@ -472,7 +467,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
   IceGatheringState ice_gathering_state_ = kIceGatheringNew;
 
   const Config config_;
-  bool active_reset_srtp_params_ RTC_GUARDED_BY(network_thread_);
 
   IceConfig ice_config_;
   IceRole ice_role_ = ICEROLE_CONTROLLING;

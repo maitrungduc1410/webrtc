@@ -216,8 +216,6 @@ class JsepTransport {
       const RTCCertificate* certificate,
       const SSLFingerprint* fingerprint) const;
 
-  void SetActiveResetSrtpParams(bool active_reset_srtp_params);
-
   // Record the PT mappings from a single media section.
   // This is used to store info needed when generating subsequent SDP.
   RTCError RecordPayloadTypes(bool local,

@@ -48,12 +48,6 @@ class DtlsSrtpTransport : public SrtpTransport {
 
   void SetOnDtlsStateChange(absl::AnyInvocable<void()> callback);
 
-  // If `active_reset_srtp_params_` is set to be true, the SRTP parameters will
-  // be reset whenever the DtlsTransports are reset.
-  void SetActiveResetSrtpParams(bool active_reset_srtp_params) {
-    active_reset_srtp_params_ = active_reset_srtp_params;
-  }
-
  private:
   bool IsDtlsActive();
   bool IsDtlsConnected();
@@ -85,7 +79,6 @@ class DtlsSrtpTransport : public SrtpTransport {
   std::optional<std::vector<int>> send_extension_ids_;
   std::optional<std::vector<int>> recv_extension_ids_;
 
-  bool active_reset_srtp_params_ = false;
   absl::AnyInvocable<void()> on_dtls_state_change_;
 };
 

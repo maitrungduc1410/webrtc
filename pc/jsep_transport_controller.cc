@@ -94,7 +94,6 @@ JsepTransportController::JsepTransportController(
             UpdateAggregateStates_n();
           }),
       config_(std::move(config)),
-      active_reset_srtp_params_(config_.active_reset_srtp_params),
       bundles_(config_.bundle_policy),
       payload_type_picker_(payload_type_picker) {
   RTC_DCHECK(signaling_thread_);
@@ -482,18 +481,6 @@ bool JsepTransportController::GetStats(absl::string_view transport_name,
   return transport->GetStats(stats);
 }
 
-void JsepTransportController::SetActiveResetSrtpParams(
-    bool active_reset_srtp_params) {
-  RTC_DCHECK_RUN_ON(network_thread_);
-  RTC_LOG(LS_INFO)
-      << "Updating the active_reset_srtp_params for JsepTransportController: "
-      << active_reset_srtp_params;
-  active_reset_srtp_params_ = active_reset_srtp_params;
-  transports_.ForEachTransport([&](JsepTransport& t) {
-    t.SetActiveResetSrtpParams(active_reset_srtp_params);
-  });
-}
-
 RTCError JsepTransportController::RollbackTransports() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   return network_thread_->BlockingCall([&] {
@@ -639,7 +626,6 @@ JsepTransportController::CreateDtlsSrtpTransport(
 
   dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport,
                                          rtcp_dtls_transport);
-  dtls_srtp_transport->SetActiveResetSrtpParams(active_reset_srtp_params_);
   // Capturing this in the callback because JsepTransportController will always
   // outlive the DtlsSrtpTransport.
   dtls_srtp_transport->SetOnDtlsStateChange([this]() {

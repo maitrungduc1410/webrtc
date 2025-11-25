@@ -356,16 +356,6 @@ RTCError JsepTransport::VerifyCertificateFingerprint(
   return RTCError(RTCErrorType::INVALID_PARAMETER, std::string(desc.str()));
 }
 
-void JsepTransport::SetActiveResetSrtpParams(bool active_reset_srtp_params) {
-  RTC_DCHECK_RUN_ON(&transport_sequence_);
-  if (dtls_srtp_transport_) {
-    RTC_LOG(LS_INFO)
-        << "Setting active_reset_srtp_params of DtlsSrtpTransport to: "
-        << active_reset_srtp_params;
-    dtls_srtp_transport_->SetActiveResetSrtpParams(active_reset_srtp_params);
-  }
-}
-
 RTCError JsepTransport::RecordPayloadTypes(bool local,
                                            SdpType type,
                                            const ContentInfo& content) {
