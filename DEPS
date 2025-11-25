@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '283986d1d30dfc841c10d6c2347dc632318f3205',
+  'chromium_revision': 'a3f1bbac6fc6fab7c4d359ad86d804bc83094309',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,19 +78,19 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@fcea22aa3ee7ca2a06fae10a2e80aed9edb61f99',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@1fca73d5a6e53f6fd8da1c87508b5da7618f88a3',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@1ac2980f685b581c7b99e2e53bf7935a93076934',
+    'https://chromium.googlesource.com/chromium/src/testing@366bb80c55b76693a97d56a3d030da0591b7b380',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@47802bed256816b1346cc1a94add5221013e8844',
+    'https://chromium.googlesource.com/chromium/src/third_party@ba5ffb387170d5eb4e63c718942cdde9d7b2eac9',
 
   'src/buildtools/linux64': {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
+        'version': 'git_revision:4619125bd337d259c0dc9f958d0102adc99d2543',
       }
     ],
     'dep_type': 'cipd',
@@ -100,7 +100,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
+        'version': 'git_revision:4619125bd337d259c0dc9f958d0102adc99d2543',
       }
     ],
     'dep_type': 'cipd',
@@ -110,7 +110,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:fb3b73df3c0d2ad7f41ebc91c6905e90dcb518ba',
+        'version': 'git_revision:4619125bd337d259c0dc9f958d0102adc99d2543',
       }
     ],
     'dep_type': 'cipd',
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@187240970746d00bbd26b0f5873ed54d2477f9f3',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@780017a06e452499078b58e52df82572bf31174c',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@c142713f4baa8606507b302dc24c7bbb47147794',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -631,7 +631,7 @@ deps = {
 
   # Used by boringssl.
   'src/third_party/nasm': {
-      'url': 'https://chromium.googlesource.com/chromium/deps/nasm.git@e2c93c34982b286b27ce8b56dd7159e0b90869a2'
+      'url': 'https://chromium.googlesource.com/chromium/deps/nasm.git@af5eeeb054bebadfbb79c7bcd100a95e2ad4525f'
   },
 
   'src/third_party/openh264/src':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@ad942a63ea6ef9d8412b38ef160a92642e4a8e1a',
+    'https://chromium.googlesource.com/chromium/src/tools@b0baf15f1efe9140cec7d25cc4484eff73b40dd7',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': '9F_0X721Ie6V6GsOBn2vBprQEiAHd9IX-8H1uS-Yg1wC',
+          'version': 'pT7QpyTXlCmXieA-Ocq1MWS6tUJzRXNU5bV_BYr4kKUC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
