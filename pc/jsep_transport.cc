@@ -88,8 +88,6 @@ JsepTransportDescription& JsepTransportDescription::operator=(
 
 JsepTransport::JsepTransport(
     const scoped_refptr<RTCCertificate>& local_certificate,
-    scoped_refptr<IceTransportInterface> ice_transport,
-    scoped_refptr<IceTransportInterface> rtcp_ice_transport,
     std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
     std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport,
     std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
@@ -98,8 +96,6 @@ JsepTransport::JsepTransport(
     absl::AnyInvocable<void()> rtcp_mux_active_callback,
     PayloadTypePicker& suggester)
     : local_certificate_(local_certificate),
-      ice_transport_(std::move(ice_transport)),
-      rtcp_ice_transport_(std::move(rtcp_ice_transport)),
       unencrypted_rtp_transport_(std::move(unencrypted_rtp_transport)),
       dtls_srtp_transport_(std::move(dtls_srtp_transport)),
       rtp_dtls_transport_(
@@ -119,12 +115,7 @@ JsepTransport::JsepTransport(
       remote_payload_types_(suggester),
       local_payload_types_(suggester) {
   TRACE_EVENT0("webrtc", "JsepTransport::JsepTransport");
-  RTC_DCHECK(ice_transport_);
   RTC_DCHECK(rtp_dtls_transport_);
-  // `rtcp_ice_transport_` must be present iff `rtcp_dtls_transport_` is
-  // present.
-  RTC_DCHECK_EQ((rtcp_ice_transport_ != nullptr),
-                (rtcp_dtls_transport_ != nullptr));
   // Verify the "only one out of these three can be set" invariant.
   if (unencrypted_rtp_transport_) {
     RTC_DCHECK(!dtls_srtp_transport);

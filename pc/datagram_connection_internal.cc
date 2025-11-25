@@ -40,6 +40,7 @@
 #include "p2p/dtls/dtls_transport_internal.h"
 #include "pc/dtls_srtp_transport.h"
 #include "pc/dtls_transport.h"
+#include "pc/ice_transport.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
@@ -70,7 +71,8 @@ std::unique_ptr<DtlsTransportInternal> CreateDtlsTransportInternal(
     const Environment& env,
     IceTransportInternal* transport_channel) {
   return std::make_unique<DtlsTransportInternalImpl>(
-      env, transport_channel, CryptoOptions{},
+      env, make_ref_counted<IceTransportWithPointer>(transport_channel),
+      CryptoOptions{},
       /*ssl_max_version=*/SSL_PROTOCOL_DTLS_13);
 }
 

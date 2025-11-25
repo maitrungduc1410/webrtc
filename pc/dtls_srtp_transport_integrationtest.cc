@@ -18,6 +18,7 @@
 #include "api/crypto/crypto_options.h"
 #include "api/dtls_transport_interface.h"
 #include "api/environment/environment.h"
+#include "api/make_ref_counted.h"
 #include "api/scoped_refptr.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
@@ -28,6 +29,7 @@
 #include "p2p/dtls/dtls_transport_internal.h"
 #include "p2p/test/fake_ice_transport.h"
 #include "pc/dtls_srtp_transport.h"
+#include "pc/ice_transport.h"
 #include "pc/srtp_transport.h"
 #include "pc/test/rtp_transport_test_util.h"
 #include "rtc_base/async_packet_socket.h"
@@ -99,7 +101,8 @@ class DtlsSrtpTransportIntegrationTest : public ::testing::Test {
   std::unique_ptr<DtlsTransportInternalImpl> MakeDtlsTransport(
       FakeIceTransportInternal* ice_transport) {
     return std::make_unique<DtlsTransportInternalImpl>(
-        env_, ice_transport, CryptoOptions(), SSL_PROTOCOL_DTLS_12);
+        env_, make_ref_counted<IceTransportWithPointer>(ice_transport),
+        CryptoOptions(), SSL_PROTOCOL_DTLS_12);
   }
   void SetRemoteFingerprintFromCert(DtlsTransportInternalImpl* transport,
                                     const scoped_refptr<RTCCertificate>& cert) {

@@ -294,6 +294,8 @@ rtc_library("dtls_transport") {
     "../api:array_view",
     "../api:dtls_transport_interface",
     "../api:field_trials_view",
+    "../api:ice_transport_interface",
+    "../api:make_ref_counted",
     "../api:rtc_error",
     "../api:scoped_refptr",
     "../api:sequence_checker",
@@ -333,6 +335,8 @@ rtc_source_set("dtls_transport_factory") {
   deps = [
     ":dtls_transport_internal",
     ":ice_transport_internal",
+    "../api:ice_transport_interface",
+    "../api:scoped_refptr",
     "../api/crypto:options",
     "../rtc_base:ssl_adapter",
   ]
@@ -1106,6 +1110,7 @@ if (rtc_include_tests) {
       "../api:async_dns_resolver",
       "../api:candidate",
       "../api:dtls_transport_interface",
+      "../api:ice_transport_interface",
       "../api:libjingle_peerconnection_api",
       "../api:mock_async_dns_resolver",
       "../api:packet_socket_factory",
@@ -1229,6 +1234,7 @@ if (rtc_include_tests) {
       "../api:field_trials_view",
       "../api:ice_transport_interface",
       "../api:local_network_access_permission",
+      "../api:make_ref_counted",
       "../api:mock_async_dns_resolver",
       "../api:mock_local_network_access_permission",
       "../api:mock_packet_socket_factory",

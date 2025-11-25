@@ -78,8 +78,6 @@ class JsepTransport {
   // `local_certificate` is allowed to be null since a remote description may be
   // set before a local certificate is generated.
   JsepTransport(const scoped_refptr<RTCCertificate>& local_certificate,
-                scoped_refptr<IceTransportInterface> ice_transport,
-                scoped_refptr<IceTransportInterface> rtcp_ice_transport,
                 std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
                 std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport,
                 std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
@@ -96,7 +94,7 @@ class JsepTransport {
   // Returns the name of this transport. This is used for uniquely identifying
   // the transport, logging, error reporting and transport stats.
   absl::string_view name() const {
-    return ice_transport_->internal()->transport_name();
+    return rtp_dtls_transport_->internal()->ice_transport()->transport_name();
   }
 
   // Must be called before applying local session description.
@@ -283,11 +281,6 @@ class JsepTransport {
       RTC_GUARDED_BY(transport_sequence_);
   std::unique_ptr<JsepTransportDescription> remote_description_
       RTC_GUARDED_BY(transport_sequence_);
-
-  // Ice transport which may be used by any of upper-layer transports (below).
-  // Owned by JsepTransport and guaranteed to outlive the transports below.
-  const scoped_refptr<IceTransportInterface> ice_transport_;
-  const scoped_refptr<IceTransportInterface> rtcp_ice_transport_;
 
   // To avoid downcasting and make it type safe, keep three unique pointers for
   // different SRTP mode and only one of these is non-nullptr.

@@ -125,19 +125,18 @@ class JsepTransport2Test : public ::testing::Test {
   std::unique_ptr<JsepTransport> CreateJsepTransport2(bool rtcp_mux_enabled) {
     auto ice_internal = std::make_unique<FakeIceTransportInternal>(
         kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
-    auto rtp_dtls_transport =
-        std::make_unique<FakeDtlsTransport>(ice_internal.get());
     auto ice = CreateIceTransport(std::move(ice_internal));
+    auto rtp_dtls_transport = std::make_unique<FakeDtlsTransport>(ice);
 
     std::unique_ptr<FakeIceTransportInternal> rtcp_ice_internal;
     std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
+    scoped_refptr<IceTransportInterface> rtcp_ice;
     if (!rtcp_mux_enabled) {
       rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
           kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
-      rtcp_dtls_transport =
-          std::make_unique<FakeDtlsTransport>(rtcp_ice_internal.get());
+      rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
+      rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
     }
-    auto rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
 
     std::unique_ptr<RtpTransport> unencrypted_rtp_transport;
     std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport;
@@ -145,9 +144,9 @@ class JsepTransport2Test : public ::testing::Test {
                                                   rtcp_dtls_transport.get());
 
     auto jsep_transport = std::make_unique<JsepTransport>(
-        /*local_certificate=*/nullptr, std::move(ice), std::move(rtcp_ice),
-        std::move(unencrypted_rtp_transport), std::move(dtls_srtp_transport),
-        std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport),
+        /*local_certificate=*/nullptr, std::move(unencrypted_rtp_transport),
+        std::move(dtls_srtp_transport), std::move(rtp_dtls_transport),
+        std::move(rtcp_dtls_transport),
         /*sctp_transport=*/nullptr,
         /*rtcp_mux_active_callback=*/[&]() { OnRtcpMuxActive(); },
         payload_type_picker_);

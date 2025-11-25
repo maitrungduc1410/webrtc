@@ -394,7 +394,7 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
   std::unique_ptr<DtlsTransportInternal> CreateDtlsTransport(
       const ContentInfo& content_info,
-      IceTransportInternal* ice);
+      bool rtcp);
   scoped_refptr<IceTransportInterface> CreateIceTransport(
       const std::string& transport_name,
       bool rtcp);

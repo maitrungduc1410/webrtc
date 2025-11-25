@@ -30,11 +30,14 @@
 #include "api/dtls_transport_interface.h"
 #include "api/field_trials.h"
 #include "api/field_trials_view.h"
+#include "api/ice_transport_interface.h"
+#include "api/make_ref_counted.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/transport/stun.h"
 #include "api/units/time_delta.h"
+#include "p2p/base/ice_transport_internal.h"
 #include "p2p/base/packet_transport_internal.h"
 #include "p2p/base/transport_description.h"
 #include "p2p/dtls/dtls_transport_internal.h"
@@ -117,7 +120,7 @@ class DtlsTestClient {
   // Set up fake ICE transport and real DTLS transport under test.
   void SetupTransports(IceRole role, bool rtt_estimate = true) {
     dtls_transport_ = nullptr;
-    fake_ice_transport_ = nullptr;
+    ice_transport_ = nullptr;
 
     CryptoOptions crypto_options;
     if (pqc_) {
@@ -125,27 +128,30 @@ class DtlsTestClient {
       crypto_options.ephemeral_key_exchange_cipher_groups.Update(&field_trials);
     }
 
-    fake_ice_transport_.reset(new FakeIceTransportInternal(
+    auto fake_ice_transport = std::make_unique<FakeIceTransportInternal>(
         absl::StrCat("fake-", name_), 0,
-        /* network_thread= */ nullptr, /* field_trials_string= */ ""));
+        /* network_thread= */ nullptr, /* field_trials_string= */ "");
     if (rtt_estimate) {
-      fake_ice_transport_->set_rtt_estimate(
+      fake_ice_transport->set_rtt_estimate(
           async_delay_ms_ ? std::optional<int>(async_delay_ms_) : std::nullopt,
           /* async= */ true);
     } else if (async_delay_ms_) {
-      fake_ice_transport_->SetAsync(async_delay_ms_);
-      fake_ice_transport_->SetAsyncDelay(async_delay_ms_);
+      fake_ice_transport->SetAsync(async_delay_ms_);
+      fake_ice_transport->SetAsyncDelay(async_delay_ms_);
     }
-    fake_ice_transport_->SetIceRole(role);
+    fake_ice_transport->SetIceRole(role);
     // Hook the raw packets so that we can verify they are encrypted.
-    fake_ice_transport_->RegisterReceivedPacketCallback(
+    fake_ice_transport->RegisterReceivedPacketCallback(
         this, [&](PacketTransportInternal* transport,
                   const ReceivedIpPacket& packet) {
           OnFakeIceTransportReadPacket(transport, packet);
         });
 
+    ice_transport_ =
+        make_ref_counted<FakeIceTransport>(std::move(fake_ice_transport));
+
     dtls_transport_ = std::make_unique<DtlsTransportInternalImpl>(
-        CreateTestEnvironment(), fake_ice_transport_.get(), crypto_options,
+        CreateTestEnvironment(), ice_transport_, crypto_options,
         ssl_max_version_, ssl_stream_factory_);
     // Note: Certificate may be null here if testing passthrough.
     dtls_transport_->SetLocalCertificate(certificate_);
@@ -166,8 +172,7 @@ class DtlsTestClient {
   }
 
   FakeIceTransportInternal* fake_ice_transport() {
-    return static_cast<FakeIceTransportInternal*>(
-        dtls_transport_->ice_transport());
+    return static_cast<FakeIceTransportInternal*>(ice_transport_->internal());
   }
 
   DtlsTransportInternalImpl* dtls_transport() { return dtls_transport_.get(); }
@@ -188,7 +193,7 @@ class DtlsTestClient {
 
   bool SendIcePing(int n = 1) {
     for (int i = 0; i < n; i++) {
-      if (!fake_ice_transport_->SendIcePing()) {
+      if (!fake_ice_transport()->SendIcePing()) {
         return false;
       }
     }
@@ -197,7 +202,7 @@ class DtlsTestClient {
 
   bool SendIcePingConf(int n = 1) {
     for (int i = 0; i < n; i++) {
-      if (!fake_ice_transport_->SendIcePingConf()) {
+      if (!fake_ice_transport()->SendIcePingConf()) {
         return false;
       }
     }
@@ -401,7 +406,7 @@ class DtlsTestClient {
  private:
   std::string name_;
   scoped_refptr<RTCCertificate> certificate_;
-  std::unique_ptr<FakeIceTransportInternal> fake_ice_transport_;
+  scoped_refptr<IceTransportInterface> ice_transport_;
   std::unique_ptr<DtlsTransportInternalImpl> dtls_transport_;
   size_t packet_size_ = 0u;
   std::set<int> received_;
@@ -673,7 +678,7 @@ class DtlsTransportInternalImplTestBase {
 
   template <typename Fn>
   bool WaitUntil(Fn func) {
-    return ::webrtc::WaitUntil(
+    return webrtc::WaitUntil(
                func, IsTrue(),
                {.timeout = TimeDelta::Millis(kTimeout), .clock = &fake_clock_})
         .ok();

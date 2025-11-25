@@ -1352,12 +1352,11 @@ class MediaExpectations {
 class MockIceTransport : public IceTransportInterface {
  public:
   MockIceTransport(const std::string& name, int component)
-      : internal_(std::make_unique<FakeIceTransportInternal>(
-            name,
-            component,
-            nullptr /* network_thread */)) {}
+      : internal_(std::make_unique<FakeIceTransportInternal>(name,
+                                                             component,
+                                                             nullptr)) {}
   ~MockIceTransport() = default;
-  IceTransportInternal* internal() { return internal_.get(); }
+  IceTransportInternal* internal() override { return internal_.get(); }
 
  private:
   std::unique_ptr<FakeIceTransportInternal> internal_;

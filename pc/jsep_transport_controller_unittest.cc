@@ -107,11 +107,10 @@ class FakeIceTransportFactory : public IceTransportFactory {
 class FakeDtlsTransportFactory : public DtlsTransportFactory {
  public:
   std::unique_ptr<DtlsTransportInternal> CreateDtlsTransport(
-      IceTransportInternal* ice,
+      scoped_refptr<IceTransportInterface> ice,
       const CryptoOptions& crypto_options,
       SSLProtocolVersion max_version) override {
-    return std::make_unique<FakeDtlsTransport>(
-        static_cast<FakeIceTransportInternal*>(ice));
+    return std::make_unique<FakeDtlsTransport>(std::move(ice));
   }
 };
 
