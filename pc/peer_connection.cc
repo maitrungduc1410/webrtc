@@ -598,6 +598,7 @@ PeerConnection::PeerConnection(
       port_allocator_(std::move(dependencies.allocator)),
       lna_permission_factory_(std::move(dependencies.lna_permission_factory)),
       ice_transport_factory_(std::move(dependencies.ice_transport_factory)),
+      dtls_transport_factory_(std::move(dependencies.dtls_transport_factory)),
       tls_cert_verifier_(std::move(dependencies.tls_cert_verifier)),
       call_(std::move(call)),
       network_thread_safety_(
@@ -751,6 +752,7 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
   }
 
   config.ice_transport_factory = ice_transport_factory_.get();
+  config.dtls_transport_factory = dtls_transport_factory_.get();
   config.on_dtls_handshake_error =
       [weak_ptr = weak_factory_.GetWeakPtr()](SSLHandshakeError s) {
         if (weak_ptr) {

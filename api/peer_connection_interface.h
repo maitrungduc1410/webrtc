@@ -134,6 +134,7 @@
 #include "api/units/time_delta.h"
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
+#include "p2p/dtls/dtls_transport_factory.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network.h"
 #include "rtc_base/network_constants.h"
@@ -1403,6 +1404,7 @@ struct RTC_EXPORT PeerConnectionDependencies final {
   // Factory for creating resolvers that look up hostnames in DNS
   std::unique_ptr<AsyncDnsResolverFactoryInterface> async_dns_resolver_factory;
   std::unique_ptr<IceTransportFactory> ice_transport_factory;
+  std::unique_ptr<DtlsTransportFactory> dtls_transport_factory;
   std::unique_ptr<RTCCertificateGeneratorInterface> cert_generator;
   std::unique_ptr<SSLCertificateVerifier> tls_cert_verifier;
   std::unique_ptr<VideoBitrateAllocatorFactory> video_bitrate_allocator_factory;
