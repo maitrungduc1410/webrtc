@@ -578,13 +578,12 @@ uint64_t SctpDataChannel::bytes_received() const {
 bool SctpDataChannel::Send(const DataBuffer& buffer) {
   RTC_DCHECK_RUN_ON(network_thread_);
   RTCError err = SendImpl(buffer);
-  if (err.type() == RTCErrorType::INVALID_STATE ||
-      err.type() == RTCErrorType::RESOURCE_EXHAUSTED) {
-    return false;
+  if (!err.ok() && err.type() != RTCErrorType::INVALID_STATE &&
+      err.type() != RTCErrorType::RESOURCE_EXHAUSTED &&
+      err.type() != RTCErrorType::NETWORK_ERROR) {
+    RTC_LOG(LS_INFO) << "Unexpected error code: " << err;
   }
-
-  // Always return true for SCTP DataChannel per the spec.
-  return true;
+  return err.ok();
 }
 
 // RTC_RUN_ON(network_thread_);

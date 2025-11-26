@@ -302,7 +302,10 @@ TEST_P(DataChannelIntegrationTest,
       WaitUntil([&] { return callee()->data_observer()->IsOpen(); }, IsTrue()),
       IsRtcOk());
 
-  for (int message_size = 1; message_size < 100000; message_size *= 2) {
+  // Expect that all sizes under kSctpSendBufferSize(256 * 1024) to be sent
+  // without any issue.
+  for (int message_size = 1; message_size <= kSctpSendBufferSize;
+       message_size *= 2) {
     std::string data(message_size, 'a');
     caller()->data_channel()->Send(DataBuffer(data));
     EXPECT_THAT(
@@ -337,6 +340,44 @@ TEST_P(DataChannelIntegrationTest,
   EXPECT_THAT(WaitUntil([&] { return callee()->data_observer()->state(); },
                         Eq(DataChannelInterface::kClosed)),
               IsRtcOk());
+}
+
+// This test sets up a call between two parties with an SCTP
+// data channel only, and sends a message exceeding the default size limit
+// kSctpSendBufferSize(256 * 1024). We expect the Send method returns
+// false and the channel closes.
+TEST_P(DataChannelIntegrationTest,
+       EndToEndCallWithSctpDataChannelOversizedMessage) {
+  ASSERT_TRUE(CreatePeerConnectionWrappers());
+  ConnectFakeSignaling();
+  // Expect that data channel created on caller side will show up for callee as
+  // well.
+  caller()->CreateDataChannel();
+  caller()->CreateAndSetAndSignalOffer();
+  ASSERT_THAT(WaitUntil([&] { return SignalingStateStable(); }, IsTrue()),
+              IsRtcOk());
+  // Caller data channel should already exist (it created one). Callee data
+  // channel may not exist yet, since negotiation happens in-band, not in SDP.
+  ASSERT_NE(nullptr, caller()->data_channel());
+  ASSERT_THAT(WaitUntil([&] { return callee()->data_channel(); }, Ne(nullptr)),
+              IsRtcOk());
+  EXPECT_THAT(
+      WaitUntil([&] { return caller()->data_observer()->IsOpen(); }, IsTrue()),
+      IsRtcOk());
+  EXPECT_THAT(
+      WaitUntil([&] { return callee()->data_observer()->IsOpen(); }, IsTrue()),
+      IsRtcOk());
+
+  // By default, SDP would set kSctpSendBufferSize as the size limit for the
+  // transport. Expect that a longer message will not be sent and cause the
+  // channel to be closed by error.
+  std::string data(kSctpSendBufferSize + 1, 'a');
+  EXPECT_FALSE(caller()->data_channel()->Send(DataBuffer(data)));
+  EXPECT_EQ(caller()->data_channel()->state(), DataChannelInterface::kClosed);
+  RTCError last_error = caller()->data_channel()->error();
+  EXPECT_FALSE(last_error.ok());
+  EXPECT_FALSE(std::string(last_error.message()).empty());
+  EXPECT_EQ(RTCErrorType::NETWORK_ERROR, last_error.type());
 }
 
 // This test sets up a call between two parties with an SCTP
