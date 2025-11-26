@@ -49,8 +49,7 @@ class DelayBasedCongestionControl {
   bool ShouldReduceReferenceWindow() const;
 
   DataSize UpdateReferenceWindow(DataSize rew_window,
-                                 double ref_window_mss_ratio,
-                                 double virtual_alpha_lim) const;
+                                 double ref_window_mss_ratio) const;
 
   double scale_increase() const {
     return std::clamp(1 - queue_delay_avg_ / (params_.queue_delay_target.Get() *
@@ -58,8 +57,11 @@ class DelayBasedCongestionControl {
                       0.1, 1.0);
   }
 
-  // Public for testing and logging.
   TimeDelta queue_delay() const { return queue_delay_avg_; }
+  double queue_delay_dev_norm() const { return queue_delay_dev_norm_; }
+
+  // Smoothed RTT as measured in last TransportPacketsFeedback.
+  TimeDelta rtt() const { return last_smoothed_rtt_; }
 
  private:
   void UpdateQueueDelayAverage(TimeDelta one_way_delay);
@@ -77,6 +79,7 @@ class DelayBasedCongestionControl {
   TimeDelta last_smoothed_rtt_ = TimeDelta::Zero();
   Timestamp last_update_qdelay_avg_time_ = Timestamp::MinusInfinity();
   TimeDelta queue_delay_avg_ = TimeDelta::PlusInfinity();
+  double queue_delay_dev_norm_ = 0.0;
 };
 
 }  // namespace webrtc

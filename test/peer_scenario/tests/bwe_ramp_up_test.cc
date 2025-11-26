@@ -236,10 +236,11 @@ INSTANTIATE_TEST_SUITE_P(
              .test_name = "L4s3Mbit",
              .l4s_network = true,
              .network_capacity = DataRate::KilobitsPerSec(3000),
-             .expected_bwe_min = DataRate::KilobitsPerSec(2200),
+             .expected_bwe_min = DataRate::KilobitsPerSec(1900),
              // TODO: bugs.webrtc.org/447037083 - BWE should be less than
              // network capacity.
-             .max_bwe = DataRate::KilobitsPerSec(3000 * kScreamMaxBweMultiplier),
+             .max_bwe = DataRate::KilobitsPerSec(3000 *
+                                                 kScreamMaxBweMultiplier),
          },
          {
              .test_name = "L4s500Kbit",

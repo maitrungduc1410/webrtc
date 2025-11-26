@@ -16,6 +16,7 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "modules/congestion_controller/scream/scream_v2_parameters.h"
+#include "rtc_base/checks.h"
 
 namespace webrtc {
 
@@ -32,22 +33,20 @@ void DelayBasedCongestionControl::OnTransportPacketsFeedback(
     return;
   }
   last_smoothed_rtt_ = msg.smoothed_rtt;
-  TimeDelta one_way_delay = TimeDelta::PlusInfinity();
+  TimeDelta one_way_delay_sum;
+  int number_of_received_packets = 0;
+
   for (const PacketResult& packet : msg.SortedByReceiveTime()) {
-    one_way_delay = packet.receive_time - packet.sent_packet.send_time;
+    TimeDelta one_way_delay =
+        packet.receive_time - packet.sent_packet.send_time;
     next_base_delay_ = std::min(next_base_delay_, one_way_delay);
-
-    if (params_.use_all_packets_when_calculating_queue_delay.Get()) {
-      UpdateQueueDelayAverage(one_way_delay);
-    }
+    one_way_delay_sum += one_way_delay;
+    number_of_received_packets++;
   }
-
-  if (!params_.use_all_packets_when_calculating_queue_delay.Get() &&
-      (msg.feedback_time - last_update_qdelay_avg_time_) >=
-          std::min(params_.virtual_rtt.Get(), msg.smoothed_rtt)) {
-    last_update_qdelay_avg_time_ = msg.feedback_time;
-    UpdateQueueDelayAverage(one_way_delay);
+  if (number_of_received_packets == 0) {
+    return;
   }
+  UpdateQueueDelayAverage(one_way_delay_sum / number_of_received_packets);
 
   if (msg.feedback_time - last_base_delay_update_ >=
       params_.base_delay_history_update_interval.Get()) {
@@ -70,6 +69,11 @@ void DelayBasedCongestionControl::UpdateQueueDelayAverage(
         params_.queue_delay_avg_g.Get() * current_qdelay +
         (1.0 - params_.queue_delay_avg_g.Get()) * queue_delay_avg_;
   }
+  queue_delay_dev_norm_ =
+      params_.queue_delay_dev_avg_g.Get() *
+          (current_qdelay - queue_delay_avg_) / params_.virtual_rtt.Get() +
+      (1.0 - params_.queue_delay_dev_avg_g.Get()) * queue_delay_dev_norm_;
+  RTC_DCHECK(queue_delay_dev_norm_ >= 0.0);
 }
 
 bool DelayBasedCongestionControl::IsQueueDelayDetected() const {
@@ -84,8 +88,7 @@ bool DelayBasedCongestionControl::ShouldReduceReferenceWindow() const {
 
 DataSize DelayBasedCongestionControl::UpdateReferenceWindow(
     DataSize ref_window,
-    double ref_window_mss_ratio,
-    double virtual_alpha_lim) const {
+    double ref_window_mss_ratio) const {
   // `min_delay_based_bwe_`put a lower bound on the reference window.
   DataSize min_allowed_reference_window =
       min_delay_based_bwe_ * last_smoothed_rtt_;
@@ -93,13 +96,12 @@ DataSize DelayBasedCongestionControl::UpdateReferenceWindow(
   if (ref_window < min_allowed_reference_window) {
     return min_allowed_reference_window;
   }
-  double l4s_alpha_v = std::clamp(
-      2.0 * virtual_alpha_lim *
-          (queue_delay_avg_ - params_.queue_delay_target.Get() *
-                                  params_.queue_delay_threshold.Get()) /
-          (params_.queue_delay_target.Get() *
-           params_.queue_delay_threshold.Get()),
-      0.0, 1.0);
+  double l4s_alpha_v =
+      std::clamp((queue_delay_avg_ - params_.queue_delay_target.Get() *
+                                         params_.queue_delay_threshold.Get()) /
+                     (params_.queue_delay_target.Get() *
+                      params_.queue_delay_threshold.Get()),
+                 0.0, 1.0);
   double backoff = l4s_alpha_v * params_.queue_delay_threshold.Get();
   backoff /= std::max(1.0, last_smoothed_rtt_ / params_.virtual_rtt);
   backoff *= std::max(0.5, 1.0 - ref_window_mss_ratio);
