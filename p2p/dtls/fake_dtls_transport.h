@@ -146,15 +146,17 @@ class FakeDtlsTransport : public DtlsTransportInternal {
         do_dtls_ = false;
         RTC_LOG(LS_INFO) << "FakeDtlsTransport is not doing DTLS";
       }
-      SetWritable(true);
-      if (!asymmetric) {
-        dest->SetDestination(this, true);
-      }
       // If the `dtls_role_` is unset, set it to SSL_CLIENT by default.
       if (!dtls_role_) {
         dtls_role_ = std::move(SSL_CLIENT);
       }
       SetDtlsState(DtlsTransportState::kConnected);
+      // Now mark as writable. This triggers callbacks that might check the
+      // dtls state and/or role, so do this after setting that state.
+      SetWritable(true);
+      if (!asymmetric) {
+        dest->SetDestination(this, true);
+      }
       ice_transport_->SetDestination(
           static_cast<FakeIceTransportInternal*>(dest->ice_transport()),
           asymmetric);
