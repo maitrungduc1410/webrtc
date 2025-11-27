@@ -1977,6 +1977,9 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetCodec(
   FallbackToDefaultScalabilityModeIfNotSupported(
       codec_settings.codec, parameters_.config, rtp_parameters_.encodings);
 
+  parameters_.encoder_config = CreateVideoEncoderConfig(codec_settings.codec);
+  RTC_DCHECK_GT(parameters_.encoder_config.number_of_streams, 0);
+
   parameters_.config.rtp.payload_name = codec_settings.codec.name;
   parameters_.config.rtp.payload_type = codec_settings.codec.id;
   parameters_.config.rtp.raw_payload =
@@ -2043,18 +2046,6 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetCodec(
                         << parameters_.config.rtp.ssrcs.size();
     }
   }
-
-  // Reset all encoding codecs if no codec settings list is provided.
-  if (codec_settings_list.empty()) {
-    for (size_t i = 0; i < rtp_parameters_.encodings.size(); i++) {
-      rtp_parameters_.encodings[i].codec.reset();
-    }
-  }
-
-  // CreateVideoEncoderConfig depends on the contents of rtp_parameters_, so
-  // rtp_parameters_ must be updated before calling it.
-  parameters_.encoder_config = CreateVideoEncoderConfig(codec_settings.codec);
-  RTC_DCHECK_GT(parameters_.encoder_config.number_of_streams, 0);
 
   parameters_.codec_settings_list = codec_settings_list;
 
@@ -2363,11 +2354,6 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::CreateVideoEncoderConfig(
     if (rtp_parameters_.encodings[i].num_temporal_layers) {
       encoder_config.simulcast_layers[i].num_temporal_layers =
           *rtp_parameters_.encodings[i].num_temporal_layers;
-    }
-    if (rtp_parameters_.encodings[i].codec) {
-      encoder_config.simulcast_layers[i].video_format =
-          SdpVideoFormat(rtp_parameters_.encodings[i].codec->name,
-                         rtp_parameters_.encodings[i].codec->parameters);
     }
     encoder_config.simulcast_layers[i].scale_resolution_down_to =
         rtp_parameters_.encodings[i].scale_resolution_down_to;
