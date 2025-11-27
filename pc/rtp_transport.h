@@ -14,6 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -59,11 +60,14 @@ class RtpTransport : public RtpTransportInternal {
     return rtp_packet_transport_;
   }
   void SetRtpPacketTransport(PacketTransportInternal* rtp);
+  void SetRtpPacketTransportOwned(std::unique_ptr<PacketTransportInternal> rtp);
 
   PacketTransportInternal* rtcp_packet_transport() const {
     return rtcp_packet_transport_;
   }
   void SetRtcpPacketTransport(PacketTransportInternal* rtcp);
+  void SetRtcpPacketTransportOwned(
+      std::unique_ptr<PacketTransportInternal> rtcp);
 
   bool IsReadyToSend() const override { return ready_to_send_; }
 
@@ -128,6 +132,8 @@ class RtpTransport : public RtpTransportInternal {
 
   PacketTransportInternal* rtp_packet_transport_ = nullptr;
   PacketTransportInternal* rtcp_packet_transport_ = nullptr;
+  std::unique_ptr<PacketTransportInternal> owned_rtp_packet_transport_;
+  std::unique_ptr<PacketTransportInternal> owned_rtcp_packet_transport_;
 
   bool ready_to_send_ = false;
   bool received_rtp_with_ecn_ = false;

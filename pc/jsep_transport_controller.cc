@@ -27,6 +27,7 @@
 #include "api/ice_transport_interface.h"
 #include "api/jsep.h"
 #include "api/local_network_access_permission.h"
+#include "api/make_ref_counted.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
@@ -600,14 +601,16 @@ JsepTransportController::CreateDtlsTransport(const ContentInfo& content_info,
 std::unique_ptr<RtpTransport>
 JsepTransportController::CreateUnencryptedRtpTransport(
     const std::string& transport_name,
-    PacketTransportInternal* rtp_packet_transport,
-    PacketTransportInternal* rtcp_packet_transport) {
+    std::unique_ptr<PacketTransportInternal> rtp_packet_transport,
+    std::unique_ptr<PacketTransportInternal> rtcp_packet_transport) {
   RTC_DCHECK_RUN_ON(network_thread_);
   auto unencrypted_rtp_transport = std::make_unique<RtpTransport>(
       rtcp_packet_transport == nullptr, env_.field_trials());
-  unencrypted_rtp_transport->SetRtpPacketTransport(rtp_packet_transport);
+  unencrypted_rtp_transport->SetRtpPacketTransportOwned(
+      std::move(rtp_packet_transport));
   if (rtcp_packet_transport) {
-    unencrypted_rtp_transport->SetRtcpPacketTransport(rtcp_packet_transport);
+    unencrypted_rtp_transport->SetRtcpPacketTransportOwned(
+        std::move(rtcp_packet_transport));
   }
   return unencrypted_rtp_transport;
 }
@@ -615,8 +618,8 @@ JsepTransportController::CreateUnencryptedRtpTransport(
 std::unique_ptr<DtlsSrtpTransport>
 JsepTransportController::CreateDtlsSrtpTransport(
     const std::string& transport_name,
-    DtlsTransportInternal* rtp_dtls_transport,
-    DtlsTransportInternal* rtcp_dtls_transport) {
+    std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+    std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport) {
   RTC_DCHECK_RUN_ON(network_thread_);
   auto dtls_srtp_transport = std::make_unique<DtlsSrtpTransport>(
       rtcp_dtls_transport == nullptr, env_.field_trials());
@@ -624,8 +627,8 @@ JsepTransportController::CreateDtlsSrtpTransport(
     dtls_srtp_transport->EnableExternalAuth();
   }
 
-  dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport,
-                                         rtcp_dtls_transport);
+  dtls_srtp_transport->SetDtlsTransportsOwned(std::move(rtp_dtls_transport),
+                                              std::move(rtcp_dtls_transport));
   // Capturing this in the callback because JsepTransportController will always
   // outlive the DtlsSrtpTransport.
   dtls_srtp_transport->SetOnDtlsStateChange([this]() {
@@ -1157,9 +1160,8 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
 
   std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport =
       CreateDtlsTransport(content_info, /*rtcp=*/false);
+  DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
 
-  // Ownership of `rtcp_dtls_transport` should rather be with
-  // unencrypted_rtp_transport or dtls_srtp_transport rather than JsepTransport.
   std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport;
   if (config_.rtcp_mux_policy !=
           PeerConnectionInterface::kRtcpMuxPolicyRequire &&
@@ -1173,26 +1175,29 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
     RTC_LOG(LS_INFO)
         << "Creating UnencryptedRtpTransport, becayse encryption is disabled.";
     unencrypted_rtp_transport = CreateUnencryptedRtpTransport(
-        content_info.mid(), rtp_dtls_transport.get(),
-        rtcp_dtls_transport.get());
+        content_info.mid(), std::move(rtp_dtls_transport),
+        std::move(rtcp_dtls_transport));
   } else {
     RTC_LOG(LS_INFO) << "Creating DtlsSrtpTransport.";
-    dtls_srtp_transport =
-        CreateDtlsSrtpTransport(content_info.mid(), rtp_dtls_transport.get(),
-                                rtcp_dtls_transport.get());
+    dtls_srtp_transport = CreateDtlsSrtpTransport(
+        content_info.mid(), std::move(rtp_dtls_transport),
+        std::move(rtcp_dtls_transport));
   }
 
   std::unique_ptr<SctpTransportInternal> sctp_transport;
   if (config_.sctp_factory) {
-    sctp_transport = config_.sctp_factory->CreateSctpTransport(
-        env_, rtp_dtls_transport.get());
+    sctp_transport =
+        config_.sctp_factory->CreateSctpTransport(env_, rtp_dtls_transport_ptr);
   }
+
+  scoped_refptr<DtlsTransport> dtls_transport =
+      make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
 
   std::unique_ptr<JsepTransport> jsep_transport =
       std::make_unique<JsepTransport>(
           certificate_, std::move(unencrypted_rtp_transport),
-          std::move(dtls_srtp_transport), std::move(rtp_dtls_transport),
-          std::move(rtcp_dtls_transport), std::move(sctp_transport),
+          std::move(dtls_srtp_transport), std::move(dtls_transport),
+          std::move(sctp_transport),
           [&]() {
             RTC_DCHECK_RUN_ON(network_thread_);
             UpdateAggregateStates_n();

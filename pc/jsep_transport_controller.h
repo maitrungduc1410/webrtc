@@ -396,12 +396,14 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
   std::unique_ptr<RtpTransport> CreateUnencryptedRtpTransport(
       const std::string& transport_name,
-      PacketTransportInternal* rtp_packet_transport,
-      PacketTransportInternal* rtcp_packet_transport);
+      std::unique_ptr<PacketTransportInternal> rtp_packet_transport,
+      std::unique_ptr<PacketTransportInternal> rtcp_packet_transport);
+
+  // Creates a DTLS SRTP transport.
   std::unique_ptr<DtlsSrtpTransport> CreateDtlsSrtpTransport(
       const std::string& transport_name,
-      DtlsTransportInternal* rtp_dtls_transport,
-      DtlsTransportInternal* rtcp_dtls_transport);
+      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport);
 
   // Collect all the DtlsTransports, including RTP and RTCP, from the
   // JsepTransports, including those not mapped to a MID because they are being

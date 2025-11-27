@@ -12,6 +12,7 @@
 #define PC_DTLS_SRTP_TRANSPORT_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -36,6 +37,9 @@ class DtlsSrtpTransport : public SrtpTransport {
   // `rtcp_dtls_transport` is null.
   void SetDtlsTransports(DtlsTransportInternal* rtp_dtls_transport,
                          DtlsTransportInternal* rtcp_dtls_transport);
+  void SetDtlsTransportsOwned(
+      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport);
 
   void SetRtcpMuxEnabled(bool enable) override;
 
@@ -47,6 +51,14 @@ class DtlsSrtpTransport : public SrtpTransport {
       const std::vector<int>& recv_extension_ids);
 
   void SetOnDtlsStateChange(absl::AnyInvocable<void()> callback);
+
+  DtlsTransportInternal* rtp_dtls_transport() const {
+    return rtp_dtls_transport_;
+  }
+
+  DtlsTransportInternal* rtcp_dtls_transport() const {
+    return rtcp_dtls_transport_;
+  }
 
  private:
   bool IsDtlsActive();
@@ -60,8 +72,13 @@ class DtlsSrtpTransport : public SrtpTransport {
                      int* selected_crypto_suite,
                      ZeroOnFreeBuffer<uint8_t>* send_key,
                      ZeroOnFreeBuffer<uint8_t>* recv_key);
-  void SetDtlsTransport(DtlsTransportInternal* new_dtls_transport,
-                        DtlsTransportInternal** old_dtls_transport);
+  // Updates the DTLS transport and manages the state subscription.
+  // The `old_dtls_transport` parameter is a reference to the member variable
+  // that holds the transport. It is updated in-place because `OnDtlsState`
+  // (called internally) requires the member variable to be updated to the new
+  // transport to verify state.
+  void ConfigureDtlsTransport(DtlsTransportInternal* new_dtls_transport,
+                              DtlsTransportInternal*& old_dtls_transport);
   void SetRtpDtlsTransport(DtlsTransportInternal* rtp_dtls_transport);
   void SetRtcpDtlsTransport(DtlsTransportInternal* rtcp_dtls_transport);
 

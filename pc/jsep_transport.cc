@@ -90,22 +90,14 @@ JsepTransport::JsepTransport(
     const scoped_refptr<RTCCertificate>& local_certificate,
     std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
     std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport,
-    std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
-    std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport,
+    scoped_refptr<DtlsTransport> rtp_dtls_transport,
     std::unique_ptr<SctpTransportInternal> sctp_transport,
     absl::AnyInvocable<void()> rtcp_mux_active_callback,
     PayloadTypePicker& suggester)
     : local_certificate_(local_certificate),
       unencrypted_rtp_transport_(std::move(unencrypted_rtp_transport)),
       dtls_srtp_transport_(std::move(dtls_srtp_transport)),
-      rtp_dtls_transport_(
-          rtp_dtls_transport
-              ? make_ref_counted<DtlsTransport>(std::move(rtp_dtls_transport))
-              : nullptr),
-      rtcp_dtls_transport_(
-          rtcp_dtls_transport
-              ? make_ref_counted<DtlsTransport>(std::move(rtcp_dtls_transport))
-              : nullptr),
+      rtp_dtls_transport_(std::move(rtp_dtls_transport)),
       sctp_transport_(sctp_transport
                           ? make_ref_counted<::webrtc::SctpTransport>(
                                 std::move(sctp_transport),
@@ -134,9 +126,6 @@ JsepTransport::~JsepTransport() {
   // Clear all DtlsTransports. There may be pointers to these from
   // other places, so we can't assume they'll be deleted by the destructor.
   rtp_dtls_transport_->Clear();
-  if (rtcp_dtls_transport_) {
-    rtcp_dtls_transport_->Clear();
-  }
 
   // ICE will be the last transport to be deleted.
 }
@@ -191,10 +180,9 @@ RTCError JsepTransport::SetLocalJsepTransportDescription(
   rtp_dtls_transport_->internal()->ice_transport()->SetIceParameters(
       ice_parameters);
 
-  if (rtcp_dtls_transport_) {
-    RTC_DCHECK(rtcp_dtls_transport_->internal());
-    rtcp_dtls_transport_->internal()->ice_transport()->SetIceParameters(
-        ice_parameters);
+  if (rtcp_dtls_transport()) {
+    RTC_DCHECK(rtcp_dtls_transport());
+    rtcp_dtls_transport()->ice_transport()->SetIceParameters(ice_parameters);
   }
   // If PRANSWER/ANSWER is set, we should decide transport protocol type.
   if (type == SdpType::kPrAnswer || type == SdpType::kAnswer) {
@@ -277,17 +265,19 @@ RTCError JsepTransport::AddRemoteCandidates(const Candidates& candidates) {
   }
 
   for (const Candidate& candidate : candidates) {
-    auto transport = candidate.component() == ICE_CANDIDATE_COMPONENT_RTP
-                         ? rtp_dtls_transport_
-                         : rtcp_dtls_transport_;
-    if (!transport) {
+    DtlsTransportInternal* dtls_transport =
+        candidate.component() == ICE_CANDIDATE_COMPONENT_RTP
+            ? rtp_dtls_transport()
+            : rtcp_dtls_transport();
+
+    if (!dtls_transport) {
       StringBuilder sb;
       sb << "Candidate has an unknown component: "
          << candidate.ToSensitiveString() << " for mid " << name();
       return RTCError(RTCErrorType::INVALID_PARAMETER, sb.Release());
     }
-    RTC_DCHECK(transport->internal() && transport->internal()->ice_transport());
-    transport->internal()->ice_transport()->AddRemoteCandidate(candidate);
+    RTC_DCHECK(dtls_transport->ice_transport());
+    dtls_transport->ice_transport()->AddRemoteCandidate(candidate);
   }
   return RTCError::OK();
 }
@@ -322,9 +312,8 @@ bool JsepTransport::GetStats(TransportStats* stats) const {
   bool ret = GetTransportStats(rtp_dtls_transport_->internal(),
                                ICE_CANDIDATE_COMPONENT_RTP, stats);
 
-  if (rtcp_dtls_transport_) {
-    RTC_DCHECK(rtcp_dtls_transport_->internal());
-    ret &= GetTransportStats(rtcp_dtls_transport_->internal(),
+  if (rtcp_dtls_transport()) {
+    ret &= GetTransportStats(rtcp_dtls_transport(),
                              ICE_CANDIDATE_COMPONENT_RTCP, stats);
   }
   return ret;
@@ -439,16 +428,15 @@ bool JsepTransport::SetRtcpMux(bool enable,
 }
 
 void JsepTransport::ActivateRtcpMux() {
-  if (unencrypted_rtp_transport_) {
-    RTC_DCHECK(!dtls_srtp_transport_);
-    unencrypted_rtp_transport_->SetRtcpPacketTransport(nullptr);
-  } else if (dtls_srtp_transport_) {
-    RTC_DCHECK(dtls_srtp_transport_);
-    RTC_DCHECK(!unencrypted_rtp_transport_);
+  if (dtls_srtp_transport_) {
     dtls_srtp_transport_->SetDtlsTransports(rtp_dtls_transport(),
                                             /*rtcp_dtls_transport=*/nullptr);
   }
-  rtcp_dtls_transport_ = nullptr;  // Destroy this reference.
+
+  if (unencrypted_rtp_transport_) {
+    unencrypted_rtp_transport_->SetRtcpPacketTransport(nullptr);
+  }
+
   // Notify the JsepTransportController to update the aggregate states.
   rtcp_mux_active_callback_();
 }

@@ -36,6 +36,7 @@
 #include "p2p/dtls/fake_dtls_transport.h"
 #include "p2p/test/fake_ice_transport.h"
 #include "pc/dtls_srtp_transport.h"
+#include "pc/dtls_transport.h"
 #include "pc/rtp_transport.h"
 #include "pc/srtp_transport.h"
 #include "pc/transport_stats.h"
@@ -111,12 +112,12 @@ class JsepTransport2Test : public ::testing::Test {
   }
 
   std::unique_ptr<DtlsSrtpTransport> CreateDtlsSrtpTransport(
-      DtlsTransportInternal* rtp_dtls_transport,
-      DtlsTransportInternal* rtcp_dtls_transport) {
+      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport) {
     auto dtls_srtp_transport = std::make_unique<DtlsSrtpTransport>(
         rtcp_dtls_transport == nullptr, field_trials_);
-    dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport,
-                                           rtcp_dtls_transport);
+    dtls_srtp_transport->SetDtlsTransportsOwned(std::move(rtp_dtls_transport),
+                                                std::move(rtcp_dtls_transport));
     return dtls_srtp_transport;
   }
 
@@ -140,13 +141,16 @@ class JsepTransport2Test : public ::testing::Test {
 
     std::unique_ptr<RtpTransport> unencrypted_rtp_transport;
     std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport;
-    dtls_srtp_transport = CreateDtlsSrtpTransport(rtp_dtls_transport.get(),
-                                                  rtcp_dtls_transport.get());
+    DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
+    dtls_srtp_transport = CreateDtlsSrtpTransport(
+        std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport));
+
+    scoped_refptr<DtlsTransport> rtp_dtls_transport_wrapper =
+        make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
 
     auto jsep_transport = std::make_unique<JsepTransport>(
         /*local_certificate=*/nullptr, std::move(unencrypted_rtp_transport),
-        std::move(dtls_srtp_transport), std::move(rtp_dtls_transport),
-        std::move(rtcp_dtls_transport),
+        std::move(dtls_srtp_transport), std::move(rtp_dtls_transport_wrapper),
         /*sctp_transport=*/nullptr,
         /*rtcp_mux_active_callback=*/[&]() { OnRtcpMuxActive(); },
         payload_type_picker_);

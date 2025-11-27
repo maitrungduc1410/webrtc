@@ -308,6 +308,8 @@ rtc_library("jsep_transport_controller") {
     "../api:jsep",
     "../api:libjingle_peerconnection_api",
     "../api:local_network_access_permission",
+    "../api:make_ref_counted",
+    "../api:media_stream_interface",
     "../api:peer_connection_interface",
     "../api:rtc_error",
     "../api:rtp_parameters",
