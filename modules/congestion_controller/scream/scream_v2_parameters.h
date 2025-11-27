@@ -91,6 +91,16 @@ struct ScreamV2Parameters {
   // `queue_delay_target`* `queue_delay_threshold`
   FieldTrialParameter<double> queue_delay_threshold;
 
+  // If the minimum queue delay is below this threshold, queues are deamed to be
+  // drained.
+  FieldTrialParameter<TimeDelta> queue_delay_drain_threshold;
+  // If the minimum queue delay has been above `queue_delay_drain_threshold` for
+  // longer than `queue_delay_drain_period`, an attempt it made to drain the
+  // queues, and if that fails, resets the estimates.
+  FieldTrialParameter<TimeDelta> queue_delay_drain_period;
+  // Number of RTTs where the target rate is reduced to attempt to drain.
+  FieldTrialParameter<int> queue_delay_drain_rtts;
+
   // Padding is periodically used in order to increase target rate even if a
   // stream does not produce a high enough rate.
   FieldTrialParameter<TimeDelta> periodic_padding_interval;

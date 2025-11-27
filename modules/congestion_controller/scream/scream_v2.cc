@@ -22,6 +22,7 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/events/rtc_event_bwe_update_scream.h"
+#include "modules/congestion_controller/scream/delay_based_congestion_control.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/logging.h"
@@ -71,7 +72,7 @@ void ScreamV2::OnTransportPacketsFeedback(const TransportPacketsFeedback& msg) {
   delay_based_congestion_control_.OnTransportPacketsFeedback(msg);
   UpdateL4SAlpha(msg);
   UpdateRefWindow(msg);
-  target_rate_ = CalculateTargetRate();
+  UpdateTargetRate(msg);
   env_.event_log().Log(std::make_unique<RtcEventBweUpdateScream>(
       ref_window_, msg.data_in_flight, target_rate_, msg.smoothed_rtt,
       delay_based_congestion_control_.queue_delay(),
@@ -292,18 +293,46 @@ DataSize ScreamV2::max_data_in_flight() const {
   return ref_window_ * ref_window_overhead;
 }
 
-DataRate ScreamV2::CalculateTargetRate() const {
+void ScreamV2::UpdateTargetRate(const TransportPacketsFeedback& msg) {
   // Avoid division by zero.
   const TimeDelta non_zero_smoothed_rtt =
-      std::max(delay_based_congestion_control_.rtt(), TimeDelta::Millis(1));
+      std::max(msg.smoothed_rtt, TimeDelta::Millis(1));
   double scale_target_rate = 1.0;
   // Scale down target rate slightly when the reference window is very small
   // compared to MSS
   scale_target_rate *=
       (1.0 - std::clamp(ref_window_mss_ratio() - 0.1, 0.0, 0.2));
 
-  return std::clamp(scale_target_rate * (ref_window_ / non_zero_smoothed_rtt),
-                    min_target_bitrate_, max_target_bitrate_);
+  DataRate target_rate =
+      scale_target_rate * (ref_window_ / non_zero_smoothed_rtt);
+
+  if (!delay_based_congestion_control_.IsQueueDrainedInTime(
+          msg.feedback_time)) {
+    // If estimated min queue delay is too high for too long, target rate is
+    // reduced for a period of time.
+    // If the min queue delay is still too high, the queue delay estimate is
+    // reset. This can happen if the one way delay increase for other reasons
+    // than self congestion.
+    if (drain_queue_start_.IsInfinite()) {
+      drain_queue_start_ = msg.feedback_time;
+      RTC_LOG(LS_INFO) << "Reduce target rate to attempt to drain queue.";
+    }
+    if (msg.feedback_time - drain_queue_start_ <
+        std::max(TimeDelta::Millis(100), params_.queue_delay_drain_rtts.Get() *
+                                             non_zero_smoothed_rtt)) {
+      target_rate = 0.5 * target_rate;
+    } else {
+      RTC_LOG(LS_INFO) << "Reset queue delay estimate due to high queue delay.";
+      delay_based_congestion_control_.ResetQueueDelay();
+    }
+  } else {
+    drain_queue_start_ = Timestamp::MinusInfinity();
+  }
+
+  target_rate =
+      std::clamp(target_rate, min_target_bitrate_, max_target_bitrate_);
+
+  target_rate_ = target_rate;
 }
 
 }  // namespace webrtc

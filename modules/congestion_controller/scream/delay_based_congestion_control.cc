@@ -15,6 +15,7 @@
 #include "api/transport/network_types.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "modules/congestion_controller/scream/scream_v2_parameters.h"
 #include "rtc_base/checks.h"
 
@@ -24,7 +25,7 @@ DelayBasedCongestionControl::DelayBasedCongestionControl(
     ScreamV2Parameters params)
     : params_(params),
       base_delay_history_(params_.base_delay_window_length.Get()) {
-  base_delay_history_.Insert(TimeDelta::PlusInfinity());
+  ResetQueueDelay();
 }
 
 void DelayBasedCongestionControl::OnTransportPacketsFeedback(
@@ -34,6 +35,7 @@ void DelayBasedCongestionControl::OnTransportPacketsFeedback(
   }
   last_smoothed_rtt_ = msg.smoothed_rtt;
   TimeDelta one_way_delay_sum;
+  TimeDelta min_one_way_delay = TimeDelta::PlusInfinity();
   int number_of_received_packets = 0;
 
   for (const PacketResult& packet : msg.SortedByReceiveTime()) {
@@ -42,9 +44,18 @@ void DelayBasedCongestionControl::OnTransportPacketsFeedback(
     next_base_delay_ = std::min(next_base_delay_, one_way_delay);
     one_way_delay_sum += one_way_delay;
     number_of_received_packets++;
+    min_one_way_delay = std::min(min_one_way_delay, one_way_delay);
   }
   if (number_of_received_packets == 0) {
     return;
+  }
+  TimeDelta min_queue_delay = min_one_way_delay - min_base_delay();
+  if (min_queue_delay > params_.queue_delay_drain_threshold.Get()) {
+    if (min_queue_delay_above_threshold_start_.IsInfinite()) {
+      min_queue_delay_above_threshold_start_ = msg.feedback_time;
+    }
+  } else {
+    min_queue_delay_above_threshold_start_ = Timestamp::MinusInfinity();
   }
   UpdateQueueDelayAverage(one_way_delay_sum / number_of_received_packets);
 
@@ -58,8 +69,8 @@ void DelayBasedCongestionControl::OnTransportPacketsFeedback(
 
 void DelayBasedCongestionControl::UpdateQueueDelayAverage(
     TimeDelta one_way_delay) {
-  TimeDelta current_qdelay =
-      one_way_delay - std::min(next_base_delay_, base_delay_history_.GetMin());
+  TimeDelta current_qdelay = one_way_delay - min_base_delay();
+
   // `queue_delay_avg_` is updated with a slow attack,fast decay EWMA
   // filter.
   if (current_qdelay < queue_delay_avg_) {
@@ -74,6 +85,19 @@ void DelayBasedCongestionControl::UpdateQueueDelayAverage(
           (current_qdelay - queue_delay_avg_) / params_.virtual_rtt.Get() +
       (1.0 - params_.queue_delay_dev_avg_g.Get()) * queue_delay_dev_norm_;
   RTC_DCHECK(queue_delay_dev_norm_ >= 0.0);
+}
+
+void DelayBasedCongestionControl::ResetQueueDelay() {
+  last_base_delay_update_ = Timestamp::MinusInfinity();
+  next_base_delay_ = TimeDelta::PlusInfinity();
+  base_delay_history_.Reset();
+  // Insert a start value to ensure GetMin returns a sensible value when empty.
+  base_delay_history_.Insert(TimeDelta::PlusInfinity());
+
+  min_queue_delay_above_threshold_start_ = Timestamp::MinusInfinity();
+  last_update_qdelay_avg_time_ = Timestamp::MinusInfinity();
+  queue_delay_avg_ = TimeDelta::PlusInfinity();
+  queue_delay_dev_norm_ = 0.0;
 }
 
 bool DelayBasedCongestionControl::IsQueueDelayDetected() const {

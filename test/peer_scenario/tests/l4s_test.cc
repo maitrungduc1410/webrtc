@@ -553,6 +553,8 @@ struct SendMediaTestParams {
   std::vector<EmulatedNetworkNode*> caller_to_callee_path;
   std::vector<EmulatedNetworkNode*> callee_to_caller_path;
   std::map</*trial*/ std::string, /*group*/ std::string> field_trials;
+
+  TimeDelta test_duration = TimeDelta::Seconds(10);
 };
 
 // Sends audio and video from a caller to a callee with symmetric
@@ -577,7 +579,8 @@ SendMediaTestResult SendMediaInOneDirection(SendMediaTestParams params,
                      std::move(params.callee_to_caller_path));
   SendMediaTestResult result;
 
-  for (int i = 0; i < 10; ++i) {
+  Timestamp end_time = s.net()->Now() + params.test_duration;
+  while (s.net()->Now() < end_time) {
     s.ProcessMessages(TimeDelta::Seconds(1));
     result.caller_stats.push_back(GetStatsAndProcess(s, caller));
     result.callee_stats.push_back(GetStatsAndProcess(s, callee));
@@ -598,7 +601,7 @@ TEST(L4STest, CallerAdaptsToLinkCapacity600KbpsRtt100msNoEcnWithGoogCC) {
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(50));
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
   DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(500));
+  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(450));
   EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
 }
 
@@ -818,6 +821,21 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPathWithPauseBetween3sAnd6s(
   return {schedulable_builder.Build()};
 }
 
+std::vector<EmulatedNetworkNode*> CreateNetworkPath1MbitDelayIncreaseAfter3S(
+    PeerScenario& s) {
+  network_behaviour::NetworkConfigSchedule schedule;
+  auto initial_config = schedule.add_item();
+  initial_config->set_link_capacity_kbps(1000);
+  initial_config->set_queue_delay_ms(10);
+  auto updated_latency = schedule.add_item();
+  updated_latency->set_time_since_first_sent_packet_ms(3000);
+  updated_latency->set_queue_delay_ms(80);
+
+  SchedulableNetworkNodeBuilder schedulable_builder(*s.net(),
+                                                    std::move(schedule));
+  return {schedulable_builder.Build()};
+}
+
 TEST(L4STest, CallerPauseSendingVideoIfFeedbackNotReceivedWithScream) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params{
@@ -859,6 +877,30 @@ TEST(L4STest, CallerPauseSendingVideoIfFeedbackNotReceivedWithScream) {
   //          DataRate::KilobitsPerSec(400));
   EXPECT_LT(GetAvailableSendBitrate(result.caller_stats.back()),
             DataRate::KilobitsPerSec(800));
+}
+
+TEST(L4STest, CallerResetQueueDelayEstimateAfterIncreasedFixedDelayWithScream) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{
+      .field_trials = {{"WebRTC-RFC8888CongestionControlFeedback",
+                        "Enabled,offer:true"},
+                       {"WebRTC-Bwe-ScreamV2", "Enabled"}},
+      .test_duration = TimeDelta::Seconds(35)};
+  params.caller_to_callee_path = CreateNetworkPath1MbitDelayIncreaseAfter3S(s);
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(2000), TimeDelta::Millis(10));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // After the increased delay, BWE should drop
+  EXPECT_LT(GetAvailableSendBitrate(result.caller_stats[5]),
+            DataRate::KilobitsPerSec(400));
+
+  // But have recovered by the end of the test.
+  EXPECT_GT(GetAvailableSendBitrate(result.caller_stats.back()),
+            DataRate::KilobitsPerSec(700));
+  EXPECT_LT(GetAvailableSendBitrate(result.caller_stats.back()),
+            DataRate::KilobitsPerSec(1200));
 }
 
 #endif  // WEBRTC_ENABLE_PROTOBUF

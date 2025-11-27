@@ -63,7 +63,7 @@ class ScreamV2 {
  private:
   void UpdateL4SAlpha(const TransportPacketsFeedback& msg);
   void UpdateRefWindow(const TransportPacketsFeedback& msg);
-  DataRate CalculateTargetRate() const;
+  void UpdateTargetRate(const TransportPacketsFeedback& msg);
 
   // Ratio between `max_segment_size` and `ref_window_`.
   double ref_window_mss_ratio() const {
@@ -123,6 +123,8 @@ class ScreamV2 {
   // Last received feedback that contained a congestion event that may have
   // caused a reaction.
   Timestamp last_reaction_to_congestion_time_ = Timestamp::MinusInfinity();
+
+  Timestamp drain_queue_start_ = Timestamp::MinusInfinity();
 
   DelayBasedCongestionControl delay_based_congestion_control_;
 };
