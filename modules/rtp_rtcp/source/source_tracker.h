@@ -22,6 +22,7 @@
 #include "absl/functional/any_invocable.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_packet_infos.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/transport/rtp/rtp_source.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -60,12 +61,22 @@ class SourceTracker {
   void OnFrameDelivered(const RtpPacketInfos& packet_infos,
                         Timestamp delivery_time = Timestamp::MinusInfinity());
 
+  // Sets the callback to be fired whenever the SSRC or CSRC changes. If the
+  // SSRC/CSRC is set prior to a callback being registered, that callback will
+  // be fired in response to setting this callback. To avoid reentrency issues,
+  // the callback is always fired inside of a PostTask().
+  // - Arguments: `bool ssrc_changed, bool csrcs_changed`
+  void SetOnSourceChangedCallback(
+      absl::AnyInvocable<void(bool, bool)> on_source_changed);
+
   // Returns an `RtpSource` for each unique SSRC and CSRC identifier updated in
   // the last `kTimeoutMs` milliseconds. Entries appear in reverse chronological
   // order (i.e. with the most recently updated entries appearing first).
   std::vector<RtpSource> GetSources() const;
 
  private:
+  void ShouldFireOnSoourceChangedCallback(bool ssrc_changed, bool csrc_changed);
+
   struct SourceKey {
     SourceKey(RtpSourceType source_type, uint32_t source)
         : source_type(source_type), source(source) {}
@@ -144,6 +155,7 @@ class SourceTracker {
   std::vector<uint32_t> last_received_csrcs_;
   // Arguments: `bool ssrc_changed, bool csrcs_changed`
   absl::AnyInvocable<void(bool, bool)> on_source_changed_;
+  ScopedTaskSafety safety_;
 };
 
 }  // namespace webrtc

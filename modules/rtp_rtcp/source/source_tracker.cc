@@ -18,6 +18,8 @@
 #include "absl/functional/any_invocable.h"
 #include "api/rtp_packet_info.h"
 #include "api/rtp_packet_infos.h"
+#include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/rtp/rtp_source.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/checks.h"
@@ -79,8 +81,29 @@ void SourceTracker::OnFrameDelivered(const RtpPacketInfos& packet_infos,
   bool fire_ssrc_change = last_received_ssrc_ != prev_ssrc;
   bool fire_csrc_change = last_received_csrcs_ != prev_csrcs;
   if ((fire_ssrc_change || fire_csrc_change) && on_source_changed_) {
-    on_source_changed_(fire_ssrc_change, fire_csrc_change);
+    ShouldFireOnSoourceChangedCallback(fire_ssrc_change, fire_csrc_change);
   }
+}
+
+void SourceTracker::SetOnSourceChangedCallback(
+    absl::AnyInvocable<void(bool, bool)> on_source_changed) {
+  on_source_changed_ = std::move(on_source_changed);
+  // Fire on set if a frame was received before the caller had a chance to add
+  // its callback.
+  if (last_received_ssrc_ || !last_received_csrcs_.empty()) {
+    ShouldFireOnSoourceChangedCallback(last_received_ssrc_.has_value(),
+                                       !last_received_csrcs_.empty());
+  }
+}
+
+void SourceTracker::ShouldFireOnSoourceChangedCallback(bool ssrc_changed,
+                                                       bool csrc_changed) {
+  TaskQueueBase::Current()->PostTask(
+      SafeTask(safety_.flag(), [this, ssrc_changed, csrc_changed] {
+        if (on_source_changed_) {
+          on_source_changed_(ssrc_changed, csrc_changed);
+        }
+      }));
 }
 
 std::vector<RtpSource> SourceTracker::GetSources() const {
