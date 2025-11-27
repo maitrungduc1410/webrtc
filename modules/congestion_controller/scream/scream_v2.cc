@@ -159,11 +159,6 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
         // track and thus the congestion episode is shortened
         ref_window_ = std::clamp(max_data_in_flight_prev_rtt_,
                                  params_.min_ref_window.Get(), ref_window_);
-        // Also, we back off a little extra if needed because alpha is quite
-        // likely very low  This can in some cases be an over - reaction but
-        // as this function should kick in relatively seldom it should not be
-        // a too big concern
-        backoff = std::max(backoff, 0.25);
         // In addition, bump up l4sAlpha to a more credible value
         // This may over react but it is better than
         // excessive queue delay
