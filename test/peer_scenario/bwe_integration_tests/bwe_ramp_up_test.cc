@@ -15,7 +15,6 @@
 #include <utility>
 
 #include "api/jsep.h"
-#include "api/make_ref_counted.h"
 #include "api/media_types.h"
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_direction.h"
@@ -23,8 +22,10 @@
 #include "api/stats/rtc_stats_report.h"
 #include "api/stats/rtcstats_objects.h"
 #include "api/test/network_emulation/dual_pi2_network_queue.h"
+#include "api/test/network_emulation/network_config_schedule.pb.h"
 #include "api/test/network_emulation/network_emulation_interfaces.h"
 #include "api/test/network_emulation/network_queue.h"
+#include "api/test/network_emulation/schedulable_network_node_builder.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
@@ -32,18 +33,12 @@
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_util.h"
 #include "pc/media_session.h"
-#include "pc/test/mock_peer_connection_observers.h"
-#include "rtc_base/checks.h"
 #include "test/create_frame_generator_capturer.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/peer_scenario/bwe_integration_tests/stats_utilities.h"
 #include "test/peer_scenario/peer_scenario.h"
 #include "test/peer_scenario/peer_scenario_client.h"
-
-#if WEBRTC_ENABLE_PROTOBUF
-#include "api/test/network_emulation/network_config_schedule.pb.h"
-#include "api/test/network_emulation/schedulable_network_node_builder.h"
-#endif
 
 namespace webrtc {
 namespace test {
@@ -53,26 +48,6 @@ using ::testing::Test;
 using ::testing::ValuesIn;
 using ::testing::WithParamInterface;
 
-scoped_refptr<const RTCStatsReport> GetStatsAndProcess(
-    PeerScenario& s,
-    PeerScenarioClient* client) {
-  auto stats_collector = make_ref_counted<MockRTCStatsCollectorCallback>();
-  client->pc()->GetStats(stats_collector.get());
-  s.ProcessMessages(TimeDelta::Millis(0));
-  RTC_CHECK(stats_collector->called());
-  return stats_collector->report();
-}
-
-DataRate GetAvailableSendBitrate(
-    const scoped_refptr<const RTCStatsReport>& report) {
-  auto stats = report->GetStatsOfType<RTCIceCandidatePairStats>();
-  if (stats.empty()) {
-    return DataRate::Zero();
-  }
-  return DataRate::BitsPerSec(*stats[0]->available_outgoing_bitrate);
-}
-
-#if WEBRTC_ENABLE_PROTOBUF
 TEST(BweRampupTest, BweRampUpWhenCapacityIncrease) {
   PeerScenario s(*test_info_);
 
@@ -119,7 +94,6 @@ TEST(BweRampupTest, BweRampUpWhenCapacityIncrease) {
   EXPECT_GT(GetAvailableSendBitrate(GetStatsAndProcess(s, caller)).kbps(),
             1000);
 }
-#endif  // WEBRTC_ENABLE_PROTOBUF
 
 // Test that caller BWE can rampup even if callee can not demux incoming RTP
 // packets.
