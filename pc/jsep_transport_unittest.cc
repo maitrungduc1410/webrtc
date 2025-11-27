@@ -139,18 +139,16 @@ class JsepTransport2Test : public ::testing::Test {
       rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
     }
 
-    std::unique_ptr<RtpTransport> unencrypted_rtp_transport;
-    std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport;
     DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
-    dtls_srtp_transport = CreateDtlsSrtpTransport(
+    std::unique_ptr<RtpTransport> rtp_transport = CreateDtlsSrtpTransport(
         std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport));
 
     scoped_refptr<DtlsTransport> rtp_dtls_transport_wrapper =
         make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
 
     auto jsep_transport = std::make_unique<JsepTransport>(
-        /*local_certificate=*/nullptr, std::move(unencrypted_rtp_transport),
-        std::move(dtls_srtp_transport), std::move(rtp_dtls_transport_wrapper),
+        /*local_certificate=*/nullptr, std::move(rtp_transport),
+        std::move(rtp_dtls_transport_wrapper),
         /*sctp_transport=*/nullptr,
         /*rtcp_mux_active_callback=*/[&]() { OnRtcpMuxActive(); },
         payload_type_picker_);

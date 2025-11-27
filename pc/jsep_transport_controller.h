@@ -393,7 +393,6 @@ class JsepTransportController final : public PayloadTypeSuggester {
   scoped_refptr<IceTransportInterface> CreateIceTransport(
       const std::string& transport_name,
       bool rtcp);
-
   std::unique_ptr<RtpTransport> CreateUnencryptedRtpTransport(
       const std::string& transport_name,
       std::unique_ptr<PacketTransportInternal> rtp_packet_transport,
@@ -401,6 +400,11 @@ class JsepTransportController final : public PayloadTypeSuggester {
 
   // Creates a DTLS SRTP transport.
   std::unique_ptr<DtlsSrtpTransport> CreateDtlsSrtpTransport(
+      const std::string& transport_name,
+      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport);
+
+  std::unique_ptr<RtpTransport> CreateRtpTransport(
       const std::string& transport_name,
       std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
       std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport);

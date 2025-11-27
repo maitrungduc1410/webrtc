@@ -33,6 +33,8 @@ class DtlsSrtpTransport : public SrtpTransport {
  public:
   DtlsSrtpTransport(bool rtcp_mux_enabled, const FieldTrialsView& field_trials);
 
+  DtlsSrtpTransport* AsDtlsSrtpTransport() override { return this; }
+
   // Set P2P layer RTP/RTCP DtlsTransports. When using RTCP-muxing,
   // `rtcp_dtls_transport` is null.
   void SetDtlsTransports(DtlsTransportInternal* rtp_dtls_transport,

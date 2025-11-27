@@ -638,6 +638,38 @@ JsepTransportController::CreateDtlsSrtpTransport(
   return dtls_srtp_transport;
 }
 
+std::unique_ptr<RtpTransport> JsepTransportController::CreateRtpTransport(
+    const std::string& transport_name,
+    std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+    std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport) {
+  std::unique_ptr<RtpTransport> rtp_transport;
+  if (config_.disable_encryption) {
+    RTC_LOG(LS_INFO)
+        << "Creating UnencryptedRtpTransport, because encryption is disabled.";
+    rtp_transport = CreateUnencryptedRtpTransport(
+        transport_name, std::move(rtp_dtls_transport),
+        std::move(rtcp_dtls_transport));
+  } else {
+    RTC_LOG(LS_INFO) << "Creating DtlsSrtpTransport.";
+    rtp_transport =
+        CreateDtlsSrtpTransport(transport_name, std::move(rtp_dtls_transport),
+                                std::move(rtcp_dtls_transport));
+  }
+
+  rtp_transport->SubscribeRtcpPacketReceived(
+      this, [this](CopyOnWriteBuffer packet,
+                   std::optional<Timestamp> arrival_time, EcnMarking ecn) {
+        RTC_DCHECK_RUN_ON(network_thread_);
+        OnRtcpPacketReceived_n(std::move(packet), arrival_time, ecn);
+      });
+  rtp_transport->SetUnDemuxableRtpPacketReceivedHandler(
+      [this](RtpPacketReceived& packet) {
+        RTC_DCHECK_RUN_ON(network_thread_);
+        OnUnDemuxableRtpPacketReceived_n(packet);
+      });
+  return rtp_transport;
+}
+
 std::vector<DtlsTransportInternal*>
 JsepTransportController::GetDtlsTransports() {
   RTC_DCHECK_RUN_ON(network_thread_);
@@ -1169,20 +1201,9 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
     rtcp_dtls_transport = CreateDtlsTransport(content_info, /*rtcp=*/true);
   }
 
-  std::unique_ptr<RtpTransport> unencrypted_rtp_transport;
-  std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport;
-  if (config_.disable_encryption) {
-    RTC_LOG(LS_INFO)
-        << "Creating UnencryptedRtpTransport, becayse encryption is disabled.";
-    unencrypted_rtp_transport = CreateUnencryptedRtpTransport(
-        content_info.mid(), std::move(rtp_dtls_transport),
-        std::move(rtcp_dtls_transport));
-  } else {
-    RTC_LOG(LS_INFO) << "Creating DtlsSrtpTransport.";
-    dtls_srtp_transport = CreateDtlsSrtpTransport(
-        content_info.mid(), std::move(rtp_dtls_transport),
-        std::move(rtcp_dtls_transport));
-  }
+  std::unique_ptr<RtpTransport> rtp_transport =
+      CreateRtpTransport(content_info.mid(), std::move(rtp_dtls_transport),
+                         std::move(rtcp_dtls_transport));
 
   std::unique_ptr<SctpTransportInternal> sctp_transport;
   if (config_.sctp_factory) {
@@ -1195,8 +1216,7 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
 
   std::unique_ptr<JsepTransport> jsep_transport =
       std::make_unique<JsepTransport>(
-          certificate_, std::move(unencrypted_rtp_transport),
-          std::move(dtls_srtp_transport), std::move(dtls_transport),
+          certificate_, std::move(rtp_transport), std::move(dtls_transport),
           std::move(sctp_transport),
           [&]() {
             RTC_DCHECK_RUN_ON(network_thread_);
@@ -1204,42 +1224,29 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
           },
           payload_type_picker_);
 
-  // TODO(tommi): Inject the below callbacks into either dtls_srtp_transport or
-  // unencrypted_rtp_transport above. Don't use the `rtp_transport()` accessor
-  // to do this. Also seems likely that there is only one subscription for these
-  // per object. If so, it can be injected via the ctor and constructed on the
-  // signaling thread. Same goes for all the other callback subscriptions.
-  // Tricky thing is that the `ice` object is constructed first, but it's
-  // callback subscriptions are set by another object that's constructed later,
-  // and then ownership of `ice` is given to JsepTransport. Ownership of `ice`
-  // should perhaps not be there. JsepTransport doesn't really need it and could
-  // perhaps access it via the object hierarchy differently.
-  //
   // Object hierarchy for objects injected into JsepTransport:
   //
-  //  dtls_srtp_transport / unencrypted_rtp_transport
-  //    -> rtp_dtls_transport
-  //      -> ice->internal()  <- move `ice` ownership?
-  //    -> rtcp_dtls_transport
-  //      -> rtcp_ice  <- also move ownership? same name as above.
-  //  sctp_transport
-  //    -> rtp_dtls_transport
+  //  rtp_transport
+  //    -> dtls_srtp_transport / unencrypted_rtp_transport
+  //      -> rtp_dtls_transport
+  //        -> ice->internal()  <- ownership
+  //      -> rtcp_dtls_transport
+  //        -> ice->internal() <- ownership (rtcp_ice)
+  //    -> sctp_transport
+  //      -> rtp_dtls_transport <- raw pointer.
+  //  dtls_transport (reference counted)
+  //    -> rtp_dtls_transport <- raw pointer.
   //
-  // Since the name is potentially duplicated (ice and rtcp_ice), the name
-  // should perhaps live in JsepTransport. However, the lower level
-  // classes might need the name for logging.
-
-  jsep_transport->rtp_transport()->SubscribeRtcpPacketReceived(
-      this, [this](CopyOnWriteBuffer packet,
-                   std::optional<Timestamp> arrival_time, EcnMarking ecn) {
-        RTC_DCHECK_RUN_ON(network_thread_);
-        OnRtcpPacketReceived_n(std::move(packet), arrival_time, ecn);
-      });
-  jsep_transport->rtp_transport()->SetUnDemuxableRtpPacketReceivedHandler(
-      [this](RtpPacketReceived& packet) {
-        RTC_DCHECK_RUN_ON(network_thread_);
-        OnUnDemuxableRtpPacketReceived_n(packet);
-      });
+  // TODO(tommi): At this point `jsep_transport` has been constructed
+  // and initialized with callbacks subscribed to. Write and call
+  // a new method, e.g. jsep_transport->InitializationDone().
+  // At that point, all the transport objects should detach any sequence
+  // checkers and be ready for use on a different TQ.
+  //
+  // Since there are still raw pointers handed to some of the transports,
+  // and since `dtls_transport` is reference counted, teardown then needs
+  // to be explicit as it currently is in ~JsepTransport() where Clear() is
+  // called.
 
   transports_.RegisterTransport(std::move(jsep_transport));
   UpdateAggregateStates_n();

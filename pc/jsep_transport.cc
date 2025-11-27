@@ -88,15 +88,13 @@ JsepTransportDescription& JsepTransportDescription::operator=(
 
 JsepTransport::JsepTransport(
     const scoped_refptr<RTCCertificate>& local_certificate,
-    std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
-    std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport,
+    std::unique_ptr<RtpTransport> rtp_transport,
     scoped_refptr<DtlsTransport> rtp_dtls_transport,
     std::unique_ptr<SctpTransportInternal> sctp_transport,
     absl::AnyInvocable<void()> rtcp_mux_active_callback,
     PayloadTypePicker& suggester)
     : local_certificate_(local_certificate),
-      unencrypted_rtp_transport_(std::move(unencrypted_rtp_transport)),
-      dtls_srtp_transport_(std::move(dtls_srtp_transport)),
+      rtp_transport_(std::move(rtp_transport)),
       rtp_dtls_transport_(std::move(rtp_dtls_transport)),
       sctp_transport_(sctp_transport
                           ? make_ref_counted<::webrtc::SctpTransport>(
@@ -108,13 +106,7 @@ JsepTransport::JsepTransport(
       local_payload_types_(suggester) {
   TRACE_EVENT0("webrtc", "JsepTransport::JsepTransport");
   RTC_DCHECK(rtp_dtls_transport_);
-  // Verify the "only one out of these three can be set" invariant.
-  if (unencrypted_rtp_transport_) {
-    RTC_DCHECK(!dtls_srtp_transport);
-  } else {
-    RTC_DCHECK(dtls_srtp_transport_);
-    RTC_DCHECK(!unencrypted_rtp_transport);
-  }
+  RTC_DCHECK(rtp_transport_);
 }
 
 JsepTransport::~JsepTransport() {
@@ -152,9 +144,8 @@ RTCError JsepTransport::SetLocalJsepTransportDescription(
                     "Failed to setup RTCP mux.");
   }
 
-  if (dtls_srtp_transport_) {
-    RTC_DCHECK(!unencrypted_rtp_transport_);
-    dtls_srtp_transport_->UpdateRecvEncryptedHeaderExtensionIds(
+  if (auto* dtls_srtp_transport = rtp_transport_->AsDtlsSrtpTransport()) {
+    dtls_srtp_transport->UpdateRecvEncryptedHeaderExtensionIds(
         jsep_description.encrypted_header_extension_ids);
   }
   bool ice_restarting =
@@ -226,11 +217,10 @@ RTCError JsepTransport::SetRemoteJsepTransportDescription(
                     "Failed to setup RTCP mux.");
   }
 
-  if (dtls_srtp_transport_) {
-    RTC_DCHECK(!unencrypted_rtp_transport_);
-    dtls_srtp_transport_->UpdateSendEncryptedHeaderExtensionIds(
+  if (auto* dtls_srtp_transport = rtp_transport_->AsDtlsSrtpTransport()) {
+    dtls_srtp_transport->UpdateSendEncryptedHeaderExtensionIds(
         jsep_description.encrypted_header_extension_ids);
-    dtls_srtp_transport_->CacheRtpAbsSendTimeHeaderExtension(
+    dtls_srtp_transport->CacheRtpAbsSendTimeHeaderExtension(
         jsep_description.rtp_abs_sendtime_extn_id);
   }
 
@@ -428,14 +418,16 @@ bool JsepTransport::SetRtcpMux(bool enable,
 }
 
 void JsepTransport::ActivateRtcpMux() {
-  if (dtls_srtp_transport_) {
-    dtls_srtp_transport_->SetDtlsTransports(rtp_dtls_transport(),
-                                            /*rtcp_dtls_transport=*/nullptr);
+  RTC_DCHECK_RUN_ON(&transport_sequence_);
+  // If the transport is a DtlsSrtpTransport, it needs to know that RTCP mux
+  // is active to clear its RTCP transport.
+  if (auto* dtls_srtp_transport = rtp_transport_->AsDtlsSrtpTransport()) {
+    dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport(),
+                                           /*rtcp_dtls_transport=*/nullptr);
   }
-
-  if (unencrypted_rtp_transport_) {
-    unencrypted_rtp_transport_->SetRtcpPacketTransport(nullptr);
-  }
+  // Regardless of transport type, we clear the RTCP packet transport on the
+  // RtpTransport base class.
+  rtp_transport_->SetRtcpPacketTransport(nullptr);
 
   // Notify the JsepTransportController to update the aggregate states.
   rtcp_mux_active_callback_();

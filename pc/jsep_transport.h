@@ -28,7 +28,6 @@
 #include "p2p/base/ice_transport_internal.h"
 #include "p2p/base/transport_description.h"
 #include "p2p/dtls/dtls_transport_internal.h"
-#include "pc/dtls_srtp_transport.h"
 #include "pc/dtls_transport.h"
 #include "pc/rtcp_mux_filter.h"
 #include "pc/rtp_transport.h"
@@ -78,8 +77,7 @@ class JsepTransport {
   // `local_certificate` is allowed to be null since a remote description may be
   // set before a local certificate is generated.
   JsepTransport(const scoped_refptr<RTCCertificate>& local_certificate,
-                std::unique_ptr<RtpTransport> unencrypted_rtp_transport,
-                std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport,
+                std::unique_ptr<RtpTransport> rtp_transport,
                 scoped_refptr<DtlsTransport> rtp_dtls_transport,
                 std::unique_ptr<SctpTransportInternal> sctp_transport,
                 absl::AnyInvocable<void()> rtcp_mux_active_callback,
@@ -151,15 +149,7 @@ class JsepTransport {
   }
 
   // Returns the rtp transport, if any.
-  RtpTransportInternal* rtp_transport() const {
-    if (dtls_srtp_transport_) {
-      return dtls_srtp_transport_.get();
-    }
-    if (unencrypted_rtp_transport_) {
-      return unencrypted_rtp_transport_.get();
-    }
-    return nullptr;
-  }
+  RtpTransportInternal* rtp_transport() const { return rtp_transport_.get(); }
 
   const DtlsTransportInternal* rtp_dtls_transport() const {
     return GetRtpDtlsTransportInternal();
@@ -171,26 +161,14 @@ class JsepTransport {
 
   DtlsTransportInternal* rtcp_dtls_transport() const {
     RTC_DCHECK_RUN_ON(&transport_sequence_);
-    if (dtls_srtp_transport_) {
-      return dtls_srtp_transport_->rtcp_dtls_transport();
-    }
-    if (unencrypted_rtp_transport_) {
-      return static_cast<DtlsTransportInternal*>(
-          unencrypted_rtp_transport_->rtcp_packet_transport());
-    }
-    return nullptr;
+    return static_cast<DtlsTransportInternal*>(
+        rtp_transport_->rtcp_packet_transport());
   }
 
   DtlsTransportInternal* rtcp_dtls_transport() {
     RTC_DCHECK_RUN_ON(&transport_sequence_);
-    if (dtls_srtp_transport_) {
-      return dtls_srtp_transport_->rtcp_dtls_transport();
-    }
-    if (unencrypted_rtp_transport_) {
-      return static_cast<DtlsTransportInternal*>(
-          unencrypted_rtp_transport_->rtcp_packet_transport());
-    }
-    return nullptr;
+    return static_cast<DtlsTransportInternal*>(
+        rtp_transport_->rtcp_packet_transport());
   }
 
   scoped_refptr<DtlsTransport> RtpDtlsTransport() {
@@ -271,14 +249,11 @@ class JsepTransport {
                          TransportStats* stats) const;
 
   DtlsTransportInternal* GetRtpDtlsTransportInternal() const {
-    if (dtls_srtp_transport_) {
-      return dtls_srtp_transport_->rtp_dtls_transport();
-    }
-    if (unencrypted_rtp_transport_) {
-      return static_cast<DtlsTransportInternal*>(
-          unencrypted_rtp_transport_->rtp_packet_transport());
-    }
-    return nullptr;
+    // This cast is safe because JsepTransportController always creates the
+    // RtpTransport with a DtlsTransportInternal as the packet transport, even
+    // when encryption is disabled.
+    return static_cast<DtlsTransportInternal*>(
+        rtp_transport_->rtp_packet_transport());
   }
 
   // Owning thread, for safety checks
@@ -294,8 +269,7 @@ class JsepTransport {
 
   // To avoid downcasting and make it type safe, keep three unique pointers for
   // different SRTP mode and only one of these is non-nullptr.
-  const std::unique_ptr<RtpTransport> unencrypted_rtp_transport_;
-  const std::unique_ptr<DtlsSrtpTransport> dtls_srtp_transport_;
+  const std::unique_ptr<RtpTransport> rtp_transport_;
 
   const scoped_refptr<DtlsTransport> rtp_dtls_transport_;
   // The RTCP transport is const for all usages, except that it is cleared
