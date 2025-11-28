@@ -37,11 +37,10 @@ class DtlsSrtpTransport : public SrtpTransport {
 
   // Set P2P layer RTP/RTCP DtlsTransports. When using RTCP-muxing,
   // `rtcp_dtls_transport` is null.
-  void SetDtlsTransports(DtlsTransportInternal* rtp_dtls_transport,
-                         DtlsTransportInternal* rtcp_dtls_transport);
-  void SetDtlsTransportsOwned(
-      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
-      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport);
+  void SetDtlsTransports(DtlsTransportInternal* rtp_dtls,
+                         DtlsTransportInternal* rtcp_dtls);
+  void SetDtlsTransportsOwned(std::unique_ptr<DtlsTransportInternal> rtp_dtls,
+                              std::unique_ptr<DtlsTransportInternal> rtcp_dtls);
 
   void SetRtcpMuxEnabled(bool enable) override;
 
@@ -55,11 +54,11 @@ class DtlsSrtpTransport : public SrtpTransport {
   void SetOnDtlsStateChange(absl::AnyInvocable<void()> callback);
 
   DtlsTransportInternal* rtp_dtls_transport() const {
-    return rtp_dtls_transport_;
+    return static_cast<DtlsTransportInternal*>(rtp_packet_transport());
   }
 
   DtlsTransportInternal* rtcp_dtls_transport() const {
-    return rtcp_dtls_transport_;
+    return static_cast<DtlsTransportInternal*>(rtcp_packet_transport());
   }
 
  private:
@@ -75,24 +74,18 @@ class DtlsSrtpTransport : public SrtpTransport {
                      ZeroOnFreeBuffer<uint8_t>* send_key,
                      ZeroOnFreeBuffer<uint8_t>* recv_key);
   // Updates the DTLS transport and manages the state subscription.
-  // The `old_dtls_transport` parameter is a reference to the member variable
-  // that holds the transport. It is updated in-place because `OnDtlsState`
-  // (called internally) requires the member variable to be updated to the new
-  // transport to verify state.
-  void ConfigureDtlsTransport(DtlsTransportInternal* new_dtls_transport,
-                              DtlsTransportInternal*& old_dtls_transport);
-  void SetRtpDtlsTransport(DtlsTransportInternal* rtp_dtls_transport);
-  void SetRtcpDtlsTransport(DtlsTransportInternal* rtcp_dtls_transport);
+  void SetupDtlsTransport(DtlsTransportInternal* dtls_transport, bool is_rtcp);
+
+  // Checks if the transport changed, and if so, unsubscribes from the old one.
+  // Returns true if the transport changed.
+  bool MaybeUnsubscribe(DtlsTransportInternal* old_transport,
+                        DtlsTransportInternal* new_transport);
 
   void OnDtlsState(DtlsTransportInternal* dtls_transport,
                    DtlsTransportState state);
 
   // Override the SrtpTransport::OnWritableState.
   void OnWritableState(PacketTransportInternal* packet_transport) override;
-
-  // Owned by the TransportController.
-  DtlsTransportInternal* rtp_dtls_transport_ = nullptr;
-  DtlsTransportInternal* rtcp_dtls_transport_ = nullptr;
 
   // The encrypted header extension IDs.
   std::optional<std::vector<int>> send_extension_ids_;
