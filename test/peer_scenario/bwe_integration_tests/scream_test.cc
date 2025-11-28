@@ -26,6 +26,7 @@
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "test/create_frame_generator_capturer.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/network/network_emulation.h"
@@ -46,8 +47,14 @@ using test::GetPacketsSentWithEct1;
 using test::GetStatsAndProcess;
 using test::PeerScenario;
 using test::PeerScenarioClient;
+using ::testing::Each;
 using ::testing::HasSubstr;
 using ::testing::TestWithParam;
+
+MATCHER_P2(AvailableSendBitrateIsBetween, low, high, "") {
+  DataRate available_bwe = GetAvailableSendBitrate(arg);
+  return available_bwe > low && available_bwe < high;
+}
 
 std::vector<EmulatedNetworkNode*> CreateNetworkPath(PeerScenario& s,
                                                     bool use_dual_pi,
@@ -107,7 +114,17 @@ struct SendMediaTestResult {
 struct SendMediaTestParams {
   std::vector<EmulatedNetworkNode*> caller_to_callee_path;
   std::vector<EmulatedNetworkNode*> callee_to_caller_path;
-  std::map</*trial*/ std::string, /*group*/ std::string> field_trials;
+  std::map</*trial*/ std::string, /*group*/ std::string> field_trials = {
+      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
+      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
+
+  PeerScenarioClient::VideoSendTrackConfig caller_video_conf = {
+      .generator = {.squares_video =
+                        test::FrameGeneratorCapturerConfig::SquaresVideo{
+                            .framerate = 30,
+                            .width = 1280,
+                            .height = 720,
+                        }}};
 
   TimeDelta test_duration = TimeDelta::Seconds(10);
 };
@@ -123,12 +140,8 @@ SendMediaTestResult SendMediaInOneDirection(SendMediaTestParams params,
   PeerScenarioClient* caller = s.CreateClient(config);
   PeerScenarioClient* callee = s.CreateClient(config);
 
-  PeerScenarioClient::VideoSendTrackConfig video_conf;
-  video_conf.generator.squares_video->framerate = 30;
-  video_conf.generator.squares_video->width = 1280;
-  video_conf.generator.squares_video->height = 720;
   caller->CreateAudio("AUDIO_1", {});
-  caller->CreateVideo("VIDEO_1", video_conf);
+  caller->CreateVideo("VIDEO_1", params.caller_video_conf);
 
   s.SimpleConnection(caller, callee, std::move(params.caller_to_callee_path),
                      std::move(params.callee_to_caller_path));
@@ -156,17 +169,14 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msNoEcnWithGoogCC) {
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(50));
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(450));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(450),
+                                            DataRate::KilobitsPerSec(660)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msNoEcn) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
-  SendMediaTestParams params{
-      .field_trials = {
-          {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-          {"WebRTC-Bwe-ScreamV2", "Enabled"}}};
+  SendMediaTestParams params;
   params.callee_to_caller_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(50));
@@ -174,9 +184,9 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msNoEcn) {
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(50));
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(400));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(800));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(400),
+                                            DataRate::KilobitsPerSec(800)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt20msNoEcn) {
@@ -188,15 +198,12 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt20msNoEcn) {
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(10));
-  params.field_trials = {
-      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(400));
   // If encoder produce at a too low rate, RTT decrease and BWE increase.
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(800));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(400),
+                                            DataRate::KilobitsPerSec(800)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msEcn) {
@@ -208,14 +215,11 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msEcn) {
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ true,
                         DataRate::KilobitsPerSec(600), TimeDelta::Millis(50));
-  params.field_trials = {
-      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(350));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(350),
+                                            DataRate::KilobitsPerSec(660)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msEcnAfterCe) {
@@ -232,9 +236,9 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity600KbpsRtt100msEcnAfterCe) {
       {"WebRTC-Bwe-ScreamV2", "mode:only_after_ce"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(350));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(350),
+                                            DataRate::KilobitsPerSec(660)));
 
   // All packets are sent as ECT1.
   EXPECT_EQ(GetPacketsSent(result.caller_stats.back()),
@@ -260,9 +264,9 @@ TEST(ScreamTest,
       {"WebRTC-Bwe-ScreamV2", "mode:goog_cc_with_ect1"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(350));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(660));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(350),
+                                            DataRate::KilobitsPerSec(660)));
 
   // Not all packets are sent as ECT1 since packets are supposed to be sent as
   // not ECT if CE is detected.
@@ -280,14 +284,11 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity1000KbpsRtt100msEcn) {
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ true,
                         DataRate::KilobitsPerSec(1000), TimeDelta::Millis(50));
-  params.field_trials = {
-      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(600));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(1000));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(600),
+                                            DataRate::KilobitsPerSec(1000)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcn) {
@@ -299,14 +300,11 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcn) {
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
-  params.field_trials = {
-      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1600));
-  EXPECT_LE(available_bwe, DataRate::KilobitsPerSec(2600));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(1600),
+                                            DataRate::KilobitsPerSec(2601)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcn) {
@@ -318,14 +316,11 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msEcn) {
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ true,
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
-  params.field_trials = {
-      {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-      {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1500));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(2100));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(1500),
+                                            DataRate::KilobitsPerSec(2100)));
 }
 
 TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithGoogCC) {
@@ -342,17 +337,14 @@ TEST(ScreamTest, CallerAdaptsToLinkCapacity2MbpsRtt50msNoEcnWithGoogCC) {
   };
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  DataRate available_bwe = GetAvailableSendBitrate(result.caller_stats.back());
-  EXPECT_GT(available_bwe, DataRate::KilobitsPerSec(1000));
-  EXPECT_LT(available_bwe, DataRate::KilobitsPerSec(2600));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(1000),
+                                            DataRate::KilobitsPerSec(2600)));
 }
 
 TEST(ScreamTest, CallerPauseSendingVideoIfFeedbackNotReceived) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
-  SendMediaTestParams params{
-      .field_trials = {
-          {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
-          {"WebRTC-Bwe-ScreamV2", "Enabled"}}};
+  SendMediaTestParams params;
   params.callee_to_caller_path = CreateNetworkPathWithPauseBetween3sAnd6s(s);
   params.caller_to_callee_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
@@ -392,11 +384,7 @@ TEST(ScreamTest, CallerPauseSendingVideoIfFeedbackNotReceived) {
 
 TEST(ScreamTest, CallerResetQueueDelayEstimateAfterIncreasedFixedDelay) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
-  SendMediaTestParams params{
-      .field_trials = {{"WebRTC-RFC8888CongestionControlFeedback",
-                        "Enabled,offer:true"},
-                       {"WebRTC-Bwe-ScreamV2", "Enabled"}},
-      .test_duration = TimeDelta::Seconds(35)};
+  SendMediaTestParams params{.test_duration = TimeDelta::Seconds(35)};
   params.caller_to_callee_path = CreateNetworkPath1MbitDelayIncreaseAfter3S(s);
   params.callee_to_caller_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
@@ -408,10 +396,32 @@ TEST(ScreamTest, CallerResetQueueDelayEstimateAfterIncreasedFixedDelay) {
             DataRate::KilobitsPerSec(400));
 
   // But have recovered by the end of the test.
-  EXPECT_GT(GetAvailableSendBitrate(result.caller_stats.back()),
-            DataRate::KilobitsPerSec(700));
-  EXPECT_LT(GetAvailableSendBitrate(result.caller_stats.back()),
-            DataRate::KilobitsPerSec(1200));
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(700),
+                                            DataRate::KilobitsPerSec(1200)));
+}
+
+TEST(ScreamTest, CallerPaceScreencastSlideChange2Mbit50msRttNoEcn) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{.test_duration = TimeDelta::Seconds(20)};
+  params.caller_to_callee_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
+  params.caller_to_callee_path = params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
+  params.caller_video_conf = {
+      .generator = {.image_slides =
+                        test::FrameGeneratorCapturerConfig::ImageSlides{
+                            .change_interval = TimeDelta::Seconds(5)}}};
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // TODO: bugs.webrtc.org/447037083 - Ensure BWE does not drop too low when
+  // pacing out a slide change.
+  // EXPECT_THAT(result.caller_stats, Each(AvailableSendBitrateIsBetween(
+  //                                     DataRate::KilobitsPerSec(1700),
+  //                                     DataRate::KilobitsPerSec(2200))));
 }
 }  // namespace
 }  // namespace webrtc
