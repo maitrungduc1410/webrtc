@@ -882,6 +882,7 @@ rtc_library("async_dns_resolver") {
     ":platform_thread",
     ":refcount",
     ":socket_address",
+    ":stringutils",
     "../api:async_dns_resolver",
     "../api:make_ref_counted",
     "../api:refcountedbase",

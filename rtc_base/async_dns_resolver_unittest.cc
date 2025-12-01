@@ -40,12 +40,52 @@ TEST(AsyncDnsResolver, ResolvingLocalhostWorks) {
   }
 }
 
+// Same as ResolvingLocalhostWorks except using the IP directly. This type
+// of resolution may complete without spawning an internal worker thread, so
+// tested separately.
+TEST(AsyncDnsResolver, ResolvingIpAddressWorks) {
+  test::RunLoop loop;  // Ensure that posting back to main thread works
+  AsyncDnsResolver resolver;
+  bool done = false;
+  resolver.Start(SocketAddress("127.0.0.1", kSomePortNumber), [&]() {
+    done = true;
+    loop.Quit();
+  });
+  EXPECT_FALSE(done);  // The target TQ hasn't gotten a chance to run yet.
+  loop.Run();          // Wait for the callback to arrive.
+  EXPECT_TRUE(done);   // Now `done` must be true.
+  EXPECT_EQ(resolver.result().GetError(), 0);
+  SocketAddress resolved_address;
+  if (resolver.result().GetResolvedAddress(AF_INET, &resolved_address)) {
+    EXPECT_EQ(resolved_address, SocketAddress("127.0.0.1", kSomePortNumber));
+  } else {
+    RTC_LOG(LS_INFO) << "Resolution gave no address, skipping test";
+  }
+}
+
+TEST(AsyncDnsResolver, ResolvingBogusFails) {
+  test::RunLoop loop;  // Ensure that posting back to main thread works
+  AsyncDnsResolver resolver;
+  bool done = false;
+  resolver.Start(SocketAddress("*!#*", kSomePortNumber), [&]() {
+    done = true;
+    loop.Quit();
+  });
+  EXPECT_FALSE(done);  // The target TQ hasn't gotten a chance to run yet.
+  loop.Run();          // Wait for the callback to arrive.
+  EXPECT_TRUE(done);   // Now `done` must be true.
+  EXPECT_NE(resolver.result().GetError(), 0);
+  SocketAddress resolved_address;
+  EXPECT_FALSE(
+      resolver.result().GetResolvedAddress(AF_INET, &resolved_address));
+}
+
 TEST(AsyncDnsResolver, ResolveAfterDeleteDoesNotReturn) {
   bool done = false;
   test::RunLoop loop;
   {
     AsyncDnsResolver resolver;
-    SocketAddress address("localhost", kSomePortNumber);
+    SocketAddress address("some-very-slow-dns-entry.local", kSomePortNumber);
     resolver.Start(address, [&] { done = true; });
   }
   EXPECT_FALSE(done);  // Expect no result.
