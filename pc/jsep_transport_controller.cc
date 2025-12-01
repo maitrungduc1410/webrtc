@@ -205,14 +205,23 @@ DtlsTransportInternal* JsepTransportController::GetDtlsTransport(
   return jsep_transport->rtp_dtls_transport();
 }
 
-scoped_refptr<DtlsTransport> JsepTransportController::LookupDtlsTransportByMid(
-    const std::string& mid) {
+scoped_refptr<DtlsTransport>
+JsepTransportController::LookupDtlsTransportByMid_n(const std::string& mid) {
   RTC_DCHECK_RUN_ON(network_thread_);
   auto jsep_transport = GetJsepTransportForMid(mid);
   if (!jsep_transport) {
     return nullptr;
   }
   return jsep_transport->RtpDtlsTransport();
+}
+
+scoped_refptr<DtlsTransport> JsepTransportController::LookupDtlsTransportByMid(
+    const std::string& mid) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return network_thread_->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return LookupDtlsTransportByMid_n(mid);
+  });
 }
 
 scoped_refptr<SctpTransport> JsepTransportController::GetSctpTransport(

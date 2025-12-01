@@ -248,8 +248,6 @@ class PeerConnection : public PeerConnectionInternal,
 
   scoped_refptr<DtlsTransportInterface> LookupDtlsTransportByMid(
       const std::string& mid) override;
-  scoped_refptr<DtlsTransport> LookupDtlsTransportByMidInternal(
-      const std::string& mid);
 
   scoped_refptr<SctpTransportInterface> GetSctpTransport() const override;
 

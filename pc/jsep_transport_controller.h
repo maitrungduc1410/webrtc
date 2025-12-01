@@ -203,6 +203,8 @@ class JsepTransportController final : public PayloadTypeSuggester {
   RtpTransportInternal* GetRtpTransport(absl::string_view mid) const;
   DtlsTransportInternal* GetDtlsTransport(const std::string& mid);
   // Gets the externally sharable version of the DtlsTransport.
+  scoped_refptr<DtlsTransport> LookupDtlsTransportByMid_n(
+      const std::string& mid);
   scoped_refptr<DtlsTransport> LookupDtlsTransportByMid(const std::string& mid);
   scoped_refptr<SctpTransport> GetSctpTransport(const std::string& mid) const;
 

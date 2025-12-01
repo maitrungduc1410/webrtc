@@ -1811,18 +1811,7 @@ void PeerConnection::SetDataChannelEventObserver(
 scoped_refptr<DtlsTransportInterface> PeerConnection::LookupDtlsTransportByMid(
     const std::string& mid) {
   RTC_DCHECK_RUN_ON(network_thread());
-  return transport_controller_->LookupDtlsTransportByMid(mid);
-}
-
-scoped_refptr<DtlsTransport> PeerConnection::LookupDtlsTransportByMidInternal(
-    const std::string& mid) {
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  // TODO(bugs.webrtc.org/9987): Avoid the thread jump.
-  // This might be done by caching the value on the signaling thread.
-  return network_thread()->BlockingCall([this, mid]() {
-    RTC_DCHECK_RUN_ON(network_thread());
-    return transport_controller_->LookupDtlsTransportByMid(mid);
-  });
+  return transport_controller_->LookupDtlsTransportByMid_n(mid);
 }
 
 scoped_refptr<SctpTransportInterface> PeerConnection::GetSctpTransport() const {
