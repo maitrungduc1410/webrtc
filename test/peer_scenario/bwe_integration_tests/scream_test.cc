@@ -53,7 +53,12 @@ using ::testing::TestWithParam;
 
 MATCHER_P2(AvailableSendBitrateIsBetween, low, high, "") {
   DataRate available_bwe = GetAvailableSendBitrate(arg);
-  return available_bwe > low && available_bwe < high;
+  if (available_bwe > low && available_bwe < high) {
+    return true;
+  }
+  *result_listener << "the available send bitrate is " << available_bwe.kbps()
+                   << "kbps.";
+  return false;
 }
 
 std::vector<EmulatedNetworkNode*> CreateNetworkPath(PeerScenario& s,
@@ -422,6 +427,30 @@ TEST(ScreamTest, CallerPaceScreencastSlideChange2Mbit50msRttNoEcn) {
   // EXPECT_THAT(result.caller_stats, Each(AvailableSendBitrateIsBetween(
   //                                     DataRate::KilobitsPerSec(1700),
   //                                     DataRate::KilobitsPerSec(2200))));
+}
+
+// Test with GoogCC using RFC 8888 as a comparison to Scream.
+TEST(ScreamTest, CallerPaceScreencastSlideChange2Mbit50msRttNoEcnGoogCc) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{.test_duration = TimeDelta::Seconds(20)};
+  params.field_trials = {{"WebRTC-RFC8888CongestionControlFeedback",
+                          "Enabled,offer:true"}},
+  params.caller_to_callee_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
+  params.caller_to_callee_path = params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
+  params.caller_video_conf = {
+      .generator = {.image_slides =
+                        test::FrameGeneratorCapturerConfig::ImageSlides{
+                            .change_interval = TimeDelta::Seconds(5)}}};
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  EXPECT_THAT(result.caller_stats, Each(AvailableSendBitrateIsBetween(
+                                       DataRate::KilobitsPerSec(1500),
+                                       DataRate::KilobitsPerSec(2200))));
 }
 }  // namespace
 }  // namespace webrtc
