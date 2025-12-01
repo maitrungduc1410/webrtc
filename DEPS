@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'a88635b3512932752094fc20009cab82c3816896',
+  'chromium_revision': 'dd64a1bc0f36e9b9c690a8a00f1328ad68805e27',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@67841947f1e115db929bc2e2480ae4edf23b3970',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@0ce1791c0e13727c7000ad373036713eefd10693',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@9b3d3d6543ec7bd1d15fbb60da594103d2720ac7',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@314e8c0099687bc63fe6b1e0c85d8f2a8b40c03e',
+    'https://chromium.googlesource.com/chromium/src/third_party@a3b630c291f1cf3b711687b1c4be322d3015512e',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@8b482b8443c8a72e430aa77bc123af33a15154a3',
+    'https://boringssl.googlesource.com/boringssl.git@b94d71f87ff943a617d77f3ff029f9a01a1ec6bc',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@d0b41ca2a38c7b14c4b7853254eb5bf3b4039691',
   'src/third_party/catapult':
