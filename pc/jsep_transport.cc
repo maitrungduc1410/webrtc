@@ -21,6 +21,7 @@
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "api/candidate.h"
+#include "api/dtls_transport_interface.h"
 #include "api/ice_transport_interface.h"
 #include "api/jsep.h"
 #include "api/make_ref_counted.h"
@@ -107,6 +108,10 @@ JsepTransport::JsepTransport(
   TRACE_EVENT0("webrtc", "JsepTransport::JsepTransport");
   RTC_DCHECK(rtp_dtls_transport_);
   RTC_DCHECK(rtp_transport_);
+  dtls_transport_internal()->SubscribeDtlsTransportState(
+      this, [this](DtlsTransportInternal* transport, DtlsTransportState state) {
+        rtp_dtls_transport_->OnInternalDtlsState(transport);
+      });
 }
 
 JsepTransport::~JsepTransport() {
@@ -117,7 +122,9 @@ JsepTransport::~JsepTransport() {
 
   // Clear all DtlsTransports. There may be pointers to these from
   // other places, so we can't assume they'll be deleted by the destructor.
-  rtp_dtls_transport_->Clear();
+  DtlsTransportInternal* internal = dtls_transport_internal();
+  internal->UnsubscribeDtlsTransportState(this);
+  rtp_dtls_transport_->Clear(internal);
 
   // ICE will be the last transport to be deleted.
 }
@@ -167,9 +174,8 @@ RTCError JsepTransport::SetLocalJsepTransportDescription(
       return error;
     }
   }
-  RTC_DCHECK(rtp_dtls_transport_->internal());
-  rtp_dtls_transport_->internal()->ice_transport()->SetIceParameters(
-      ice_parameters);
+  RTC_DCHECK(dtls_transport_internal());
+  dtls_transport_internal()->ice_transport()->SetIceParameters(ice_parameters);
 
   if (rtcp_dtls_transport()) {
     RTC_DCHECK(rtcp_dtls_transport());
@@ -284,9 +290,9 @@ void JsepTransport::SetNeedsIceRestartFlag() {
 std::optional<SSLRole> JsepTransport::GetDtlsRole() const {
   RTC_DCHECK_RUN_ON(&transport_sequence_);
   RTC_DCHECK(rtp_dtls_transport_);
-  RTC_DCHECK(rtp_dtls_transport_->internal());
+  RTC_DCHECK(dtls_transport_internal());
   SSLRole dtls_role;
-  if (!rtp_dtls_transport_->internal()->GetDtlsRole(&dtls_role)) {
+  if (!dtls_transport_internal()->GetDtlsRole(&dtls_role)) {
     return std::optional<SSLRole>();
   }
 
@@ -298,8 +304,8 @@ bool JsepTransport::GetStats(TransportStats* stats) const {
   RTC_DCHECK_RUN_ON(&transport_sequence_);
   stats->transport_name = name();
   stats->channel_stats.clear();
-  RTC_DCHECK(rtp_dtls_transport_->internal());
-  bool ret = GetTransportStats(rtp_dtls_transport_->internal(),
+  RTC_DCHECK(dtls_transport_internal());
+  bool ret = GetTransportStats(dtls_transport_internal(),
                                ICE_CANDIDATE_COMPONENT_RTP, stats);
 
   if (rtcp_dtls_transport()) {

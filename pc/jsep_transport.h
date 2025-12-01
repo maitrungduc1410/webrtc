@@ -91,7 +91,7 @@ class JsepTransport {
   // Returns the name of this transport. This is used for uniquely identifying
   // the transport, logging, error reporting and transport stats.
   absl::string_view name() const {
-    return GetRtpDtlsTransportInternal()->ice_transport()->transport_name();
+    return dtls_transport_internal()->ice_transport()->transport_name();
   }
 
   // Must be called before applying local session description.
@@ -152,11 +152,11 @@ class JsepTransport {
   RtpTransportInternal* rtp_transport() const { return rtp_transport_.get(); }
 
   const DtlsTransportInternal* rtp_dtls_transport() const {
-    return GetRtpDtlsTransportInternal();
+    return dtls_transport_internal();
   }
 
   DtlsTransportInternal* rtp_dtls_transport() {
-    return GetRtpDtlsTransportInternal();
+    return dtls_transport_internal();
   }
 
   DtlsTransportInternal* rtcp_dtls_transport() const {
@@ -248,7 +248,7 @@ class JsepTransport {
                          int component,
                          TransportStats* stats) const;
 
-  DtlsTransportInternal* GetRtpDtlsTransportInternal() const {
+  DtlsTransportInternal* dtls_transport_internal() const {
     // This cast is safe because JsepTransportController always creates the
     // RtpTransport with a DtlsTransportInternal as the packet transport, even
     // when encryption is disabled.
@@ -278,12 +278,6 @@ class JsepTransport {
   const scoped_refptr<::webrtc::SctpTransport> sctp_transport_;
 
   RtcpMuxFilter rtcp_mux_negotiator_ RTC_GUARDED_BY(transport_sequence_);
-
-  // Cache the encrypted header extension IDs
-  std::optional<std::vector<int>> send_extension_ids_
-      RTC_GUARDED_BY(transport_sequence_);
-  std::optional<std::vector<int>> recv_extension_ids_
-      RTC_GUARDED_BY(transport_sequence_);
 
   // This is invoked when RTCP-mux becomes active and
   // `rtcp_dtls_transport_` is destroyed. The JsepTransportController will

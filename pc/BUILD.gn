@@ -223,6 +223,7 @@ rtc_library("jsep_transport") {
     ":transport_stats",
     "../api:array_view",
     "../api:candidate",
+    "../api:dtls_transport_interface",
     "../api:ice_transport_interface",
     "../api:jsep",
     "../api:libjingle_peerconnection_api",

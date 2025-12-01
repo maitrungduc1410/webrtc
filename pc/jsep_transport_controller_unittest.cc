@@ -354,8 +354,7 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
       DataChannelTransportInterface* data_channel_transport) override {
     std::string str_mid(mid);
     changed_rtp_transport_by_mid_[str_mid] = rtp_transport;
-    changed_dtls_transport_by_mid_[str_mid] =
-        dtls_transport ? dtls_transport->internal() : nullptr;
+    changed_dtls_transport_by_mid_[str_mid] = dtls_transport;
     return true;
   }
 
@@ -389,7 +388,8 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
   // Used to verify the SignalRtpTransportChanged/SignalDtlsTransportChanged are
   // signaled correctly.
   std::map<std::string, RtpTransportInternal*> changed_rtp_transport_by_mid_;
-  std::map<std::string, DtlsTransportInternal*> changed_dtls_transport_by_mid_;
+  std::map<std::string, scoped_refptr<DtlsTransport>>
+      changed_dtls_transport_by_mid_;
   PayloadTypePicker payload_type_picker_;
   // Transport controller needs to be destroyed first, because it may issue
   // callbacks that modify the changed_*_by_mid in the destructor.
@@ -440,9 +440,9 @@ TEST_F(JsepTransportControllerTest, GetDtlsTransport) {
       transport_controller_->LookupDtlsTransportByMid(kVideoMid1);
   DtlsTransport* my_transport =
       static_cast<DtlsTransport*>(dtls_transport.get());
-  EXPECT_NE(nullptr, my_transport->internal());
+  EXPECT_EQ(DtlsTransportState::kNew, my_transport->Information().state());
   transport_controller_.reset();
-  EXPECT_EQ(nullptr, my_transport->internal());
+  EXPECT_EQ(DtlsTransportState::kClosed, my_transport->Information().state());
 }
 
 TEST_F(JsepTransportControllerTest, GetDtlsTransportWithRtcpMux) {

@@ -3033,13 +3033,12 @@ bool PeerConnection::OnTransportChanged(
   if (mid == sctp_mid_n_) {
     data_channel_controller_.OnTransportChanged(data_channel_transport);
     if (dtls_transport) {
-      signaling_thread()->PostTask(SafeTask(
-          signaling_thread_safety_.flag(),
-          [this,
-           name = std::string(dtls_transport->internal()->transport_name())] {
-            RTC_DCHECK_RUN_ON(signaling_thread());
-            SetSctpTransportName(std::move(name));
-          }));
+      signaling_thread()->PostTask(
+          SafeTask(signaling_thread_safety_.flag(),
+                   [this, name = std::string(rtp_transport->transport_name())] {
+                     RTC_DCHECK_RUN_ON(signaling_thread());
+                     SetSctpTransportName(std::move(name));
+                   }));
     }
   }
 
