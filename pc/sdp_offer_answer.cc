@@ -458,12 +458,14 @@ RTCError FindDuplicateCodecParameters(
       payload_to_codec_parameters.find(codec_parameters.payload_type);
   if (existing_codec_parameters != payload_to_codec_parameters.end() &&
       codec_parameters != existing_codec_parameters->second) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                         "A BUNDLE group contains a codec collision for "
-                         "payload_type='" +
-                             absl::StrCat(codec_parameters.payload_type) +
-                             ". All codecs must share the same type, "
-                             "encoding name, clock rate and parameters.");
+    StringBuilder sb;
+    sb << "A BUNDLE group contains a codec collision between "
+       << absl::StrCat(codec_parameters) << " and "
+       << absl::StrCat(existing_codec_parameters->second)
+       << ". All codecs must share the same type, "
+          "encoding name, clock rate and parameters.";
+
+    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER, sb.Release());
   }
   payload_to_codec_parameters.insert(
       std::make_pair(codec_parameters.payload_type, codec_parameters));
