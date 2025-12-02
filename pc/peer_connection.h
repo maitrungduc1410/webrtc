@@ -58,6 +58,7 @@
 #include "api/transport/enums.h"
 #include "api/turn_customizer.h"
 #include "call/call.h"
+#include "call/payload_type.h"
 #include "call/payload_type_picker.h"
 #include "media/base/media_engine.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
@@ -275,6 +276,11 @@ class PeerConnection : public PeerConnectionInternal,
   bool initial_offerer() const override {
     RTC_DCHECK_RUN_ON(signaling_thread());
     return sdp_handler_->initial_offerer();
+  }
+
+  PayloadTypeSuggester* pt_suggester() const {
+    RTC_DCHECK_RUN_ON(signaling_thread());
+    return sdp_handler_->pt_suggester();
   }
 
   std::vector<scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>>

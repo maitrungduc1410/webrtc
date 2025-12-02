@@ -119,6 +119,9 @@ class PayloadTypeSuggesterForTests : public PayloadTypeSuggester {
                            const Codec& /* codec */) override {
     return RTCError::OK();
   }
+  const PayloadTypePicker& PayloadTypePickerForTesting() const override {
+    return payload_type_picker_;
+  }
 
  private:
   PayloadTypePicker payload_type_picker_;

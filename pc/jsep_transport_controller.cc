@@ -773,18 +773,38 @@ RTCError JsepTransportController::ApplyDescription_n(
                         "mid='" +
                             content_info.mid() + "'.");
       }
-      continue;
     }
 
+    JsepTransport* transport = GetJsepTransportForMid(content_info.mid());
+    if (!transport) {
+      LOG_AND_RETURN_ERROR(
+          RTCErrorType::INVALID_PARAMETER,
+          "Could not find transport for m= section with mid='" +
+              content_info.mid() + "'");
+    }
+    error = transport->RecordPayloadTypes(local, type, content_info);
+    if (!error.ok()) {
+      RTC_LOG(LS_ERROR) << "RecordPayloadTypes failed: "
+                        << ToString(error.type()) << " - " << error.message();
+      return error;
+    }
+
+    if (established_bundle_group &&
+        content_info.mid() != *established_bundle_group->FirstContentName()) {
+      continue;  // Skip code below.
+    }
+    // The code below this is only executed for contents that are the
+    // leader of their bundle group, or is unbundled.
     error = ValidateContent(content_info);
     if (!error.ok()) {
       return error;
     }
 
     std::vector<int> extension_ids;
-    // Is BUNDLE-tagged (first in the group)?
-    if (established_bundle_group &&
-        content_info.mid() == *established_bundle_group->FirstContentName()) {
+    if (established_bundle_group) {
+      // If bundled: Check that this is BUNDLE-tagged (first in the group).
+      RTC_DCHECK(content_info.mid() ==
+                 *established_bundle_group->FirstContentName());
       auto it = merged_encrypted_extension_ids_by_bundle.find(
           established_bundle_group);
       RTC_DCHECK(it != merged_encrypted_extension_ids_by_bundle.end());
@@ -795,14 +815,6 @@ RTCError JsepTransportController::ApplyDescription_n(
 
     int rtp_abs_sendtime_extn_id =
         GetRtpAbsSendTimeHeaderExtensionId(content_info);
-
-    JsepTransport* transport = GetJsepTransportForMid(content_info.mid());
-    if (!transport) {
-      LOG_AND_RETURN_ERROR(
-          RTCErrorType::INVALID_PARAMETER,
-          "Could not find transport for m= section with mid='" +
-              content_info.mid() + "'");
-    }
 
     SetIceRole_n(DetermineIceRole(transport, transport_info, type, local));
 
@@ -821,12 +833,6 @@ RTCError JsepTransportController::ApplyDescription_n(
           RTCErrorType::INVALID_PARAMETER,
           "Failed to apply the description for m= section with mid='" +
               content_info.mid() + "': " + error.message());
-    }
-    error = transport->RecordPayloadTypes(local, type, content_info);
-    if (!error.ok()) {
-      RTC_LOG(LS_ERROR) << "RecordPayloadTypes failed: "
-                        << ToString(error.type()) << " - " << error.message();
-      return error;
     }
   }
   if (type == SdpType::kAnswer) {

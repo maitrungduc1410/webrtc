@@ -11,8 +11,7 @@
 #ifndef CALL_FAKE_PAYLOAD_TYPE_SUGGESTER_H_
 #define CALL_FAKE_PAYLOAD_TYPE_SUGGESTER_H_
 
-#include <string>
-
+#include "absl/strings/string_view.h"
 #include "api/rtc_error.h"
 #include "call/payload_type.h"
 #include "call/payload_type_picker.h"
@@ -34,6 +33,9 @@ class FakePayloadTypeSuggester : public webrtc::PayloadTypeSuggester {
                                    webrtc::PayloadType payload_type,
                                    const Codec& codec) override {
     return webrtc::RTCError::OK();
+  }
+  const PayloadTypePicker& PayloadTypePickerForTesting() const override {
+    return pt_picker_;
   }
 
  private:

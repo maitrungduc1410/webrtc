@@ -129,16 +129,74 @@ namespace webrtc {
 namespace {
 const int REPORT_USAGE_PATTERN_DELAY_MS = 60000;
 
+// A temporary class to run two PayloadTypeSuggester implementations
+// in parallel and CHECK if they don't agree. To be deleted once the new
+// one is equal to the old one.
+
+// Note: The use of lambdas rather than pointers is to allow this object
+// to be constructed before the pointed-to objects are instantiated.
+class DualPayloadTypeSuggester : public PayloadTypeSuggester {
+ public:
+  DualPayloadTypeSuggester(absl::AnyInvocable<PayloadTypeSuggester*()> first,
+                           absl::AnyInvocable<PayloadTypeSuggester*()> second)
+      : first_(std::move(first)), second_(std::move(second)) {}
+  RTCErrorOr<PayloadType> SuggestPayloadType(absl::string_view mid,
+                                             const Codec& codec) override {
+    RTCErrorOr<PayloadType> first_result =
+        first_()->SuggestPayloadType(mid, codec);
+    RTCErrorOr<PayloadType> second_result =
+        second_()->SuggestPayloadType(mid, codec);
+    RTC_CHECK_EQ(first_result.ok(), second_result.ok());
+    if (first_result.ok()) {
+      if (first_result.value() != second_result.value()) {
+        // Disagreement, this should be debugged.
+        RTC_LOG(LS_ERROR) << "Disagreement in PT on codec " << codec << "\n"
+                          << "Picker 1 status: "
+                          << first_()->PayloadTypePickerForTesting() << "\n"
+                          << "Picker 2 status: "
+                          << second_()->PayloadTypePickerForTesting();
+        // Crash, to facilitate finding.
+        RTC_CHECK_EQ(first_result.value(), second_result.value());
+      }
+    } else {
+      RTC_CHECK_EQ(first_result.error().type(), second_result.error().type());
+    }
+    return first_result;
+  }
+
+  RTCError AddLocalMapping(absl::string_view mid,
+                           PayloadType payload_type,
+                           const Codec& codec) override {
+    RTCError first_result = first_()->AddLocalMapping(mid, payload_type, codec);
+    RTCError second_result =
+        second_()->AddLocalMapping(mid, payload_type, codec);
+    RTC_CHECK_EQ(first_result.ok(), second_result.ok());
+    if (!first_result.ok()) {
+      RTC_CHECK_EQ(first_result.type(), second_result.type());
+    }
+    return first_result;
+  }
+  const PayloadTypePicker& PayloadTypePickerForTesting() const override {
+    RTC_CHECK_NOTREACHED();
+  }
+
+ private:
+  absl::AnyInvocable<PayloadTypeSuggester*()> first_;
+  absl::AnyInvocable<PayloadTypeSuggester*()> second_;
+};
+
 class CodecLookupHelperForPeerConnection : public CodecLookupHelper {
  public:
   explicit CodecLookupHelperForPeerConnection(PeerConnection* self)
       : self_(self),
         codec_vendor_(self_->context()->media_engine(),
                       self_->context()->use_rtx(),
-                      self_->trials()) {}
+                      self_->trials()),
+        pt_suggester_([&] { return self_->transport_controller_s(); },
+                      [&] { return self_->pt_suggester(); }) {}
 
   webrtc::PayloadTypeSuggester* PayloadTypeSuggester() override {
-    return self_->transport_controller_s();
+    return &pt_suggester_;
   }
 
   CodecVendor* GetCodecVendor() override { return &codec_vendor_; }
@@ -146,6 +204,7 @@ class CodecLookupHelperForPeerConnection : public CodecLookupHelper {
  private:
   PeerConnection* self_;
   CodecVendor codec_vendor_;
+  DualPayloadTypeSuggester pt_suggester_;
 };
 
 uint32_t ConvertIceTransportTypeToCandidateFilter(

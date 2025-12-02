@@ -54,6 +54,7 @@
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "api/video/video_codec_constants.h"
 #include "call/payload_type.h"
+#include "call/payload_type_picker.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
 #include "media/base/media_constants.h"
@@ -973,6 +974,100 @@ void UpdateRtpHeaderExtensionPreferencesFromSdpMunging(
   }
 }
 
+// Implementation of the SdpPayloadTypeSuggester
+RTCErrorOr<PayloadType> SdpPayloadTypeSuggester::SuggestPayloadType(
+    absl::string_view mid,
+    const Codec& codec) {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  PayloadTypeRecorder& local_recorder = LookupRecorder(mid, /* local= */ true);
+  {  // Local scope to limit lifetime of local_result.
+    RTCErrorOr<PayloadType> local_result =
+        local_recorder.LookupPayloadType(codec);
+    if (local_result.ok()) {
+      return local_result;
+    }
+  }
+  PayloadTypeRecorder& remote_recorder =
+      LookupRecorder(mid, /* local= */ false);
+  RTCErrorOr<PayloadType> remote_result =
+      remote_recorder.LookupPayloadType(codec);
+  if (remote_result.ok()) {
+    RTCErrorOr<Codec> local_codec =
+        local_recorder.LookupCodec(remote_result.value());
+    if (!local_codec.ok()) {
+      // Tell the local payload type registry that we've taken this
+      RTC_DCHECK(local_codec.error().type() == RTCErrorType::INVALID_PARAMETER);
+      AddLocalMapping(mid, remote_result.value(), codec);
+      return remote_result;
+    }
+    // If we get here, PT is already in use, possibly for something else.
+    // Fall through to SuggestMapping.
+  }
+  return payload_type_picker_.SuggestMapping(codec, &local_recorder);
+}
+
+RTCError SdpPayloadTypeSuggester::AddLocalMapping(absl::string_view mid,
+                                                  PayloadType payload_type,
+                                                  const Codec& codec) {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  PayloadTypeRecorder& recorder = LookupRecorder(mid, /* local= */ true);
+  return recorder.AddMapping(payload_type, codec);
+}
+
+RTCError SdpPayloadTypeSuggester::Update(const SessionDescription* description,
+                                         bool local,
+                                         SdpType type) {
+  bundle_manager_.Update(description, type);
+  if (type == SdpType::kAnswer) {
+    bundle_manager_.Commit();
+  }
+  for (const ContentInfo& content : description->contents()) {
+    if (content.rejected) {
+      continue;
+    }
+    PayloadTypeRecorder& recorder = LookupRecorder(content.mid(), local);
+    recorder.DisallowRedefinition();
+    RTCError error;
+    for (auto codec : content.media_description()->codecs()) {
+      error = recorder.AddMapping(codec.id, codec);
+      if (!error.ok()) {
+        break;
+      }
+    }
+    recorder.ReallowRedefinition();
+    if (!error.ok()) {
+      return error;
+    }
+  }
+  return RTCError::OK();
+}
+
+PayloadTypeRecorder& SdpPayloadTypeSuggester::LookupRecorder(
+    absl::string_view mid,
+    bool local) {
+  const ContentGroup* group = bundle_manager_.LookupGroupByMid(mid);
+  std::string transport_mapped_name;
+  if (group) {
+    const std::string* group_name = group->FirstContentName();
+    RTC_CHECK(group_name);  // empty groups should be impossible here
+    transport_mapped_name = *group_name;
+  } else {
+    // Not in a group.
+    transport_mapped_name = mid;
+  }
+  if (!recorder_by_mid_.contains(transport_mapped_name)) {
+    recorder_by_mid_.emplace(std::make_pair(
+        transport_mapped_name, BundleTypeRecorder(payload_type_picker_)));
+  }
+  if (local) {
+    return recorder_by_mid_.at(transport_mapped_name).local_payload_types();
+  } else {
+    return recorder_by_mid_.at(transport_mapped_name).remote_payload_types();
+  }
+}
+
+// End of implementation of SdpPayloadTypeSuggester
+
 // This class stores state related to a SetRemoteDescription operation, captures
 // and reports potential errors that might occur and makes sure to notify the
 // observer of the operation and the operations chain of completion.
@@ -1456,6 +1551,7 @@ SdpOfferAnswerHandler::SdpOfferAnswerHandler(const Environment& env,
       operations_chain_(OperationsChain::Create()),
       rtcp_cname_(GenerateRtcpCname()),
       local_ice_credentials_to_replace_(new LocalIceCredentialsToReplace()),
+      pt_suggester_(pc_->configuration()->bundle_policy),
       weak_ptr_factory_(this) {
   operations_chain_->SetOnChainEmptyCallback(
       [this_weak_ptr = weak_ptr_factory_.GetWeakPtr()]() {
@@ -2183,6 +2279,10 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
 
   if (operation->HaveSessionError())
     return;
+
+  // We have now decided that the operation will be applied.
+  pt_suggester_.Update(remote_description()->description(),
+                       /* local= */ false, remote_description()->GetType());
 
   // Set the the ICE connection state to connecting since the connection may
   // become writable with peer reflexive candidates before any remote candidate
@@ -5261,12 +5361,16 @@ RTCError SdpOfferAnswerHandler::PushdownTransportDescription(
   if (source == CS_LOCAL) {
     const SessionDescriptionInterface* sdesc = local_description();
     RTC_DCHECK(sdesc);
+    // Inform our local bundle manager of the changes
+    pt_suggester_.Update(sdesc->description(), /* local= */ true, type);
     const auto* remote = remote_description();
     return transport_controller_s()->SetLocalDescription(
         type, sdesc->description(), remote ? remote->description() : nullptr);
   } else {
     const SessionDescriptionInterface* sdesc = remote_description();
     RTC_DCHECK(sdesc);
+    // Inform our local bundle manager of the changes
+    pt_suggester_.Update(sdesc->description(), /* local= */ false, type);
     const auto* local = local_description();
     return transport_controller_s()->SetRemoteDescription(
         type, local ? local->description() : nullptr, sdesc->description());
