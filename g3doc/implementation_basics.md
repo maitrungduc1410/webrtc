@@ -116,9 +116,6 @@ deadlocks or unintended consequences.
 The following non-exhaustive list of synchronization primitives are
 in the (slow) process of being removed from the codebase.
 
-* sigslot. Use [webrtc::CallbackList][4] instead, or, when there's only one
-  signal consumer, a single std::function.
-  
 * AsyncInvoker.
 
 * RecursiveCriticalSection. Try to use [webrtc::Mutex][6] instead, and don't recurse.
