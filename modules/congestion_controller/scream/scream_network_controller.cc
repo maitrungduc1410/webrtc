@@ -190,8 +190,6 @@ NetworkControlUpdate ScreamNetworkController::CreateUpdate(Timestamp now) {
     update.target_rate = target_rate_msg;
   }
   update.pacer_config = MaybeCreatePacerConfig();
-  // TODO: bugs.webrtc.org/447037083 - How do we ensure packets are resent
-  // eventually if all feedback packets are lost or all data in flight is lost?
   update.congestion_window = scream_->max_data_in_flight();
   return update;
 }

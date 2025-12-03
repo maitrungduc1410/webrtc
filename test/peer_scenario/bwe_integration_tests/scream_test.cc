@@ -40,6 +40,7 @@ namespace {
 
 using test::GetAvailableSendBitrate;
 using test::GetFirstReportAtOrAfter;
+using test::GetPacketsLost;
 using test::GetPacketsReceived;
 using test::GetPacketsReceivedWithCe;
 using test::GetPacketsReceivedWithEct1;
@@ -64,6 +65,18 @@ MATCHER_P2(AvailableSendBitrateIsBetween, low, high, "") {
   return false;
 }
 
+std::vector<EmulatedNetworkNode*> CreateNetworkPath(
+    NetworkEmulationManager::SimulatedNetworkNode::Builder& network_builder,
+    bool use_dual_pi) {
+  std::unique_ptr<NetworkQueueFactory> queue_factory;
+  if (use_dual_pi) {
+    queue_factory = std::make_unique<DualPi2NetworkQueueFactory>(
+        DualPi2NetworkQueue::Config({.target_delay = TimeDelta::Millis(10)}));
+    network_builder.queue_factory(*queue_factory);
+  }
+  return {network_builder.Build().node};
+}
+
 std::vector<EmulatedNetworkNode*> CreateNetworkPath(PeerScenario& s,
                                                     bool use_dual_pi,
                                                     DataRate link_capacity,
@@ -73,13 +86,7 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPath(PeerScenario& s,
           ->NodeBuilder()
           .capacity(link_capacity)
           .delay_ms(one_way_delay.ms());
-  std::unique_ptr<NetworkQueueFactory> queue_factory;
-  if (use_dual_pi) {
-    queue_factory = std::make_unique<DualPi2NetworkQueueFactory>(
-        DualPi2NetworkQueue::Config({.target_delay = TimeDelta::Millis(10)}));
-    network_builder.queue_factory(*queue_factory);
-  }
-  return {network_builder.Build().node};
+  return CreateNetworkPath(network_builder, use_dual_pi);
 }
 
 std::vector<EmulatedNetworkNode*> CreateNetworkPathWithPauseBetween3sAnd6s(
@@ -155,6 +162,7 @@ struct SendMediaTestParams {
       {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
       {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
+  bool send_audio = true;
   PeerScenarioClient::VideoSendTrackConfig caller_video_conf = {
       .generator = {.squares_video =
                         test::FrameGeneratorCapturerConfig::SquaresVideo{
@@ -177,7 +185,9 @@ SendMediaTestResult SendMediaInOneDirection(SendMediaTestParams params,
   PeerScenarioClient* caller = s.CreateClient(config);
   PeerScenarioClient* callee = s.CreateClient(config);
 
-  caller->CreateAudio("AUDIO_1", {});
+  if (params.send_audio) {
+    caller->CreateAudio("AUDIO_1", {});
+  }
   caller->CreateVideo("VIDEO_1", params.caller_video_conf);
 
   s.SimpleConnection(caller, callee, std::move(params.caller_to_callee_path),
@@ -484,5 +494,92 @@ TEST(ScreamTest, ScreencastSlideChangeRepeatedDelaySpikes) {
                                               DataRate::KilobitsPerSec(100),
                                               DataRate::KilobitsPerSec(4000))));
 }
+
+TEST(ScreamTest, LinkCapacity1MbitRtt50msWithShortQueuesNoEcn) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  NetworkEmulationManager::SimulatedNetworkNode::Builder network_builder =
+      s.net()->NodeBuilder().capacity_Mbps(1).delay_ms(25);
+  params.callee_to_caller_path =
+      CreateNetworkPath(network_builder, /*use_dual_pi= */ false);
+  params.caller_to_callee_path = CreateNetworkPath(
+      network_builder.packet_queue_length(3), /*use_dual_pi= */ false);
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // Ignore estimate during rampup.
+  EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(300),
+                                              DataRate::KilobitsPerSec(1100))));
+}
+
+TEST(ScreamTest, LinkCapacity1MbitRtt50msWith10PercentRandomLossNoEcn) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  NetworkEmulationManager::SimulatedNetworkNode::Builder network_builder =
+      s.net()->NodeBuilder().capacity_Mbps(1).delay_ms(25);
+  params.callee_to_caller_path =
+      CreateNetworkPath(network_builder, /*use_dual_pi= */ false);
+  params.caller_to_callee_path =
+      CreateNetworkPath(network_builder.loss(0.1), /*use_dual_pi= */ false);
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  ASSERT_GE(GetPacketsLost(result.callee_stats.back()),
+            0.05 * GetPacketsSent(result.caller_stats.back()));
+  // Ignore estimate during rampup.
+  EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(300),
+                                              DataRate::KilobitsPerSec(1100))));
+}
+
+TEST(ScreamTest, ReturnLinkWithBurstLoss) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{.test_duration = TimeDelta::Seconds(20)};
+  NetworkEmulationManager::SimulatedNetworkNode::Builder network_builder =
+      s.net()->NodeBuilder().capacity_Mbps(1).delay_ms(25);
+  params.caller_to_callee_path =
+      CreateNetworkPath(network_builder, /*use_dual_pi= */ false);
+
+  params.callee_to_caller_path =
+      CreateNetworkPath(network_builder.loss(0.2).avg_burst_loss_length(3),
+                        /*use_dual_pi= */ false);
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // Audio packets are sent even if congestion window is full and ensures
+  // feedback is eventually received even if feedback packets are lost.
+  EXPECT_GT(GetPacketsSent(result.caller_stats.back()),
+            GetPacketsSent(result.caller_stats[5]));
+  EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(300),
+                                              DataRate::KilobitsPerSec(1100))));
+}
+
+TEST(ScreamTest, SendVideoOnlyReturnLinkWithBurstLoss) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.send_audio = false;
+  NetworkEmulationManager::SimulatedNetworkNode::Builder network_builder =
+      s.net()->NodeBuilder().capacity_Mbps(1).delay_ms(25);
+  params.send_audio = false;
+  params.caller_to_callee_path =
+      CreateNetworkPath(network_builder, /*use_dual_pi= */ false);
+  params.callee_to_caller_path =
+      CreateNetworkPath(network_builder.loss(0.2).avg_burst_loss_length(3),
+                        /*use_dual_pi= */ false);
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // Keep alive packets are used for ensuring feedback is eventually received
+  // even if feedback packets are lost. Due to that the pacer pace out all
+  // packets to fast if queued too long, BWE drop to a very low value.
+  EXPECT_GT(GetPacketsSent(result.caller_stats.back()),
+            GetPacketsSent(result.caller_stats[5]));
+  EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(50),
+                                              DataRate::KilobitsPerSec(1100))));
+}
+
 }  // namespace
 }  // namespace webrtc
