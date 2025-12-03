@@ -1589,6 +1589,7 @@ void SdpOfferAnswerHandler::Initialize(
         video_bitrate_allocator_factory,
     ConnectionContext* context,
     CodecLookupHelper* codec_lookup_helper) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   // 100 kbps is used by default, but can be overriden by a non-standard
   // RTCConfiguration value (not available on Web).
@@ -1698,15 +1699,18 @@ const RtpTransmissionManager* SdpOfferAnswerHandler::rtp_manager() const {
 // ===================================================================
 
 void SdpOfferAnswerHandler::PrepareForShutdown() {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   weak_ptr_factory_.InvalidateWeakPtrs();
 }
 
 void SdpOfferAnswerHandler::Close() {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   ChangeSignalingState(PeerConnectionInterface::kClosed);
 }
 
 void SdpOfferAnswerHandler::RestartIce() {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   local_ice_credentials_to_replace_->SetIceCredentialsFromLocalDescriptions(
       current_local_description(), pending_local_description());
@@ -1724,6 +1728,7 @@ Thread* SdpOfferAnswerHandler::network_thread() const {
 void SdpOfferAnswerHandler::CreateOffer(
     CreateSessionDescriptionObserver* observer,
     const PeerConnectionInterface::RTCOfferAnswerOptions& options) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   // Chain this operation. If asynchronous operations are pending on the chain,
   // this operation will be queued to be invoked, otherwise the contents of the
@@ -1753,6 +1758,7 @@ void SdpOfferAnswerHandler::CreateOffer(
 void SdpOfferAnswerHandler::SetLocalDescription(
     SetSessionDescriptionObserver* observer,
     SessionDescriptionInterface* desc_ptr) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(desc_ptr);
   RTC_DCHECK(observer);
@@ -1790,6 +1796,7 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 void SdpOfferAnswerHandler::SetLocalDescription(
     std::unique_ptr<SessionDescriptionInterface> desc,
     scoped_refptr<SetLocalDescriptionObserverInterface> observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(desc);
   RTC_DCHECK(observer);
@@ -1818,6 +1825,7 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 
 void SdpOfferAnswerHandler::SetLocalDescription(
     SetSessionDescriptionObserver* observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(observer);
   SetLocalDescription(make_ref_counted<SetSessionDescriptionObserverAdapter>(
@@ -1827,6 +1835,7 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 
 void SdpOfferAnswerHandler::SetLocalDescription(
     scoped_refptr<SetLocalDescriptionObserverInterface> observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(observer);
   // The `create_sdp_observer` handles performing DoSetLocalDescription() with
@@ -1884,6 +1893,7 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     std::unique_ptr<SessionDescriptionInterface> desc,
     const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::ApplyLocalDescription");
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(desc);
@@ -2228,6 +2238,7 @@ RTCError SdpOfferAnswerHandler::ReplaceRemoteDescription(
 
 void SdpOfferAnswerHandler::ApplyRemoteDescription(
     std::unique_ptr<RemoteDescriptionOperation> operation) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::ApplyRemoteDescription");
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(operation->description());
@@ -2558,6 +2569,7 @@ void SdpOfferAnswerHandler::ReportInitialSdpMunging(bool had_local_description,
 void SdpOfferAnswerHandler::DoSetLocalDescription(
     std::unique_ptr<SessionDescriptionInterface> desc,
     scoped_refptr<SetLocalDescriptionObserverInterface> observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::DoSetLocalDescription");
   RTC_DCHECK(desc);
@@ -2745,6 +2757,7 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
 void SdpOfferAnswerHandler::DoCreateOffer(
     const PeerConnectionInterface::RTCOfferAnswerOptions& options,
     scoped_refptr<CreateSessionDescriptionObserver> observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::DoCreateOffer");
 
@@ -2839,6 +2852,7 @@ void SdpOfferAnswerHandler::CreateAnswer(
 void SdpOfferAnswerHandler::DoCreateAnswer(
     const PeerConnectionInterface::RTCOfferAnswerOptions& options,
     scoped_refptr<CreateSessionDescriptionObserver> observer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::DoCreateAnswer");
   if (!observer) {
@@ -2902,6 +2916,7 @@ void SdpOfferAnswerHandler::DoCreateAnswer(
 
 void SdpOfferAnswerHandler::DoSetRemoteDescription(
     std::unique_ptr<RemoteDescriptionOperation> operation) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::DoSetRemoteDescription");
 
@@ -2927,6 +2942,7 @@ void SdpOfferAnswerHandler::DoSetRemoteDescription(
 
 // Called after a DoSetRemoteDescription operation completes.
 void SdpOfferAnswerHandler::SetRemoteDescriptionPostProcess(bool was_answer) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK(remote_description());
 
   if (was_answer) {
@@ -2960,6 +2976,7 @@ void SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
     const std::vector<std::string>& stream_ids,
     std::vector<scoped_refptr<MediaStreamInterface>>* added_streams,
     std::vector<scoped_refptr<MediaStreamInterface>>* removed_streams) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   std::vector<scoped_refptr<MediaStreamInterface>> media_streams;
   for (const std::string& stream_id : stream_ids) {
@@ -2997,6 +3014,7 @@ void SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
 }
 
 bool SdpOfferAnswerHandler::AddIceCandidate(const IceCandidate* ice_candidate) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   const AddIceCandidateResult result = AddIceCandidateInternal(ice_candidate);
   NoteAddIceCandidateResult(result);
   // If the return value is kAddIceCandidateFailNotReady, the candidate has
@@ -5598,6 +5616,7 @@ bool SdpOfferAnswerHandler::ReadyToUseRemoteCandidate(
 RTCErrorOr<const ContentInfo*> SdpOfferAnswerHandler::FindContentInfo(
     const SessionDescriptionInterface* description,
     const IceCandidate* candidate) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   if (!candidate->sdp_mid().empty()) {
     auto& contents = description->description()->contents();
     auto it =
@@ -5632,6 +5651,7 @@ RTCErrorOr<const ContentInfo*> SdpOfferAnswerHandler::FindContentInfo(
 }
 
 RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::CreateChannels");
   // Creating the media channels. Transports should already have been created
   // at this point.
@@ -5682,12 +5702,11 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
 }
 
 void SdpOfferAnswerHandler::DestroyMediaChannels() {
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (!transceivers()) {
     return;
   }
-
-  RTC_LOG_THREAD_BLOCK_COUNT();
 
   // Destroy video channels first since they may have a pointer to a voice
   // channel.
