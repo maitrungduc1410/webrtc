@@ -166,6 +166,18 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // Clear the association between the transceiver and the channel.
   void ClearChannel();
 
+  // Returns a task that clears the channel's network related state.
+  // The task must be executed on the network thread.
+  // This is used by SdpOfferAnswerHandler::DestroyMediaChannels to batch
+  // network thread operations.
+  absl::AnyInvocable<void() &&> GetClearChannelNetworkTask();
+
+  // Returns a task that deletes the channel.
+  // The task must be executed on the worker thread.
+  // This is used by SdpOfferAnswerHandler::DestroyMediaChannels to batch
+  // worker thread operations.
+  absl::AnyInvocable<void() &&> GetDeleteChannelWorkerTask();
+
   // Adds an RtpSender of the appropriate type to be owned by this transceiver.
   // Must not be null.
   void AddSender(
@@ -321,9 +333,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // Tell the senders and receivers about possibly-new media channels
   // in a newly created `channel_`.
   void PushNewMediaChannel();
-  // Delete `channel_`, and ensure that references to its media channels
-  // are updated before deleting it.
-  void DeleteChannel();
 
   RTCError UpdateCodecPreferencesCaches(
       const std::vector<RtpCodecCapability>& codecs);

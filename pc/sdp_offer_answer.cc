@@ -5711,18 +5711,45 @@ void SdpOfferAnswerHandler::DestroyMediaChannels() {
   // Destroy video channels first since they may have a pointer to a voice
   // channel.
   auto list = transceivers()->List();
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(0);
+  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
 
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::VIDEO) {
-      transceiver->internal()->ClearChannel();
+      if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
+        network_tasks.push_back(std::move(task));
+      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask())
+        worker_tasks.push_back(std::move(task));
     }
   }
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::AUDIO) {
-      transceiver->internal()->ClearChannel();
+      if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
+        network_tasks.push_back(std::move(task));
+      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask())
+        worker_tasks.push_back(std::move(task));
     }
   }
+
+  if (!network_tasks.empty()) {
+    network_thread()->BlockingCall([&network_tasks] {
+      for (auto& task : network_tasks) {
+        std::move(task)();
+        task = nullptr;
+      }
+    });
+  }
+
+  if (!worker_tasks.empty()) {
+    context_->worker_thread()->BlockingCall([&worker_tasks] {
+      for (auto& task : worker_tasks) {
+        std::move(task)();
+        task = nullptr;
+      }
+    });
+  }
+
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
 
 void SdpOfferAnswerHandler::GenerateMediaDescriptionOptions(

@@ -337,11 +337,11 @@ void RtpTransceiver::SetChannel(
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
 
-void RtpTransceiver::ClearChannel() {
+absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   RTC_DCHECK_RUN_ON(thread_);
 
   if (!channel_) {
-    return;
+    return nullptr;
   }
 
   RTC_LOG_THREAD_BLOCK_COUNT();
@@ -349,17 +349,57 @@ void RtpTransceiver::ClearChannel() {
   signaling_thread_safety_->SetNotAlive();
   signaling_thread_safety_ = nullptr;
 
-  context()->network_thread()->BlockingCall([&]() {
-    channel_->SetFirstPacketReceivedCallback(nullptr);
-    channel_->SetFirstPacketSentCallback(nullptr);
-    channel_->SetPacketReceivedCallback_n(nullptr);
-    channel_->SetRtpTransport(nullptr);
-  });
+  ChannelInterface* channel = channel_.get();
+  return [channel] {
+    channel->SetFirstPacketReceivedCallback(nullptr);
+    channel->SetFirstPacketSentCallback(nullptr);
+    channel->SetPacketReceivedCallback_n(nullptr);
+    channel->SetRtpTransport(nullptr);
+  };
+}
 
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
-  DeleteChannel();
+absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask() {
+  RTC_DCHECK_RUN_ON(thread_);
 
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
+  if (!channel_) {
+    return nullptr;
+  }
+
+  // Ensure that channel_ is not reachable via transceiver, but is deleted
+  // only after clearing the references in senders_ and receivers_.
+  return [this, channel = std::move(channel_), senders = senders_,
+          receivers = receivers_]() mutable {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
+    // Clear the media channel reference from senders and receivers.
+    for (const auto& sender : senders) {
+      sender->internal()->SetMediaChannel(nullptr);
+    }
+    for (const auto& receiver : receivers) {
+      receiver->internal()->SetMediaChannel(nullptr);
+    }
+    // The channel is destroyed here, on the worker thread as it needs to
+    // be.
+    channel.reset();
+    media_engine_ref_.reset();
+  };
+}
+
+void RtpTransceiver::ClearChannel() {
+  RTC_DCHECK_RUN_ON(thread_);
+  if (!channel_) {
+    return;
+  }
+
+  absl::AnyInvocable<void() &&> network_task = GetClearChannelNetworkTask();
+  if (network_task) {
+    context()->network_thread()->BlockingCall(
+        [&] { std::move(network_task)(); });
+  }
+
+  absl::AnyInvocable<void() &&> worker_task = GetDeleteChannelWorkerTask();
+  if (worker_task) {
+    context()->worker_thread()->BlockingCall([&] { std::move(worker_task)(); });
+  }
 }
 
 void RtpTransceiver::PushNewMediaChannel() {
@@ -379,27 +419,6 @@ void RtpTransceiver::PushNewMediaChannel() {
     for (const auto& receiver : receivers_) {
       receiver->internal()->SetMediaChannel(media_receive_channel);
     }
-  });
-}
-
-void RtpTransceiver::DeleteChannel() {
-  RTC_DCHECK(channel_);
-  // Ensure that channel_ is not reachable via transceiver, but is deleted
-  // only after clearing the references in senders_ and receivers_.
-  context()->worker_thread()->BlockingCall([&]() {
-    RTC_DCHECK_RUN_ON(context()->worker_thread());
-    auto channel_to_delete = std::move(channel_);
-    // Clear the media channel reference from senders and receivers.
-    for (const auto& sender : senders_) {
-      sender->internal()->SetMediaChannel(nullptr);
-    }
-    for (const auto& receiver : receivers_) {
-      receiver->internal()->SetMediaChannel(nullptr);
-    }
-    // The channel is destroyed here, on the worker thread as it needs to
-    // be.
-    channel_to_delete.reset();
-    media_engine_ref_.reset();
   });
 }
 
