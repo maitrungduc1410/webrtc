@@ -24,6 +24,7 @@ if (rtc_include_tests) {
       sources += [
         "bwe_ramp_up_test.cc",
         "l4s_test.cc",
+        "receive_side_bwe_test.cc",
         "scream_test.cc",
         "stats_utilities.cc",
         "stats_utilities.h",
@@ -54,6 +55,8 @@ if (rtc_include_tests) {
         "../../../api/units:time_delta",
         "../../../api/units:timestamp",
         "../../../api/video:video_frame",
+        "../../../media:codec",
+        "../../../media:media_constants",
         "../../../media:stream_params",
         "../../../modules/rtp_rtcp:rtp_rtcp_format",
         "../../../pc:media_session",
