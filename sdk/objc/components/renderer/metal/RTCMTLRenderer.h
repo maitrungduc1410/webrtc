@@ -21,7 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * Protocol defining ability to render RTCVideoFrame in Metal enabled views.
  */
-@protocol RTCMTLRenderer <NSObject>
+@protocol RTC_OBJC_TYPE
+(RTCMTLRenderer)<NSObject>
 
 /**
  * Method to be implemented to perform actual rendering of the provided frame.
