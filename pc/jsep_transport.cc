@@ -28,7 +28,6 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
-#include "call/payload_type_picker.h"
 #include "media/sctp/sctp_transport_internal.h"
 #include "p2p/base/ice_transport_internal.h"
 #include "p2p/base/p2p_constants.h"
@@ -92,8 +91,7 @@ JsepTransport::JsepTransport(
     std::unique_ptr<RtpTransport> rtp_transport,
     scoped_refptr<DtlsTransport> rtp_dtls_transport,
     std::unique_ptr<SctpTransportInternal> sctp_transport,
-    absl::AnyInvocable<void()> rtcp_mux_active_callback,
-    PayloadTypePicker& suggester)
+    absl::AnyInvocable<void()> rtcp_mux_active_callback)
     : local_certificate_(local_certificate),
       rtp_transport_(std::move(rtp_transport)),
       rtp_dtls_transport_(std::move(rtp_dtls_transport)),
@@ -102,9 +100,7 @@ JsepTransport::JsepTransport(
                                 std::move(sctp_transport),
                                 rtp_dtls_transport_)
                           : nullptr),
-      rtcp_mux_active_callback_(std::move(rtcp_mux_active_callback)),
-      remote_payload_types_(suggester),
-      local_payload_types_(suggester) {
+      rtcp_mux_active_callback_(std::move(rtcp_mux_active_callback)) {
   TRACE_EVENT0("webrtc", "JsepTransport::JsepTransport");
   RTC_DCHECK(rtp_dtls_transport_);
   RTC_DCHECK(rtp_transport_);
@@ -339,34 +335,6 @@ RTCError JsepTransport::VerifyCertificateFingerprint(
   desc << fp_tmp->ToString();
   desc << " Got: " << fingerprint->ToString();
   return RTCError(RTCErrorType::INVALID_PARAMETER, std::string(desc.str()));
-}
-
-RTCError JsepTransport::RecordPayloadTypes(bool local,
-                                           SdpType type,
-                                           const ContentInfo& content) {
-  RTC_DCHECK_RUN_ON(&transport_sequence_);
-  if (local) {
-    local_payload_types_.DisallowRedefinition();
-  } else {
-    remote_payload_types_.DisallowRedefinition();
-  }
-  RTCError result = RTCError::OK();
-  for (auto codec : content.media_description()->codecs()) {
-    if (local) {
-      result = local_payload_types_.AddMapping(codec.id, codec);
-    } else {
-      result = remote_payload_types_.AddMapping(codec.id, codec);
-    }
-    if (!result.ok()) {
-      break;
-    }
-  }
-  if (local) {
-    local_payload_types_.ReallowRedefinition();
-  } else {
-    remote_payload_types_.ReallowRedefinition();
-  }
-  return result;
 }
 
 void JsepTransport::SetRemoteIceParameters(

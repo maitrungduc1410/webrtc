@@ -58,10 +58,6 @@ class PayloadTypeSuggester {
   virtual RTCError AddLocalMapping(absl::string_view mid,
                                    PayloadType payload_type,
                                    const Codec& codec) = 0;
-  // Debug helper, needed for an error message in transition.
-  // Will be removed once the need for the error message is gone.
-  // TODO: https://issues.webrtc.org/360058654 - remove
-  virtual const PayloadTypePicker& PayloadTypePickerForTesting() const = 0;
 };
 
 }  // namespace webrtc

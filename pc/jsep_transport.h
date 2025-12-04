@@ -23,7 +23,6 @@
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/transport/data_channel_transport_interface.h"
-#include "call/payload_type_picker.h"
 #include "media/sctp/sctp_transport_internal.h"
 #include "p2p/base/ice_transport_internal.h"
 #include "p2p/base/transport_description.h"
@@ -80,8 +79,7 @@ class JsepTransport {
                 std::unique_ptr<RtpTransport> rtp_transport,
                 scoped_refptr<DtlsTransport> rtp_dtls_transport,
                 std::unique_ptr<SctpTransportInternal> sctp_transport,
-                absl::AnyInvocable<void()> rtcp_mux_active_callback,
-                PayloadTypePicker& suggester);
+                absl::AnyInvocable<void()> rtcp_mux_active_callback);
 
   ~JsepTransport();
 
@@ -195,25 +193,6 @@ class JsepTransport {
       const RTCCertificate* certificate,
       const SSLFingerprint* fingerprint) const;
 
-  // Record the PT mappings from a single media section.
-  // This is used to store info needed when generating subsequent SDP.
-  RTCError RecordPayloadTypes(bool local,
-                              SdpType type,
-                              const ContentInfo& content);
-
-  const PayloadTypeRecorder& remote_payload_types() const {
-    return remote_payload_types_;
-  }
-  const PayloadTypeRecorder& local_payload_types() const {
-    return local_payload_types_;
-  }
-  PayloadTypeRecorder& local_payload_types() { return local_payload_types_; }
-  void CommitPayloadTypes() {
-    RTC_DCHECK_RUN_ON(&transport_sequence_);
-    local_payload_types_.Commit();
-    remote_payload_types_.Commit();
-  }
-
  private:
   bool SetRtcpMux(bool enable, SdpType type, ContentSource source);
 
@@ -283,11 +262,6 @@ class JsepTransport {
   // `rtcp_dtls_transport_` is destroyed. The JsepTransportController will
   // receive the callback and update the aggregate transport states.
   absl::AnyInvocable<void()> rtcp_mux_active_callback_;
-
-  // Assigned PTs from the remote description, used when sending.
-  PayloadTypeRecorder remote_payload_types_ RTC_GUARDED_BY(transport_sequence_);
-  // Assigned PTs from the local description, used when receiving.
-  PayloadTypeRecorder local_payload_types_ RTC_GUARDED_BY(transport_sequence_);
 };
 
 }  //  namespace webrtc

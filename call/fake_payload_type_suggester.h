@@ -34,9 +34,6 @@ class FakePayloadTypeSuggester : public webrtc::PayloadTypeSuggester {
                                    const Codec& codec) override {
     return webrtc::RTCError::OK();
   }
-  const PayloadTypePicker& PayloadTypePickerForTesting() const override {
-    return pt_picker_;
-  }
 
  private:
   webrtc::PayloadTypePicker pt_picker_;

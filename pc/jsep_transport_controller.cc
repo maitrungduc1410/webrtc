@@ -38,9 +38,6 @@
 #include "api/transport/ecn_marking.h"
 #include "api/transport/enums.h"
 #include "api/units/timestamp.h"
-#include "call/payload_type.h"
-#include "call/payload_type_picker.h"
-#include "media/base/codec.h"
 #include "media/sctp/sctp_transport_internal.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "p2p/base/ice_transport_internal.h"
@@ -78,7 +75,6 @@ JsepTransportController::JsepTransportController(
     PortAllocator* port_allocator,
     AsyncDnsResolverFactoryInterface* async_dns_resolver_factory,
     LocalNetworkAccessPermissionFactoryInterface* lna_permission_factory,
-    PayloadTypePicker& payload_type_picker,
     Config config)
     : env_(env),
       signaling_thread_(signaling_thread),
@@ -95,8 +91,7 @@ JsepTransportController::JsepTransportController(
             UpdateAggregateStates_n();
           }),
       config_(std::move(config)),
-      bundles_(config_.bundle_policy),
-      payload_type_picker_(payload_type_picker) {
+      bundles_(config_.bundle_policy) {
   RTC_DCHECK(signaling_thread_);
   RTC_DCHECK(network_thread_);
   // The `transport_observer` is assumed to be non-null.
@@ -280,82 +275,6 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
     return std::optional<SSLRole>();
   }
   return t->GetDtlsRole();
-}
-
-RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType(
-    absl::string_view mid,
-    const Codec& codec) {
-  RTC_DCHECK_RUN_ON(signaling_thread_);
-  // Because SDP processing runs on the signal thread and Call processing
-  // runs on the worker thread, we allow cross thread invocation until we
-  // can clean up the thread work.
-  return network_thread_->BlockingCall([&] {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    return SuggestPayloadType_n(mid, codec);
-  });
-}
-
-RTCErrorOr<PayloadType> JsepTransportController::SuggestPayloadType_n(
-    absl::string_view mid,
-    const Codec& codec) {
-  const JsepTransport* transport = GetJsepTransportForMid(mid);
-  if (!transport) {
-    // If there is no transport, there are no exclusions.
-    return payload_type_picker_.SuggestMapping(codec, nullptr);
-  }
-
-  RTCErrorOr<PayloadType> local_result =
-      transport->local_payload_types().LookupPayloadType(codec);
-  if (local_result.ok()) {
-    return local_result;
-  }
-
-  RTCErrorOr<PayloadType> remote_result =
-      transport->remote_payload_types().LookupPayloadType(codec);
-  if (!remote_result.ok()) {
-    return payload_type_picker_.SuggestMapping(
-        codec, &transport->local_payload_types());
-  }
-
-  if (remote_result.ok()) {
-    RTCErrorOr<Codec> local_codec =
-        transport->local_payload_types().LookupCodec(remote_result.value());
-    if (local_codec.ok()) {
-      // Already in use, possibly for something else.
-      // Fall through to SuggestMapping.
-      RTC_LOG(LS_WARNING) << "Ignoring remote suggestion of PT "
-                          << static_cast<int>(remote_result.value()) << " for "
-                          << codec << "; already in use";
-    } else {
-      // Tell the local payload type registry that we've taken this
-      RTC_DCHECK(local_codec.error().type() == RTCErrorType::INVALID_PARAMETER);
-      AddLocalMapping(mid, remote_result.value(), codec);
-      return remote_result;
-    }
-  }
-  return payload_type_picker_.SuggestMapping(codec,
-                                             &transport->local_payload_types());
-}
-
-RTCError JsepTransportController::AddLocalMapping(absl::string_view mid,
-                                                  PayloadType payload_type,
-                                                  const Codec& codec) {
-  // Because SDP processing runs on the signal thread and Call processing
-  // runs on the worker thread, we allow cross thread invocation until we
-  // can clean up the thread work.
-  if (!network_thread_->IsCurrent()) {
-    return network_thread_->BlockingCall([&] {
-      RTC_DCHECK_RUN_ON(network_thread_);
-      return AddLocalMapping(mid, payload_type, codec);
-    });
-  }
-  RTC_DCHECK_RUN_ON(network_thread_);
-  JsepTransport* transport = GetJsepTransportForMid(mid);
-  if (!transport) {
-    return RTCError(RTCErrorType::INVALID_PARAMETER,
-                    "AddLocalMapping: no transport for mid");
-  }
-  return transport->local_payload_types().AddMapping(payload_type, codec);
 }
 
 bool JsepTransportController::SetLocalCertificate(
@@ -781,12 +700,6 @@ RTCError JsepTransportController::ApplyDescription_n(
           RTCErrorType::INVALID_PARAMETER,
           "Could not find transport for m= section with mid='" +
               content_info.mid() + "'");
-    }
-    error = transport->RecordPayloadTypes(local, type, content_info);
-    if (!error.ok()) {
-      RTC_LOG(LS_ERROR) << "RecordPayloadTypes failed: "
-                        << ToString(error.type()) << " - " << error.message();
-      return error;
     }
 
     if (established_bundle_group &&
@@ -1230,14 +1143,12 @@ RTCError JsepTransportController::MaybeCreateJsepTransport(
       make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
 
   std::unique_ptr<JsepTransport> jsep_transport =
-      std::make_unique<JsepTransport>(
-          certificate_, std::move(rtp_transport), std::move(dtls_transport),
-          std::move(sctp_transport),
-          [&]() {
-            RTC_DCHECK_RUN_ON(network_thread_);
-            UpdateAggregateStates_n();
-          },
-          payload_type_picker_);
+      std::make_unique<JsepTransport>(certificate_, std::move(rtp_transport),
+                                      std::move(dtls_transport),
+                                      std::move(sctp_transport), [&]() {
+                                        RTC_DCHECK_RUN_ON(network_thread_);
+                                        UpdateAggregateStates_n();
+                                      });
 
   // Object hierarchy for objects injected into JsepTransport:
   //
