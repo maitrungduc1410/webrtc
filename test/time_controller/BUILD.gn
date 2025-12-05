@@ -65,14 +65,32 @@ rtc_library("time_controller_impl") {
   ]
 }
 
+rtc_library("simulated_time_task_queue_controller") {
+  sources = [
+    "simulated_time_task_queue_controller.cc",
+    "simulated_time_task_queue_controller.h",
+  ]
+  deps = [
+    ":time_controller_impl",
+    "../../api/task_queue",
+    "../../api/units:time_delta",
+    "../../api/units:timestamp",
+    "../../rtc_base:checks",
+    "../../rtc_base/synchronization:yield_policy",
+    "../../system_wrappers",
+  ]
+}
+
 if (rtc_include_tests) {
   rtc_library("time_controller_unittests") {
     testonly = true
     sources = [
       "simulated_time_controller_unittest.cc",
+      "simulated_time_task_queue_controller_unittest.cc",
       "time_controller_conformance_test.cc",
     ]
     deps = [
+      ":simulated_time_task_queue_controller",
       ":time_controller",
       "../:test_support",
       "../../api:time_controller",
