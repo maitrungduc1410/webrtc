@@ -152,6 +152,7 @@ RtpTransceiver::RtpTransceiver(
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
              media_type_ == MediaType::VIDEO);
   RTC_DCHECK_EQ(sender->media_type(), receiver->media_type());
+  RTC_LOG_THREAD_BLOCK_COUNT();
   sender->internal()->SetSendCodecs(
       sender->media_type() == MediaType::VIDEO
           ? codec_vendor().video_send_codecs().codecs()
@@ -651,6 +652,10 @@ void RtpTransceiver::StopSendingAndReceiving() {
   //
   RTC_DCHECK_RUN_ON(thread_);
 
+  // Although there is one explicit blocking call to the worker thread below,
+  // the Stop() operations can hide additional blocking calls.
+  RTC_LOG_THREAD_BLOCK_COUNT();
+
   // 4. Send an RTCP BYE for each RTP stream that was being sent by sender, as
   // specified in [RFC3550].
   for (const auto& sender : senders_)
@@ -661,6 +666,7 @@ void RtpTransceiver::StopSendingAndReceiving() {
     receiver->internal()->Stop();
 
   context()->worker_thread()->BlockingCall([&]() {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
     // 5 Stop receiving media with receiver.
     for (const auto& receiver : receivers_)
       receiver->internal()->SetMediaChannel(nullptr);
@@ -684,6 +690,7 @@ RTCError RtpTransceiver::StopStandard() {
   // transceiver.
   //
   // 3. If connection.[[IsClosed]] is true, throw an InvalidStateError.
+  // Note: Here we should rather be checking `stopped_`.
   if (is_pc_closed_) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
                          "PeerConnection is closed.");
@@ -952,6 +959,7 @@ void RtpTransceiver::OnNegotiationUpdate(
   }
 }
 
+// This special casing shouldn't be needed. StopStandard()
 void RtpTransceiver::SetPeerConnectionClosed() {
   is_pc_closed_ = true;
 }

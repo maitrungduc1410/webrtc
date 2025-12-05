@@ -4235,8 +4235,8 @@ SdpOfferAnswerHandler::AssociateTransceiver(
       std::string sender_id = CreateRandomUuid();
       std::vector<RtpEncodingParameters> send_encodings =
           GetSendEncodingsFromRemoteDescription(*media_desc);
-      auto sender = rtp_manager()->CreateSender(media_desc->type(), sender_id,
-                                                nullptr, {}, send_encodings);
+      auto sender = rtp_manager()->CreateSender(
+          media_desc->type(), sender_id, nullptr, {}, send_encodings, nullptr);
       std::string receiver_id;
       if (!media_desc->streams().empty()) {
         receiver_id = media_desc->streams()[0].id;
