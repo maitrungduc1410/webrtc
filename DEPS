@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '07d18163badd29f3204102a105ca1143c0bdec7a',
+  'chromium_revision': 'cdc78b6d7c58c1dd4b8df830fc4412d2ed740074',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -50,7 +50,7 @@ vars = {
   # reclient CIPD package version
   'reclient_version': 're_client_version:0.185.0.db415f21-gomaip',
   # siso CIPD package version.
-  'siso_version': 'git_revision:41351d34a647bb3f390000f021786db0a6ad2430',
+  'siso_version': 'git_revision:49dcca5d2be985d8ac6d512e59ee59e315264fb8',
 
   # ninja CIPD package.
   'ninja_package': 'infra/3pp/tools/ninja/',
@@ -69,22 +69,22 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@e9bd49146e7e69608f4075150925da029d1881cf',
+    'https://chromium.googlesource.com/chromium/src/build@2971fed89bb80708a105ef942e18ad2e1acee3eb',
   'src/buildtools':
-    'https://chromium.googlesource.com/chromium/src/buildtools@eca5f0685c48ed59ff06077cb18cee00934249dd',
+    'https://chromium.googlesource.com/chromium/src/buildtools@5ee2a7a7f1e0329808b98bc664d28e228136cda5',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
   'src/examples/androidtests/third_party/gradle': {
     'url': 'https://chromium.googlesource.com/external/github.com/gradle/gradle.git@f2d1fb54a951d8b11d25748e4711bec8d128d7e3',
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@c2b16a06e2dd75500df3e9cc1c448b49d0ee4e81',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@91c886265f90438c1e9ac5d3038fb76bc010f4f7',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@abc463ecac168d1e5288cb51b8fadf7d7851d24a',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@45aad18a51fc4119af359da97048c34a4d33aba3',
+    'https://chromium.googlesource.com/chromium/src/third_party@6df177bba77caaf75142a7252a084b115bb08035',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -331,7 +331,7 @@ deps = {
   'src/third_party/clang-format/script':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@c2725e0622e1a86d55f14514f2177a39efea4a0e',
   'src/third_party/compiler-rt/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@cbcf6df2aa0969757c22a3f2b0a46ea8c1f34a2a',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt.git@a9fde25409cf59d3a55c43fd56f234c0abfb176a',
   'src/third_party/libc++/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git@07572e7b169225ef3a999584cba9d9004631ae66',
   'src/third_party/libc++abi/src':
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@098d5baf008ffa6321e2c4a358f5475fcf1fe938',
+    'https://boringssl.googlesource.com/boringssl.git@7f448d35a3d7ab4e7a39f84fe20c50f89b3031fb',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@d0b41ca2a38c7b14c4b7853254eb5bf3b4039691',
   'src/third_party/catapult':
@@ -505,7 +505,7 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@360ca0918027da3637562b93334db9bd68a51f0c',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@ac1b095b090e103e66c726cc737bd48993252fc3',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@583a135878d38065ef1e3d08cd80b7fbe76e0a7b',
   'src/third_party/flatbuffers/src':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@9a1338dbd5d8f5ef58d6974ef77801c08885bccf',
+    'https://chromium.googlesource.com/chromium/src/tools@a92fb5a751bc3b9e50b160159bf0cfd0eae6f468',
 
   'src/third_party/espresso': {
       'packages': [
