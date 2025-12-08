@@ -215,6 +215,9 @@ RTCError RtpTransceiver::CreateChannel(
         transport_lookup) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!channel());
+  RTC_DCHECK(!mid_ || mid_.value() == mid);
+
+  mid_ = mid;
 
   std::unique_ptr<ChannelInterface> new_channel;
   if (media_type() == MediaType::AUDIO) {
@@ -303,6 +306,7 @@ void RtpTransceiver::SetChannel(
   RTC_LOG_THREAD_BLOCK_COUNT();
 
   RTC_DCHECK_EQ(media_type(), channel->media_type());
+  RTC_DCHECK(mid_ || channel->mid().empty());
   signaling_thread_safety_ = PendingTaskSafetyFlag::Create();
   channel_ = std::move(channel);
 
