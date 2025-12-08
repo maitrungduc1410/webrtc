@@ -245,6 +245,12 @@ rtc_source_set("ice_transport_interface") {
   ]
 }
 
+rtc_library("rtp_transport_factory") {
+  visibility = [ "*" ]
+
+  sources = [ "rtp_transport_factory.h" ]
+}
+
 rtc_library("dtls_transport_interface") {
   visibility = [ "*" ]
 
@@ -428,6 +434,7 @@ rtc_library("peer_connection_interface") {
     ":rtp_receiver_interface",
     ":rtp_sender_interface",
     ":rtp_transceiver_interface",
+    ":rtp_transport_factory",
     ":scoped_refptr",
     ":sctp_transport_interface",
     ":set_local_description_observer_interface",
@@ -597,6 +604,7 @@ rtc_library("libjingle_peerconnection_api") {
     ":rtp_sender_interface",
     ":rtp_transceiver_direction",
     ":rtp_transceiver_interface",
+    ":rtp_transport_factory",
     ":scoped_refptr",
     ":sctp_transport_interface",
     ":sequence_checker",

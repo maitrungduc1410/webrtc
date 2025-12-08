@@ -30,6 +30,7 @@
 #include "api/make_ref_counted.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_transport_factory.h"
 #include "api/scoped_refptr.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/transport/data_channel_transport_interface.h"
@@ -45,6 +46,7 @@
 #include "p2p/dtls/fake_dtls_transport.h"
 #include "p2p/test/fake_ice_transport.h"
 #include "pc/dtls_transport.h"
+#include "pc/rtp_transport.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/session_description.h"
 #include "pc/transport_stats.h"
@@ -385,6 +387,7 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
   std::map<std::string, RtpTransportInternal*> changed_rtp_transport_by_mid_;
   std::map<std::string, scoped_refptr<DtlsTransport>>
       changed_dtls_transport_by_mid_;
+  std::unique_ptr<RtpTransportFactory> custom_rtp_transport_factory_ = nullptr;
   // Transport controller needs to be destroyed first, because it may issue
   // callbacks that modify the changed_*_by_mid in the destructor.
   std::unique_ptr<JsepTransportController> transport_controller_;
@@ -2836,6 +2839,63 @@ TEST_F(JsepTransportControllerTest,
                   .ok());
   // Check Role -> should still be ICEROLE_CONTROLLING.
   EXPECT_EQ(ICEROLE_CONTROLLING, fake_dtls->fake_ice_transport()->GetIceRole());
+}
+
+TEST_F(JsepTransportControllerTest, CustomRtpTransportFactory) {
+  class CustomRtpTransportFactory : public RtpTransportFactory {
+   public:
+    explicit CustomRtpTransportFactory(const FieldTrialsView& field_trials)
+        : field_trials_view_(field_trials) {}
+    std::unique_ptr<RtpTransport> CreateRtpTransport(
+        const std::string& transport_name,
+        std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
+        std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport) override {
+      auto transport = std::make_unique<RtpTransport>(
+          /*rtcp_mux_enabled*/ false, field_trials_view_);
+      transport->SetRtpPacketTransport(rtp_dtls_transport.get());
+      if (transport_name == kAudioMid1) {
+        audio_transport_ = transport.get();
+        audio_rtp_dtls_transport_ = std::move(rtp_dtls_transport);
+        audio_rtcp_dtls_transport_ = std::move(rtcp_dtls_transport);
+      } else if (transport_name == kVideoMid1) {
+        video_transport_ = transport.get();
+        video_rtp_dtls_transport_ = std::move(rtp_dtls_transport);
+        video_rtcp_dtls_transport_ = std::move(rtcp_dtls_transport);
+      }
+      return transport;
+    }
+
+    RtpTransport* audio_transport_;
+    RtpTransport* video_transport_;
+
+   private:
+    // These DtlsTransportInternals just need to be kept alive.
+    std::unique_ptr<DtlsTransportInternal> audio_rtp_dtls_transport_;
+    std::unique_ptr<DtlsTransportInternal> audio_rtcp_dtls_transport_;
+    std::unique_ptr<DtlsTransportInternal> video_rtp_dtls_transport_;
+    std::unique_ptr<DtlsTransportInternal> video_rtcp_dtls_transport_;
+    const FieldTrialsView& field_trials_view_;
+  };
+
+  custom_rtp_transport_factory_ =
+      std::make_unique<CustomRtpTransportFactory>(field_trials_);
+  CustomRtpTransportFactory* factory = static_cast<CustomRtpTransportFactory*>(
+      custom_rtp_transport_factory_.get());
+
+  JsepTransportController::Config config;
+  config.rtp_transport_factory = custom_rtp_transport_factory_.get();
+  CreateJsepTransportController(std::move(config));
+  auto description = CreateSessionDescriptionWithoutBundle();
+  EXPECT_TRUE(
+      transport_controller_
+          ->SetLocalDescription(SdpType::kOffer, description.get(), nullptr)
+          .ok());
+  auto audio_rtp_transport = transport_controller_->GetRtpTransport(kAudioMid1);
+  auto video_rtp_transport = transport_controller_->GetRtpTransport(kVideoMid1);
+  EXPECT_NE(nullptr, audio_rtp_transport);
+  EXPECT_EQ(factory->audio_transport_, audio_rtp_transport);
+  EXPECT_NE(nullptr, video_rtp_transport);
+  EXPECT_EQ(factory->video_transport_, video_rtp_transport);
 }
 
 }  // namespace

@@ -577,6 +577,11 @@ std::unique_ptr<RtpTransport> JsepTransportController::CreateRtpTransport(
     rtp_transport = CreateUnencryptedRtpTransport(
         transport_name, std::move(rtp_dtls_transport),
         std::move(rtcp_dtls_transport));
+  } else if (config_.rtp_transport_factory) {
+    RTC_LOG(LS_INFO) << "Creating RtpTransport from injected factory.";
+    rtp_transport = config_.rtp_transport_factory->CreateRtpTransport(
+        transport_name, std::move(rtp_dtls_transport),
+        std::move(rtcp_dtls_transport));
   } else {
     RTC_LOG(LS_INFO) << "Creating DtlsSrtpTransport.";
     rtp_transport =

@@ -45,6 +45,7 @@
 #include "api/rtp_receiver_interface.h"
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_interface.h"
+#include "api/rtp_transport_factory.h"
 #include "api/scoped_refptr.h"
 #include "api/sctp_transport_interface.h"
 #include "api/sequence_checker.h"
@@ -682,6 +683,7 @@ class PeerConnection : public PeerConnectionInternal,
                                // `jsep_transport_controller_` and used on the
                                // network thread.
   const std::unique_ptr<DtlsTransportFactory> dtls_transport_factory_;
+  const std::unique_ptr<RtpTransportFactory> rtp_transport_factory_;
   const std::unique_ptr<SSLCertificateVerifier> tls_cert_verifier_
       RTC_GUARDED_BY(network_thread());
 
