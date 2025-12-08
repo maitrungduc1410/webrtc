@@ -690,15 +690,12 @@ RTCError RtpTransceiver::StopStandard() {
   // transceiver.
   //
   // 3. If connection.[[IsClosed]] is true, throw an InvalidStateError.
-  // Note: Here we should rather be checking `stopped_`.
-  if (is_pc_closed_) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
-                         "PeerConnection is closed.");
-  }
-
+  //    (Note: Checking for IsClosed() is implemented by the user agent).
+  //
   // 4. If transceiver.[[Stopping]] is true, abort these steps.
-  if (stopping_)
+  if (stopping_) {
     return RTCError::OK();
+  }
 
   // 5. Stop sending and receiving given transceiver, and update the
   // negotiation-needed flag for connection.
@@ -957,11 +954,6 @@ void RtpTransceiver::OnNegotiationUpdate(
       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
     }
   }
-}
-
-// This special casing shouldn't be needed. StopStandard()
-void RtpTransceiver::SetPeerConnectionClosed() {
-  is_pc_closed_ = true;
 }
 
 }  // namespace webrtc

@@ -1893,7 +1893,6 @@ void PeerConnection::Close() {
 
   if (ConfiguredForMedia()) {
     for (const auto& transceiver : rtp_manager()->transceivers()->List()) {
-      transceiver->internal()->SetPeerConnectionClosed();
       if (!transceiver->stopped())
         transceiver->StopInternal();
     }

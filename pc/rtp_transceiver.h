@@ -270,10 +270,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
     return has_ever_been_used_to_send_;
   }
 
-  // Informs the transceiver that its owning
-  // PeerConnection is closed.
-  void SetPeerConnectionClosed();
-
   // Executes the "stop the RTCRtpTransceiver" procedure from
   // the webrtc-pc specification, described under the stop() method.
   void StopTransceiverProcedure();
@@ -356,7 +352,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
 
   bool stopped_ RTC_GUARDED_BY(thread_) = false;
   bool stopping_ RTC_GUARDED_BY(thread_) = false;
-  bool is_pc_closed_ = false;
   RtpTransceiverDirection direction_ = RtpTransceiverDirection::kInactive;
   std::optional<RtpTransceiverDirection> current_direction_;
   std::optional<RtpTransceiverDirection> fired_direction_;
