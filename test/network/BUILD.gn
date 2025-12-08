@@ -99,7 +99,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../../api:create_modular_peer_connection_factory",
       "../../api:enable_media_with_defaults",
       "../../api:jsep",
-      "../../api:libjingle_peerconnection_api",
       "../../api:media_stream_interface",
       "../../api:network_emulation_manager_api",
       "../../api:peer_connection_interface",
