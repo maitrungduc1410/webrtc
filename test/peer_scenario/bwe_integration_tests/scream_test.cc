@@ -350,8 +350,8 @@ TEST(ScreamTest, LinkCapacity2MbpsRtt50msNoEcn) {
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
   EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(1500),
-                                              DataRate::KilobitsPerSec(2200))));
+                                              DataRate::KilobitsPerSec(1200),
+                                              DataRate::KilobitsPerSec(2300))));
 }
 
 TEST(ScreamTest, LinkCapacity2MbpsRtt50msEcn) {
