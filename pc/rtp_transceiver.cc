@@ -122,6 +122,9 @@ RtpTransceiver::RtpTransceiver(const Environment& env,
       thread_(GetCurrentTaskQueueOrThread()),
       unified_plan_(false),
       media_type_(media_type),
+      network_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
+          true,
+          context->network_thread())),
       context_(context),
       codec_lookup_helper_(codec_lookup_helper) {
   RTC_DCHECK(media_type == MediaType::AUDIO || media_type == MediaType::VIDEO);
@@ -142,6 +145,9 @@ RtpTransceiver::RtpTransceiver(
       thread_(GetCurrentTaskQueueOrThread()),
       unified_plan_(true),
       media_type_(sender->media_type()),
+      network_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
+          true,
+          context->network_thread())),
       context_(context),
       codec_lookup_helper_(codec_lookup_helper),
       header_extensions_to_negotiate_(
@@ -355,7 +361,8 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   signaling_thread_safety_ = nullptr;
 
   ChannelInterface* channel = channel_.get();
-  return [channel] {
+  return [channel, flag = network_thread_safety_] {
+    flag->SetNotAlive();
     channel->SetFirstPacketReceivedCallback(nullptr);
     channel->SetFirstPacketSentCallback(nullptr);
     channel->SetPacketReceivedCallback_n(nullptr);
@@ -529,7 +536,7 @@ void RtpTransceiver::OnFirstPacketReceived() {
 // RTC_RUN_ON(context()->network_thread())
 void RtpTransceiver::OnPacketReceived(
     scoped_refptr<PendingTaskSafetyFlag> safety) {
-  if (!receptive_) {
+  if (!receptive_n_) {
     return;
   }
   if (packet_notified_after_receptive_) {
@@ -537,7 +544,8 @@ void RtpTransceiver::OnPacketReceived(
   }
   packet_notified_after_receptive_ = true;
   thread_->PostTask(SafeTask(safety, [this]() {
-    if (stopping() || stopped()) {
+    RTC_DCHECK_RUN_ON(thread_);
+    if (stopping() || stopped() || !receptive_) {
       return;
     }
     for (const auto& receiver : receivers_) {
@@ -634,17 +642,20 @@ std::optional<RtpTransceiverDirection> RtpTransceiver::fired_direction() const {
 }
 
 bool RtpTransceiver::receptive() const {
+  RTC_DCHECK_RUN_ON(thread_);
   return receptive_;
 }
 
 void RtpTransceiver::set_receptive(bool receptive) {
   RTC_DCHECK_RUN_ON(thread_);
-  bool old_receptive = receptive_.exchange(receptive);
-  if (receptive && !old_receptive) {
-    context()->network_thread()->PostTask([&]() {
-      RTC_DCHECK_RUN_ON(context()->network_thread());
-      packet_notified_after_receptive_ = false;
-    });
+  if (receptive != receptive_) {
+    receptive_ = receptive;
+    context()->network_thread()->PostTask(
+        SafeTask(network_thread_safety_, [this, receptive = receptive]() {
+          RTC_DCHECK_RUN_ON(context()->network_thread());
+          receptive_n_ = receptive;
+          packet_notified_after_receptive_ = false;
+        }));
   }
 }
 
@@ -671,7 +682,7 @@ void RtpTransceiver::StopSendingAndReceiving() {
 
   context()->worker_thread()->BlockingCall([&]() {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
-    // 5 Stop receiving media with receiver.
+    // 5. Stop receiving media with receiver.
     for (const auto& receiver : receivers_)
       receiver->internal()->SetMediaChannel(nullptr);
   });
@@ -731,6 +742,7 @@ void RtpTransceiver::StopTransceiverProcedure() {
 
   // 3. Set transceiver.[[Receptive]] to false.
   receptive_ = false;
+
   // 4. Set transceiver.[[CurrentDirection]] to null.
   current_direction_ = std::nullopt;
 }

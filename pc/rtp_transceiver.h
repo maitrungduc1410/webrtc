@@ -13,7 +13,6 @@
 
 #include <stddef.h>
 
-#include <atomic>
 #include <memory>
 #include <optional>
 #include <string>
@@ -345,6 +344,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   const MediaType media_type_;
   scoped_refptr<PendingTaskSafetyFlag> signaling_thread_safety_
       RTC_GUARDED_BY(thread_);
+  scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;
   std::vector<scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>
       senders_;
   std::vector<scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>>
@@ -360,7 +360,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   bool created_by_addtrack_ = false;
   bool reused_for_addtrack_ = false;
   bool has_ever_been_used_to_send_ = false;
-  std::atomic<bool> receptive_ = false;
+  bool receptive_ RTC_GUARDED_BY(thread_) = false;
+  bool receptive_n_ RTC_GUARDED_BY(context()->network_thread()) = false;
   bool packet_notified_after_receptive_
       RTC_GUARDED_BY(context()->network_thread()) = false;
 
