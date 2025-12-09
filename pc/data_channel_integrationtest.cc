@@ -43,7 +43,6 @@
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/fake_clock.h"
-#include "rtc_base/gunit.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/socket_address.h"
@@ -53,6 +52,7 @@
 #include "rtc_base/virtual_socket_server.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/run_loop.h"
 #include "test/wait_until.h"
 
 namespace webrtc {
@@ -548,8 +548,10 @@ TEST_P(DataChannelIntegrationTest, EndToEndCallWithSctpDataChannelHarmfulMtu) {
     // Wait a very short time for the message to be delivered.
     // Note: Waiting only 10 ms is too short for Windows bots; they will
     // flakily fail at a random frame.
-    WAIT(callee()->data_observer()->received_message_count() > message_count,
-         100);
+    callee()->data_observer()->set_on_message_callback(
+        [&](const DataBuffer&) { run_loop().Quit(); });
+    run_loop().RunFor(TimeDelta::Millis(100));
+    callee()->data_observer()->set_on_message_callback(nullptr);
     if (callee()->data_observer()->received_message_count() == message_count) {
       ASSERT_EQ(kMessageSizeThatIsNotDelivered, message_size);
       failure_seen = true;
@@ -1024,7 +1026,7 @@ TEST_P(DataChannelIntegrationTest, ClosingConnectionStopsPacketFlow) {
   ClosePeerConnections();
   // Pump messages for a second, and ensure no new packets end up sent.
   uint32_t sent_packets_a = virtual_socket_server()->sent_packets();
-  WAIT(false, 1000);
+  run_loop().RunFor(TimeDelta::Seconds(1));
   uint32_t sent_packets_b = virtual_socket_server()->sent_packets();
   EXPECT_EQ(sent_packets_a, sent_packets_b);
 }
@@ -1268,7 +1270,7 @@ TEST_P(DataChannelIntegrationTest, QueuedPacketsGetDroppedInUnreliableMode) {
   }
   // Nothing should be delivered during outage.
   // We do a short wait to verify that delivery count is still 1.
-  WAIT(false, 10);
+  run_loop().RunFor(TimeDelta::Millis(10));
   EXPECT_EQ(1u, callee()->data_observer()->received_message_count());
   // Reverse the network outage.
   virtual_socket_server()->set_drop_probability(0.0);
@@ -1314,7 +1316,7 @@ TEST_P(DataChannelIntegrationTest,
   // Nothing should be delivered during outage.
   // We do a short wait to verify that delivery count is still 1,
   // and to make sure max packet lifetime (which is in ms) is exceeded.
-  WAIT(false, 10);
+  run_loop().RunFor(TimeDelta::Millis(10));
   EXPECT_EQ(1u, callee()->data_observer()->received_message_count());
   // Reverse the network outage.
   virtual_socket_server()->set_drop_probability(0.0);
@@ -1372,7 +1374,7 @@ TEST_P(DataChannelIntegrationTest,
   }
   // Nothing should be delivered during outage.
   // We do a short wait to verify that delivery count is still 1.
-  WAIT(false, 10);
+  run_loop().RunFor(TimeDelta::Millis(10));
   EXPECT_EQ(1u, callee()->data_observer()->received_message_count());
   // Reverse the network outage.
   virtual_socket_server()->set_drop_probability(0.0);

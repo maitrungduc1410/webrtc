@@ -1096,12 +1096,16 @@ rtc_library("run_loop") {
     "run_loop.h",
   ]
   deps = [
+    "../api:scoped_refptr",
     "../api/task_queue",
+    "../api/task_queue:pending_task_safety_flag",
     "../api/units:time_delta",
+    "../rtc_base:checks",
     "../rtc_base:socket",
     "../rtc_base:socket_server",
     "../rtc_base:threading",
     "../rtc_base:timeutils",
+    "../rtc_base:weak_ptr",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
