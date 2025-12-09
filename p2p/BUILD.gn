@@ -1244,6 +1244,7 @@ if (rtc_include_tests) {
       "../api/crypto:options",
       "../api/environment",
       "../api/environment:environment_factory",
+      "../api/numerics",
       "../api/task_queue",
       "../api/task_queue:pending_task_safety_flag",
       "../api/test/network_emulation",
