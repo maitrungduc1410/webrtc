@@ -806,15 +806,11 @@ struct DtlsIceIntegrationBenchmark : public DtlsIceIntegrationTest {
                     config.server_config.pqc) {
                   continue;
                 }
-                if (config.client_config.pqc !=
-                    config.client_config.dtls_in_stun) {
-                  continue;
-                }
-                if (config.server_config.pqc !=
-                    config.server_config.dtls_in_stun) {
-                  continue;
-                }
                 if (config.client_config.pqc != config.server_config.pqc) {
+                  continue;
+                }
+                if (config.client_config.dtls_in_stun !=
+                    config.server_config.dtls_in_stun) {
                   continue;
                 }
                 out.push_back(config);
