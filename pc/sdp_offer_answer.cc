@@ -5063,7 +5063,7 @@ void SdpOfferAnswerHandler::UpdateLocalSenders(
   for (const StreamParams& params : streams) {
     // The sync_label is the MediaStream label and the `stream.id` is the
     // sender id.
-    const std::string& stream_id = params.first_stream_id();
+    std::string stream_id(params.first_stream_id());
     const std::string& sender_id = params.id;
     uint32_t ssrc = params.first_ssrc();
     const RtpSenderInfo* sender_info =
@@ -5128,9 +5128,9 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersList(
     // Plan endpoint, with multiple or no stream_ids() signaled. Since this is
     // not supported in Plan B, we just take the first here and create the
     // default stream ID if none is specified.
-    const std::string& stream_id =
-        (!params.first_stream_id().empty() ? params.first_stream_id()
-                                           : kDefaultStreamId);
+    std::string stream_id = (!params.first_stream_id().empty()
+                                 ? std::string(params.first_stream_id())
+                                 : kDefaultStreamId);
     const std::string& sender_id = params.id;
     uint32_t ssrc = params.first_ssrc();
 
