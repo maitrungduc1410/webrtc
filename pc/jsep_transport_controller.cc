@@ -452,6 +452,7 @@ JsepTransportController::CreateIceTransport(absl::string_view transport_name,
                                         OnTransportGatheringState_n(transport);
                                       });
   internal->SubscribeCandidateGathered(
+      this,
       [this](IceTransportInternal* transport, const Candidate& candidate) {
         RTC_DCHECK_RUN_ON(network_thread_);
         OnTransportCandidateGathered_n(transport, candidate);
@@ -467,12 +468,13 @@ JsepTransportController::CreateIceTransport(absl::string_view transport_name,
         RTC_DCHECK_RUN_ON(network_thread_);
         OnTransportCandidatesRemoved_n(transport, candidates);
       });
-  internal->SubscribeRoleConflict([this](IceTransportInternal* transport) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    OnTransportRoleConflict_n(transport);
-  });
+  internal->SubscribeRoleConflict(this,
+                                  [this](IceTransportInternal* transport) {
+                                    RTC_DCHECK_RUN_ON(network_thread_);
+                                    OnTransportRoleConflict_n(transport);
+                                  });
   internal->SubscribeIceTransportStateChanged(
-      [this](IceTransportInternal* transport) {
+      this, [this](IceTransportInternal* transport) {
         RTC_DCHECK_RUN_ON(network_thread_);
         OnTransportStateChanged_n(transport);
       });
@@ -517,12 +519,13 @@ JsepTransportController::CreateDtlsTransport(const ContentInfo& content_info,
                                  RTC_DCHECK_RUN_ON(network_thread_);
                                  OnTransportWritableState_n(transport);
                                });
-  dtls->SubscribeReceivingState([this](PacketTransportInternal* transport) {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    OnTransportReceivingState_n(transport);
-  });
+  dtls->SubscribeReceivingState(this,
+                                [this](PacketTransportInternal* transport) {
+                                  RTC_DCHECK_RUN_ON(network_thread_);
+                                  OnTransportReceivingState_n(transport);
+                                });
   dtls->SubscribeDtlsHandshakeError(
-      [this](SSLHandshakeError error) { OnDtlsHandshakeError(error); });
+      this, [this](SSLHandshakeError error) { OnDtlsHandshakeError(error); });
   return dtls;
 }
 

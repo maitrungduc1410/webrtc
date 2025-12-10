@@ -281,15 +281,16 @@ class TestChannel {
  public:
   // Takes ownership of `p1` (but not `p2`).
   explicit TestChannel(std::unique_ptr<Port> p1) : port_(std::move(p1)) {
-    port_->SubscribePortComplete([this](Port* port) { OnPortComplete(port); });
+    port_->SubscribePortComplete(this,
+                                 [this](Port* port) { OnPortComplete(port); });
     port_->SubscribeUnknownAddress(
-        [this](PortInterface* port, const SocketAddress& address,
-               ProtocolType proto, IceMessage* msg, const std::string& rf,
-               bool port_muxed) {
+        this, [this](PortInterface* port, const SocketAddress& address,
+                     ProtocolType proto, IceMessage* msg, const std::string& rf,
+                     bool port_muxed) {
           OnUnknownAddress(port, address, proto, msg, rf, port_muxed);
         });
     port_->SubscribePortDestroyed(
-        [this](PortInterface* port) { OnSrcPortDestroyed(port); });
+        this, [this](PortInterface* port) { OnSrcPortDestroyed(port); });
   }
 
   ~TestChannel() { Stop(); }
@@ -306,12 +307,12 @@ class TestChannel {
     IceMode remote_ice_mode =
         (ice_mode_ == ICEMODE_FULL) ? ICEMODE_LITE : ICEMODE_FULL;
     conn_->set_use_candidate_attr(remote_ice_mode == ICEMODE_FULL);
-    conn_->SubscribeStateChange([this](Connection* connection) {
+    conn_->SubscribeStateChange(this, [this](Connection* connection) {
       OnConnectionStateChange(connection);
     });
     conn_->SubscribeDestroyed(
         this, [this](Connection* connection) { OnDestroyed(connection); });
-    conn_->SubscribeReadyToSend([this](Connection* connection) {
+    conn_->SubscribeReadyToSend(this, [this](Connection* connection) {
       OnConnectionReadyToSend(connection);
     });
     connection_ready_to_send_ = false;
@@ -919,7 +920,7 @@ class PortTest : public ::testing::Test {
 
   void ConnectToSignalDestroyed(PortInterface* port) {
     port->SubscribePortDestroyed(
-        [this](PortInterface* port) { OnDestroyed(port); });
+        this, [this](PortInterface* port) { OnDestroyed(port); });
   }
 
   void OnDestroyed(PortInterface* port) { ++ports_destroyed_; }
@@ -4021,7 +4022,7 @@ class ConnectionTest : public PortTest {
       conn = rport_->CreateConnection(lport_->Candidates()[0],
                                       Port::ORIGIN_MESSAGE);
     }
-    conn->SubscribeStateChange([this](Connection* connection) {
+    conn->SubscribeStateChange(this, [this](Connection* connection) {
       OnConnectionStateChange(connection);
     });
     return conn;

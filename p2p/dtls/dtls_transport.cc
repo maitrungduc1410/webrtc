@@ -704,7 +704,7 @@ void DtlsTransportInternalImpl::ConnectToIceTransport() {
       this,
       [this](PacketTransportInternal* transport) { OnReadyToSend(transport); });
   ice_transport()->SubscribeReceivingState(
-      [this](PacketTransportInternal* transport) {
+      this, [this](PacketTransportInternal* transport) {
         OnReceivingState(transport);
       });
   ice_transport()->SubscribeNetworkRouteChanged(

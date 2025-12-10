@@ -365,11 +365,13 @@ class DtlsIceIntegrationTest : public ::testing::TestWithParam<TestConfig> {
     ep.ice()->SetIceRole(ep.config.ice_role);
     if (ep.client) {
       ep.ice()->SubscribeCandidateGathered(
+          this,
           [this](IceTransportInternal* transport, const Candidate& candidate) {
             CandidateC2S(transport, candidate);
           });
     } else {
       ep.ice()->SubscribeCandidateGathered(
+          this,
           [this](IceTransportInternal* transport, const Candidate& candidate) {
             CandidateS2C(transport, candidate);
           });
