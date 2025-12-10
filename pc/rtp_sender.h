@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
@@ -237,7 +238,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // null, it must be valid at least until this sender becomes stopped.
   RtpSenderBase(const Environment& env,
                 Thread* worker_thread,
-                const std::string& id,
+                absl::string_view id,
                 SetStreamsObserver* set_streams_observer,
                 MediaSendChannelInterface* media_channel);
   // TODO(bugs.webrtc.org/8694): Since SSRC == 0 is technically valid, figure
@@ -357,7 +358,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
   static scoped_refptr<AudioRtpSender> Create(
       const Environment& env,
       Thread* worker_thread,
-      const std::string& id,
+      absl::string_view id,
       LegacyStatsCollectorInterface* stats,
       SetStreamsObserver* set_streams_observer,
       MediaSendChannelInterface* media_channel);
@@ -383,7 +384,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
  protected:
   AudioRtpSender(const Environment& env,
                  Thread* worker_thread,
-                 const std::string& id,
+                 absl::string_view id,
                  LegacyStatsCollectorInterface* legacy_stats,
                  SetStreamsObserver* set_streams_observer,
                  MediaSendChannelInterface* media_channel);
@@ -428,7 +429,7 @@ class VideoRtpSender : public RtpSenderBase {
   static scoped_refptr<VideoRtpSender> Create(
       const Environment& env,
       Thread* worker_thread,
-      const std::string& id,
+      absl::string_view id,
       SetStreamsObserver* set_streams_observer,
       MediaSendChannelInterface* media_channel);
   virtual ~VideoRtpSender();
@@ -449,7 +450,7 @@ class VideoRtpSender : public RtpSenderBase {
  protected:
   VideoRtpSender(const Environment& env,
                  Thread* worker_thread,
-                 const std::string& id,
+                 absl::string_view id,
                  SetStreamsObserver* set_streams_observer,
                  MediaSendChannelInterface* media_channel);
 

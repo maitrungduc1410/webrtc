@@ -887,6 +887,7 @@ rtc_library("sctp_data_channel") {
     "../api:priority",
     "../api:rtc_error",
     "../api:scoped_refptr",
+    "../api:sctp_transport_interface",
     "../api:sequence_checker",
     "../api/task_queue:pending_task_safety_flag",
     "../api/transport:datagram_transport_interface",
@@ -902,6 +903,7 @@ rtc_library("sctp_data_channel") {
     "../rtc_base/system:no_unique_address",
     "../rtc_base/system:unused",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -966,6 +968,7 @@ rtc_library("data_channel_controller") {
     "../api:rtc_error",
     "../api:rtp_transport_factory",
     "../api:scoped_refptr",
+    "../api:sctp_transport_interface",
     "../api:sequence_checker",
     "../api/task_queue:pending_task_safety_flag",
     "../api/transport:datagram_transport_interface",
@@ -980,6 +983,7 @@ rtc_library("data_channel_controller") {
     "../rtc_base:weak_ptr",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -1841,6 +1845,7 @@ rtc_library("audio_rtp_receiver") {
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -2022,6 +2027,7 @@ rtc_library("rtp_sender") {
     "../rtc_base:threading",
     "../rtc_base/synchronization:mutex",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 

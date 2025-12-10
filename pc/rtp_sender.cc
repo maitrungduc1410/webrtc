@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/strings/string_view.h"
 #include "api/audio_options.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtmf_sender_interface.h"
@@ -170,7 +171,7 @@ bool UnimplementedRtpParameterHasValue(const RtpParameters& parameters) {
 
 RtpSenderBase::RtpSenderBase(const Environment& env,
                              Thread* worker_thread,
-                             const std::string& id,
+                             absl::string_view id,
                              SetStreamsObserver* set_streams_observer,
                              MediaSendChannelInterface* media_channel)
     : env_(env),
@@ -698,7 +699,7 @@ void LocalAudioSinkAdapter::SetSink(AudioSource::Sink* sink) {
 scoped_refptr<AudioRtpSender> AudioRtpSender::Create(
     const Environment& env,
     Thread* worker_thread,
-    const std::string& id,
+    absl::string_view id,
     LegacyStatsCollectorInterface* stats,
     SetStreamsObserver* set_streams_observer,
     MediaSendChannelInterface* media_channel) {
@@ -708,7 +709,7 @@ scoped_refptr<AudioRtpSender> AudioRtpSender::Create(
 
 AudioRtpSender::AudioRtpSender(const Environment& env,
                                Thread* worker_thread,
-                               const std::string& id,
+                               absl::string_view id,
                                LegacyStatsCollectorInterface* stats,
                                SetStreamsObserver* set_streams_observer,
                                MediaSendChannelInterface* media_channel)
@@ -865,7 +866,7 @@ void AudioRtpSender::ClearSend() {
 scoped_refptr<VideoRtpSender> VideoRtpSender::Create(
     const Environment& env,
     Thread* worker_thread,
-    const std::string& id,
+    absl::string_view id,
     SetStreamsObserver* set_streams_observer,
     MediaSendChannelInterface* media_channel) {
   return make_ref_counted<VideoRtpSender>(env, worker_thread, id,
@@ -874,7 +875,7 @@ scoped_refptr<VideoRtpSender> VideoRtpSender::Create(
 
 VideoRtpSender::VideoRtpSender(const Environment& env,
                                Thread* worker_thread,
-                               const std::string& id,
+                               absl::string_view id,
                                SetStreamsObserver* set_streams_observer,
                                MediaSendChannelInterface* media_channel)
     : RtpSenderBase(env,

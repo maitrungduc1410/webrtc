@@ -20,15 +20,16 @@
 #include <utility>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/string_view.h"
 #include "api/data_channel_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/priority.h"
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
+#include "api/sctp_transport_interface.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/transport/data_channel_transport_interface.h"
-#include "media/sctp/sctp_transport_internal.h"
 #include "pc/data_channel_utils.h"
 #include "pc/proxy.h"
 #include "pc/sctp_utils.h"
@@ -301,7 +302,7 @@ class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
 // static
 scoped_refptr<SctpDataChannel> SctpDataChannel::Create(
     WeakPtr<SctpDataChannelControllerInterface> controller,
-    const std::string& label,
+    absl::string_view label,
     bool connected_to_transport,
     const InternalDataChannelInit& config,
     Thread* signaling_thread,
@@ -328,7 +329,7 @@ scoped_refptr<DataChannelInterface> SctpDataChannel::CreateProxy(
 SctpDataChannel::SctpDataChannel(
     const InternalDataChannelInit& config,
     WeakPtr<SctpDataChannelControllerInterface> controller,
-    const std::string& label,
+    absl::string_view label,
     bool connected_to_transport,
     Thread* signaling_thread,
     Thread* network_thread)

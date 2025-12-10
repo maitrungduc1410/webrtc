@@ -170,7 +170,7 @@ const RTCErrorOr<std::vector<const Codec*>> GetAssociatedCodecsForRed(
 // already exist in `offered_codecs` and ensure the payload types don't
 // collide.
 RTCError MergeCodecs(const CodecList& reference_codecs,
-                     const std::string& mid,
+                     absl::string_view mid,
                      CodecList& offered_codecs,
                      PayloadTypeSuggester& pt_suggester) {
   // TODO: bugs.webrtc.org/360058654 - This method makes blocking calls to
@@ -599,7 +599,7 @@ RTCError AssignCodecIdsAndLinkRed(PayloadTypeSuggester* pt_suggester,
 
 // Exposed for testing
 RTCError MergeCodecsForTesting(const CodecList& reference_codecs,
-                               const std::string& mid,
+                               absl::string_view mid,
                                CodecList& offered_codecs,
                                PayloadTypeSuggester& pt_suggester) {
   return MergeCodecs(reference_codecs, mid, offered_codecs, pt_suggester);
