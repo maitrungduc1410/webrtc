@@ -2096,23 +2096,49 @@ void PeerConnection::ReportFirstConnectUsageMetrics() {
   }
   bool negotiated_sctp_snap = false;
   const SessionDescription* desc = nullptr;
-  if (local_description()->GetType() == SdpType::kAnswer) {
+  if (local_description()->GetType() == SdpType::kAnswer ||
+      local_description()->GetType() == SdpType::kPrAnswer) {
     desc = local_description()->description();
-  } else if (remote_description()->GetType() == SdpType::kAnswer) {
+  } else if (remote_description()->GetType() == SdpType::kAnswer ||
+             remote_description()->GetType() == SdpType::kPrAnswer) {
     desc = remote_description()->description();
   }
-  if (desc) {
-    const ContentInfo* sctp_content = GetFirstDataContent(desc);
-    if (sctp_content && !sctp_content->rejected) {
-      const SctpDataContentDescription* sctp_desc =
-          sctp_content->media_description()->as_sctp();
-      if (sctp_desc) {
-        negotiated_sctp_snap |= sctp_desc->sctp_init().has_value();
-      }
+  if (!desc) {
+    RTC_LOG(LS_INFO) << "Connection established without an answer, local="
+                     << local_description()->GetType()
+                     << ", remote=" << remote_description()->GetType();
+    return;
+  }
+  // Below this point, we assume that we have an answer in `desc`
+  const ContentInfo* sctp_content = GetFirstDataContent(desc);
+  if (sctp_content && !sctp_content->rejected) {
+    const SctpDataContentDescription* sctp_desc =
+        sctp_content->media_description()->as_sctp();
+    if (sctp_desc) {
+      negotiated_sctp_snap |= sctp_desc->sctp_init().has_value();
     }
   }
   RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.NegotiatedSctpSnap",
                         negotiated_sctp_snap);
+  // Record congestion control mechanism in use, if any.
+  // The information is taken from the last seen Answer SDP.
+  std::optional<RtcpFeedbackType> feedback_type;
+  for (const auto& content : desc->contents()) {
+    std::optional<RtcpFeedbackType> this_feedback_type =
+        content.media_description()->preferred_rtcp_cc_ack_type();
+    if (this_feedback_type) {
+      feedback_type = this_feedback_type;
+      break;
+    }
+  }
+  if (!feedback_type) {
+    feedback_type = RtcpFeedbackType::NONE;
+  }
+  // Note that NONE will be reported for datachannel-only calls.
+  // Only TRANSPORT_CC and CCFB are currently reported.
+  RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.NegotiatedFeedbackType",
+                            static_cast<int>(*feedback_type),
+                            static_cast<int>(RtcpFeedbackType::MAX));
 }
 
 void PeerConnection::ReportCloseUsageMetrics() {
