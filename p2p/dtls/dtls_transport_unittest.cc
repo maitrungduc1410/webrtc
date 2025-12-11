@@ -1597,6 +1597,20 @@ TEST_F(DtlsTransportInternalImplTest, DtlsConnectionTimeMetric) {
       1);
 }
 
+TEST_F(DtlsTransportInternalImplTest, DtlsVersionMetric) {
+  metrics::Reset();
+  PrepareDtls(KT_DEFAULT);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.PeerConnection.DtlsVersionClientRole"), 0);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.PeerConnection.DtlsVersionServerRole"), 0);
+  ASSERT_TRUE(Connect());
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.PeerConnection.DtlsVersionClientRole"), 1);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.PeerConnection.DtlsVersionServerRole"), 1);
+}
+
 // The following events can occur in many different orders:
 // 1. Caller receives remote fingerprint.
 // 2. Caller is writable.
