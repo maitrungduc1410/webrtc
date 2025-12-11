@@ -1292,10 +1292,7 @@ if (!build_with_chromium) {
       "test_flags.cc",
       "test_flags.h",
     ]
-    deps = [
-      ":test_flags_tmp",
-      "//third_party/abseil-cpp/absl/flags:flag",
-    ]
+    deps = [ "//third_party/abseil-cpp/absl/flags:flag" ]
   }
 
   rtc_library("test_common") {
