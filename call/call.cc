@@ -357,6 +357,8 @@ class Call final : public webrtc::Call,
       absl::string_view sync_group) RTC_RUN_ON(worker_thread_);
   void ConfigureSync(absl::string_view sync_group) RTC_RUN_ON(worker_thread_);
 
+  void LogRtpPacketIncoming(const RtpPacketReceived& rtp_packet);
+
   void NotifyBweOfReceivedPacket(const RtpPacketReceived& packet,
                                  MediaType media_type)
       RTC_RUN_ON(worker_thread_);
@@ -431,6 +433,11 @@ class Call final : public webrtc::Call,
   using RtpStateMap = std::map<uint32_t, RtpState>;
   RtpStateMap suspended_audio_send_ssrcs_ RTC_GUARDED_BY(worker_thread_);
   RtpStateMap suspended_video_send_ssrcs_ RTC_GUARDED_BY(worker_thread_);
+
+  // List of SSRCs (with corresponding stream) for which we will attempt to log
+  // RTX OSNs. Streams are registered for logging on creation and de-registered
+  // on destruction.
+  std::map<uint32_t, VideoReceiveStream2*> rtx_ssrcs_for_recv_streams_;
 
   using RtpPayloadStateMap = std::map<uint32_t, RtpPayloadState>;
   RtpPayloadStateMap suspended_video_payload_states_
@@ -1010,6 +1017,10 @@ webrtc::VideoReceiveStreamInterface* Call::CreateVideoReceiveStream(
       std::move(configuration), call_stats_.get(),
       std::make_unique<VCMTiming>(&env_.clock(), env_.field_trials()),
       &nack_periodic_processor_, decode_sync_.get());
+  // Register for RTX OSN logging.
+  if (configuration.rtp.rtx_ssrc != 0) {
+    rtx_ssrcs_for_recv_streams_[configuration.rtp.rtx_ssrc] = receive_stream;
+  }
   // TODO(bugs.webrtc.org/11993): Set this up asynchronously on the network
   // thread.
   receive_stream->RegisterWithTransport(&video_receiver_controller_);
@@ -1029,6 +1040,11 @@ void Call::DestroyVideoReceiveStream(
   RTC_DCHECK(receive_stream != nullptr);
   VideoReceiveStream2* receive_stream_impl =
       static_cast<VideoReceiveStream2*>(receive_stream);
+  // De-register for RTX OSN logging.
+  std::erase_if(rtx_ssrcs_for_recv_streams_,
+                [receive_stream_impl](const auto& kv) {
+                  return kv.second == receive_stream_impl;
+                });
   // TODO(bugs.webrtc.org/11993): Unregister on the network thread.
   receive_stream_impl->UnregisterFromTransport();
   video_receive_streams_.erase(receive_stream_impl);
@@ -1400,7 +1416,7 @@ void Call::DeliverRtpPacket(
 
   NotifyBweOfReceivedPacket(packet, media_type);
 
-  env_.event_log().Log(std::make_unique<RtcEventRtpPacketIncoming>(packet));
+  LogRtpPacketIncoming(packet);
   if (media_type != MediaType::AUDIO && media_type != MediaType::VIDEO) {
     return;
   }
@@ -1437,6 +1453,27 @@ void Call::DeliverRtpPacket(
   if (media_type == MediaType::VIDEO) {
     receive_stats_.AddReceivedVideoBytes(length, packet.arrival_time());
   }
+}
+
+void Call::LogRtpPacketIncoming(const RtpPacketReceived& rtp_packet) {
+  // Although RTX decapsulation conceptually belongs in the `RtxReceiveStream`,
+  // we choose to do it here in `Call` for robustness reasons: had we done it in
+  // the streams (audio, video, RTX, FlexFEC, undemuxable, ...?), we would run
+  // the risk of missing logging some packets in future refactorings. By keeping
+  // logging centralized to `Call`, that risk is minimized. The price to pay is
+  // that we need to look into the `payload()` of the packet here, which is not
+  // clean. Is is however in practice the same as is done in `RtxReceiveStream`.
+  bool is_rtx = rtx_ssrcs_for_recv_streams_.contains(rtp_packet.Ssrc());
+  if (is_rtx && rtp_packet.payload_size() >= kRtxHeaderSize) {
+    ArrayView<const uint8_t> payload = rtp_packet.payload();
+    uint16_t rtx_osn = (payload[0] << 8) + payload[1];
+    // Log with RTX OSN.
+    env_.event_log().Log(
+        std::make_unique<RtcEventRtpPacketIncoming>(rtp_packet, rtx_osn));
+    return;
+  }
+  // Log without RTX OSN.
+  env_.event_log().Log(std::make_unique<RtcEventRtpPacketIncoming>(rtp_packet));
 }
 
 void Call::NotifyBweOfReceivedPacket(const RtpPacketReceived& packet,
