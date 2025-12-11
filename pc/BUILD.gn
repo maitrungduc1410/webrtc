@@ -1167,6 +1167,7 @@ rtc_library("sdp_offer_answer") {
     ":rtp_transceiver",
     ":rtp_transmission_manager",
     ":sdp_munging_detector",
+    ":sdp_payload_type_suggester",
     ":sdp_state_provider",
     ":session_description",
     ":simulcast_description",
@@ -1233,6 +1234,28 @@ rtc_library("sdp_offer_answer") {
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
+
+rtc_library("sdp_payload_type_suggester") {
+  sources = [
+    "sdp_payload_type_suggester.cc",
+    "sdp_payload_type_suggester.h",
+  ]
+  deps = [
+    ":jsep_transport_collection",
+    ":session_description",
+    "../api:jsep",
+    "../api:libjingle_peerconnection_api",
+    "../api:rtc_error",
+    "../call:payload_type",
+    "../call:payload_type_picker",
+    "../media:codec",
+    "../rtc_base:checks",
+    "../rtc_base:event_tracer",
+    "../rtc_base:threading",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
 rtc_source_set("jsep_ice_candidate") {
   visibility = [ ":*" ]
 }

@@ -40,8 +40,6 @@
 #include "api/uma_metrics.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "call/payload_type.h"
-#include "call/payload_type_picker.h"
-#include "media/base/codec.h"
 #include "media/base/media_channel.h"
 #include "media/base/media_engine.h"
 #include "media/base/stream_params.h"
@@ -49,7 +47,6 @@
 #include "pc/codec_vendor.h"
 #include "pc/connection_context.h"
 #include "pc/data_channel_controller.h"
-#include "pc/jsep_transport_collection.h"
 #include "pc/jsep_transport_controller.h"
 #include "pc/media_options.h"
 #include "pc/media_session.h"
@@ -57,6 +54,7 @@
 #include "pc/rtp_receiver.h"
 #include "pc/rtp_transceiver.h"
 #include "pc/rtp_transmission_manager.h"
+#include "pc/sdp_payload_type_suggester.h"
 #include "pc/sdp_state_provider.h"
 #include "pc/session_description.h"
 #include "pc/stream_collection.h"
@@ -71,48 +69,6 @@
 #include "rtc_base/weak_ptr.h"
 
 namespace webrtc {
-
-// Helper class to assist in payload type assignment.
-// This class lives on the signaling thread.
-class SdpPayloadTypeSuggester : public PayloadTypeSuggester {
- public:
-  explicit SdpPayloadTypeSuggester(
-      PeerConnectionInterface::BundlePolicy bundle_policy)
-      : bundle_manager_(bundle_policy) {}
-  // Implementation of PayloadTypeSuggester
-  RTCErrorOr<PayloadType> SuggestPayloadType(absl::string_view mid,
-                                             const Codec& codec) override;
-  RTCError AddLocalMapping(absl::string_view mid,
-                           PayloadType payload_type,
-                           const Codec& codec) override;
-  // Updating the bundle mappings and recording PT assignments
-  RTCError Update(const SessionDescription* description,
-                  bool local,
-                  SdpType type);
-
- private:
-  // Records the association of local and remote payload types with a bundle.
-  class BundleTypeRecorder {
-   public:
-    explicit BundleTypeRecorder(PayloadTypePicker& picker)
-        : local_payload_types_(picker), remote_payload_types_(picker) {}
-
-    PayloadTypeRecorder& local_payload_types() { return local_payload_types_; }
-    PayloadTypeRecorder& remote_payload_types() {
-      return remote_payload_types_;
-    }
-
-   private:
-    PayloadTypeRecorder local_payload_types_;
-    PayloadTypeRecorder remote_payload_types_;
-  };
-  PayloadTypeRecorder& LookupRecorder(absl::string_view mid, bool local);
-  PayloadTypePicker payload_type_picker_;
-  // Record of bundle groups, used for looking up payload type suggesters.
-  // This class also exists on the network thread, in JsepTransportController.
-  BundleManager bundle_manager_;
-  std::map<std::string, BundleTypeRecorder> recorder_by_mid_;
-};
 
 // SdpOfferAnswerHandler is a component
 // of the PeerConnection object as defined
