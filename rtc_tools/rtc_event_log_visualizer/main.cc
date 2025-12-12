@@ -102,6 +102,8 @@ ABSL_FLAG(bool,
           "updates all the others too. A downside is that certain "
           "operations like panning become much slower.");
 
+ABSL_FLAG(bool, show_grid, false, "Show a grid in all plots.");
+
 ABSL_FLAG(bool,
           protobuf_output,
           false,
@@ -447,6 +449,7 @@ int main(int argc, char* argv[]) {
     std::cout << proto_charts.SerializeAsString();
   } else {
     collection.PrintPythonCode(absl::GetFlag(FLAGS_shared_xaxis),
+                               absl::GetFlag(FLAGS_show_grid),
                                absl::GetFlag(FLAGS_figure_output_path));
   }
 
