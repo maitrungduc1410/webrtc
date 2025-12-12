@@ -43,7 +43,9 @@ class ScreamV2 {
 
   void OnTransportPacketsFeedback(const TransportPacketsFeedback& msg);
 
-  DataRate target_rate() const { return target_rate_; }
+  DataRate target_rate() const {
+    return std::min(max_target_bitrate_, target_rate_);
+  }
   DataRate pacing_rate() const {
     return target_rate_ * params_.pacing_factor.Get();
   }
