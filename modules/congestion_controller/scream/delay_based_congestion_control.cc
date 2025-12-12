@@ -139,17 +139,21 @@ DataSize DelayBasedCongestionControl::UpdateReferenceWindow(
   if (ref_window < min_allowed_reference_window) {
     return min_allowed_reference_window;
   }
-  double l4s_alpha_v =
-      std::clamp((queue_delay_avg_ - params_.queue_delay_target.Get() *
-                                         params_.queue_delay_threshold.Get()) /
-                     (params_.queue_delay_target.Get() *
-                      params_.queue_delay_threshold.Get()),
-                 0.0, 1.0);
-  double backoff = l4s_alpha_v * params_.queue_delay_threshold.Get();
+
+  double backoff = l4s_alpha_v() * params_.queue_delay_threshold.Get();
   backoff /= std::max(1.0, last_smoothed_rtt_ / params_.virtual_rtt);
   backoff *= std::max(0.5, 1.0 - ref_window_mss_ratio);
 
   return std::max(min_allowed_reference_window, (1 - backoff) * ref_window);
+}
+
+double DelayBasedCongestionControl::l4s_alpha_v() const {
+  return std::clamp(
+      (queue_delay_avg_ -
+       params_.queue_delay_target.Get() * params_.queue_delay_threshold.Get()) /
+          (params_.queue_delay_target.Get() *
+           params_.queue_delay_threshold.Get()),
+      0.0, 1.0);
 }
 
 }  // namespace webrtc
