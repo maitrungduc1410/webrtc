@@ -1047,11 +1047,11 @@ PeerConnection::AddTransceiver(scoped_refptr<MediaStreamTrackInterface> track,
   if (!track) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER, "track is null");
   }
-  webrtc::MediaType media_type;
+  MediaType media_type;
   if (track->kind() == MediaStreamTrackInterface::kAudioKind) {
-    media_type = webrtc::MediaType::AUDIO;
+    media_type = MediaType::AUDIO;
   } else if (track->kind() == MediaStreamTrackInterface::kVideoKind) {
-    media_type = webrtc::MediaType::VIDEO;
+    media_type = MediaType::VIDEO;
   } else {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
                          "Track kind is not audio or video");
@@ -1060,12 +1060,12 @@ PeerConnection::AddTransceiver(scoped_refptr<MediaStreamTrackInterface> track,
 }
 
 RTCErrorOr<scoped_refptr<RtpTransceiverInterface>>
-PeerConnection::AddTransceiver(webrtc::MediaType media_type) {
+PeerConnection::AddTransceiver(MediaType media_type) {
   return AddTransceiver(media_type, RtpTransceiverInit());
 }
 
 RTCErrorOr<scoped_refptr<RtpTransceiverInterface>>
-PeerConnection::AddTransceiver(webrtc::MediaType media_type,
+PeerConnection::AddTransceiver(MediaType media_type,
                                const RtpTransceiverInit& init) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (!ConfiguredForMedia()) {
@@ -1074,8 +1074,7 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
   }
   RTC_CHECK(IsUnifiedPlan())
       << "AddTransceiver is only available with Unified Plan SdpSemantics";
-  if (!(media_type == webrtc::MediaType::AUDIO ||
-        media_type == webrtc::MediaType::VIDEO)) {
+  if (!(media_type == MediaType::AUDIO || media_type == MediaType::VIDEO)) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
                          "media type is not audio or video");
   }
@@ -1083,7 +1082,7 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
 }
 
 RTCErrorOr<scoped_refptr<RtpTransceiverInterface>>
-PeerConnection::AddTransceiver(webrtc::MediaType media_type,
+PeerConnection::AddTransceiver(MediaType media_type,
                                scoped_refptr<MediaStreamTrackInterface> track,
                                const RtpTransceiverInit& init,
                                bool update_negotiation_needed) {
@@ -1092,13 +1091,13 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
     LOG_AND_RETURN_ERROR(RTCErrorType::UNSUPPORTED_OPERATION,
                          "Not configured for media");
   }
-  RTC_DCHECK((media_type == webrtc::MediaType::AUDIO ||
-              media_type == webrtc::MediaType::VIDEO));
+  RTC_DCHECK(
+      (media_type == MediaType::AUDIO || media_type == MediaType::VIDEO));
   if (track) {
     RTC_DCHECK_EQ(media_type,
                   (track->kind() == MediaStreamTrackInterface::kAudioKind
-                       ? webrtc::MediaType::AUDIO
-                       : webrtc::MediaType::VIDEO));
+                       ? MediaType::AUDIO
+                       : MediaType::VIDEO));
   }
 
   size_t num_rids = absl::c_count_if(init.send_encodings,
@@ -1133,7 +1132,7 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
 
   // Encodings are dropped from the tail if too many are provided.
   size_t max_simulcast_streams =
-      media_type == webrtc::MediaType::VIDEO ? kMaxSimulcastStreams : 1u;
+      media_type == MediaType::VIDEO ? kMaxSimulcastStreams : 1u;
   if (parameters.encodings.size() > max_simulcast_streams) {
     parameters.encodings.erase(
         parameters.encodings.begin() + max_simulcast_streams,
@@ -1170,7 +1169,7 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
   // Gather the current codec capabilities to allow checking scalabilityMode and
   // codec selection against supported values.
   CodecVendor codec_vendor(context_->media_engine(), false, trials());
-  if (media_type == webrtc::MediaType::VIDEO) {
+  if (media_type == MediaType::VIDEO) {
     codecs = codec_vendor.video_send_codecs().codecs();
   } else {
     codecs = codec_vendor.audio_send_codecs().codecs();
@@ -1185,7 +1184,7 @@ PeerConnection::AddTransceiver(webrtc::MediaType media_type,
     LOG_AND_RETURN_ERROR(result.type(), result.message());
   }
 
-  RTC_LOG(LS_INFO) << "Adding " << webrtc::MediaTypeToString(media_type)
+  RTC_LOG(LS_INFO) << "Adding " << MediaTypeToString(media_type)
                    << " transceiver in response to a call to AddTransceiver.";
   // Set the sender ID equal to the track ID if the track is specified unless
   // that sender ID is already in use.
@@ -2737,12 +2736,12 @@ void PeerConnection::ReportSdpBundleUsage(
   int num_data_mlines = 0;
   for (const ContentInfo& content :
        remote_description.description()->contents()) {
-    webrtc::MediaType media_type = content.media_description()->type();
-    if (media_type == webrtc::MediaType::AUDIO) {
+    MediaType media_type = content.media_description()->type();
+    if (media_type == MediaType::AUDIO) {
       num_audio_mlines += 1;
-    } else if (media_type == webrtc::MediaType::VIDEO) {
+    } else if (media_type == MediaType::VIDEO) {
       num_video_mlines += 1;
-    } else if (media_type == webrtc::MediaType::DATA) {
+    } else if (media_type == MediaType::DATA) {
       num_data_mlines += 1;
     }
   }
@@ -2891,7 +2890,7 @@ void PeerConnection::ReportTransportStats(
     std::vector<RtpTransceiverProxyRefPtr> transceivers) {
   TRACE_EVENT0("webrtc", "PeerConnection::ReportTransportStats");
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-  flat_map<absl::string_view, std::set<webrtc::MediaType>>
+  flat_map<absl::string_view, std::set<MediaType>>
       media_types_by_transport_name;
   for (const auto& transceiver : transceivers) {
     if (transceiver->internal()->channel()) {
@@ -2907,13 +2906,13 @@ void PeerConnection::ReportTransportStats(
         transport_controller_->GetDtlsTransport(*sctp_mid_n_);
     if (dtls_transport) {
       media_types_by_transport_name[dtls_transport->transport_name()].insert(
-          webrtc::MediaType::DATA);
+          MediaType::DATA);
     }
   }
 
   for (const auto& entry : media_types_by_transport_name) {
     const absl::string_view transport_name = entry.first;
-    const std::set<webrtc::MediaType> media_types = entry.second;
+    const std::set<MediaType> media_types = entry.second;
     TransportStats stats;
     if (transport_controller_->GetStats(transport_name, &stats)) {
       ReportBestConnectionState(stats);
@@ -2974,7 +2973,7 @@ void PeerConnection::ReportBestConnectionState(const TransportStats& stats) {
 void PeerConnection::ReportNegotiatedCiphers(
     bool dtls_enabled,
     const TransportStats& stats,
-    const std::set<webrtc::MediaType>& media_types) {
+    const std::set<MediaType>& media_types) {
   if (!dtls_enabled || stats.channel_stats.empty()) {
     return;
   }
@@ -2987,19 +2986,19 @@ void PeerConnection::ReportNegotiatedCiphers(
   }
 
   if (ssl_cipher_suite != kTlsNullWithNullNull) {
-    for (webrtc::MediaType media_type : media_types) {
+    for (MediaType media_type : media_types) {
       switch (media_type) {
-        case webrtc::MediaType::AUDIO:
+        case MediaType::AUDIO:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslCipherSuite.Audio", ssl_cipher_suite,
               kSslCipherSuiteMaxValue);
           break;
-        case webrtc::MediaType::VIDEO:
+        case MediaType::VIDEO:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslCipherSuite.Video", ssl_cipher_suite,
               kSslCipherSuiteMaxValue);
           break;
-        case webrtc::MediaType::DATA:
+        case MediaType::DATA:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslCipherSuite.Data", ssl_cipher_suite,
               kSslCipherSuiteMaxValue);
@@ -3014,19 +3013,19 @@ void PeerConnection::ReportNegotiatedCiphers(
   uint16_t ssl_peer_signature_algorithm =
       stats.channel_stats[0].ssl_peer_signature_algorithm;
   if (ssl_peer_signature_algorithm != kSslSignatureAlgorithmUnknown) {
-    for (webrtc::MediaType media_type : media_types) {
+    for (MediaType media_type : media_types) {
       switch (media_type) {
-        case webrtc::MediaType::AUDIO:
+        case MediaType::AUDIO:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslPeerSignatureAlgorithm.Audio",
               ssl_peer_signature_algorithm, kSslSignatureAlgorithmMaxValue);
           break;
-        case webrtc::MediaType::VIDEO:
+        case MediaType::VIDEO:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslPeerSignatureAlgorithm.Video",
               ssl_peer_signature_algorithm, kSslSignatureAlgorithmMaxValue);
           break;
-        case webrtc::MediaType::DATA:
+        case MediaType::DATA:
           RTC_HISTOGRAM_ENUMERATION_SPARSE(
               "WebRTC.PeerConnection.SslPeerSignatureAlgorithm.Data",
               ssl_peer_signature_algorithm, kSslSignatureAlgorithmMaxValue);
@@ -3072,14 +3071,15 @@ bool PeerConnection::OnTransportChanged(
 }
 
 void PeerConnection::RunWithObserver(
-    absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&> task) {
+    absl::AnyInvocable<void(PeerConnectionObserver*) &&> task) {  // NOLINT
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(observer_);
   std::move(task)(observer_);
 }
 
 void PeerConnection::RunWithMaybeNullObserver(
-    absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&> task) const {
+    absl::AnyInvocable<void(PeerConnectionObserver*) &&> task)  // NOLINT
+    const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   std::move(task)(observer_);
 }

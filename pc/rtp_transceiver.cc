@@ -905,7 +905,7 @@ RtpTransceiver::GetOfferedAndImplementedHeaderExtensions(
 // and https://w3c.github.io/webrtc-extensions/#rtcrtptransceiver-interface
 // Since BUNDLE is offered by default, MID is mandatory and can not be turned
 // off via this API.
-bool IsMandatoryHeaderExtension(const std::string& uri) {
+bool IsMandatoryHeaderExtension(absl::string_view uri) {
   return uri == RtpExtension::kMidUri;
 }
 

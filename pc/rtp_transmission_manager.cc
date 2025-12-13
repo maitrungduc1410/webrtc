@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
@@ -93,7 +94,7 @@ void RtpTransmissionManager::OnNegotiationNeeded() {
 }
 
 void RtpTransmissionManager::RunWithObserver(
-    absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&> task) {
+    absl::AnyInvocable<void(PeerConnectionObserver*) &&> task) {  // NOLINT
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(observer_);
   std::move(task)(observer_);
@@ -740,7 +741,7 @@ RtpTransmissionManager::FindSenderForTrack(
 }
 
 scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>
-RtpTransmissionManager::FindSenderById(const std::string& sender_id) const {
+RtpTransmissionManager::FindSenderById(absl::string_view sender_id) const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   for (const auto& transceiver : transceivers_.List()) {
     for (auto sender : transceiver->internal()->senders()) {
@@ -753,7 +754,7 @@ RtpTransmissionManager::FindSenderById(const std::string& sender_id) const {
 }
 
 scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
-RtpTransmissionManager::FindReceiverById(const std::string& receiver_id) const {
+RtpTransmissionManager::FindReceiverById(absl::string_view receiver_id) const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   for (const auto& transceiver : transceivers_.List()) {
     for (auto receiver : transceiver->internal()->receivers()) {

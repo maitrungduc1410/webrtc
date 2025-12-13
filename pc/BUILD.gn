@@ -405,6 +405,7 @@ rtc_library("media_options") {
     "../p2p:transport_description_factory",
     "../rtc_base:checks",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -1749,6 +1750,7 @@ rtc_library("rtp_transmission_manager") {
     "../rtc_base:unique_id_generator",
     "../rtc_base:weak_ptr",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -1768,6 +1770,7 @@ rtc_library("transceiver_list") {
     "../rtc_base:checks",
     "../rtc_base:macromagic",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
