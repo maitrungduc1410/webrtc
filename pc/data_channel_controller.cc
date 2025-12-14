@@ -409,8 +409,7 @@ DataChannelController::InternalCreateDataChannelWithProxy(
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!pc_->IsClosed());
   if (!config.IsValid()) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                         "Invalid DataChannelInit");
+    return LOG_ERROR(RTCError::InvalidParameter() << "Invalid DataChannelInit");
   }
 
   bool ready_to_send = false;
