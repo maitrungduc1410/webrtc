@@ -240,6 +240,7 @@ rtc_library("rtp_transport_factory") {
   visibility = [ "*" ]
 
   sources = [ "rtp_transport_factory.h" ]
+  deps = [ "//third_party/abseil-cpp/absl/strings:string_view" ]
 }
 
 rtc_library("dtls_transport_interface") {

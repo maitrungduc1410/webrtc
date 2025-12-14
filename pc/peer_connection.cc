@@ -2704,7 +2704,7 @@ void PeerConnection::TeardownDataChannelTransport_n(RTCError error) {
 // Returns false if bundle is enabled and rtcp_mux is disabled.
 bool PeerConnection::ValidateBundleSettings(
     const SessionDescription* desc,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   if (bundle_groups_by_mid.empty())
     return true;
 
@@ -2911,12 +2911,10 @@ void PeerConnection::ReportTransportStats(
   }
 
   for (const auto& entry : media_types_by_transport_name) {
-    const absl::string_view transport_name = entry.first;
-    const std::set<MediaType> media_types = entry.second;
     TransportStats stats;
-    if (transport_controller_->GetStats(transport_name, &stats)) {
+    if (transport_controller_->GetStats(entry.first, &stats)) {
       ReportBestConnectionState(stats);
-      ReportNegotiatedCiphers(dtls_enabled_, stats, media_types);
+      ReportNegotiatedCiphers(dtls_enabled_, stats, entry.second);
     }
   }
 }

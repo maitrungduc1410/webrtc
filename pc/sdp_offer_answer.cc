@@ -93,6 +93,8 @@
 #include "pc/usage_pattern.h"
 #include "pc/webrtc_session_description_factory.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
+#include "rtc_base/containers/flat_set.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/operations_chain.h"
@@ -161,11 +163,11 @@ void NoteAddIceCandidateResult(int result) {
                             kAddIceCandidateMax);
 }
 
-std::map<std::string, const ContentGroup*> GetBundleGroupsByMid(
+flat_map<std::string, const ContentGroup*> GetBundleGroupsByMid(
     const SessionDescription* desc) {
   std::vector<const ContentGroup*> bundle_groups =
       desc->GetGroupsByName(GROUP_TYPE_BUNDLE);
-  std::map<std::string, const ContentGroup*> bundle_groups_by_mid;
+  flat_map<std::string, const ContentGroup*> bundle_groups_by_mid;
   for (const ContentGroup* bundle_group : bundle_groups) {
     for (const std::string& content_name : bundle_group->content_names()) {
       bundle_groups_by_mid[content_name] = bundle_group;
@@ -177,7 +179,7 @@ std::map<std::string, const ContentGroup*> GetBundleGroupsByMid(
 // Returns true if `new_desc` requests an ICE restart (i.e., new ufrag/pwd).
 bool CheckForRemoteIceRestart(const SessionDescriptionInterface* old_desc,
                               const SessionDescriptionInterface* new_desc,
-                              const std::string& content_name) {
+                              absl::string_view content_name) {
   if (!old_desc) {
     return false;
   }
@@ -356,7 +358,7 @@ RTCError VerifyDirectionsInAnswer(const SessionDescription* local_offer,
 RTCError VerifyCrypto(
     const SessionDescription* desc,
     bool dtls_enabled,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   for (const ContentInfo& content_info : desc->contents()) {
     if (content_info.rejected) {
       continue;
@@ -397,7 +399,7 @@ RTCError VerifyCrypto(
 // media section/description in the BUNDLE group) needs a ufrag and pwd.
 bool VerifyIceUfragPwdPresent(
     const SessionDescription* desc,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   for (const ContentInfo& content_info : desc->contents()) {
     if (content_info.rejected) {
       continue;
@@ -431,7 +433,7 @@ bool VerifyIceUfragPwdPresent(
 }
 
 RTCError ValidateMids(const SessionDescription& description) {
-  std::set<std::string> mids;
+  flat_set<absl::string_view> mids;
   for (const ContentInfo& content : description.contents()) {
     if (content.mid().empty()) {
       LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
@@ -802,7 +804,7 @@ void AddPlanBRtpSenderOptions(
 
 MediaDescriptionOptions GetMediaDescriptionOptionsForTransceiver(
     RtpTransceiver* transceiver,
-    const std::string& mid,
+    absl::string_view mid,
     bool is_create_offer) {
   // NOTE: a stopping transceiver should be treated as a stopped one in
   // createOffer as specified in
@@ -1165,7 +1167,7 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
   // Returns a reference to a cached map of bundle groups ordered by mid.
   // Note that this will only be valid after a successful call to
   // `IsDescriptionValid`.
-  const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid()
+  const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid()
       const {
     RTC_DCHECK(ok());
     return bundle_groups_by_mid_;
@@ -1173,21 +1175,21 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
 
  private:
   // Convenience methods for populating the embedded `error_` object.
-  void Unsupported(std::string message) {
-    SetError(RTCErrorType::UNSUPPORTED_OPERATION, std::move(message));
+  void Unsupported(absl::string_view message) {
+    SetError(RTCErrorType::UNSUPPORTED_OPERATION, message);
   }
 
-  void InvalidParam(std::string message) {
-    SetError(RTCErrorType::INVALID_PARAMETER, std::move(message));
+  void InvalidParam(absl::string_view message) {
+    SetError(RTCErrorType::INVALID_PARAMETER, message);
   }
 
-  void InternalError(std::string message) {
-    SetError(RTCErrorType::INTERNAL_ERROR, std::move(message));
+  void InternalError(absl::string_view message) {
+    SetError(RTCErrorType::INTERNAL_ERROR, message);
   }
 
-  void SetError(RTCErrorType type, std::string message) {
+  void SetError(RTCErrorType type, absl::string_view message) {
     RTC_DCHECK(ok()) << "Overwriting an existing error?";
-    error_ = RTCError(type, std::move(message));
+    error_ = RTCError(type, message);
   }
 
   // Called when the PeerConnection could be in an inconsistent state and we set
@@ -1207,7 +1209,7 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
   scoped_refptr<SetRemoteDescriptionObserverInterface> observer_;
   std::function<void()> operations_chain_callback_;
   RTCError error_ = RTCError::OK();
-  std::map<std::string, const ContentGroup*> bundle_groups_by_mid_;
+  flat_map<std::string, const ContentGroup*> bundle_groups_by_mid_;
   const SdpType type_;
   const bool unified_plan_;
 };
@@ -1798,7 +1800,7 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 
 RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     std::unique_ptr<SessionDescriptionInterface> desc,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   RTC_LOG_THREAD_BLOCK_COUNT();
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::ApplyLocalDescription");
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -2179,7 +2181,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
       if (CheckForRemoteIceRestart(operation->old_remote_description(),
                                    remote_description(), content.mid())) {
         if (operation->type() == SdpType::kOffer) {
-          pending_ice_restarts_.insert(content.mid());
+          pending_ice_restarts_.insert(std::string(content.mid()));
         }
       } else {
         // We retain all received candidates only if ICE is not restarted.
@@ -2503,7 +2505,7 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
     return;
   }
 
-  std::map<std::string, const ContentGroup*> bundle_groups_by_mid =
+  flat_map<std::string, const ContentGroup*> bundle_groups_by_mid =
       GetBundleGroupsByMid(desc->description());
   RTCError error =
       ValidateSessionDescription(desc.get(), CS_LOCAL, bundle_groups_by_mid);
@@ -3135,7 +3137,7 @@ RTCError SdpOfferAnswerHandler::UpdateSessionState(
     SdpType type,
     ContentSource source,
     const SessionDescription* description,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   RTC_DCHECK_RUN_ON(signaling_thread());
 
   // If there's already a pending error then no state transition should
@@ -3813,7 +3815,7 @@ void SdpOfferAnswerHandler::GenerateNegotiationNeededEvent() {
 RTCError SdpOfferAnswerHandler::ValidateSessionDescription(
     const SessionDescriptionInterface* sdesc,
     ContentSource source,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   // An assumption is that a check for session error is done at a higher level.
   RTC_DCHECK_EQ(SessionError::kNone, session_error());
 
@@ -3967,7 +3969,7 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     const SessionDescriptionInterface& new_session,
     const SessionDescriptionInterface* old_local_description,
     const SessionDescriptionInterface* old_remote_description,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   TRACE_EVENT0("webrtc",
                "SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels");
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -4209,7 +4211,7 @@ SdpOfferAnswerHandler::AssociateTransceiver(
   // setting the value of the RtpTransceiver's mid property to the MID of the m=
   // section, and establish a mapping between the transceiver and the index of
   // the m= section.
-  transceiver->internal()->set_mid(content.mid());
+  transceiver->internal()->set_mid(std::string(content.mid()));
   transceiver->internal()->set_mline_index(mline_index);
   return std::move(transceiver);
 }
@@ -4536,8 +4538,8 @@ void SdpOfferAnswerHandler::GetOptionsForUnifiedPlanOffer(
     bool had_been_rejected =
         (current_local_content && current_local_content->rejected) ||
         (current_remote_content && current_remote_content->rejected);
-    const std::string& mid =
-        (local_content ? local_content->mid() : remote_content->mid());
+    const absl::string_view mid =
+        local_content ? local_content->mid() : remote_content->mid();
     MediaType media_type =
         (local_content ? local_content->media_description()->type()
                        : remote_content->media_description()->type());
@@ -5101,7 +5103,7 @@ void SdpOfferAnswerHandler::EnableSending() {
 RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
     SdpType type,
     ContentSource source,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::PushdownMediaDescription");
   RTC_DCHECK_RUN_ON(signaling_thread());
   const SessionDescriptionInterface* sdesc =
@@ -5722,7 +5724,7 @@ void SdpOfferAnswerHandler::GenerateMediaDescriptionOptions(
 
 MediaDescriptionOptions
 SdpOfferAnswerHandler::GetMediaDescriptionOptionsForActiveData(
-    const std::string& mid) const {
+    absl::string_view mid) const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   // Direction for data sections is meaningless, but legacy endpoints might
   // expect sendrecv.
@@ -5734,7 +5736,7 @@ SdpOfferAnswerHandler::GetMediaDescriptionOptionsForActiveData(
 
 MediaDescriptionOptions
 SdpOfferAnswerHandler::GetMediaDescriptionOptionsForRejectedData(
-    const std::string& mid) const {
+    absl::string_view mid) const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   MediaDescriptionOptions options(MediaType::DATA, mid,
                                   RtpTransceiverDirection::kInactive,
@@ -5744,7 +5746,7 @@ SdpOfferAnswerHandler::GetMediaDescriptionOptionsForRejectedData(
 
 bool SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     ContentSource source,
-    const std::map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
   TRACE_EVENT0("webrtc",
                "SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState");
   RTC_DCHECK_RUN_ON(signaling_thread());
