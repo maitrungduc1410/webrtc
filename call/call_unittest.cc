@@ -23,8 +23,6 @@
 #include "api/environment/environment_factory.h"
 #include "api/make_ref_counted.h"
 #include "api/media_types.h"
-#include "api/rtc_event_log/rtc_event.h"
-#include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
 #include "api/test/mock_audio_mixer.h"
 #include "api/test/video/function_video_encoder_factory.h"
@@ -39,18 +37,12 @@
 #include "call/audio_state.h"
 #include "call/call_config.h"
 #include "call/flexfec_receive_stream.h"
-#include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
-#include "logging/rtc_event_log/events/rtc_event_rtp_packet_incoming.h"
-#include "logging/rtc_event_log/mock/mock_rtc_event_log.h"
-#include "media/engine/fake_video_codec_factory.h"
 #include "modules/audio_device/include/mock_audio_device.h"
 #include "modules/audio_processing/include/mock_audio_processing.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "rtc_base/checks.h"
 #include "test/fake_encoder.h"
-#include "test/fake_videorenderer.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/mock_audio_decoder_factory.h"
@@ -68,17 +60,9 @@ using test::MockAudioMixer;
 using test::MockAudioProcessing;
 using test::RunLoop;
 using ::testing::_;
-using ::testing::AllOf;
-using ::testing::Eq;
-using ::testing::InSequence;
-using ::testing::Matches;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
-using ::testing::NotNull;
-using ::testing::Optional;
-using ::testing::Property;
 using ::testing::StrictMock;
-using ::testing::Truly;
 
 struct CallHelper {
   explicit CallHelper(bool use_null_audio_processing) {
@@ -90,17 +74,15 @@ struct CallHelper {
             : make_ref_counted<NiceMock<MockAudioProcessing>>();
     audio_state_config.audio_device_module =
         make_ref_counted<MockAudioDeviceModule>();
-    CallConfig config(CreateEnvironment(&log_));
+    CallConfig config(CreateEnvironment());
     config.audio_state = AudioState::Create(audio_state_config);
     call_ = Call::Create(std::move(config));
   }
 
   Call* operator->() { return call_.get(); }
-  MockRtcEventLog& log() { return log_; }
 
  private:
   RunLoop loop_;
-  MockRtcEventLog log_;
   std::unique_ptr<Call> call_;
 };
 
@@ -471,91 +453,6 @@ TEST(CallTest, AddAdaptationResourceBeforeCreatingVideoSendStream) {
   fake_resource->SetUsageState(ResourceUsageState::kUnderuse);
   call->DestroyVideoSendStream(stream1);
   call->DestroyVideoSendStream(stream2);
-}
-
-TEST(CallTest, LogsAudioRtpPacket) {
-  CallHelper call(/*use_null_audio_processing=*/false);
-
-  RtpPacketReceived packet;
-  packet.set_arrival_time(Timestamp::Millis(1));
-  MockFunction<bool(const RtpPacketReceived& parsed_packet)>
-      un_demuxable_packet_handler;
-  EXPECT_CALL(call.log(), LogProxy(_));
-  call->Receiver()->DeliverRtpPacket(
-      MediaType::AUDIO, packet, un_demuxable_packet_handler.AsStdFunction());
-}
-
-TEST(CallTest, LogsVideoRtpPacket) {
-  CallHelper call(/*use_null_audio_processing=*/false);
-
-  RtpPacketReceived packet;
-  packet.set_arrival_time(Timestamp::Millis(1));
-  MockFunction<bool(const RtpPacketReceived& parsed_packet)>
-      un_demuxable_packet_handler;
-  EXPECT_CALL(call.log(), LogProxy(_));
-  call->Receiver()->DeliverRtpPacket(
-      MediaType::VIDEO, packet, un_demuxable_packet_handler.AsStdFunction());
-}
-
-TEST(CallTest, LogsVideoRtpRtxPacket) {
-  constexpr uint32_t kRtxSsrc = 123456;
-  CallHelper call(/*use_null_audio_processing=*/false);
-
-  // Create stream.
-  MockTransport transport;
-  FakeVideoDecoderFactory decoder_factory;
-  VideoReceiveStreamInterface::Config config(&transport, &decoder_factory);
-  test::FakeVideoRenderer renderer;
-  config.decoders.emplace_back(SdpVideoFormat("AV1"), /*payload_type=*/101);
-  config.renderer = &renderer;  // Due to RTC_DCHECK in `VideoReceiveStream2`.
-  config.rtp.local_ssrc = 1;  // Due to RTC_DCHECK in `RtpVideoStreamReceiver2`.
-  config.rtp.rtx_ssrc = kRtxSsrc;
-  config.rtp.rtcp_mode = RtcpMode::kCompound;
-  VideoReceiveStreamInterface* stream =
-      call->CreateVideoReceiveStream(std::move(config));
-
-  // Create RTX packet.
-  RtpPacketReceived packet;
-  packet.set_arrival_time(
-      Timestamp::Millis(1));  // Due to RTC_DCHECK in `Call`.
-  packet.SetSsrc(kRtxSsrc);
-  uint8_t* data = packet.AllocatePayload(kRtxHeaderSize);
-  data[0] = 0u;
-  data[1] = static_cast<uint8_t>(127);
-  MockFunction<bool(const RtpPacketReceived& parsed_packet)>
-      un_demuxable_packet_handler;
-
-  {
-    InSequence seq;
-
-    // RTX OSN is set on log event for registered stream.
-    EXPECT_CALL(
-        call.log(),
-        LogProxy(AllOf(
-            NotNull(),
-            Property(&RtcEvent::GetType, Eq(RtcEvent::Type::RtpPacketIncoming)),
-            Truly([](const RtcEvent* event) {
-              RTC_CHECK_EQ(event->GetType(), RtcEvent::Type::RtpPacketIncoming);
-              return static_cast<const RtcEventRtpPacketIncoming*>(event)
-                         ->rtx_original_sequence_number() == 127;
-            }))));
-    call->Receiver()->DeliverRtpPacket(
-        MediaType::VIDEO, packet, un_demuxable_packet_handler.AsStdFunction());
-
-    // Deregister stream.
-    call->DestroyVideoReceiveStream(stream);
-
-    // RTX OSN is NOT set on log event for deregistered stream.
-    EXPECT_CALL(call.log(), LogProxy(Truly([](const RtcEvent* event) {
-                  RTC_CHECK_EQ(event->GetType(),
-                               RtcEvent::Type::RtpPacketIncoming);
-                  return !static_cast<const RtcEventRtpPacketIncoming*>(event)
-                              ->rtx_original_sequence_number()
-                              .has_value();
-                })));
-    call->Receiver()->DeliverRtpPacket(
-        MediaType::VIDEO, packet, un_demuxable_packet_handler.AsStdFunction());
-  }
 }
 
 }  // namespace webrtc
