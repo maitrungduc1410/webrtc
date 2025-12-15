@@ -1132,7 +1132,6 @@ if (rtc_include_tests) {
       deps += [
         ":webrtc_opus",
         "../../rtc_base:checks",
-        "../../test:test_main",
         "../../test:test_support",
         "../audio_processing",
         "//testing/gtest",

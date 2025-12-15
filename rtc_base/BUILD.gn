@@ -727,7 +727,6 @@ if (rtc_include_tests) {
       "../api/task_queue",
       "../api/task_queue:task_queue_test",
       "../api/units:time_delta",
-      "../test:test_main",
       "../test:test_support",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
@@ -1949,16 +1948,15 @@ rtc_library("cpu_info") {
 
 if (rtc_include_tests) {
   if (rtc_enable_google_benchmarks) {
-    rtc_test("base64_benchmark") {
+    rtc_library("base64_benchmark_temp") {
+      testonly = true
       sources = [ "base64_benchmark.cc" ]
       deps = [
         ":base64",
-        "../test:benchmark_main",
         "//third_party/google_benchmark",
       ]
     }
   }
-
   rtc_library("untyped_function_unittest") {
     testonly = true
     sources = [ "untyped_function_unittest.cc" ]
@@ -2029,7 +2027,6 @@ if (rtc_include_tests) {
         "../test:create_test_environment",
         "../test:fileutils",
         "../test:near_matcher",
-        "../test:test_main",
         "../test:test_support",
         "../test:wait_until",
         "system:file_wrapper",
@@ -2156,7 +2153,6 @@ if (rtc_include_tests) {
         "../system_wrappers",
         "../test:create_test_environment",
         "../test:fileutils",
-        "../test:test_main",
         "../test:test_support",
         "containers:flat_map",
         "containers:unittests",
@@ -2187,7 +2183,6 @@ if (rtc_include_tests) {
         ":timeutils",
         "../api/task_queue",
         "../api/units:time_delta",
-        "../test:test_main",
         "../test:test_support",
         "//third_party/abseil-cpp/absl/memory",
       ]
@@ -2203,7 +2198,6 @@ if (rtc_include_tests) {
         ":rtc_event",
         ":task_queue_for_test",
         ":weak_ptr",
-        "../test:test_main",
         "../test:test_support",
       ]
     }
@@ -2228,7 +2222,6 @@ if (rtc_include_tests) {
         ":timeutils",
         ":windowed_min_filter",
         "../api/units:time_delta",
-        "../test:test_main",
         "../test:test_support",
         "//testing/gtest",
         "//third_party/abseil-cpp/absl/algorithm:container",
@@ -2243,7 +2236,6 @@ if (rtc_include_tests) {
         ":gunit_helpers",
         ":rtc_base_tests_utils",
         ":rtc_json",
-        "../test:test_main",
         "../test:test_support",
       ]
     }
@@ -2339,7 +2331,6 @@ if (rtc_include_tests) {
         "../test:create_test_field_trials",
         "../test:fileutils",
         "../test:rtc_expect_death",
-        "../test:test_main",
         "../test:test_support",
         "../test:wait_until",
         "memory:fifo_buffer",

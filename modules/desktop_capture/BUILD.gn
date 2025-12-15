@@ -117,7 +117,6 @@ if (rtc_include_tests) {
         "../../rtc_base:task_queue_for_test",
         "../../rtc_base:threading",
         "../../system_wrappers",
-        "../../test:test_main",
         "../../test:test_support",
         "//api/units:time_delta",
         "//rtc_base:rtc_event",
