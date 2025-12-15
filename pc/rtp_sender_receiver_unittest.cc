@@ -210,7 +210,9 @@ class RtpSenderReceiverTest
     CreateVideoRtpSender(false, ssrc);
   }
 
-  void CreateVideoRtpSender() { CreateVideoRtpSender(false); }
+  void CreateVideoRtpSender() {
+    CreateVideoRtpSender(/*is_screencast=*/false, kVideoSsrc);
+  }
 
   StreamParams CreateSimulcastStreamParams(int num_layers) {
     std::vector<uint32_t> ssrcs;
@@ -245,7 +247,7 @@ class RtpSenderReceiverTest
     return CreateVideoRtpSender(stream_params);
   }
 
-  void CreateVideoRtpSender(bool is_screencast, uint32_t ssrc = kVideoSsrc) {
+  void CreateVideoRtpSender(bool is_screencast, uint32_t ssrc) {
     AddVideoTrack(is_screencast);
     std::unique_ptr<MockSetStreamsObserver> set_streams_observer =
         std::make_unique<MockSetStreamsObserver>();
@@ -1667,7 +1669,7 @@ TEST_F(RtpSenderReceiverTest, PropagatesVideoTrackContentHint) {
 // value for screencast sources.
 TEST_F(RtpSenderReceiverTest,
        PropagatesVideoTrackContentHintForScreencastSource) {
-  CreateVideoRtpSender(true);
+  CreateVideoRtpSender(true, kVideoSsrc);
 
   video_track_->set_enabled(true);
 
