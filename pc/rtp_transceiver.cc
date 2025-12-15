@@ -736,10 +736,6 @@ void RtpTransceiver::StopTransceiverProcedure() {
   // 2. Set transceiver.[[Stopped]] to true.
   stopped_ = true;
 
-  // Signal the updated change to the senders.
-  for (const auto& sender : senders_)
-    sender->internal()->SetTransceiverAsStopped();
-
   // 3. Set transceiver.[[Receptive]] to false.
   receptive_ = false;
 

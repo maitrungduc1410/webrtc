@@ -351,7 +351,6 @@ scoped_refptr<MockRtpSenderInternal> CreateMockSender(
   });
   EXPECT_CALL(*sender, AttachmentId()).WillRepeatedly(Return(attachment_id));
   EXPECT_CALL(*sender, stream_ids()).WillRepeatedly(Return(local_stream_ids));
-  EXPECT_CALL(*sender, SetTransceiverAsStopped());
   return sender;
 }
 

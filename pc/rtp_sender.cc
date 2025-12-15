@@ -360,13 +360,6 @@ RTCError RtpSenderBase::SetParametersInternalWithAllLayers(
 
 RTCError RtpSenderBase::CheckSetParameters(const RtpParameters& parameters) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  if (is_transceiver_stopped_) {
-    // If this is always true, do we need is_transceiver_stopped_?
-    RTC_DCHECK(stopped_);
-    LOG_AND_RETURN_ERROR(
-        RTCErrorType::INVALID_STATE,
-        "Cannot set parameters on sender of a stopped transceiver.");
-  }
   if (stopped_) {
     LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
                          "Cannot set parameters on a stopped sender.");

@@ -101,8 +101,6 @@ class RtpSenderInternal : public RtpSenderInterface {
   virtual RTCError DisableEncodingLayers(
       const std::vector<std::string>& rid) = 0;
 
-  virtual void SetTransceiverAsStopped() = 0;
-
   // Used by the owning transceiver to inform the sender on the currently
   // selected codecs.
   virtual void SetSendCodecs(std::vector<Codec> send_codecs) = 0;
@@ -219,11 +217,6 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
 
   void SetEncoderSelectorOnChannel();
 
-  void SetTransceiverAsStopped() override {
-    RTC_DCHECK_RUN_ON(signaling_thread_);
-    is_transceiver_stopped_ = true;
-  }
-
   void SetSendCodecs(std::vector<Codec> send_codecs) override {
     send_codecs_ = send_codecs;
   }
@@ -270,7 +263,6 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // since 0 is a legal SSRC value.
   uint32_t ssrc_ = 0;
   bool stopped_ RTC_GUARDED_BY(signaling_thread_) = false;
-  bool is_transceiver_stopped_ RTC_GUARDED_BY(signaling_thread_) = false;
   int attachment_id_ = 0;
   const std::string id_;
 

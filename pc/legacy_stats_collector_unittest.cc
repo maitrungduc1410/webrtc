@@ -744,7 +744,6 @@ static scoped_refptr<MockRtpSenderInternal> CreateMockSender(
                      : MediaType::VIDEO));
   EXPECT_CALL(*sender, SetMediaChannel(NotNull())).Times(AtMost(1));
   EXPECT_CALL(*sender, SetMediaChannel(IsNull())).WillRepeatedly(Return());
-  EXPECT_CALL(*sender, SetTransceiverAsStopped()).Times(AtMost(1));
   EXPECT_CALL(*sender, Stop());
   return sender;
 }
