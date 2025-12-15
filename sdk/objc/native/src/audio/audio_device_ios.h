@@ -26,7 +26,7 @@
 #include "sdk/objc/base/RTCMacros.h"
 #include "voice_processing_audio_unit.h"
 
-RTC_FWD_DECL_OBJC_CLASS(RTCNativeAudioSessionDelegateAdapter);
+RTC_FWD_DECL_OBJC_CLASS(RTC_OBJC_TYPE(RTCNativeAudioSessionDelegateAdapter));
 
 namespace webrtc {
 
@@ -303,8 +303,8 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
   bool is_interrupted_;
 
   // Audio interruption observer instance.
-  RTCNativeAudioSessionDelegateAdapter* audio_session_observer_
-      RTC_GUARDED_BY(thread_);
+  RTC_OBJC_TYPE(RTCNativeAudioSessionDelegateAdapter) *
+      audio_session_observer_ RTC_GUARDED_BY(thread_);
 
   // Set to true if we've activated the audio session.
   bool has_configured_session_ RTC_GUARDED_BY(thread_);
