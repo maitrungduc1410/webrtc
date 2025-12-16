@@ -490,7 +490,8 @@ class PeerConnection : public PeerConnectionInternal,
   JsepTransportController* InitializeNetworkThread(
       const ServerAddresses& stun_servers,
       const std::vector<RelayServerConfig>& turn_servers);
-  void CloseOnNetworkThread();
+  void CloseOnNetworkThread(
+      std::vector<absl::AnyInvocable<void() &&>>& network_tasks);
   JsepTransportController* InitializeTransportController_n(
       std::unique_ptr<JsepTransportController> controller,
       const RTCConfiguration& configuration) RTC_RUN_ON(network_thread());

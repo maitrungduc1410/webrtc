@@ -695,23 +695,31 @@ PeerConnection::~PeerConnection() {
     stats_collector_ = nullptr;
   }
 
+  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
   if (sdp_handler_) {
     // Don't destroy BaseChannels until after stats has been cleaned up so that
     // the last stats request can still read from the channels.
-    sdp_handler_->DestroyMediaChannels();
-    RTC_LOG(LS_INFO) << "Session: " << session_id() << " is destroyed.";
-    sdp_handler_->ResetSessionDescFactory();
+    sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
   }
 
-  CloseOnNetworkThread();
+  CloseOnNetworkThread(network_tasks);
 
   // call_ must be destroyed on the worker thread.
-  worker_thread()->BlockingCall([this] {
+  worker_thread()->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(worker_thread());
+    for (auto& task : worker_tasks) {
+      std::move(task)();
+      task = nullptr;
+    }
     worker_thread_safety_->SetNotAlive();
     call_.reset();
     media_engine_ref_.reset();
   });
+
+  if (sdp_handler_) {
+    sdp_handler_->ResetSessionDescFactory();
+  }
 
   data_channel_controller_.PrepareForShutdown();
 }
@@ -850,18 +858,25 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
   });
 }
 
-void PeerConnection::CloseOnNetworkThread() {
+void PeerConnection::CloseOnNetworkThread(
+    std::vector<absl::AnyInvocable<void() &&>>& network_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (!transport_controller_copy_) {
+    // If the transport has been torn down then there should not be any
+    // pending network tasks to run.
+    RTC_DCHECK(network_tasks.empty());
     RTC_DCHECK(!sctp_mid_s_.has_value()) << "Should already be reset.";
     return;
   }
   // port_allocator_ and transport_controller_ live on the network thread and
   // should be destroyed there.
   transport_controller_copy_ = nullptr;
-  network_thread()->BlockingCall([this] {
+  network_thread()->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread());
-    RTC_DCHECK(network_thread_safety_->alive());
+    for (auto& task : network_tasks) {
+      std::move(task)();
+      task = nullptr;
+    }
     TeardownDataChannelTransport_n(RTCError::OK());
     port_allocator_->DiscardCandidatePool();
     transport_controller_.reset();
@@ -1909,7 +1924,10 @@ void PeerConnection::Close() {
   // worker thread (see `PushNewMediaChannelAndDeleteChannel`) and then
   // eventually freed on the signaling thread.
   // It would be good to combine those steps with the teardown steps here.
-  sdp_handler_->DestroyMediaChannels();
+  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
+  sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
+  CloseOnNetworkThread(network_tasks);
 
   // The event log is used in the transport controller, which must be outlived
   // by the former. CreateOffer by the peer connection is implemented
@@ -1921,10 +1939,12 @@ void PeerConnection::Close() {
     rtp_manager_->Close();
   }
 
-  CloseOnNetworkThread();
-
-  worker_thread()->BlockingCall([this] {
+  worker_thread()->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(worker_thread());
+    for (auto& task : worker_tasks) {
+      std::move(task)();
+      task = nullptr;
+    }
     worker_thread_safety_->SetNotAlive();
     call_.reset();
     StopRtcEventLog_w();

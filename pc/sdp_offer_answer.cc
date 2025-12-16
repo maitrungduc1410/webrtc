@@ -5609,19 +5609,15 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
   return RTCError::OK();
 }
 
-void SdpOfferAnswerHandler::DestroyMediaChannels() {
-  RTC_LOG_THREAD_BLOCK_COUNT();
+void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
+    std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
+    std::vector<absl::AnyInvocable<void() &&>>& worker_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (!transceivers()) {
     return;
   }
-
-  // Destroy video channels first since they may have a pointer to a voice
-  // channel.
   auto list = transceivers()->List();
-  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
-  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
-
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::VIDEO) {
       if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
@@ -5638,6 +5634,20 @@ void SdpOfferAnswerHandler::DestroyMediaChannels() {
         worker_tasks.push_back(std::move(task));
     }
   }
+}
+
+void SdpOfferAnswerHandler::DestroyMediaChannels() {
+  RTC_LOG_THREAD_BLOCK_COUNT();
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  if (!transceivers()) {
+    return;
+  }
+
+  // Destroy video channels first since they may have a pointer to a voice
+  // channel.
+  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
+  GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
 
   if (!network_tasks.empty()) {
     network_thread()->BlockingCall([&network_tasks] {

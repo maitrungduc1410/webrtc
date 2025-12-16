@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/audio_options.h"
 #include "api/candidate.h"
@@ -173,6 +174,14 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // This is used for allocating stream ids for data channels.
   // See also `InternalDataChannelInit::fallback_ssl_role`.
   std::optional<SSLRole> GuessSslRole() const;
+
+  // Gathers tasks from all transceivers to tear down the state that
+  // belongs to the network and worker threads.
+  // The caller is responsible for invoking the callbacks on the correct threads
+  // in the order 1st network thread, 2nd worker thread.
+  void GetMediaChannelTeardownTasks(
+      std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
+      std::vector<absl::AnyInvocable<void() &&>>& worker_tasks);
 
   // Destroys all media BaseChannels.
   void DestroyMediaChannels();
