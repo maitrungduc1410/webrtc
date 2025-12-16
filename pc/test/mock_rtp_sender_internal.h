@@ -78,10 +78,6 @@ class MockRtpSenderInternal : public RtpSenderInternal {
               SetParametersInternalWithAllLayers,
               (const RtpParameters&),
               (override));
-  MOCK_METHOD(RTCError,
-              CheckCodecParameters,
-              (const RtpParameters&),
-              (override));
   MOCK_METHOD(void, SetSendCodecs, (std::vector<Codec>), (override));
   MOCK_METHOD(std::vector<Codec>, GetSendCodecs, (), (const, override));
   MOCK_METHOD(scoped_refptr<DtmfSenderInterface>,

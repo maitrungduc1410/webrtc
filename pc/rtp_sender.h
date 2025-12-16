@@ -88,9 +88,6 @@ class RtpSenderInternal : public RtpSenderInterface {
   virtual RTCError SetParametersInternalWithAllLayers(
       const RtpParameters& parameters) = 0;
 
-  // Additional checks that are specific to the current codec settings
-  virtual RTCError CheckCodecParameters(const RtpParameters& parameters) = 0;
-
   // Returns an ID that changes every time SetTrack() is called, but
   // otherwise remains constant. Used to generate IDs for stats.
   // The special value zero means that no track is attached.
@@ -126,8 +123,9 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
 
   bool SetTrack(MediaStreamTrackInterface* track) override;
   scoped_refptr<MediaStreamTrackInterface> track() const override {
-    // This method is currently called from the worker thread by
-    // RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n.
+    // This method is currently called from the worker thread via
+    // RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n
+    // inside TrackMediaInfoMap::Initialize().
     // RTC_DCHECK_RUN_ON(signaling_thread_);
     return track_;
   }
@@ -144,7 +142,6 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
                              SetParametersCallback callback = nullptr,
                              bool blocking = true) override;
   RTCError CheckSetParameters(const RtpParameters& parameters);
-  RTCError CheckCodecParameters(const RtpParameters& parameters) override;
   RtpParameters GetParametersInternalWithAllLayers() const override;
   RTCError SetParametersInternalWithAllLayers(
       const RtpParameters& parameters) override;
@@ -247,6 +244,8 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // Disable sending on the media channel.
   virtual void ClearSend() = 0;
   virtual void ClearSend_w(uint32_t ssrc) RTC_RUN_ON(worker_thread_) = 0;
+  RTCError CheckCodecParameters(const RtpParameters& parameters)
+      RTC_RUN_ON(worker_thread_);
 
   // Template method pattern to allow subclasses to add custom behavior for
   // when tracks are attached, detached, and for adding tracks to statistics.
@@ -270,13 +269,13 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   RtpParameters init_parameters_;
   std::vector<Codec> send_codecs_;
 
-  // TODO(tommi): `media_channel_` and several other member variables in this
-  // class (ssrc_, stopped_, etc) are accessed from more than one thread without
-  // a guard or lock. Internally there are also several Invoke()s that we could
-  // remove since the upstream code may already be performing several operations
-  // on the worker thread.
-  // Add RTC_GUARDED_BY(worker_thread_).
-  MediaSendChannelInterface* media_channel_ = nullptr;
+  // TODO(tommi): Several member variables in this class (ssrc_, stopped_, etc)
+  // are accessed from more than one thread without a guard or lock. Internally
+  // there are also several Invoke()s that we could remove since the upstream
+  // code may already be performing several operations on the worker thread. Add
+  // RTC_GUARDED_BY(worker_thread_).
+  MediaSendChannelInterface* media_channel_ RTC_GUARDED_BY(worker_thread_) =
+      nullptr;
   // Apply RTC_GUARDED_BY(signaling_thread_) when not accessed from worker.
   scoped_refptr<MediaStreamTrackInterface> track_;
 
@@ -289,11 +288,13 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // As such, it is used for internal verification and is not observable by the
   // the client. It is marked as mutable to enable `GetParameters` to be a
   // const method.
-  mutable std::optional<std::string> last_transaction_id_;
+  mutable std::optional<std::string> last_transaction_id_
+      RTC_GUARDED_BY(signaling_thread_);
   std::vector<std::string> disabled_rids_;
 
   SetStreamsObserver* const set_streams_observer_ = nullptr;
-  RtpSenderObserverInterface* observer_ = nullptr;
+  RtpSenderObserverInterface* observer_ RTC_GUARDED_BY(signaling_thread_) =
+      nullptr;
   bool sent_first_packet_ = false;
 
   scoped_refptr<FrameTransformerInterface> frame_transformer_;
