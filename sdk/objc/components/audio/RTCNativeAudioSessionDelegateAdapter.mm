@@ -14,7 +14,7 @@
 
 #import "base/RTCLogging.h"
 
-@implementation RTC_OBJC_TYPE (RTCNativeAudioSessionDelegateAdapter) {
+@implementation RTCNativeAudioSessionDelegateAdapter {
   webrtc::AudioSessionObserver *_observer;
 }
 

@@ -129,8 +129,7 @@ AudioDeviceIOS::AudioDeviceIOS(
   thread_ = webrtc::Thread::Current();
 
   audio_session_observer_ =
-      [[RTC_OBJC_TYPE(RTCNativeAudioSessionDelegateAdapter) alloc]
-          initWithObserver:this];
+      [[RTCNativeAudioSessionDelegateAdapter alloc] initWithObserver:this];
 }
 
 AudioDeviceIOS::~AudioDeviceIOS() {
