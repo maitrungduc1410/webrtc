@@ -1857,7 +1857,6 @@ rtc_library("video_rtp_receiver") {
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
-    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 

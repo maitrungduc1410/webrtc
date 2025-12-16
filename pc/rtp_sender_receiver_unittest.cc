@@ -279,7 +279,8 @@ class RtpSenderReceiverTest
   void CreateAudioRtpReceiver(
       std::vector<scoped_refptr<MediaStreamInterface>> streams = {}) {
     audio_rtp_receiver_ = make_ref_counted<AudioRtpReceiver>(
-        Thread::Current(), kAudioTrackId, streams);
+        Thread::Current(), kAudioTrackId, streams,
+        /*is_unified_plan=*/true);
     audio_rtp_receiver_->SetMediaChannel(voice_media_receive_channel());
     audio_rtp_receiver_->SetupMediaChannel(kAudioSsrc);
     audio_track_ = audio_rtp_receiver_->audio_track();

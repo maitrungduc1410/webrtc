@@ -42,48 +42,27 @@ AudioRtpReceiver::AudioRtpReceiver(
     Thread* worker_thread,
     absl::string_view receiver_id,
     std::vector<std::string> stream_ids,
-    VoiceMediaReceiveChannelInterface* voice_channel)
+    bool is_unified_plan,
+    VoiceMediaReceiveChannelInterface* voice_channel /*= nullptr*/)
     : AudioRtpReceiver(worker_thread,
                        receiver_id,
                        CreateStreamsFromIds(std::move(stream_ids)),
-                       voice_channel,
-                       RemoteAudioSource::OnAudioChannelGoneAction::kSurvive) {}
+                       is_unified_plan,
+                       voice_channel) {}
 
 AudioRtpReceiver::AudioRtpReceiver(
     Thread* worker_thread,
     absl::string_view receiver_id,
     const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
     bool is_unified_plan,
-    VoiceMediaReceiveChannelInterface* voice_channel)
-    : AudioRtpReceiver(worker_thread,
-                       receiver_id,
-                       streams,
-                       voice_channel,
-                       RemoteAudioSource::OnAudioChannelGoneAction::kEnd) {
-  RTC_DCHECK(!is_unified_plan);
-}
-
-AudioRtpReceiver::AudioRtpReceiver(
-    Thread* worker_thread,
-    absl::string_view receiver_id,
-    const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
-    VoiceMediaReceiveChannelInterface* voice_channel)
-    : AudioRtpReceiver(worker_thread,
-                       receiver_id,
-                       streams,
-                       voice_channel,
-                       RemoteAudioSource::OnAudioChannelGoneAction::kSurvive) {}
-
-AudioRtpReceiver::AudioRtpReceiver(
-    Thread* worker_thread,
-    absl::string_view receiver_id,
-    const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
-    VoiceMediaReceiveChannelInterface* voice_channel,
-    RemoteAudioSource::OnAudioChannelGoneAction source_gone_action)
+    VoiceMediaReceiveChannelInterface* voice_channel /*= nullptr*/)
     : worker_thread_(worker_thread),
       id_(receiver_id),
-      source_(make_ref_counted<RemoteAudioSource>(worker_thread,
-                                                  source_gone_action)),
+      source_(make_ref_counted<RemoteAudioSource>(
+          worker_thread,
+          is_unified_plan
+              ? RemoteAudioSource::OnAudioChannelGoneAction::kSurvive
+              : RemoteAudioSource::OnAudioChannelGoneAction::kEnd)),
       track_(AudioTrackProxyWithInternal<AudioTrack>::Create(
           Thread::Current(),
           AudioTrack::Create(receiver_id, source_))),

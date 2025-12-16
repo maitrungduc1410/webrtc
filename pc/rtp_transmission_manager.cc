@@ -303,7 +303,8 @@ RtpTransmissionManager::CreateReceiver(MediaType media_type,
     receiver = RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
         signaling_thread(), worker_thread(),
         make_ref_counted<AudioRtpReceiver>(worker_thread(), receiver_id,
-                                           std::vector<std::string>({})));
+                                           std::vector<std::string>({}),
+                                           IsUnifiedPlan()));
     NoteUsageEvent(UsageEvent::AUDIO_ADDED);
   } else {
     RTC_DCHECK_EQ(media_type, MediaType::VIDEO);
