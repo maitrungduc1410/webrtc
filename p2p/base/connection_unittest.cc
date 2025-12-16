@@ -28,6 +28,7 @@
 #include "api/test/rtc_error_matchers.h"
 #include "api/transport/stun.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "p2p/base/basic_packet_socket_factory.h"
 #include "p2p/base/port.h"
 #include "p2p/base/port_interface.h"
@@ -35,15 +36,14 @@
 #include "p2p/client/relay_port_factory_interface.h"
 #include "p2p/test/test_port.h"
 #include "rtc_base/buffer.h"
-#include "rtc_base/fake_clock.h"
 #include "rtc_base/network.h"
 #include "rtc_base/network/received_packet.h"
 #include "rtc_base/socket_address.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
 #include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/time_controller/simulated_time_controller.h"
 #include "test/wait_until.h"
 
 namespace webrtc {
@@ -62,7 +62,6 @@ class ConnectionTest : public ::testing::Test {
  public:
   ConnectionTest()
       : ss_(new VirtualSocketServer()),
-        main_(ss_.get()),
         socket_factory_(ss_.get()) {
     lport_ = CreateTestPort(kLocalAddr1, "lfrag", "lpass");
     rport_ = CreateTestPort(kLocalAddr2, "rfrag", "rpass");
@@ -74,16 +73,6 @@ class ConnectionTest : public ::testing::Test {
     lport_->PrepareAddress();
     rport_->PrepareAddress();
   }
-
-  ~ConnectionTest() override {
-    // Workaround for tests that trigger async destruction of objects that we
-    // need to give an opportunity here to run, before proceeding with other
-    // teardown.
-    Thread::Current()->ProcessMessages(0);
-  }
-
-  ScopedFakeClock clock_;
-  int num_state_changes_ = 0;
 
   Connection* CreateConnection(IceRole role) {
     Connection* conn;
@@ -109,17 +98,17 @@ class ConnectionTest : public ::testing::Test {
     TestPort* rport =
         rconn->PortForTest() == rport_.get() ? rport_.get() : lport_.get();
     lconn->Ping();
-    ASSERT_THAT(WaitUntil([&] { return lport->last_stun_msg(); }, IsTrue(),
-                          {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
-                IsRtcOk());
+    ASSERT_TRUE(WaitUntil([&] { return lport->last_stun_msg(); },
+                          {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                           .clock = &time_controller_}));
     ASSERT_GT(lport->last_stun_buf().size(), 0u);
     rconn->OnReadPacket(ReceivedIpPacket(lport->last_stun_buf(),
                                          SocketAddress(), std::nullopt));
 
-    clock_.AdvanceTime(TimeDelta::Millis(ms));
-    ASSERT_THAT(WaitUntil([&] { return rport->last_stun_msg(); }, IsTrue(),
-                          {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
-                IsRtcOk());
+    time_controller_.AdvanceTime(TimeDelta::Millis(ms));
+    ASSERT_TRUE(WaitUntil([&] { return rport->last_stun_msg(); },
+                          {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                           .clock = &time_controller_}));
     ASSERT_GT(rport->last_stun_buf().size(), 0u);
     reply->SetData(rport->last_stun_buf());
   }
@@ -146,12 +135,13 @@ class ConnectionTest : public ::testing::Test {
       absl::string_view username,
       absl::string_view password,
       const FieldTrialsView* field_trials = nullptr) {
-    Port::PortParametersRef args = {.env = CreateEnvironment(field_trials),
-                                    .network_thread = &main_,
-                                    .socket_factory = &socket_factory_,
-                                    .network = MakeNetwork(addr),
-                                    .ice_username_fragment = username,
-                                    .ice_password = password};
+    Port::PortParametersRef args = {
+        .env = CreateEnvironment(field_trials),
+        .network_thread = time_controller_.GetMainThread(),
+        .socket_factory = &socket_factory_,
+        .network = MakeNetwork(addr),
+        .ice_username_fragment = username,
+        .ice_password = password};
     auto port = std::make_unique<TestPort>(args, 0, 0);
     port->SubscribeRoleConflict([this]() { OnRoleConflict(); });
     return port;
@@ -160,10 +150,11 @@ class ConnectionTest : public ::testing::Test {
   void OnRoleConflict() { role_conflict_ = true; }
   const Environment& env() const { return env_; }
 
-  std::unique_ptr<VirtualSocketServer> ss_;
-  AutoSocketServerThread main_;
-  BasicPacketSocketFactory socket_factory_;
+  GlobalSimulatedTimeController time_controller_{Timestamp::Zero()};
   const Environment env_ = CreateTestEnvironment();
+  int num_state_changes_ = 0;
+  std::unique_ptr<VirtualSocketServer> ss_;
+  BasicPacketSocketFactory socket_factory_;
   std::list<Network> networks_;
   bool role_conflict_ = false;
 
@@ -294,17 +285,18 @@ TEST_F(ConnectionTest, SendReceiveGoogDelta) {
 
   lconn->Ping(env().clock().CurrentTime(), std::move(delta));
   ASSERT_THAT(WaitUntil([&] { return lport_->last_stun_msg(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
+                        {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                         .clock = &time_controller_}),
               IsRtcOk());
   ASSERT_GT(lport_->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport_->last_stun_buf(), SocketAddress(), std::nullopt));
   EXPECT_TRUE(received_goog_delta);
 
-  clock_.AdvanceTime(TimeDelta::Millis(ms));
-  ASSERT_THAT(WaitUntil([&] { return rport_->last_stun_msg(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
-              IsRtcOk());
+  time_controller_.SkipForwardBy(TimeDelta::Millis(ms));
+  ASSERT_TRUE(WaitUntil([&] { return rport_->last_stun_msg(); },
+                        {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                         .clock = &time_controller_}));
   ASSERT_GT(rport_->last_stun_buf().size(), 0u);
   lconn->OnReadPacket(
       ReceivedIpPacket(rport_->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -336,15 +328,17 @@ TEST_F(ConnectionTest, SendGoogDeltaNoReply) {
 
   lconn->Ping(env().clock().CurrentTime(), std::move(delta));
   ASSERT_THAT(WaitUntil([&] { return lport_->last_stun_msg(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
+                        {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                         .clock = &time_controller_}),
               IsRtcOk());
   ASSERT_GT(lport_->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport_->last_stun_buf(), SocketAddress(), std::nullopt));
 
-  clock_.AdvanceTime(TimeDelta::Millis(ms));
+  time_controller_.SkipForwardBy(TimeDelta::Millis(ms));
   ASSERT_THAT(WaitUntil([&] { return rport_->last_stun_msg(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kDefaultTimeout)}),
+                        {.timeout = TimeDelta::Millis(kDefaultTimeout),
+                         .clock = &time_controller_}),
               IsRtcOk());
   ASSERT_GT(rport_->last_stun_buf().size(), 0u);
   lconn->OnReadPacket(
