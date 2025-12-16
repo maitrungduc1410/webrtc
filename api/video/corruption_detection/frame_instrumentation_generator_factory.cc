@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The WebRTC project authors. All rights reserved.
+ * Copyright 2025 The WebRTC project authors. All rights reserved.
  *
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file in the root of the source
@@ -8,19 +8,19 @@
  * be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "api/video/corruption_detection/frame_instrumentation_generator.h"
+#include "api/video/corruption_detection/frame_instrumentation_generator_factory.h"
 
 #include <memory>
 
-#include "api/video/corruption_detection/frame_instrumentation_generator_factory.h"
+#include "api/video/corruption_detection/frame_instrumentation_generator.h"
 #include "api/video/video_codec_type.h"
+#include "video/corruption_detection/frame_instrumentation_generator_impl.h"
 
 namespace webrtc {
 
-// TODO: bugs.webrtc.org/358039777 - Remove once downstream usage is gone.
 std::unique_ptr<FrameInstrumentationGenerator>
-FrameInstrumentationGenerator::Create(VideoCodecType video_codec_type) {
-  return FrameInstrumentationGeneratorFactory::Create(video_codec_type);
+FrameInstrumentationGeneratorFactory::Create(VideoCodecType video_codec_type) {
+  return std::make_unique<FrameInstrumentationGeneratorImpl>(video_codec_type);
 }
 
 }  // namespace webrtc
