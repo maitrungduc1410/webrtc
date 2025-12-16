@@ -2148,6 +2148,8 @@ void P2PTransportChannel::OnConnectionStateChange(Connection* connection) {
   ice_controller_->OnSortAndSwitchRequest(
       IceSwitchReason::CONNECT_STATE_CHANGE);  // "candidate pair state
                                                // changed");
+
+  ice_controller_->OnConnectionUpdated(connection);
 }
 
 // When a connection is removed, edit it out, and then update our best

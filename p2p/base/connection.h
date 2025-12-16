@@ -412,6 +412,8 @@ class RTC_EXPORT Connection : public CandidatePairInterface {
     NotifyNominated(connection);
   }
 
+  bool set_writable_for_fake_ice_lite() const;
+
  protected:
   // A ConnectionRequest is a simple STUN ping used to determine writability.
   class ConnectionRequest;
