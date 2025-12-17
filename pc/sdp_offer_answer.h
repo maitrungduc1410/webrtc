@@ -716,6 +716,8 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
 
   SdpPayloadTypeSuggester pt_suggester_;
 
+  int max_sctp_streams_;
+
   WeakPtrFactory<SdpOfferAnswerHandler> weak_ptr_factory_
       RTC_GUARDED_BY(signaling_thread());
 };

@@ -306,6 +306,8 @@ rtc_library("sctp_transport_interface") {
     ":ref_count",
     ":scoped_refptr",
     "../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
   ]
 }
 

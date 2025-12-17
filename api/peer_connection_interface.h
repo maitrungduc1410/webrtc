@@ -687,6 +687,12 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
     // https://github.com/w3c/webrtc-pc/issues/3072
     bool always_negotiate_data_channels = false;
 
+    // Number of SCTP streams to negotiate at SCTP connection establishment.
+    // Chiefly useful for testing what happens when you run out.
+    // This controls the announced_maximum_outgoing_streams parameter
+    // of the DcSctpOptions struct.
+    int max_sctp_streams = kMaxSctpStreams;
+
     //
     // Don't forget to update operator== if adding something.
     //

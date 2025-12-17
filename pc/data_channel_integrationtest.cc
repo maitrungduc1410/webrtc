@@ -1640,6 +1640,31 @@ TEST_F(DataChannelIntegrationTestUnifiedPlan,
       IsRtcOk());
 }
 
+TEST_F(DataChannelIntegrationTestUnifiedPlan, ReducingMaxChannelsAtCaller) {
+  const int stream_count = 2;
+  RTCConfiguration caller_config;
+  caller_config.always_negotiate_data_channels = true;
+  caller_config.max_sctp_streams = stream_count;
+  ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(
+      caller_config, PeerConnectionInterface::RTCConfiguration()));
+  ConnectFakeSignaling();
+  caller()->CreateAndSetAndSignalOffer();
+  ASSERT_THAT(WaitUntil([&] { return SignalingStateStable(); }, IsTrue()),
+              IsRtcOk());
+  scoped_refptr<SctpTransportInterface> transport =
+      caller()->pc()->GetSctpTransport();
+  ASSERT_THAT(transport, NotNull());
+  ASSERT_THAT(WaitUntil(
+                  [&] {
+                    return transport->Information().state() ==
+                           SctpTransportState::kConnected;
+                  },
+                  IsTrue()),
+              IsRtcOk());
+  ASSERT_TRUE(transport->Information().MaxChannels().has_value());
+  EXPECT_THAT(transport->Information().MaxChannels().value(), Eq(stream_count));
+}
+
 class DataChannelIntegrationTestUnifiedPlanFieldTrials
     : public DataChannelIntegrationTestUnifiedPlan,
       public ::testing::WithParamInterface<std::tuple<

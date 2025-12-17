@@ -220,6 +220,10 @@ specific_include_rules = {
     "+rtc_base/strong_alias.h",
   ],
 
+  "sctp_transport_interface\.h": [
+    "+absl/strings/str_format.h",
+  ],
+
   "simulated_network\.h": [
     "+rtc_base/random.h",
     "+rtc_base/thread_annotations.h",

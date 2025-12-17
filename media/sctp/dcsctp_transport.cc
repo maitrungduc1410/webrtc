@@ -777,6 +777,7 @@ dcsctp::DcSctpOptions DcSctpTransport::CreateDcSctpOptions(
   dcsctp_options.max_init_retransmits = std::nullopt;
   dcsctp_options.per_stream_send_queue_limit =
       DataChannelInterface::MaxSendQueueSize();
+  dcsctp_options.announced_maximum_outgoing_streams = options.max_sctp_streams;
   // This is just set to avoid denial-of-service. Practically unlimited.
   dcsctp_options.max_send_buffer_size = std::numeric_limits<size_t>::max();
   dcsctp_options.enable_message_interleaving =

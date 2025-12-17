@@ -1548,6 +1548,8 @@ void SdpOfferAnswerHandler::Initialize(
         CreateBuiltinVideoBitrateAllocatorFactory();
   }
   codec_lookup_helper_ = codec_lookup_helper;
+
+  max_sctp_streams_ = configuration.max_sctp_streams;
 }
 
 // ==================================================================
@@ -5269,6 +5271,7 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
           {.local_port = local_sctp_description->port(),
            .remote_port = remote_sctp_description->port(),
            .max_message_size = max_message_size,
+           .max_sctp_streams = max_sctp_streams_,
            .local_init = local_sctp_description->sctp_init(),
            .remote_init = remote_sctp_description->sctp_init()});
       if (!error.ok()) {
