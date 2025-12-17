@@ -2756,6 +2756,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:priority",
       "../api:rtc_error",
       "../api:scoped_refptr",
+      "../api:sctp_transport_interface",
       "../api/transport:datagram_transport_interface",
       "../api/units:timestamp",
       "../media:rtc_data_sctp_transport_internal",
