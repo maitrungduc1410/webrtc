@@ -5639,40 +5639,6 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
   }
 }
 
-void SdpOfferAnswerHandler::DestroyMediaChannels() {
-  RTC_LOG_THREAD_BLOCK_COUNT();
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  if (!transceivers()) {
-    return;
-  }
-
-  // Destroy video channels first since they may have a pointer to a voice
-  // channel.
-  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
-  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
-  GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
-
-  if (!network_tasks.empty()) {
-    network_thread()->BlockingCall([&network_tasks] {
-      for (auto& task : network_tasks) {
-        std::move(task)();
-        task = nullptr;
-      }
-    });
-  }
-
-  if (!worker_tasks.empty()) {
-    context_->worker_thread()->BlockingCall([&worker_tasks] {
-      for (auto& task : worker_tasks) {
-        std::move(task)();
-        task = nullptr;
-      }
-    });
-  }
-
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
-}
-
 void SdpOfferAnswerHandler::GenerateMediaDescriptionOptions(
     const SessionDescriptionInterface* session_desc,
     RtpTransceiverDirection audio_direction,

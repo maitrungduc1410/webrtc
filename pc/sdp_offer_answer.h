@@ -183,9 +183,6 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
       std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
       std::vector<absl::AnyInvocable<void() &&>>& worker_tasks);
 
-  // Destroys all media BaseChannels.
-  void DestroyMediaChannels();
-
   scoped_refptr<StreamCollectionInterface> local_streams();
   scoped_refptr<StreamCollectionInterface> remote_streams();
 

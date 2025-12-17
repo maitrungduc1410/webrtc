@@ -168,14 +168,14 @@ class RtpTransceiver : public RtpTransceiverInterface {
 
   // Returns a task that clears the channel's network related state.
   // The task must be executed on the network thread.
-  // This is used by SdpOfferAnswerHandler::DestroyMediaChannels to batch
-  // network thread operations.
+  // This is used by SdpOfferAnswerHandler::GetMediaChannelTeardownTasks to
+  // batch network thread operations.
   absl::AnyInvocable<void() &&> GetClearChannelNetworkTask();
 
   // Returns a task that deletes the channel.
   // The task must be executed on the worker thread.
-  // This is used by SdpOfferAnswerHandler::DestroyMediaChannels to batch
-  // worker thread operations.
+  // This is used by SdpOfferAnswerHandler::GetMediaChannelTeardownTasks to
+  // batch worker thread operations.
   absl::AnyInvocable<void() &&> GetDeleteChannelWorkerTask();
 
   // Adds an RtpSender of the appropriate type to be owned by this transceiver.
