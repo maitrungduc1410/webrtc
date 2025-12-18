@@ -408,15 +408,17 @@ int DcSctpTransport::max_message_size() const {
 }
 
 std::optional<int> DcSctpTransport::max_outbound_streams() const {
-  if (!socket_)
+  if (!socket_ || !socket_->GetMetrics().has_value()) {
     return std::nullopt;
-  return socket_->options().announced_maximum_outgoing_streams;
+  }
+  return socket_->GetMetrics()->negotiated_maximum_outgoing_streams;
 }
 
 std::optional<int> DcSctpTransport::max_inbound_streams() const {
-  if (!socket_)
+  if (!socket_ || !socket_->GetMetrics().has_value()) {
     return std::nullopt;
-  return socket_->options().announced_maximum_incoming_streams;
+  }
+  return socket_->GetMetrics()->negotiated_maximum_incoming_streams;
 }
 
 size_t DcSctpTransport::buffered_amount(int sid) const {
