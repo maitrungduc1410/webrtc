@@ -112,6 +112,44 @@ TaskQueueBase* GetCurrentTaskQueueOrThread() {
   return current;
 }
 
+// Set default header extensions depending on whether simulcast/SVC is used.
+void ConfigureExtraVideoHeaderExtensions(
+    const std::vector<RtpEncodingParameters>& encodings,
+    std::vector<RtpHeaderExtensionCapability>& extensions) {
+  bool uses_simulcast = encodings.size() > 1;
+  bool uses_svc = !encodings.empty() &&
+                  encodings[0].scalability_mode.has_value() &&
+                  encodings[0].scalability_mode !=
+                      ScalabilityModeToString(ScalabilityMode::kL1T1);
+  if (!uses_simulcast && !uses_svc)
+    return;
+
+  // Enable DD and VLA extensions, can be deactivated by the API. Skip this if
+  // the GFD extension was enabled via field trial for backward compatibility
+  // reasons.
+  bool uses_frame_descriptor =
+      absl::c_any_of(extensions, [](const RtpHeaderExtensionCapability& ext) {
+        return ext.uri == RtpExtension::kGenericFrameDescriptorUri00 &&
+               ext.direction != RtpTransceiverDirection::kStopped;
+      });
+  if (!uses_frame_descriptor) {
+    for (RtpHeaderExtensionCapability& ext : extensions) {
+      if (ext.uri == RtpExtension::kVideoLayersAllocationUri ||
+          ext.uri == RtpExtension::kDependencyDescriptorUri) {
+        ext.direction = RtpTransceiverDirection::kSendRecv;
+      }
+    }
+  }
+}
+
+void ConfigureSendCodecs(CodecVendor& codec_vendor,
+                         MediaType media_type,
+                         RtpSenderInternal* sender) {
+  sender->SetSendCodecs(media_type == MediaType::VIDEO
+                            ? codec_vendor.video_send_codecs().codecs()
+                            : codec_vendor.audio_send_codecs().codecs());
+}
+
 }  // namespace
 
 RtpTransceiver::RtpTransceiver(const Environment& env,
@@ -158,41 +196,17 @@ RtpTransceiver::RtpTransceiver(
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
              media_type_ == MediaType::VIDEO);
   RTC_DCHECK_EQ(sender->media_type(), receiver->media_type());
+  RTC_DCHECK_EQ(media_type_, sender->media_type());
+  RTC_DCHECK_EQ(context->signaling_thread(), thread_);
   RTC_LOG_THREAD_BLOCK_COUNT();
-  sender->internal()->SetSendCodecs(
-      sender->media_type() == MediaType::VIDEO
-          ? codec_vendor().video_send_codecs().codecs()
-          : codec_vendor().audio_send_codecs().codecs());
-  senders_.push_back(sender);
-  receivers_.push_back(receiver);
+  senders_.push_back(std::move(sender));
+  receivers_.push_back(std::move(receiver));
 
-  // Set default header extensions depending on whether simulcast/SVC is used.
-  RtpParameters parameters = sender->internal()->GetParametersInternal();
-  bool uses_simulcast = parameters.encodings.size() > 1;
-  bool uses_svc = !parameters.encodings.empty() &&
-                  parameters.encodings[0].scalability_mode.has_value() &&
-                  parameters.encodings[0].scalability_mode !=
-                      ScalabilityModeToString(ScalabilityMode::kL1T1);
-  if (uses_simulcast || uses_svc) {
-    // Enable DD and VLA extensions, can be deactivated by the API.
-    // Skip this if the GFD extension was enabled via field trial
-    // for backward compability reasons.
-    bool uses_gfd =
-        absl::c_find_if(
-            header_extensions_to_negotiate_,
-            [](const RtpHeaderExtensionCapability& ext) {
-              return ext.uri == RtpExtension::kGenericFrameDescriptorUri00 &&
-                     ext.direction != RtpTransceiverDirection::kStopped;
-            }) != header_extensions_to_negotiate_.end();
-    if (!uses_gfd) {
-      for (RtpHeaderExtensionCapability& ext :
-           header_extensions_to_negotiate_) {
-        if (ext.uri == RtpExtension::kVideoLayersAllocationUri ||
-            ext.uri == RtpExtension::kDependencyDescriptorUri) {
-          ext.direction = RtpTransceiverDirection::kSendRecv;
-        }
-      }
-    }
+  ConfigureSendCodecs(codec_vendor(), media_type_, sender_internal().get());
+  if (media_type_ == MediaType::VIDEO) {
+    ConfigureExtraVideoHeaderExtensions(
+        sender_internal()->GetParametersInternal().encodings,
+        header_extensions_to_negotiate_);
   }
 }
 
@@ -350,12 +364,14 @@ void RtpTransceiver::SetChannel(
 
 absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   RTC_DCHECK_RUN_ON(thread_);
+  // GetClearChannelNetworkTask must be called before GetDeleteChannelWorkerTask
+  // since that's where we clear the `channel_` pointer. Perhaps we should
+  // combine these into one function to avoid an ordering mistake?
 
   if (!channel_) {
+    RTC_DCHECK(!signaling_thread_safety_);
     return nullptr;
   }
-
-  RTC_LOG_THREAD_BLOCK_COUNT();
 
   signaling_thread_safety_->SetNotAlive();
   signaling_thread_safety_ = nullptr;
@@ -372,6 +388,8 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
 
 absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask() {
   RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(signaling_thread_safety_ == nullptr)
+      << "GetClearChannelNetworkTask() must be called first";
 
   if (!channel_) {
     return nullptr;
@@ -442,20 +460,13 @@ void RtpTransceiver::AddSender(
   RTC_DCHECK(sender);
   RTC_DCHECK_EQ(media_type(), sender->media_type());
   RTC_DCHECK(!absl::c_linear_search(senders_, sender));
-
-  std::vector<Codec> send_codecs =
-      media_type() == MediaType::VIDEO
-          ? codec_vendor().video_send_codecs().codecs()
-          : codec_vendor().audio_send_codecs().codecs();
-  sender->internal()->SetSendCodecs(send_codecs);
+  ConfigureSendCodecs(codec_vendor(), media_type(), sender->internal());
   senders_.push_back(sender);
 }
 
 bool RtpTransceiver::RemoveSender(RtpSenderInterface* sender) {
   RTC_DCHECK(!unified_plan_);
-  if (sender) {
-    RTC_DCHECK_EQ(media_type(), sender->media_type());
-  }
+  RTC_DCHECK_EQ(media_type(), sender->media_type());
   auto it = absl::c_find(senders_, sender);
   if (it == senders_.end()) {
     return false;
@@ -479,9 +490,7 @@ void RtpTransceiver::AddReceiver(
 bool RtpTransceiver::RemoveReceiver(RtpReceiverInterface* receiver) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!unified_plan_);
-  if (receiver) {
-    RTC_DCHECK_EQ(media_type(), receiver->media_type());
-  }
+  RTC_DCHECK_EQ(media_type(), receiver->media_type());
   auto it = absl::c_find(receivers_, receiver);
   if (it == receivers_.end()) {
     return false;
@@ -489,7 +498,6 @@ bool RtpTransceiver::RemoveReceiver(RtpReceiverInterface* receiver) {
 
   (*it)->internal()->Stop();
   context()->worker_thread()->BlockingCall([&]() {
-    // `Stop()` will clear the receiver's pointer to the media channel.
     (*it)->internal()->SetMediaChannel(nullptr);
   });
 
@@ -660,12 +668,14 @@ void RtpTransceiver::set_receptive(bool receptive) {
 }
 
 void RtpTransceiver::StopSendingAndReceiving() {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(!stopped_);
+  RTC_DCHECK(!stopping_);
   // 1. Let sender be transceiver.[[Sender]].
   // 2. Let receiver be transceiver.[[Receiver]].
   //
   // 3. Stop sending media with sender.
   //
-  RTC_DCHECK_RUN_ON(thread_);
 
   // Although there is one explicit blocking call to the worker thread below,
   // the Stop() operations can hide additional blocking calls.

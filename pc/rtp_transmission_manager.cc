@@ -84,8 +84,8 @@ void RtpTransmissionManager::Close() {
 // Implementation of SetStreamsObserver
 void RtpTransmissionManager::OnSetStreams() {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  if (IsUnifiedPlan())
-    OnNegotiationNeeded();
+  RTC_DCHECK(IsUnifiedPlan());
+  OnNegotiationNeeded();
 }
 
 // Function to call back to the PeerConnection when negotiation is needed
