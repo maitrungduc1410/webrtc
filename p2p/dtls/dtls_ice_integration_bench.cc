@@ -8,23 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <atomic>
 #include <cstdint>
-#include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "absl/flags/flag.h"
-#include "api/ice_transport_interface.h"
 #include "api/numerics/samples_stats_counter.h"
-#include "api/units/time_delta.h"
-#include "p2p/base/ice_transport_internal.h"
 #include "p2p/dtls/dtls_ice_integration_fixture.h"
-#include "p2p/dtls/dtls_transport.h"
-#include "rtc_base/async_packet_socket.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/thread.h"
 #include "test/gtest.h"
 
 ABSL_FLAG(int32_t, bench_iterations, 100, "");
@@ -121,73 +113,7 @@ TEST_P(DtlsIceIntegrationBenchmark, Benchmark) {
 
   RTC_LOG(LS_INFO) << GetParam() << " START";
 
-  ConfigureEmulatedNetwork(GetParam().pct_loss,
-                           GetParam().client_interface_count,
-                           GetParam().server_interface_count);
-  Prepare();
-
-  SamplesStatsCounter stats(iter);
-  for (int i = 0; i < iter; i++) {
-    int client_sent = 0;
-    std::atomic<int> client_recv = 0;
-    int server_sent = 0;
-    std::atomic<int> server_recv = 0;
-    void* id = this;
-
-    client_thread()->BlockingCall([&]() {
-      return client_.dtls->RegisterReceivedPacketCallback(
-          id, [&](auto, auto) { client_recv++; });
-    });
-    server_thread()->BlockingCall([&]() {
-      return server_.dtls->RegisterReceivedPacketCallback(
-          id, [&](auto, auto) { server_recv++; });
-    });
-
-    client_thread()->PostTask([&]() { client_.ice()->MaybeStartGathering(); });
-    server_thread()->PostTask([&]() { server_.ice()->MaybeStartGathering(); });
-
-    auto start = CurrentTime();
-
-    while (client_recv == 0 || server_recv == 0) {
-      int delay = 50;
-      AdvanceTime(TimeDelta::Millis(delay));
-
-      // Send data
-      {
-        int flags = 0;
-        AsyncSocketPacketOptions options;
-        std::string a_string(50, 'a');
-
-        if (client_.dtls->writable()) {
-          client_thread()->BlockingCall([&]() {
-            if (client_.dtls->SendPacket(a_string.c_str(), a_string.length(),
-                                         options, flags) > 0) {
-              client_sent++;
-            }
-          });
-        }
-        if (server_.dtls->writable()) {
-          server_thread()->BlockingCall([&]() {
-            if (server_.dtls->SendPacket(a_string.c_str(), a_string.length(),
-                                         options, flags) > 0) {
-              server_sent++;
-            }
-          });
-        }
-      }
-    }
-    auto end = CurrentTime();
-    stats.AddSample(SamplesStatsCounter::StatsSample{
-        .value = static_cast<double>((end - start).ms()),
-        .time = end,
-    });
-    client_thread()->BlockingCall(
-        [&]() { return client_.dtls->DeregisterReceivedPacketCallback(id); });
-    server_thread()->BlockingCall(
-        [&]() { return server_.dtls->DeregisterReceivedPacketCallback(id); });
-    client_thread()->BlockingCall([&]() { client_.Restart(*this); });
-    server_thread()->BlockingCall([&]() { server_.Restart(*this); });
-  }
+  SamplesStatsCounter stats = RunBenchmark(iter);
   RTC_LOG(LS_INFO) << GetParam() << " RESULT:"
                    << " p10: " << stats.GetPercentile(0.10)
                    << " p50: " << stats.GetPercentile(0.50)

@@ -10,9 +10,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -23,6 +25,7 @@
 #include "api/field_trials.h"
 #include "api/ice_transport_interface.h"
 #include "api/make_ref_counted.h"
+#include "api/numerics/samples_stats_counter.h"
 #include "api/scoped_refptr.h"
 #include "api/test/create_network_emulation_manager.h"
 #include "api/test/network_emulation_manager.h"
@@ -39,6 +42,7 @@
 #include "p2p/dtls/dtls_transport.h"
 #include "p2p/test/fake_ice_lite_agent.h"
 #include "p2p/test/fake_ice_transport.h"
+#include "rtc_base/async_packet_socket.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/fake_clock.h"
 #include "rtc_base/fake_network.h"
@@ -196,7 +200,19 @@ struct TestConfig {
 
 class Base {
  public:
-  virtual ~Base() = default;
+  explicit Base(const TestConfig& config)
+      : config_(config),
+        ss_(std::make_unique<VirtualSocketServer>()),
+        socket_factory_(std::make_unique<BasicPacketSocketFactory>(ss_.get())),
+        client_(/* client= */ true, config.client_config),
+        server_(/* client= */ false, config.server_config),
+        client_ice_parameters_("c_ufrag",
+                               "c_icepwd_something_something",
+                               false),
+        server_ice_parameters_("s_ufrag",
+                               "s_icepwd_something_something",
+                               false) {}
+  virtual ~Base() { TearDown(); }
 
   struct Endpoint {
     explicit Endpoint(bool client_, const EndpointConfig& config_)
@@ -243,22 +259,85 @@ class Base {
     }
   };
 
- protected:
-  explicit Base(const TestConfig& config)
-      : config_(config),
-        ss_(std::make_unique<VirtualSocketServer>()),
-        socket_factory_(std::make_unique<BasicPacketSocketFactory>(ss_.get())),
-        client_(/* client= */ true, config.client_config),
-        server_(/* client= */ false, config.server_config),
-        client_ice_parameters_("c_ufrag",
-                               "c_icepwd_something_something",
-                               false),
-        server_ice_parameters_("s_ufrag",
-                               "s_icepwd_something_something",
-                               false) {}
+  // Run benchmark for this TestConfig& `iter` iterations,
+  // return statistics.
+  SamplesStatsCounter RunBenchmark(int iter) {
+    ConfigureEmulatedNetwork(config_.pct_loss, config_.client_interface_count,
+                             config_.server_interface_count);
+    Prepare();
+
+    SamplesStatsCounter stats(iter);
+    for (int i = 0; i < iter; i++) {
+      int client_sent = 0;
+      std::atomic<int> client_recv = 0;
+      int server_sent = 0;
+      std::atomic<int> server_recv = 0;
+      void* id = this;
+
+      client_thread()->BlockingCall([&]() {
+        return client_.dtls->RegisterReceivedPacketCallback(
+            id, [&](auto, auto) { client_recv++; });
+      });
+      server_thread()->BlockingCall([&]() {
+        return server_.dtls->RegisterReceivedPacketCallback(
+            id, [&](auto, auto) { server_recv++; });
+      });
+
+      client_thread()->PostTask(
+          [&]() { client_.ice()->MaybeStartGathering(); });
+      server_thread()->PostTask(
+          [&]() { server_.ice()->MaybeStartGathering(); });
+
+      auto start = CurrentTime();
+
+      while (client_recv == 0 || server_recv == 0) {
+        int delay = 50;
+        AdvanceTime(TimeDelta::Millis(delay));
+
+        // Send data
+        {
+          int flags = 0;
+          AsyncSocketPacketOptions options;
+          std::string a_string(50, 'a');
+
+          if (client_.dtls->writable()) {
+            client_thread()->BlockingCall([&]() {
+              if (client_.dtls->SendPacket(a_string.c_str(), a_string.length(),
+                                           options, flags) > 0) {
+                client_sent++;
+              }
+            });
+          }
+          if (server_.dtls->writable()) {
+            server_thread()->BlockingCall([&]() {
+              if (server_.dtls->SendPacket(a_string.c_str(), a_string.length(),
+                                           options, flags) > 0) {
+                server_sent++;
+              }
+            });
+          }
+        }
+      }
+      auto end = CurrentTime();
+      stats.AddSample(SamplesStatsCounter::StatsSample{
+          .value = static_cast<double>((end - start).ms()),
+          .time = end,
+      });
+      client_thread()->BlockingCall(
+          [&]() { return client_.dtls->DeregisterReceivedPacketCallback(id); });
+      server_thread()->BlockingCall(
+          [&]() { return server_.dtls->DeregisterReceivedPacketCallback(id); });
+      if (i + 1 < iter) {
+        client_thread()->BlockingCall([&]() { client_.Restart(*this); });
+        server_thread()->BlockingCall([&]() { server_.Restart(*this); });
+      }
+    }
+    return stats;
+  }
 
   static bool IsBoringSsl() { return SSLStreamAdapter::IsBoringSsl(); }
 
+ protected:
   void SetUp() {}
 
   void TearDown() {
@@ -279,7 +358,7 @@ class Base {
     }
   }
 
-  void ConfigureEmulatedNetwork(int pct_loss = 50,
+  void ConfigureEmulatedNetwork(int pct_loss = 25,
                                 int client_interface_count = 1,
                                 int server_interface_count = 1) {
     network_emulation_manager_ =
@@ -287,7 +366,8 @@ class Base {
 
     BuiltInNetworkBehaviorConfig networkBehavior;
     networkBehavior.link_capacity = DataRate::KilobitsPerSec(220);
-    networkBehavior.queue_delay_ms = 100;
+    networkBehavior.queue_delay_ms =
+        DtlsTransportInternalImpl::kDefaultHandshakeEstimateRttMs;
     networkBehavior.queue_length_packets = 30;
     networkBehavior.loss_percent = pct_loss;
 

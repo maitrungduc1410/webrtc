@@ -14,10 +14,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "api/dtls_transport_interface.h"
 #include "api/ice_transport_interface.h"
+#include "api/numerics/samples_stats_counter.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
@@ -182,13 +184,6 @@ TEST_P(DtlsIceIntegrationTest, TestWithPacketLoss) {
     GTEST_SKIP() << "Needs boringssl.";
   }
 
-  if (GetParam().ice_lite &&
-      (!client_.config.dtls_in_stun && server_.config.dtls_in_stun)) {
-    // TODO(webrtc:404763475) - This configuration does not actually connect
-    // with this amount on packet loss. Needs to be fixed!
-    GTEST_SKIP() << "Bug!";
-  }
-
   ConfigureEmulatedNetwork();
   Prepare();
 
@@ -220,21 +215,6 @@ TEST_P(DtlsIceIntegrationTest, TestWithPacketLoss) {
 TEST_P(DtlsIceIntegrationTest, LongRunningTestWithPacketLoss) {
   if (!IsBoringSsl()) {
     GTEST_SKIP() << "Needs boringssl.";
-  }
-
-  if (GetParam().ice_lite &&
-      (!client_.config.dtls_in_stun && server_.config.dtls_in_stun)) {
-    // TODO(webrtc:404763475) - This configuration does not actually connect
-    // with this amount on packet loss. Needs to be fixed!
-    GTEST_SKIP() << "Bug!";
-  }
-
-  if (GetParam().ice_lite &&
-      (client_.config.dtls_in_stun && server_.config.dtls_in_stun) &&
-      (client_.config.pqc && server_.config.pqc)) {
-    // TODO(webrtc:404763475) - This configuration does not actually connect
-    // with this amount on packet loss. Needs to be fixed!
-    GTEST_SKIP() << "Bug!";
   }
 
   int seed = absl::GetFlag(FLAGS_long_running_seed);
@@ -385,6 +365,92 @@ TEST_P(DtlsIceIntegrationTest, AlmostFullSTUN_BINDING) {
 INSTANTIATE_TEST_SUITE_P(DtlsStunPiggybackingIntegrationTest,
                          DtlsIceIntegrationTest,
                          ::testing::ValuesIn(TestConfig::AllVariants()));
+
+struct DtlsIceIntegrationPerformanceTest
+    : public ::testing::TestWithParam<TestConfig> {
+  DtlsIceIntegrationPerformanceTest() {}
+  ~DtlsIceIntegrationPerformanceTest() override = default;
+
+  void SetUp() override {}
+  void TearDown() override {}
+
+#ifdef NDEBUG
+  static constexpr int kLossVariants[] = {0, 5, 10, 15};
+#else
+  // Only run 1 variant to not consume too much time
+  static constexpr int kLossVariants[] = {10};
+#endif
+
+  static std::vector<TestConfig> Variants() {
+    std::vector<TestConfig> out;
+    for (auto loss : kLossVariants) {
+      for (auto base : TestConfig::AllVariants()) {
+        auto config = base;
+        config.pct_loss = loss;
+        config.client_interface_count = 1;
+        config.server_interface_count = 1;
+        config.fix();
+
+        // Let's skip a few combinations...
+        if (config.client_config.pqc != config.server_config.pqc) {
+          continue;
+        }
+
+        // We only need to emit the 1 dtls-in-stun variant
+        // since we iterate over it inside the actual test.
+        if (!(config.client_config.dtls_in_stun == false &&
+              config.server_config.dtls_in_stun == false)) {
+          continue;
+        }
+
+        out.push_back(config);
+      }
+    }
+    return out;
+  }
+
+  bool LessThan(SamplesStatsCounter& s1, SamplesStatsCounter& s2) {
+    EXPECT_LE(s1.GetAverage(), s2.GetAverage());
+    EXPECT_LE(s1.GetPercentile(0.10), s2.GetPercentile(0.10));
+    EXPECT_LE(s1.GetPercentile(0.50), s2.GetPercentile(0.50));
+    EXPECT_LE(s1.GetPercentile(0.95), s2.GetPercentile(0.95));
+    return true;
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    DtlsIceIntegrationPerformanceTest,
+    DtlsIceIntegrationPerformanceTest,
+    ::testing::ValuesIn(DtlsIceIntegrationPerformanceTest::Variants()));
+
+TEST_P(DtlsIceIntegrationPerformanceTest, ConnectTime) {
+  if (!dtls_ice_integration_fixture::Base::IsBoringSsl()) {
+    GTEST_SKIP() << "Needs boringssl.";
+  }
+
+  int iter = 50;
+  // Use a fixed seed to get consistent behavior.
+  Random rand(/* seed= */ 77);
+  std::vector<SamplesStatsCounter> stats_results;
+  {
+    TestConfig config = GetParam();
+    config.client_config.dtls_in_stun = false;
+    config.server_config.dtls_in_stun = false;
+    dtls_ice_integration_fixture::Base base(config);
+    stats_results.push_back(base.RunBenchmark(iter));
+  }
+
+  // Verify that turning ON should give better
+  // result than having it OFF.
+  {
+    TestConfig config = GetParam();
+    config.client_config.dtls_in_stun = true;
+    config.server_config.dtls_in_stun = true;
+    dtls_ice_integration_fixture::Base base(config);
+    auto result = base.RunBenchmark(iter);
+    EXPECT_TRUE(LessThan(result, stats_results[0]));
+  }
+}
 
 }  // namespace
 }  // namespace webrtc
