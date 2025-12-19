@@ -12,6 +12,8 @@ rtc_library("stereo_remixer") {
   visibility = [ "*" ]
 
   sources = [
+    "audio_content_analyzer.cc",
+    "audio_content_analyzer.h",
     "dc_levels_estimator.cc",
     "dc_levels_estimator.h",
     "energy_estimator.cc",
@@ -32,6 +34,7 @@ rtc_library("capture_mixer_unittests") {
   testonly = true
 
   sources = [
+    "audio_content_analyzer_unittest.cc",
     "dc_levels_estimator_unittest.cc",
     "energy_estimator_unittest.cc",
     "saturation_estimator_unittest.cc",
