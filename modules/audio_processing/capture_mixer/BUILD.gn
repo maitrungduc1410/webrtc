@@ -16,6 +16,8 @@ rtc_library("stereo_remixer") {
     "dc_levels_estimator.h",
     "energy_estimator.cc",
     "energy_estimator.h",
+    "saturation_estimator.cc",
+    "saturation_estimator.h",
   ]
 
   defines = []
@@ -32,6 +34,7 @@ rtc_library("capture_mixer_unittests") {
   sources = [
     "dc_levels_estimator_unittest.cc",
     "energy_estimator_unittest.cc",
+    "saturation_estimator_unittest.cc",
   ]
   deps = [
     ":stereo_remixer",
