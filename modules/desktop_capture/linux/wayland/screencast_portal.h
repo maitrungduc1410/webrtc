@@ -83,7 +83,9 @@ class RTC_EXPORT ScreenCastPortal
     virtual ~PortalNotifier() = default;
   };
 
-  ScreenCastPortal(CaptureType type, PortalNotifier* notifier);
+  ScreenCastPortal(CaptureType type,
+                   PortalNotifier* notifier,
+                   bool prefer_cursor_embedded);
   ScreenCastPortal(CaptureType type,
                    PortalNotifier* notifier,
                    ProxyRequestResponseHandler proxy_request_response_handler,

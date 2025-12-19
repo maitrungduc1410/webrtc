@@ -56,7 +56,10 @@ bool BaseCapturerPipeWire::IsSupported() {
 BaseCapturerPipeWire::BaseCapturerPipeWire(const DesktopCaptureOptions& options,
                                            CaptureType type)
     : BaseCapturerPipeWire(options,
-                           std::make_unique<ScreenCastPortal>(type, this)) {
+                           std::make_unique<ScreenCastPortal>(
+                               type,
+                               this,
+                               options.prefer_cursor_embedded())) {
   is_screencast_portal_ = true;
 }
 
