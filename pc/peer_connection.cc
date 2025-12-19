@@ -640,8 +640,9 @@ PeerConnection::PeerConnection(
       std::move(dependencies.video_bitrate_allocator_factory), context_.get(),
       codec_lookup_helper_.get());
   rtp_manager_ = std::make_unique<RtpTransmissionManager>(
-      env_, IsUnifiedPlan(), context_.get(), codec_lookup_helper_.get(),
-      &usage_pattern_, observer_, legacy_stats_.get(), [this]() {
+      env_, call_ptr_, IsUnifiedPlan(), context_.get(),
+      codec_lookup_helper_.get(), &usage_pattern_, observer_,
+      legacy_stats_.get(), [this]() {
         RTC_DCHECK_RUN_ON(signaling_thread());
         sdp_handler_->UpdateNegotiationNeeded();
       });
@@ -649,14 +650,16 @@ PeerConnection::PeerConnection(
   if (!IsUnifiedPlan() && ConfiguredForMedia()) {
     rtp_manager_->transceivers()->Add(
         RtpTransceiverProxyWithInternal<RtpTransceiver>::Create(
-            signaling_thread(), make_ref_counted<RtpTransceiver>(
-                                    env_, MediaType::AUDIO, context_.get(),
-                                    codec_lookup_helper_.get())));
+            signaling_thread(),
+            make_ref_counted<RtpTransceiver>(
+                env_, MediaType::AUDIO, context_.get(),
+                codec_lookup_helper_.get(), legacy_stats_.get())));
     rtp_manager_->transceivers()->Add(
         RtpTransceiverProxyWithInternal<RtpTransceiver>::Create(
-            signaling_thread(), make_ref_counted<RtpTransceiver>(
-                                    env_, MediaType::VIDEO, context_.get(),
-                                    codec_lookup_helper_.get())));
+            signaling_thread(),
+            make_ref_counted<RtpTransceiver>(
+                env_, MediaType::VIDEO, context_.get(),
+                codec_lookup_helper_.get(), legacy_stats_.get())));
   }
 
   const int delay_ms = configuration_.report_usage_pattern_delay_ms
@@ -979,8 +982,17 @@ RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
         RTCErrorType::INVALID_PARAMETER,
         "Sender already exists for track " + track->id() + ".");
   }
-  auto sender_or_error =
-      rtp_manager()->AddTrack(track, stream_ids, init_send_encodings);
+  RTCErrorOr<scoped_refptr<RtpSenderInterface>> sender_or_error;
+  if (IsUnifiedPlan()) {
+    sender_or_error = rtp_manager()->AddTrackUnifiedPlan(
+        configuration_.media_config, sdp_handler_->audio_options(),
+        sdp_handler_->video_options(), GetCryptoOptions(),
+        sdp_handler_->video_bitrate_allocator_factory(), track, stream_ids,
+        init_send_encodings);
+  } else {
+    sender_or_error =
+        rtp_manager()->AddTrackPlanB(track, stream_ids, init_send_encodings);
+  }
   if (sender_or_error.ok()) {
     sdp_handler_->UpdateNegotiationNeeded();
     legacy_stats_->AddTrack(track.get());
@@ -1018,12 +1030,14 @@ RTCError PeerConnection::RemoveTrackOrError(
   } else {
     bool removed;
     if (sender->media_type() == webrtc::MediaType::AUDIO) {
-      removed = rtp_manager()->GetAudioTransceiver()->internal()->RemoveSender(
-          sender.get());
+      removed =
+          rtp_manager()->GetAudioTransceiver()->internal()->RemoveSenderPlanB(
+              sender.get());
     } else {
       RTC_DCHECK_EQ(webrtc::MediaType::VIDEO, sender->media_type());
-      removed = rtp_manager()->GetVideoTransceiver()->internal()->RemoveSender(
-          sender.get());
+      removed =
+          rtp_manager()->GetVideoTransceiver()->internal()->RemoveSenderPlanB(
+              sender.get());
     }
     if (!removed) {
       LOG_AND_RETURN_ERROR(
@@ -1208,11 +1222,12 @@ PeerConnection::AddTransceiver(MediaType media_type,
   std::string sender_id = (track && !rtp_manager()->FindSenderById(track->id())
                                ? track->id()
                                : CreateRandomUuid());
-  auto sender =
-      rtp_manager()->CreateSender(media_type, sender_id, track, init.stream_ids,
-                                  parameters.encodings, nullptr);
-  auto receiver = rtp_manager()->CreateReceiver(media_type, CreateRandomUuid());
-  auto transceiver = rtp_manager()->CreateAndAddTransceiver(sender, receiver);
+  auto transceiver = rtp_manager()->CreateAndAddTransceiver(
+      configuration_.media_config, sdp_handler_->audio_options(),
+      sdp_handler_->video_options(), configuration_.crypto_options,
+      sdp_handler_->video_bitrate_allocator_factory(), media_type, track,
+      init.stream_ids, parameters.encodings,
+      /*header_extensions_to_negotiate=*/{}, sender_id);
   transceiver->internal()->set_direction(init.direction);
 
   if (update_negotiation_needed) {
@@ -1256,7 +1271,6 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
     stream_ids.push_back(stream_id);
   }
 
-  // TODO(steveanton): Move construction of the RtpSenders to RtpTransceiver.
   scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> new_sender;
   if (kind == MediaStreamTrackInterface::kAudioKind) {
     auto audio_sender = AudioRtpSender::Create(
@@ -1264,14 +1278,16 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
         rtp_manager()->voice_media_send_channel());
     new_sender = RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         signaling_thread(), audio_sender);
-    rtp_manager()->GetAudioTransceiver()->internal()->AddSender(new_sender);
+    rtp_manager()->GetAudioTransceiver()->internal()->AddSenderPlanB(
+        new_sender);
   } else if (kind == MediaStreamTrackInterface::kVideoKind) {
     auto video_sender = VideoRtpSender::Create(
         env_, worker_thread(), CreateRandomUuid(), nullptr,
         rtp_manager()->video_media_send_channel());
     new_sender = RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         signaling_thread(), video_sender);
-    rtp_manager()->GetVideoTransceiver()->internal()->AddSender(new_sender);
+    rtp_manager()->GetVideoTransceiver()->internal()->AddSenderPlanB(
+        new_sender);
   } else {
     RTC_LOG(LS_ERROR) << "CreateSender called with invalid kind: " << kind;
     return nullptr;

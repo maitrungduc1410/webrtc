@@ -102,6 +102,14 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
     return webrtc_session_desc_factory_.get();
   }
 
+  VideoBitrateAllocatorFactory* video_bitrate_allocator_factory() const {
+    RTC_DCHECK_RUN_ON(signaling_thread());
+    return video_bitrate_allocator_factory_.get();
+  }
+
+  const AudioOptions& audio_options() { return audio_options_; }
+  const VideoOptions& video_options() { return video_options_; }
+
   // Change signaling state to Closed, and perform appropriate actions.
   void Close();
 
@@ -473,8 +481,8 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // StreamParams since last time this method was called.
   // For each new or removed StreamParam, OnLocalSenderSeen or
   // OnLocalSenderRemoved is invoked.
-  void UpdateLocalSenders(const std::vector<StreamParams>& streams,
-                          webrtc::MediaType media_type);
+  void UpdateLocalSendersPlanB(const std::vector<StreamParams>& streams,
+                               webrtc::MediaType media_type);
 
   // Makes sure a MediaStreamTrack is created for each StreamParam in `streams`,
   // and existing MediaStreamTracks are removed if there is no corresponding
@@ -482,10 +490,10 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // is created if it doesn't exist; if false, it's removed if it exists.
   // `media_type` is the type of the `streams` and can be either audio or video.
   // If a new MediaStream is created it is added to `new_streams`.
-  void UpdateRemoteSendersList(const std::vector<StreamParams>& streams,
-                               bool default_track_needed,
-                               webrtc::MediaType media_type,
-                               StreamCollection* new_streams);
+  void UpdateRemoteSendersListPlanB(const std::vector<StreamParams>& streams,
+                                    bool default_track_needed,
+                                    webrtc::MediaType media_type,
+                                    StreamCollection* new_streams);
 
   // Enables media channels to allow sending of media.
   // This enables media to flow on all configured audio/video channels.
@@ -598,8 +606,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   const JsepTransportController* transport_controller_n() const
       RTC_RUN_ON(network_thread());
   // ===================================================================
-  const AudioOptions& audio_options() { return audio_options_; }
-  const VideoOptions& video_options() { return video_options_; }
+
   bool ConfiguredForMedia() const;
 
   const Environment& env_;

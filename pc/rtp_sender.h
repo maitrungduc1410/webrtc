@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
@@ -73,6 +74,13 @@ class RtpSenderInternal : public RtpSenderInterface {
       scoped_refptr<DtlsTransportInterface> dtls_transport) = 0;
 
   virtual void Stop() = 0;
+
+  // Cleans up the state on the signaling thread, as `Stop()` does, but does
+  // not perform the worker thread cleanup directly. Instead, returns a task
+  // that the caller must invoke on the worker thread to perform that work.
+  // Note that if no worker thread needs to be done, the retuned task will be
+  // empty.
+  virtual absl::AnyInvocable<void() &&> DetachTrackAndGetStopTask() = 0;
 
   // `GetParameters` and `SetParameters` operate with a transactional model.
   // Allow access to get/set parameters without invalidating transaction id.
@@ -195,6 +203,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   }
 
   void Stop() override;
+  absl::AnyInvocable<void() &&> DetachTrackAndGetStopTask() override;
 
   // Returns an ID that changes every time SetTrack() is called, but
   // otherwise remains constant. Used to generate IDs for stats.

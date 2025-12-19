@@ -112,7 +112,7 @@ class RtpTransceiverTest : public testing::Test {
 TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   const std::string content_name("my_mid");
   auto transceiver = make_ref_counted<RtpTransceiver>(
-      env(), MediaType::AUDIO, context(), codec_lookup_helper());
+      env(), MediaType::AUDIO, context(), codec_lookup_helper(), nullptr);
   transceiver->set_mid(content_name);
   auto channel1 = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel1, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
@@ -147,7 +147,7 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
 TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
   const std::string content_name("my_mid");
   auto transceiver = make_ref_counted<RtpTransceiver>(
-      env(), MediaType::VIDEO, context(), codec_lookup_helper());
+      env(), MediaType::VIDEO, context(), codec_lookup_helper(), nullptr);
   transceiver->set_mid(content_name);
   auto channel = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel, media_type()).WillRepeatedly(Return(MediaType::VIDEO));

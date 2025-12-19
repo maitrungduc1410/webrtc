@@ -29,6 +29,8 @@
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
 #include "api/jsep.h"
+#include "api/make_ref_counted.h"
+#include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
@@ -41,15 +43,18 @@
 #include "api/task_queue/task_queue_base.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video_codecs/scalability_mode.h"
+#include "call/call.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
 #include "media/base/media_channel.h"
 #include "media/base/media_config.h"
 #include "media/base/media_engine.h"
+#include "pc/audio_rtp_receiver.h"
 #include "pc/channel.h"
 #include "pc/channel_interface.h"
 #include "pc/codec_vendor.h"
 #include "pc/connection_context.h"
+#include "pc/legacy_stats_collector_interface.h"
 #include "pc/rtp_media_utils.h"
 #include "pc/rtp_receiver.h"
 #include "pc/rtp_receiver_proxy.h"
@@ -57,7 +62,9 @@
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/session_description.h"
+#include "pc/video_rtp_receiver.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/crypto_random.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/thread.h"
 
@@ -105,13 +112,6 @@ RTCError VerifyCodecPreferences(const std::vector<RtpCodecCapability>& codecs,
   return RTCError::OK();
 }
 
-TaskQueueBase* GetCurrentTaskQueueOrThread() {
-  TaskQueueBase* current = TaskQueueBase::Current();
-  if (!current)
-    current = ThreadManager::Instance()->CurrentThread();
-  return current;
-}
-
 // Set default header extensions depending on whether simulcast/SVC is used.
 void ConfigureExtraVideoHeaderExtensions(
     const std::vector<RtpEncodingParameters>& encodings,
@@ -150,21 +150,146 @@ void ConfigureSendCodecs(CodecVendor& codec_vendor,
                             : codec_vendor.audio_send_codecs().codecs());
 }
 
+scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
+    MediaType media_type,
+    const Environment& env,
+    ConnectionContext* context,
+    LegacyStatsCollectorInterface* legacy_stats,
+    RtpSenderBase::SetStreamsObserver* set_streams_observer,
+    absl::string_view sender_id,
+    MediaSendChannelInterface* media_send_channel) {
+  if (media_type == MediaType::AUDIO) {
+    return RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
+        context->signaling_thread(),
+        AudioRtpSender::Create(
+            env, context->worker_thread(), sender_id, legacy_stats,
+            set_streams_observer,
+            static_cast<VoiceMediaSendChannelInterface*>(media_send_channel)));
+  }
+  RTC_DCHECK_EQ(media_type, MediaType::VIDEO);
+  return RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
+      context->signaling_thread(),
+      VideoRtpSender::Create(
+          env, context->worker_thread(), sender_id, set_streams_observer,
+          static_cast<VideoMediaSendChannelInterface*>(media_send_channel)));
+}
+
+scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
+    MediaType media_type,
+    const Environment& env,
+    ConnectionContext* context,
+    LegacyStatsCollectorInterface* legacy_stats,
+    RtpSenderBase::SetStreamsObserver* set_streams_observer,
+    absl::string_view sender_id,
+    MediaSendChannelInterface* media_send_channel,
+    MediaStreamTrackInterface* track,
+    const std::vector<std::string>& stream_ids,
+    const std::vector<RtpEncodingParameters>& send_encodings,
+    CodecVendor& codec_vendor) {
+  scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender =
+      CreateSender(media_type, env, context, legacy_stats, set_streams_observer,
+                   sender_id, media_send_channel);
+  bool set_track_succeeded = sender->SetTrack(track);
+  RTC_DCHECK(set_track_succeeded);
+  sender->internal()->set_stream_ids(stream_ids);
+  sender->internal()->set_init_send_encodings(send_encodings);
+  ConfigureSendCodecs(codec_vendor, media_type, sender->internal());
+  return sender;
+}
+
+template <typename RtpReceiverT, typename ReceiveInterface>
+scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
+CreateReceiverOfType(Thread* signaling_thread,
+                     Thread* worker_thread,
+                     absl::string_view receiver_id,
+                     MediaReceiveChannelInterface* receive_channel) {
+  return RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
+      signaling_thread, worker_thread,
+      make_ref_counted<RtpReceiverT>(
+          worker_thread, receiver_id, std::vector<std::string>(),
+          static_cast<ReceiveInterface*>(receive_channel)));
+}
+
+scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>> CreateReceiver(
+    MediaType media_type,
+    Thread* signaling_thread,
+    Thread* worker_thread,
+    absl::string_view receiver_id,
+    MediaReceiveChannelInterface* receive_channel) {
+  if (media_type == MediaType::AUDIO) {
+    return CreateReceiverOfType<AudioRtpReceiver,
+                                VoiceMediaReceiveChannelInterface>(
+        signaling_thread, worker_thread, receiver_id, receive_channel);
+  }
+  RTC_DCHECK_EQ(media_type, MediaType::VIDEO);
+  return CreateReceiverOfType<VideoRtpReceiver,
+                              VideoMediaReceiveChannelInterface>(
+      signaling_thread, worker_thread, receiver_id, receive_channel);
+}
+
+std::pair<std::unique_ptr<MediaSendChannelInterface>,
+          std::unique_ptr<MediaReceiveChannelInterface>>
+CreateMediaContentChannels(
+    MediaType media_type,
+    const Environment& env,
+    MediaEngineInterface* media_engine,
+    Call* call,
+    const MediaConfig& media_config,
+    const AudioOptions& audio_options,
+    const VideoOptions& video_options,
+    const CryptoOptions& crypto_options,
+    VideoBitrateAllocatorFactory* video_bitrate_allocator_factory) {
+  if (media_type == MediaType::AUDIO) {
+    AudioCodecPairId codec_pair_id = AudioCodecPairId::Create();
+    return {media_engine->voice().CreateSendChannel(
+                env, call, media_config, audio_options, crypto_options,
+                codec_pair_id),
+            media_engine->voice().CreateReceiveChannel(
+                env, call, media_config, audio_options, crypto_options,
+                codec_pair_id)};
+  }
+  return {media_engine->video().CreateSendChannel(
+              env, call, media_config, video_options, crypto_options,
+              video_bitrate_allocator_factory),
+          media_engine->video().CreateReceiveChannel(
+              env, call, media_config, video_options, crypto_options)};
+}
+
+// Helper template to wrap the construction of either a VoiceChannel
+// or VideoChannel object from a given send and receive channel objects.
+template <typename Channel, typename Send, typename Receive>
+std::unique_ptr<ChannelInterface> CreateMediaChannel(
+    ConnectionContext* context,
+    std::unique_ptr<MediaSendChannelInterface>& send,
+    std::unique_ptr<MediaReceiveChannelInterface>& receive,
+    absl::string_view mid,
+    bool srtp_required,
+    CryptoOptions crypto_options) {
+  return std::make_unique<Channel>(
+      context->worker_thread(), context->network_thread(),
+      context->signaling_thread(),
+      std::unique_ptr<Send>(static_cast<Send*>(send.release())),
+      std::unique_ptr<Receive>(static_cast<Receive*>(receive.release())), mid,
+      srtp_required, crypto_options, context->ssrc_generator());
+}
+
 }  // namespace
 
 RtpTransceiver::RtpTransceiver(const Environment& env,
                                MediaType media_type,
                                ConnectionContext* context,
-                               CodecLookupHelper* codec_lookup_helper)
+                               CodecLookupHelper* codec_lookup_helper,
+                               LegacyStatsCollectorInterface* legacy_stats)
     : env_(env),
-      thread_(GetCurrentTaskQueueOrThread()),
+      thread_(context->signaling_thread()),
       unified_plan_(false),
       media_type_(media_type),
       network_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
           true,
           context->network_thread())),
       context_(context),
-      codec_lookup_helper_(codec_lookup_helper) {
+      codec_lookup_helper_(codec_lookup_helper),
+      legacy_stats_(legacy_stats) {
   RTC_DCHECK(media_type == MediaType::AUDIO || media_type == MediaType::VIDEO);
   RTC_DCHECK(context_);
   RTC_DCHECK(context_->is_configured_for_media());
@@ -180,7 +305,7 @@ RtpTransceiver::RtpTransceiver(
     std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
     absl::AnyInvocable<void()> on_negotiation_needed)
     : env_(env),
-      thread_(GetCurrentTaskQueueOrThread()),
+      thread_(context->signaling_thread()),
       unified_plan_(true),
       media_type_(sender->media_type()),
       network_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
@@ -188,6 +313,7 @@ RtpTransceiver::RtpTransceiver(
           context->network_thread())),
       context_(context),
       codec_lookup_helper_(codec_lookup_helper),
+      legacy_stats_(nullptr),
       header_extensions_to_negotiate_(
           std::move(header_extensions_to_negotiate)),
       on_negotiation_needed_(std::move(on_negotiation_needed)) {
@@ -195,19 +321,86 @@ RtpTransceiver::RtpTransceiver(
   RTC_DCHECK(context_->is_configured_for_media());
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
              media_type_ == MediaType::VIDEO);
+  RTC_DCHECK(codec_lookup_helper_);
   RTC_DCHECK_EQ(sender->media_type(), receiver->media_type());
   RTC_DCHECK_EQ(media_type_, sender->media_type());
-  RTC_DCHECK_EQ(context->signaling_thread(), thread_);
-  RTC_LOG_THREAD_BLOCK_COUNT();
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   senders_.push_back(std::move(sender));
   receivers_.push_back(std::move(receiver));
-
-  ConfigureSendCodecs(codec_vendor(), media_type_, sender_internal().get());
   if (media_type_ == MediaType::VIDEO) {
     ConfigureExtraVideoHeaderExtensions(
         sender_internal()->GetParametersInternal().encodings,
         header_extensions_to_negotiate_);
   }
+  ConfigureSendCodecs(codec_vendor(), media_type_, sender_internal().get());
+}
+
+RtpTransceiver::RtpTransceiver(
+    const Environment& env,
+    Call* call,
+    const MediaConfig& media_config,
+    absl::string_view sender_id,
+    absl::string_view receiver_id,
+    MediaType media_type,
+    scoped_refptr<MediaStreamTrackInterface> track,
+    const std::vector<std::string>& stream_ids,
+    const std::vector<RtpEncodingParameters>& init_send_encodings,
+    ConnectionContext* context,
+    CodecLookupHelper* codec_lookup_helper,
+    LegacyStatsCollectorInterface* legacy_stats,
+    RtpSenderBase::SetStreamsObserver* set_streams_observer,
+    const AudioOptions& audio_options,
+    const VideoOptions& video_options,
+    const CryptoOptions& crypto_options,
+    VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
+    std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
+    absl::AnyInvocable<void()> on_negotiation_needed)
+    : env_(env),
+      thread_(context->signaling_thread()),
+      unified_plan_(true),
+      media_type_(media_type),
+      network_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
+          true,
+          context->network_thread())),
+      media_engine_ref_(nullptr),
+      context_(context),
+      codec_lookup_helper_(codec_lookup_helper),
+      legacy_stats_(legacy_stats),
+      set_streams_observer_(set_streams_observer),
+      header_extensions_to_negotiate_(
+          std::move(header_extensions_to_negotiate)),
+      on_negotiation_needed_(std::move(on_negotiation_needed)) {
+  RTC_DCHECK(context_);
+  RTC_DCHECK(context_->is_configured_for_media());
+  RTC_DCHECK(media_type_ == MediaType::AUDIO ||
+             media_type_ == MediaType::VIDEO);
+  RTC_LOG_THREAD_BLOCK_COUNT();
+  if (media_type_ == MediaType::VIDEO) {
+    ConfigureExtraVideoHeaderExtensions(init_send_encodings,
+                                        header_extensions_to_negotiate_);
+  }
+
+  // This should be possible without a blocking call to the worker, perhaps done
+  // asynchronously. At the moment this is complicated by the fact that
+  // construction of the channels actually changes the settings of the engine.
+  context_->worker_thread()->BlockingCall([&]() mutable {
+    RTC_DCHECK_RUN_ON(this->context()->worker_thread());
+    auto channels = CreateMediaContentChannels(
+        media_type_, env_, media_engine(), call, media_config, audio_options,
+        video_options, crypto_options, video_bitrate_allocator_factory);
+    owned_send_channel_ = std::move(channels.first);
+    owned_receive_channel_ = std::move(channels.second);
+  });
+
+  senders_.push_back(CreateSender(
+      media_type_, env_, context_, legacy_stats_, set_streams_observer_,
+      sender_id, owned_send_channel_.get(), track.get(), stream_ids,
+      init_send_encodings, codec_vendor()));
+  receivers_.push_back(CreateReceiver(
+      media_type_, context_->signaling_thread(), context_->worker_thread(),
+      receiver_id.empty() ? CreateRandomUuid() : receiver_id,
+      owned_receive_channel_.get()));
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 }
 
 RtpTransceiver::~RtpTransceiver() {
@@ -220,6 +413,9 @@ RtpTransceiver::~RtpTransceiver() {
   }
 
   RTC_CHECK(!channel_) << "Missing call to ClearChannel?";
+  RTC_DCHECK(!media_engine_ref_);
+  RTC_DCHECK(!owned_send_channel_);
+  RTC_DCHECK(!owned_receive_channel_);
 }
 
 RTCError RtpTransceiver::CreateChannel(
@@ -240,72 +436,49 @@ RTCError RtpTransceiver::CreateChannel(
   mid_ = mid;
 
   std::unique_ptr<ChannelInterface> new_channel;
-  if (media_type() == MediaType::AUDIO) {
-    // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
-    // the worker thread. We shouldn't be using the `call_ptr_` hack here but
-    // simply be on the worker thread and use `call_` (update upstream code).
-    RTC_DCHECK(call_ptr);
-    // TODO(bugs.webrtc.org/11992): Remove this workaround after updates in
-    // PeerConnection and add the expectation that we're already on the right
-    // thread.
-    context()->worker_thread()->BlockingCall([&] {
-      RTC_DCHECK_RUN_ON(context()->worker_thread());
+  // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
+  // the worker thread. We shouldn't be using the `call_ptr_` hack here but
+  // simply be on the worker thread and use `call_` (update upstream code).
+  context()->worker_thread()->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
 
-      AudioCodecPairId codec_pair_id = AudioCodecPairId::Create();
+    std::unique_ptr<MediaSendChannelInterface> media_send_channel;
+    std::unique_ptr<MediaReceiveChannelInterface> media_receive_channel;
 
-      std::unique_ptr<VoiceMediaSendChannelInterface> media_send_channel =
-          media_engine()->voice().CreateSendChannel(
-              env_, call_ptr, media_config, audio_options, crypto_options,
-              codec_pair_id);
-      std::unique_ptr<VoiceMediaReceiveChannelInterface> media_receive_channel =
-          media_engine()->voice().CreateReceiveChannel(
-              env_, call_ptr, media_config, audio_options, crypto_options,
-              codec_pair_id);
-      // Note that this is safe because both sending and
-      // receiving channels will be deleted at the same time.
-      media_send_channel->SetSsrcListChangedCallback(
-          [receive_channel =
-               media_receive_channel.get()](const std::set<uint32_t>& choices) {
-            receive_channel->ChooseReceiverReportSsrc(choices);
-          });
+    if (owned_send_channel_) {
+      RTC_DCHECK(owned_receive_channel_);
+      media_send_channel = std::move(owned_send_channel_);
+      media_receive_channel = std::move(owned_receive_channel_);
+    } else {
+      auto channels = CreateMediaContentChannels(
+          media_type(), env_, media_engine(), call_ptr, media_config,
+          audio_options, video_options, crypto_options,
+          video_bitrate_allocator_factory);
+      media_send_channel = std::move(channels.first);
+      media_receive_channel = std::move(channels.second);
+    }
+    // Note that this is safe because both sending and
+    // receiving channels will be deleted at the same time.
+    media_send_channel->SetSsrcListChangedCallback(
+        [receive_channel =
+             media_receive_channel.get()](const std::set<uint32_t>& choices) {
+          receive_channel->ChooseReceiverReportSsrc(choices);
+        });
 
-      new_channel = std::make_unique<VoiceChannel>(
-          context()->worker_thread(), context()->network_thread(),
-          context()->signaling_thread(), std::move(media_send_channel),
-          std::move(media_receive_channel), mid, srtp_required, crypto_options,
-          context()->ssrc_generator());
-    });
-  } else {
-    RTC_DCHECK_EQ(MediaType::VIDEO, media_type());
-
-    // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
-    // the worker thread. We shouldn't be using the `call_ptr_` hack here but
-    // simply be on the worker thread and use `call_` (update upstream code).
-    context()->worker_thread()->BlockingCall([&] {
-      RTC_DCHECK_RUN_ON(context()->worker_thread());
-
-      std::unique_ptr<VideoMediaSendChannelInterface> media_send_channel =
-          media_engine()->video().CreateSendChannel(
-              env_, call_ptr, media_config, video_options, crypto_options,
-              video_bitrate_allocator_factory);
-      std::unique_ptr<VideoMediaReceiveChannelInterface> media_receive_channel =
-          media_engine()->video().CreateReceiveChannel(
-              env_, call_ptr, media_config, video_options, crypto_options);
-      // Note that this is safe because both sending and
-      // receiving channels will be deleted at the same time.
-      media_send_channel->SetSsrcListChangedCallback(
-          [receive_channel =
-               media_receive_channel.get()](const std::set<uint32_t>& choices) {
-            receive_channel->ChooseReceiverReportSsrc(choices);
-          });
-
-      new_channel = std::make_unique<VideoChannel>(
-          context()->worker_thread(), context()->network_thread(),
-          context()->signaling_thread(), std::move(media_send_channel),
-          std::move(media_receive_channel), mid, srtp_required, crypto_options,
-          context()->ssrc_generator());
-    });
-  }
+    if (media_type() == MediaType::AUDIO) {
+      new_channel =
+          CreateMediaChannel<VoiceChannel, VoiceMediaSendChannelInterface,
+                             VoiceMediaReceiveChannelInterface>(
+              context(), media_send_channel, media_receive_channel, mid,
+              srtp_required, crypto_options);
+    } else {
+      new_channel =
+          CreateMediaChannel<VideoChannel, VideoMediaSendChannelInterface,
+                             VideoMediaReceiveChannelInterface>(
+              context(), media_send_channel, media_receive_channel, mid,
+              srtp_required, crypto_options);
+    }
+  });
   SetChannel(std::move(new_channel), std::move(transport_lookup));
   return RTCError::OK();
 }
@@ -395,22 +568,13 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask() {
     return nullptr;
   }
 
-  // Ensure that channel_ is not reachable via transceiver, but is deleted
+  // Ensure that channel_ is not reachable via the transceiver, but is deleted
   // only after clearing the references in senders_ and receivers_.
   return [this, channel = std::move(channel_), senders = senders_,
           receivers = receivers_]() mutable {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
-    // Clear the media channel reference from senders and receivers.
-    for (const auto& sender : senders) {
-      sender->internal()->SetMediaChannel(nullptr);
-    }
-    for (const auto& receiver : receivers) {
-      receiver->internal()->SetMediaChannel(nullptr);
-    }
-    // The channel is destroyed here, on the worker thread as it needs to
-    // be.
+    ClearMediaChannelReferences();
     channel.reset();
-    media_engine_ref_.reset();
   };
 }
 
@@ -452,7 +616,20 @@ void RtpTransceiver::PushNewMediaChannel() {
   });
 }
 
-void RtpTransceiver::AddSender(
+// RTC_RUN_ON(context()->worker_thread());
+void RtpTransceiver::ClearMediaChannelReferences() {
+  for (const auto& sender : senders_) {
+    sender->internal()->SetMediaChannel(nullptr);
+  }
+  for (const auto& receiver : receivers_) {
+    receiver->internal()->SetMediaChannel(nullptr);
+  }
+  owned_send_channel_ = nullptr;
+  owned_receive_channel_ = nullptr;
+  media_engine_ref_ = nullptr;
+}
+
+void RtpTransceiver::AddSenderPlanB(
     scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!stopped_);
@@ -464,7 +641,27 @@ void RtpTransceiver::AddSender(
   senders_.push_back(sender);
 }
 
-bool RtpTransceiver::RemoveSender(RtpSenderInterface* sender) {
+scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>
+RtpTransceiver::AddSenderPlanB(
+    scoped_refptr<MediaStreamTrackInterface> track,
+    absl::string_view sender_id,
+    const std::vector<std::string>& stream_ids,
+    const std::vector<RtpEncodingParameters>& send_encodings) {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(!stopped_);
+  RTC_DCHECK(!unified_plan_);
+  RTC_DCHECK(media_type_ == MediaType::AUDIO ||
+             media_type_ == MediaType::VIDEO);
+  scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender =
+      CreateSender(media_type_, env_, context_, legacy_stats_,
+                   set_streams_observer_, sender_id,
+                   channel_ ? channel_->media_send_channel() : nullptr,
+                   track.get(), stream_ids, send_encodings, codec_vendor());
+  senders_.push_back(sender);
+  return sender;
+}
+
+bool RtpTransceiver::RemoveSenderPlanB(RtpSenderInterface* sender) {
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK_EQ(media_type(), sender->media_type());
   auto it = absl::c_find(senders_, sender);
@@ -476,7 +673,7 @@ bool RtpTransceiver::RemoveSender(RtpSenderInterface* sender) {
   return true;
 }
 
-void RtpTransceiver::AddReceiver(
+void RtpTransceiver::AddReceiverPlanB(
     scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>> receiver) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!stopped_);
@@ -487,7 +684,7 @@ void RtpTransceiver::AddReceiver(
   receivers_.push_back(receiver);
 }
 
-bool RtpTransceiver::RemoveReceiver(RtpReceiverInterface* receiver) {
+bool RtpTransceiver::RemoveReceiverPlanB(RtpReceiverInterface* receiver) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK_EQ(media_type(), receiver->media_type());
@@ -673,32 +870,42 @@ void RtpTransceiver::StopSendingAndReceiving() {
   RTC_DCHECK(!stopping_);
   // 1. Let sender be transceiver.[[Sender]].
   // 2. Let receiver be transceiver.[[Receiver]].
-  //
-  // 3. Stop sending media with sender.
-  //
 
-  // Although there is one explicit blocking call to the worker thread below,
-  // the Stop() operations can hide additional blocking calls.
   RTC_LOG_THREAD_BLOCK_COUNT();
 
-  // 4. Send an RTCP BYE for each RTP stream that was being sent by sender, as
-  // specified in [RFC3550].
-  for (const auto& sender : senders_)
-    sender->internal()->Stop();
-
   // Signal to receiver sources that we're stopping.
-  for (const auto& receiver : receivers_)
+  for (const auto& receiver : receivers_) {
     receiver->internal()->Stop();
+  }
 
+  // 4. Stop sending media with sender.
+  // We do this *after* the media channel has been set to nullptr on the
+  // worker thread to avoid each sender doing that within `Stop()`.
+  // Senders will have already cleared send when the media channel was set to
+  // nullptr.
+  std::vector<absl::AnyInvocable<void() &&>> stop;
+  for (const auto& sender : senders_) {
+    auto task = sender->internal()->DetachTrackAndGetStopTask();
+    if (task)
+      stop.push_back(std::move(task));
+  }
+
+  // 3. Send an RTCP BYE for each RTP stream that was being sent by sender, as
+  // specified in [RFC3550].
   context()->worker_thread()->BlockingCall([&]() {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
-    // 5. Stop receiving media with receiver.
-    for (const auto& receiver : receivers_)
-      receiver->internal()->SetMediaChannel(nullptr);
+    for (auto& task : stop) {
+      std::move(task)();
+    }
+    ClearMediaChannelReferences();
   });
+
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 
   stopping_ = true;
   direction_ = RtpTransceiverDirection::kInactive;
+
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 }
 
 RTCError RtpTransceiver::StopStandard() {

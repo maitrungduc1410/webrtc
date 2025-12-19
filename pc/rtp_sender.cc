@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/audio_options.h"
 #include "api/crypto/frame_encryptor_interface.h"
@@ -606,6 +607,32 @@ void RtpSenderBase::Stop() {
     RemoveTrackFromStats();
   }
   stopped_ = true;
+}
+
+absl::AnyInvocable<void() &&> RtpSenderBase::DetachTrackAndGetStopTask() {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  TRACE_EVENT0("webrtc", "RtpSenderBase::DetachTrackAndGetStopTask");
+  if (stopped_) {
+    return nullptr;
+  }
+  if (track_) {
+    DetachTrack();
+    track_->UnregisterObserver(this);
+  }
+
+  stopped_ = true;
+
+  if (can_send_track()) {
+    RemoveTrackFromStats();
+  } else {
+    return nullptr;
+  }
+
+  return [this, ssrc = ssrc_] {
+    RTC_DCHECK_RUN_ON(worker_thread_);
+    ClearSend_w(ssrc);
+  };
 }
 
 RTCError RtpSenderBase::DisableEncodingLayers(

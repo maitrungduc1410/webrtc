@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
@@ -110,6 +111,7 @@ class MockRtpSenderInternal : public RtpSenderInternal {
   MOCK_METHOD1(set_init_send_encodings,
                void(const std::vector<RtpEncodingParameters>&));
   MOCK_METHOD0(Stop, void());
+  MOCK_METHOD0(DetachTrackAndGetStopTask, absl::AnyInvocable<void() &&>());
   MOCK_CONST_METHOD0(AttachmentId, int());
   MOCK_METHOD1(DisableEncodingLayers,
                RTCError(const std::vector<std::string>&));

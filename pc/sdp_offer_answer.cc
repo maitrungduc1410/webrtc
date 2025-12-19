@@ -2023,7 +2023,7 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
       } else {
         const MediaContentDescription* audio_desc =
             audio_content->media_description();
-        UpdateLocalSenders(audio_desc->streams(), audio_desc->type());
+        UpdateLocalSendersPlanB(audio_desc->streams(), audio_desc->type());
       }
     }
 
@@ -2035,7 +2035,7 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
       } else {
         const MediaContentDescription* video_desc =
             video_content->media_description();
-        UpdateLocalSenders(video_desc->streams(), video_desc->type());
+        UpdateLocalSendersPlanB(video_desc->streams(), video_desc->type());
       }
     }
   }
@@ -2416,9 +2416,9 @@ void SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
       bool default_audio_track_needed =
           !remote_peer_supports_msid_ &&
           RtpTransceiverDirectionHasSend(audio_desc->direction());
-      UpdateRemoteSendersList(GetActiveStreams(audio_desc),
-                              default_audio_track_needed, audio_desc->type(),
-                              new_streams.get());
+      UpdateRemoteSendersListPlanB(GetActiveStreams(audio_desc),
+                                   default_audio_track_needed,
+                                   audio_desc->type(), new_streams.get());
     }
   }
 
@@ -2431,9 +2431,9 @@ void SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
       bool default_video_track_needed =
           !remote_peer_supports_msid_ &&
           RtpTransceiverDirectionHasSend(video_desc->direction());
-      UpdateRemoteSendersList(GetActiveStreams(video_desc),
-                              default_video_track_needed, video_desc->type(),
-                              new_streams.get());
+      UpdateRemoteSendersListPlanB(GetActiveStreams(video_desc),
+                                   default_video_track_needed,
+                                   video_desc->type(), new_streams.get());
     }
   }
 
@@ -3264,10 +3264,10 @@ bool SdpOfferAnswerHandler::AddStream(MediaStreamInterface* local_stream) {
   stream_observers_.push_back(std::move(observer));
 
   for (const auto& track : local_stream->GetAudioTracks()) {
-    rtp_manager()->AddAudioTrack(track.get(), local_stream);
+    rtp_manager()->AddTrackPlanB(track.get(), local_stream);
   }
   for (const auto& track : local_stream->GetVideoTracks()) {
-    rtp_manager()->AddVideoTrack(track.get(), local_stream);
+    rtp_manager()->AddTrackPlanB(track.get(), local_stream);
   }
 
   pc_->legacy_stats()->AddStream(local_stream);
@@ -3283,10 +3283,10 @@ void SdpOfferAnswerHandler::RemoveStream(MediaStreamInterface* local_stream) {
   TRACE_EVENT0("webrtc", "PeerConnection::RemoveStream");
   if (!pc_->IsClosed()) {
     for (const auto& track : local_stream->GetAudioTracks()) {
-      rtp_manager()->RemoveAudioTrack(track.get(), local_stream);
+      rtp_manager()->RemoveTrackPlanB(track.get(), local_stream);
     }
     for (const auto& track : local_stream->GetVideoTracks()) {
-      rtp_manager()->RemoveVideoTrack(track.get(), local_stream);
+      rtp_manager()->RemoveTrackPlanB(track.get(), local_stream);
     }
   }
   local_streams_->RemoveStream(local_stream);
@@ -3304,37 +3304,41 @@ void SdpOfferAnswerHandler::RemoveStream(MediaStreamInterface* local_stream) {
 
 void SdpOfferAnswerHandler::OnAudioTrackAdded(AudioTrackInterface* track,
                                               MediaStreamInterface* stream) {
+  RTC_DCHECK(!IsUnifiedPlan());
   if (pc_->IsClosed()) {
     return;
   }
-  rtp_manager()->AddAudioTrack(track, stream);
+  rtp_manager()->AddTrackPlanB(track, stream);
   UpdateNegotiationNeeded();
 }
 
 void SdpOfferAnswerHandler::OnAudioTrackRemoved(AudioTrackInterface* track,
                                                 MediaStreamInterface* stream) {
+  RTC_DCHECK(!IsUnifiedPlan());
   if (pc_->IsClosed()) {
     return;
   }
-  rtp_manager()->RemoveAudioTrack(track, stream);
+  rtp_manager()->RemoveTrackPlanB(track, stream);
   UpdateNegotiationNeeded();
 }
 
 void SdpOfferAnswerHandler::OnVideoTrackAdded(VideoTrackInterface* track,
                                               MediaStreamInterface* stream) {
+  RTC_DCHECK(!IsUnifiedPlan());
   if (pc_->IsClosed()) {
     return;
   }
-  rtp_manager()->AddVideoTrack(track, stream);
+  rtp_manager()->AddTrackPlanB(track, stream);
   UpdateNegotiationNeeded();
 }
 
 void SdpOfferAnswerHandler::OnVideoTrackRemoved(VideoTrackInterface* track,
                                                 MediaStreamInterface* stream) {
+  RTC_DCHECK(!IsUnifiedPlan());
   if (pc_->IsClosed()) {
     return;
   }
-  rtp_manager()->RemoveVideoTrack(track, stream);
+  rtp_manager()->RemoveTrackPlanB(track, stream);
   UpdateNegotiationNeeded();
 }
 
@@ -4145,17 +4149,17 @@ SdpOfferAnswerHandler::AssociateTransceiver(
       std::string sender_id = CreateRandomUuid();
       std::vector<RtpEncodingParameters> send_encodings =
           GetSendEncodingsFromRemoteDescription(*media_desc);
-      auto sender = rtp_manager()->CreateSender(
-          media_desc->type(), sender_id, nullptr, {}, send_encodings, nullptr);
       std::string receiver_id;
       if (!media_desc->streams().empty()) {
         receiver_id = media_desc->streams()[0].id;
       } else {
         receiver_id = CreateRandomUuid();
       }
-      auto receiver =
-          rtp_manager()->CreateReceiver(media_desc->type(), receiver_id);
-      transceiver = rtp_manager()->CreateAndAddTransceiver(sender, receiver);
+      transceiver = rtp_manager()->CreateAndAddTransceiver(
+          pc_->configuration()->media_config, audio_options_, video_options_,
+          pc_->GetCryptoOptions(), video_bitrate_allocator_factory_.get(),
+          media_desc->type(), nullptr, {}, send_encodings,
+          /*header_extensions_to_negotiate=*/{}, sender_id, receiver_id);
       transceiver->internal()->set_direction(
           RtpTransceiverDirection::kRecvOnly);
       if (type == SdpType::kOffer) {
@@ -4940,15 +4944,17 @@ void SdpOfferAnswerHandler::RemoveRemoteStreamsIfEmpty(
 
 void SdpOfferAnswerHandler::RemoveSenders(MediaType media_type) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  UpdateLocalSenders(std::vector<StreamParams>(), media_type);
-  UpdateRemoteSendersList(std::vector<StreamParams>(), false, media_type,
-                          nullptr);
+  RTC_DCHECK(!IsUnifiedPlan());
+  UpdateLocalSendersPlanB(std::vector<StreamParams>(), media_type);
+  UpdateRemoteSendersListPlanB(std::vector<StreamParams>(), false, media_type,
+                               nullptr);
 }
 
-void SdpOfferAnswerHandler::UpdateLocalSenders(
+void SdpOfferAnswerHandler::UpdateLocalSendersPlanB(
     const std::vector<StreamParams>& streams,
     MediaType media_type) {
-  TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateLocalSenders");
+  TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateLocalSendersPlanB");
+  RTC_DCHECK(!IsUnifiedPlan());
   RTC_DCHECK_RUN_ON(signaling_thread());
   std::vector<RtpSenderInfo>* current_senders =
       rtp_manager()->GetLocalSenderInfos(media_type);
@@ -4973,24 +4979,24 @@ void SdpOfferAnswerHandler::UpdateLocalSenders(
   for (const StreamParams& params : streams) {
     // The sync_label is the MediaStream label and the `stream.id` is the
     // sender id.
-    std::string stream_id(params.first_stream_id());
-    const std::string& sender_id = params.id;
-    uint32_t ssrc = params.first_ssrc();
-    const RtpSenderInfo* sender_info =
-        rtp_manager()->FindSenderInfo(*current_senders, stream_id, sender_id);
-    if (!sender_info) {
-      current_senders->push_back(RtpSenderInfo(stream_id, sender_id, ssrc));
+    bool found = absl::c_any_of(*current_senders, [&](const auto& info) {
+      return info.stream_id == params.first_stream_id() &&
+             info.sender_id == params.id;
+    });
+    if (!found) {
+      current_senders->push_back(RtpSenderInfo(params.first_stream_id(),
+                                               params.id, params.first_ssrc()));
       rtp_manager()->OnLocalSenderAdded(current_senders->back(), media_type);
     }
   }
 }
 
-void SdpOfferAnswerHandler::UpdateRemoteSendersList(
+void SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
     const StreamParamsVec& streams,
     bool default_sender_needed,
     MediaType media_type,
     StreamCollection* new_streams) {
-  TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateRemoteSendersList");
+  TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB");
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
 
@@ -5017,7 +5023,7 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersList(
         sender_exists) {
       ++sender_it;
     } else {
-      rtp_manager()->OnRemoteSenderRemoved(
+      rtp_manager()->OnRemoteSenderRemovedPlanB(
           info, remote_streams_->find(info.stream_id), media_type);
       sender_it = current_senders->erase(sender_it);
     }
@@ -5053,13 +5059,13 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersList(
       remote_streams_->AddStream(stream);
       new_streams->AddStream(stream);
     }
-
-    const RtpSenderInfo* sender_info =
-        rtp_manager()->FindSenderInfo(*current_senders, stream_id, sender_id);
-    if (!sender_info) {
+    bool found = absl::c_any_of(*current_senders, [&](const auto& info) {
+      return info.stream_id == stream_id && info.sender_id == sender_id;
+    });
+    if (!found) {
       current_senders->push_back(RtpSenderInfo(stream_id, sender_id, ssrc));
-      rtp_manager()->OnRemoteSenderAdded(current_senders->back(), stream.get(),
-                                         media_type);
+      rtp_manager()->OnRemoteSenderAddedPlanB(current_senders->back(),
+                                              stream.get(), media_type);
     }
   }
 
@@ -5074,16 +5080,19 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersList(
       remote_streams_->AddStream(default_stream);
       new_streams->AddStream(default_stream);
     }
-    std::string default_sender_id = (media_type == MediaType::AUDIO)
-                                        ? kDefaultAudioSenderId
-                                        : kDefaultVideoSenderId;
-    const RtpSenderInfo* default_sender_info = rtp_manager()->FindSenderInfo(
-        *current_senders, kDefaultStreamId, default_sender_id);
-    if (!default_sender_info) {
+    absl::string_view default_sender_id = (media_type == MediaType::AUDIO)
+                                              ? kDefaultAudioSenderId
+                                              : kDefaultVideoSenderId;
+    bool found = absl::c_any_of(*current_senders, [&](const auto& info) {
+      return info.stream_id == kDefaultStreamId &&
+             info.sender_id == default_sender_id;
+    });
+
+    if (!found) {
       current_senders->push_back(
           RtpSenderInfo(kDefaultStreamId, default_sender_id, /*ssrc=*/0));
-      rtp_manager()->OnRemoteSenderAdded(current_senders->back(),
-                                         default_stream.get(), media_type);
+      rtp_manager()->OnRemoteSenderAddedPlanB(current_senders->back(),
+                                              default_stream.get(), media_type);
     }
   }
 }
@@ -5562,6 +5571,7 @@ RTCErrorOr<const ContentInfo*> SdpOfferAnswerHandler::FindContentInfo(
 }
 
 RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
+  RTC_DCHECK(!IsUnifiedPlan());
   RTC_LOG_THREAD_BLOCK_COUNT();
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::CreateChannels");
   // Creating the media channels. Transports should already have been created
