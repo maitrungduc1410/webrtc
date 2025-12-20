@@ -5241,19 +5241,20 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
                                "control feedback types, ignoring all.";
         }
 
-        if (preferred_rtcp_cc_ack_type.has_value() &&
-            preferred_rtcp_cc_ack_type == remote_preferred_rtcp_cc_ack_type) {
-          // The call and the congestion controller live on the worker thread.
-          context_->worker_thread()->PostTask(
-              [call = pc_->call_ptr(),
-               preferred_rtcp_cc_ack_type = *preferred_rtcp_cc_ack_type] {
-                call->SetPreferredRtcpCcAckType(preferred_rtcp_cc_ack_type);
-              });
-        } else {
-          RTC_LOG(LS_WARNING)
-              << "Inconsistent Congestion Control feedback types: "
-              << preferred_rtcp_cc_ack_type << " vs "
-              << remote_preferred_rtcp_cc_ack_type << " Using default.";
+        if (preferred_rtcp_cc_ack_type.has_value()) {
+          if (preferred_rtcp_cc_ack_type == remote_preferred_rtcp_cc_ack_type) {
+            // The call and the congestion controller live on the worker thread.
+            context_->worker_thread()->PostTask(
+                [call = pc_->call_ptr(),
+                 preferred_rtcp_cc_ack_type = *preferred_rtcp_cc_ack_type] {
+                  call->SetPreferredRtcpCcAckType(preferred_rtcp_cc_ack_type);
+                });
+          } else {
+            RTC_LOG(LS_WARNING)
+                << "Inconsistent Congestion Control feedback types: "
+                << preferred_rtcp_cc_ack_type << " vs "
+                << remote_preferred_rtcp_cc_ack_type << " Using default.";
+          }
         }
       }
     }
