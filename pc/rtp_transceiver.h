@@ -199,7 +199,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // The task must be executed on the worker thread.
   // This is used by SdpOfferAnswerHandler::GetMediaChannelTeardownTasks to
   // batch worker thread operations.
-  absl::AnyInvocable<void() &&> GetDeleteChannelWorkerTask();
+  absl::AnyInvocable<void() &&> GetDeleteChannelWorkerTask(bool stop_senders);
 
   // Adds an RtpSender of the appropriate type to be owned by this transceiver.
   scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> AddSenderPlanB(

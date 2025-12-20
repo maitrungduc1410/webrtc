@@ -273,6 +273,18 @@ std::unique_ptr<ChannelInterface> CreateMediaChannel(
       srtp_required, crypto_options, context->ssrc_generator());
 }
 
+std::vector<absl::AnyInvocable<void() &&>> DetachAndGetStopTasksForSenders(
+    std::vector<scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>&
+        senders) {
+  std::vector<absl::AnyInvocable<void() &&>> tasks;
+  for (const auto& sender : senders) {
+    auto task = sender->internal()->DetachTrackAndGetStopTask();
+    if (task)
+      tasks.push_back(std::move(task));
+  }
+  return tasks;
+}
+
 }  // namespace
 
 RtpTransceiver::RtpTransceiver(const Environment& env,
@@ -559,7 +571,8 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   };
 }
 
-absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask() {
+absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask(
+    bool stop_senders) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(signaling_thread_safety_ == nullptr)
       << "GetClearChannelNetworkTask() must be called first";
@@ -568,11 +581,19 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask() {
     return nullptr;
   }
 
+  std::vector<absl::AnyInvocable<void() &&>> stop;
+  if (stop_senders) {
+    stop = DetachAndGetStopTasksForSenders(senders_);
+  }
+
   // Ensure that channel_ is not reachable via the transceiver, but is deleted
   // only after clearing the references in senders_ and receivers_.
   return [this, channel = std::move(channel_), senders = senders_,
-          receivers = receivers_]() mutable {
+          receivers = receivers_, stop = std::move(stop)]() mutable {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
+    for (auto& task : stop) {
+      std::move(task)();
+    }
     ClearMediaChannelReferences();
     channel.reset();
   };
@@ -590,7 +611,8 @@ void RtpTransceiver::ClearChannel() {
         [&] { std::move(network_task)(); });
   }
 
-  absl::AnyInvocable<void() &&> worker_task = GetDeleteChannelWorkerTask();
+  absl::AnyInvocable<void() &&> worker_task =
+      GetDeleteChannelWorkerTask(/*stop_senders=*/false);
   if (worker_task) {
     context()->worker_thread()->BlockingCall([&] { std::move(worker_task)(); });
   }
@@ -883,12 +905,8 @@ void RtpTransceiver::StopSendingAndReceiving() {
   // worker thread to avoid each sender doing that within `Stop()`.
   // Senders will have already cleared send when the media channel was set to
   // nullptr.
-  std::vector<absl::AnyInvocable<void() &&>> stop;
-  for (const auto& sender : senders_) {
-    auto task = sender->internal()->DetachTrackAndGetStopTask();
-    if (task)
-      stop.push_back(std::move(task));
-  }
+  std::vector<absl::AnyInvocable<void() &&>> stop =
+      DetachAndGetStopTasksForSenders(senders_);
 
   // 3. Send an RTCP BYE for each RTP stream that was being sent by sender, as
   // specified in [RFC3550].

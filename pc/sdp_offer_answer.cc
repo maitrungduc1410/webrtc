@@ -5635,7 +5635,8 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
     if (transceiver->media_type() == MediaType::VIDEO) {
       if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
         network_tasks.push_back(std::move(task));
-      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask())
+      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask(
+              /*stop_senders=*/true))
         worker_tasks.push_back(std::move(task));
     }
   }
@@ -5643,7 +5644,8 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
     if (transceiver->media_type() == MediaType::AUDIO) {
       if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
         network_tasks.push_back(std::move(task));
-      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask())
+      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask(
+              /*stop_senders=*/true))
         worker_tasks.push_back(std::move(task));
     }
   }
