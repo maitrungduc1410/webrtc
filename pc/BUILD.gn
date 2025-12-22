@@ -961,6 +961,7 @@ rtc_source_set("peer_connection_internal") {
   visibility = [ ":*" ]
   sources = [ "peer_connection_internal.h" ]
   deps = [
+    ":channel_interface",
     ":data_channel_utils",
     ":jsep_transport_controller",
     ":peer_connection_message_handler",
@@ -1198,6 +1199,7 @@ rtc_library("sdp_offer_answer") {
     "../rtc_base/containers:flat_set",
     "../system_wrappers:metrics",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/cleanup",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
