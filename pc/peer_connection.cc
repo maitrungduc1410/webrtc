@@ -2569,16 +2569,23 @@ void PeerConnection::OnTransportControllerConnectionState(
       RTC_LOG(LS_INFO) << "Changing to ICE connected state because "
                           "all transports are writable.";
       {
-        std::vector<RtpTransceiverProxyRefPtr> transceivers;
+        std::vector<std::pair<std::string, MediaType>> transceiver_info;
         if (ConfiguredForMedia()) {
-          transceivers = rtp_manager()->transceivers()->List();
+          for (const auto& t : rtp_manager()->transceivers()->List()) {
+            if (t->internal()->channel()) {
+              std::optional<std::string> mid = t->mid();
+              if (mid) {
+                transceiver_info.emplace_back(*mid, t->media_type());
+              }
+            }
+          }
         }
 
         network_thread()->PostTask(
             SafeTask(network_thread_safety_,
-                     [this, transceivers = std::move(transceivers)] {
+                     [this, transceiver_info = std::move(transceiver_info)] {
                        RTC_DCHECK_RUN_ON(network_thread());
-                       ReportTransportStats(std::move(transceivers));
+                       ReportTransportStats(std::move(transceiver_info));
                      }));
       }
 
@@ -2925,17 +2932,20 @@ void PeerConnection::OnTransportControllerGatheringState(
 
 // Runs on network_thread().
 void PeerConnection::ReportTransportStats(
-    std::vector<RtpTransceiverProxyRefPtr> transceivers) {
+    std::vector<std::pair<std::string, MediaType>> transceiver_info) {
+  RTC_DCHECK_RUN_ON(network_thread());
   TRACE_EVENT0("webrtc", "PeerConnection::ReportTransportStats");
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
   flat_map<absl::string_view, std::set<MediaType>>
       media_types_by_transport_name;
-  for (const auto& transceiver : transceivers) {
-    if (transceiver->internal()->channel()) {
-      const absl::string_view transport_name =
-          transceiver->internal()->channel()->transport_name();
-      media_types_by_transport_name[transport_name].insert(
-          transceiver->media_type());
+  for (const auto& item : transceiver_info) {
+    const auto& mid = item.first;
+    const auto& media_type = item.second;
+    RtpTransportInternal* transport =
+        transport_controller_->GetRtpTransport(mid);
+    if (transport) {
+      media_types_by_transport_name[transport->transport_name()].insert(
+          media_type);
     }
   }
 

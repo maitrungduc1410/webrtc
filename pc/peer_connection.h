@@ -19,6 +19,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -596,7 +597,8 @@ class PeerConnection : public PeerConnectionInternal,
 
   // Invoked when TransportController connection completion is signaled.
   // Reports stats for all transports in use.
-  void ReportTransportStats(std::vector<RtpTransceiverProxyRefPtr> transceivers)
+  void ReportTransportStats(
+      std::vector<std::pair<std::string, MediaType>> transceiver_info)
       RTC_RUN_ON(network_thread());
 
   // Gather the usage of IPv4/IPv6 as best connection.
