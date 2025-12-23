@@ -709,7 +709,7 @@ class PeerConnection : public PeerConnectionInternal,
 
   std::unique_ptr<LegacyStatsCollector> legacy_stats_
       RTC_GUARDED_BY(signaling_thread());  // A pointer is passed to senders_
-  scoped_refptr<RTCStatsCollector> stats_collector_
+  std::unique_ptr<RTCStatsCollector> stats_collector_
       RTC_GUARDED_BY(signaling_thread());
 
   const std::string session_id_;

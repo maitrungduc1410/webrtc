@@ -31,7 +31,6 @@
 #include "api/data_channel_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/environment/environment.h"
-#include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/rtp_parameters.h"
@@ -1194,11 +1193,12 @@ RTCStatsCollector::RequestInfo::RequestInfo(
   RTC_DCHECK(!sender_selector_ || !receiver_selector_);
 }
 
-scoped_refptr<RTCStatsCollector> RTCStatsCollector::Create(
+std::unique_ptr<RTCStatsCollector> RTCStatsCollector::Create(
     PeerConnectionInternal* pc,
     const Environment& env,
     int64_t cache_lifetime_us) {
-  return make_ref_counted<RTCStatsCollector>(pc, env, cache_lifetime_us);
+  return std::unique_ptr<RTCStatsCollector>(
+      new RTCStatsCollector(pc, env, cache_lifetime_us));
 }
 
 RTCStatsCollector::RTCStatsCollector(PeerConnectionInternal* pc,

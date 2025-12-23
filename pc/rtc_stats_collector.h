@@ -26,7 +26,6 @@
 #include "api/data_channel_interface.h"
 #include "api/environment/environment.h"
 #include "api/media_types.h"
-#include "api/ref_count.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/scoped_refptr.h"
 #include "api/stats/rtc_stats_collector_callback.h"
@@ -74,9 +73,9 @@ struct RtpTransceiverStatsInfo {
 // Stats are gathered on the signaling, worker and network threads
 // asynchronously. The callback is invoked on the signaling thread. Resulting
 // reports are cached for `cache_lifetime_` ms.
-class RTCStatsCollector : public RefCountInterface {
+class RTCStatsCollector {
  public:
-  static scoped_refptr<RTCStatsCollector> Create(
+  static std::unique_ptr<RTCStatsCollector> Create(
       PeerConnectionInternal* pc,
       const Environment& env,
       int64_t cache_lifetime_us = 50 * kNumMicrosecsPerMillisec);
@@ -118,11 +117,12 @@ class RTCStatsCollector : public RefCountInterface {
   void OnSctpDataChannelStateChanged(int channel_id,
                                      DataChannelInterface::DataState state);
 
+  virtual ~RTCStatsCollector();
+
  protected:
   RTCStatsCollector(PeerConnectionInternal* pc,
                     const Environment& env,
                     int64_t cache_lifetime_us);
-  ~RTCStatsCollector();
 
   struct CertificateStatsPair {
     std::unique_ptr<SSLCertificateStats> local;
