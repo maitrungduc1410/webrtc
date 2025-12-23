@@ -676,36 +676,27 @@ PeerConnection::PeerConnection(
 PeerConnection::~PeerConnection() {
   TRACE_EVENT0("webrtc", "PeerConnection::~PeerConnection");
   RTC_DCHECK_RUN_ON(signaling_thread());
+  RTC_LOG_THREAD_BLOCK_COUNT();
 
-  if (sdp_handler_) {
-    sdp_handler_->PrepareForShutdown();
-  }
+  sdp_handler_->PrepareForShutdown();
 
   // In case `Close()` wasn't called, always make sure the controller cancels
   // potentially pending operations.
   data_channel_controller_.PrepareForShutdown();
 
-  // Need to stop transceivers before destroying the stats collector because
-  // AudioRtpSender has a reference to the LegacyStatsCollector it will update
-  // when stopping.
-  if (rtp_manager()) {
-    for (const auto& transceiver : rtp_manager()->transceivers()->List()) {
-      transceiver->StopInternal();
-    }
-  }
+  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
+
+  // Stop transceivers before destroying the stats collector because
+  // AudioRtpSender has a reference to the LegacyStatsCollector that it will
+  // update when stopping. The BaseChannels will eventually be deleted below
+  // when all the network and worker tasks are executed.
+  sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
 
   legacy_stats_.reset(nullptr);
   if (stats_collector_) {
-    stats_collector_->WaitForPendingRequest();
-    stats_collector_ = nullptr;
-  }
-
-  std::vector<absl::AnyInvocable<void() &&>> network_tasks;
-  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
-  if (sdp_handler_) {
-    // Don't destroy BaseChannels until after stats has been cleaned up so that
-    // the last stats request can still read from the channels.
-    sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
+    network_tasks.push_back(
+        stats_collector_->CancelPendingRequestAndGetShutdownTask());
   }
 
   CloseOnNetworkThread(network_tasks);
@@ -727,6 +718,10 @@ PeerConnection::~PeerConnection() {
   }
 
   data_channel_controller_.PrepareForShutdown();
+
+  // The expectation is that there will have been 1 blocking call for the worker
+  // thread and optionally 1 task for the network thread.
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
 
 JsepTransportController* PeerConnection::InitializeNetworkThread(
@@ -866,30 +861,33 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
 void PeerConnection::CloseOnNetworkThread(
     std::vector<absl::AnyInvocable<void() &&>>& network_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  if (!transport_controller_copy_) {
-    // If the transport has been torn down then there should not be any
-    // pending network tasks to run.
-    RTC_DCHECK(network_tasks.empty());
-    RTC_DCHECK(!sctp_mid_s_.has_value()) << "Should already be reset.";
-    return;
+  if (transport_controller_copy_ || !network_tasks.empty()) {
+    network_thread()->BlockingCall([&] {
+      RTC_DCHECK_RUN_ON(network_thread());
+      for (auto& task : network_tasks) {
+        std::move(task)();
+        task = nullptr;
+      }
+      if (network_thread_safety_->alive()) {
+        // port_allocator_ and transport_controller_ live on the network thread
+        // and must be destroyed there.
+        TeardownDataChannelTransport_n(RTCError::OK());
+        port_allocator_->DiscardCandidatePool();
+        transport_controller_.reset();
+        port_allocator_.reset();
+        network_thread_safety_->SetNotAlive();
+      }
+    });
   }
-  // port_allocator_ and transport_controller_ live on the network thread and
-  // should be destroyed there.
-  transport_controller_copy_ = nullptr;
-  network_thread()->BlockingCall([&] {
-    RTC_DCHECK_RUN_ON(network_thread());
-    for (auto& task : network_tasks) {
-      std::move(task)();
-      task = nullptr;
-    }
-    TeardownDataChannelTransport_n(RTCError::OK());
-    port_allocator_->DiscardCandidatePool();
-    transport_controller_.reset();
-    port_allocator_.reset();
-    network_thread_safety_->SetNotAlive();
-  });
-  sctp_mid_s_.reset();
-  SetSctpTransportName("");
+
+  if (transport_controller_copy_) {
+    transport_controller_copy_ = nullptr;
+    sctp_mid_s_.reset();
+    SetSctpTransportName("");
+  } else {
+    RTC_DCHECK(!sctp_mid_s_);
+    RTC_DCHECK(sctp_transport_name_s_.empty());
+  }
 }
 
 JsepTransportController* PeerConnection::InitializeTransportController_n(

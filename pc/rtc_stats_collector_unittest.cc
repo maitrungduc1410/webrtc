@@ -94,6 +94,7 @@
 #include "rtc_base/time_utils.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/run_loop.h"
 #include "test/wait_until.h"
 
 using ::testing::_;
@@ -186,6 +187,12 @@ std::unique_ptr<Candidate> CreateFakeCandidate(
   candidate->set_underlying_type_for_vpn(underlying_type_for_vpn);
   return candidate;
 }
+
+class MockStatsCollectorCallback : public RTCStatsCollectorCallback {
+ public:
+  MOCK_METHOD1(OnStatsDelivered,
+               void(const scoped_refptr<const RTCStatsReport>&));
+};
 
 class FakeAudioProcessor : public AudioProcessorInterface {
  public:
@@ -388,7 +395,7 @@ class RTCStatsCollectorWrapper {
       const Environment& env)
       : pc_(pc),
         stats_collector_(
-            RTCStatsCollector::Create(pc.get(),
+            RTCStatsCollector::Create(pc_.get(),
                                       env,
                                       50 * kNumMicrosecsPerMillisec)) {}
 
@@ -3829,7 +3836,7 @@ class FakeRTCStatsCollector : public RTCStatsCollector,
   static scoped_refptr<FakeRTCStatsCollector> Create(
       PeerConnectionInternal* pc,
       const Environment& env,
-      int64_t cache_lifetime_us) {
+      int64_t cache_lifetime_us = 50 * kNumMicrosecsPerMillisec) {
     return scoped_refptr<FakeRTCStatsCollector>(
         new RefCountedObject<FakeRTCStatsCollector>(pc, env,
                                                     cache_lifetime_us));
@@ -3904,6 +3911,7 @@ class FakeRTCStatsCollector : public RTCStatsCollector,
       Timestamp timestamp,
       const std::map<std::string, TransportStats>& transport_stats_by_name,
       const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
+      const std::vector<RtpTransceiverStatsInfo>& transceiver_stats_infos,
       RTCStatsReport* partial_report) override {
     EXPECT_TRUE(network_thread_->IsCurrent());
     {
@@ -3927,8 +3935,77 @@ class FakeRTCStatsCollector : public RTCStatsCollector,
   int produced_on_network_thread_ = 0;
 };
 
+// Simple test that verifies that GetStatsReport() can be called and async
+// results delivered on the same thread.
+// This covers the following steps:
+// * Request stats
+// * Task posted from signaling to network thread.
+// * Task posted from network thread back to signaling
+// * Issue the `OnStatsDelivered` callback on the signaling thread.
+TEST(RTCStatsCollectorSafetyTest, WaitPendingRequestGetsCallback) {
+  test::RunLoop loop;
+  auto pc = make_ref_counted<FakePeerConnectionForStats>();
+  auto env = CreateEnvironment();
+  RTCStatsCollectorWrapper wrapper(pc, env);
+  auto callback = make_ref_counted<MockStatsCollectorCallback>();
+  EXPECT_CALL(*callback, OnStatsDelivered(_)).WillOnce([&] { loop.Quit(); });
+  wrapper.stats_collector()->GetStatsReport(callback);
+  loop.Run();
+}
+
+// Similar to WaitPendingRequestGetsCallback except that we call
+// CancelPendingRequestAndGetShutdownTask to make sure the callback tasks won't
+// run (and callbacks not issued). This covers the following steps:
+// * Request stats
+// * Task posted from signaling to network thread.
+// * Task posted from network thread back to signaling
+// * The task for the signaling thread will be dropped, no callback.
+TEST(RTCStatsCollectorSafetyTest, CancelPendingRequestPreventsCallback) {
+  test::RunLoop loop;
+  auto pc = make_ref_counted<FakePeerConnectionForStats>();
+  RTCStatsCollectorWrapper wrapper(pc, CreateEnvironment());
+  auto callback = make_ref_counted<MockStatsCollectorCallback>();
+  EXPECT_CALL(*callback, OnStatsDelivered(_)).Times(0);
+  // At this point, cancellation has not been made, this posts a task to the
+  // network thread.
+  wrapper.stats_collector()->GetStatsReport(callback);
+  // Now cancel any ongoing stats gathering operations. This should have the
+  // effect that the gathering that is ongoing on the network thread, will queue
+  // up a task for the signaling thread, but that task will be dropped.
+  auto network_task =
+      wrapper.stats_collector()->CancelPendingRequestAndGetShutdownTask();
+  loop.Flush();
+  // Run the network cleanup task for posterity.
+  std::move(network_task)();
+}
+
+// This covers the following steps:
+// * Mark the network thread as not alive ()
+// * Request stats
+// * Task posted from signaling to network thread.
+// * The task for the network thread will be dropped, no further work done.
+TEST(RTCStatsCollectorSafetyTest, NetworkThreadSafetyPreventsCallback) {
+  test::RunLoop loop;
+  auto pc = make_ref_counted<FakePeerConnectionForStats>();
+  RTCStatsCollectorWrapper wrapper(pc, CreateEnvironment());
+  auto callback = make_ref_counted<MockStatsCollectorCallback>();
+  EXPECT_CALL(*callback, OnStatsDelivered(_)).Times(0);
+  // Start by canceling any ongoing tasks. There aren't actually any ongoing
+  // tasks, but this gives us the network cleanup task.
+  auto network_task =
+      wrapper.stats_collector()->CancelPendingRequestAndGetShutdownTask();
+  // Clean up the state on the network thread. This will have the effect of
+  // dropping any tasks targeting the network thread.
+  std::move(network_task)();
+  // Now, attempt to get a stats report. This will try to post a task to the
+  // network thread, which will be dropped.
+  wrapper.stats_collector()->GetStatsReport(callback);
+
+  loop.Flush();
+}
+
 TEST(RTCStatsCollectorTestWithFakeCollector, ThreadUsageAndResultsMerging) {
-  AutoThread main_thread_;
+  test::RunLoop loop;
   auto pc = make_ref_counted<FakePeerConnectionForStats>();
   scoped_refptr<FakeRTCStatsCollector> stats_collector(
       FakeRTCStatsCollector::Create(pc.get(), CreateEnvironment(),

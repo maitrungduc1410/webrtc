@@ -1034,6 +1034,7 @@ rtc_library("rtc_stats_collector") {
     "../api/audio:audio_processing_statistics",
     "../api/environment",
     "../api/task_queue",
+    "../api/task_queue:pending_task_safety_flag",
     "../api/transport:enums",
     "../api/units:time_delta",
     "../api/units:timestamp",
@@ -1063,8 +1064,7 @@ rtc_library("rtc_stats_collector") {
     "../rtc_base:threading",
     "../rtc_base:timeutils",
     "../rtc_base/containers:flat_set",
-    "../rtc_base/synchronization:mutex",
-    "//third_party/abseil-cpp/absl/functional:bind_front",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]

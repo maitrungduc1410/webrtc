@@ -452,10 +452,7 @@ class PeerConnection : public PeerConnectionInternal,
   bool ConfiguredForMedia() const;
 
   // Functions made public for testing.
-  void ReturnHistogramVeryQuicklyForTesting() {
-    RTC_DCHECK_RUN_ON(signaling_thread());
-    return_histogram_very_quickly_ = true;
-  }
+
   void RequestUsagePatternReportForTesting();
   int FeedbackAccordingToRfc8888CountForTesting() const;
   int FeedbackAccordingToTransportCcCountForTesting() const;
@@ -659,8 +656,7 @@ class PeerConnection : public PeerConnectionInternal,
 
   const bool is_unified_plan_;
   const bool dtls_enabled_;
-  bool return_histogram_very_quickly_ RTC_GUARDED_BY(signaling_thread()) =
-      false;
+
   // Did the connectionState ever change to `connected`?
   // Used to gather metrics only the first such state change.
   bool was_ever_connected_ RTC_GUARDED_BY(signaling_thread()) = false;
