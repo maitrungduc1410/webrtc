@@ -1193,14 +1193,6 @@ RTCStatsCollector::RequestInfo::RequestInfo(
   RTC_DCHECK(!sender_selector_ || !receiver_selector_);
 }
 
-std::unique_ptr<RTCStatsCollector> RTCStatsCollector::Create(
-    PeerConnectionInternal* pc,
-    const Environment& env,
-    int64_t cache_lifetime_us) {
-  return std::unique_ptr<RTCStatsCollector>(
-      new RTCStatsCollector(pc, env, cache_lifetime_us));
-}
-
 RTCStatsCollector::RTCStatsCollector(PeerConnectionInternal* pc,
                                      const Environment& env,
                                      int64_t cache_lifetime_us)

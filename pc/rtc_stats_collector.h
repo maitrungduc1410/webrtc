@@ -75,11 +75,6 @@ struct RtpTransceiverStatsInfo {
 // reports are cached for `cache_lifetime_` ms.
 class RTCStatsCollector {
  public:
-  static std::unique_ptr<RTCStatsCollector> Create(
-      PeerConnectionInternal* pc,
-      const Environment& env,
-      int64_t cache_lifetime_us = 50 * kNumMicrosecsPerMillisec);
-
   // Gets a recent stats report. If there is a report cached that is still fresh
   // it is returned, otherwise new stats are gathered and returned. A report is
   // considered fresh for `cache_lifetime_` ms. const RTCStatsReports are safe
@@ -119,11 +114,11 @@ class RTCStatsCollector {
 
   virtual ~RTCStatsCollector();
 
- protected:
   RTCStatsCollector(PeerConnectionInternal* pc,
                     const Environment& env,
-                    int64_t cache_lifetime_us);
+                    int64_t cache_lifetime_us = 50 * kNumMicrosecsPerMillisec);
 
+ protected:
   struct CertificateStatsPair {
     std::unique_ptr<SSLCertificateStats> local;
     std::unique_ptr<SSLCertificateStats> remote;

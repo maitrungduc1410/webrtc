@@ -608,7 +608,7 @@ PeerConnection::PeerConnection(
           worker_thread())),
       call_ptr_(call_.get()),
       legacy_stats_(std::make_unique<LegacyStatsCollector>(this, env_.clock())),
-      stats_collector_(RTCStatsCollector::Create(this, env_)),
+      stats_collector_(this, env_),
       // RFC 3264: The numeric value of the session id and version in the
       // o line MUST be representable with a "64 bit signed integer".
       // Due to this constraint session id `session_id_` is max limited to
@@ -694,10 +694,8 @@ PeerConnection::~PeerConnection() {
   sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
 
   legacy_stats_.reset(nullptr);
-  if (stats_collector_) {
-    network_tasks.push_back(
-        stats_collector_->CancelPendingRequestAndGetShutdownTask());
-  }
+  network_tasks.push_back(
+      stats_collector_.CancelPendingRequestAndGetShutdownTask());
 
   CloseOnNetworkThread(network_tasks);
 
@@ -1342,7 +1340,6 @@ bool PeerConnection::GetStats(StatsObserver* observer,
     RTC_LOG(LS_ERROR) << "Legacy GetStats - observer is NULL.";
     return false;
   }
-
   RTC_LOG_THREAD_BLOCK_COUNT();
 
   legacy_stats_->UpdateStats(level);
@@ -1364,10 +1361,9 @@ bool PeerConnection::GetStats(StatsObserver* observer,
 void PeerConnection::GetStats(RTCStatsCollectorCallback* callback) {
   TRACE_EVENT0("webrtc", "PeerConnection::GetStats");
   RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(stats_collector_);
   RTC_DCHECK(callback);
   RTC_LOG_THREAD_BLOCK_COUNT();
-  stats_collector_->GetStatsReport(
+  stats_collector_.GetStatsReport(
       scoped_refptr<RTCStatsCollectorCallback>(callback));
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
@@ -1378,7 +1374,6 @@ void PeerConnection::GetStats(
   TRACE_EVENT0("webrtc", "PeerConnection::GetStats");
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(callback);
-  RTC_DCHECK(stats_collector_);
   RTC_LOG_THREAD_BLOCK_COUNT();
   scoped_refptr<RtpSenderInternal> internal_sender;
   if (selector) {
@@ -1400,7 +1395,7 @@ void PeerConnection::GetStats(
   // PeerConnection). This means that "all the stats objects representing the
   // selector" is an empty set. Invoking GetStatsReport() with a null selector
   // produces an empty stats report.
-  stats_collector_->GetStatsReport(internal_sender, callback);
+  stats_collector_.GetStatsReport(internal_sender, callback);
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
 
@@ -1410,7 +1405,6 @@ void PeerConnection::GetStats(
   TRACE_EVENT0("webrtc", "PeerConnection::GetStats");
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(callback);
-  RTC_DCHECK(stats_collector_);
   RTC_LOG_THREAD_BLOCK_COUNT();
   scoped_refptr<RtpReceiverInternal> internal_receiver;
   if (selector) {
@@ -1432,7 +1426,7 @@ void PeerConnection::GetStats(
   // the PeerConnection). This means that "all the stats objects representing
   // the selector" is an empty set. Invoking GetStatsReport() with a null
   // selector produces an empty stats report.
-  stats_collector_->GetStatsReport(internal_receiver, callback);
+  stats_collector_.GetStatsReport(internal_receiver, callback);
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
 }
 
@@ -1929,9 +1923,7 @@ void PeerConnection::Close() {
   }
   // Ensure that all asynchronous stats requests are completed before destroying
   // the transport controller below.
-  if (stats_collector_) {
-    stats_collector_->WaitForPendingRequest();
-  }
+  stats_collector_.WaitForPendingRequest();
 
   // Don't destroy BaseChannels until after stats has been cleaned up so that
   // the last stats request can still read from the channels.
@@ -2308,8 +2300,7 @@ void PeerConnection::OnSctpDataChannelStateChanged(
     int channel_id,
     DataChannelInterface::DataState state) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  if (stats_collector_)
-    stats_collector_->OnSctpDataChannelStateChanged(channel_id, state);
+  stats_collector_.OnSctpDataChannelStateChanged(channel_id, state);
 }
 
 PeerConnection::InitializePortAllocatorResult
@@ -3184,9 +3175,7 @@ void PeerConnection::ClearStatsCache() {
   if (legacy_stats_) {
     legacy_stats_->InvalidateCache();
   }
-  if (stats_collector_) {
-    stats_collector_->ClearCachedStatsReport();
-  }
+  stats_collector_.ClearCachedStatsReport();
 }
 
 bool PeerConnection::ShouldFireNegotiationNeededEvent(uint32_t event_id) {

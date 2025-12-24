@@ -391,17 +391,13 @@ class RTCStatsCollectorWrapper {
   explicit RTCStatsCollectorWrapper(
       scoped_refptr<FakePeerConnectionForStats> pc,
       const Environment& env)
-      : pc_(pc),
-        stats_collector_(
-            RTCStatsCollector::Create(pc_.get(),
-                                      env,
-                                      50 * kNumMicrosecsPerMillisec)) {}
+      : pc_(pc), stats_collector_(pc_.get(), env) {}
 
-  RTCStatsCollector* stats_collector() { return stats_collector_.get(); }
+  RTCStatsCollector& stats_collector() { return stats_collector_; }
 
   scoped_refptr<const RTCStatsReport> GetStatsReport(RunLoop& loop) {
     scoped_refptr<const RTCStatsReport> report;
-    stats_collector_->GetStatsReport(
+    stats_collector_.GetStatsReport(
         RTCStatsObtainer::Create(&report, [&loop] { loop.Quit(); }));
     loop.Run();
     int64_t after = TimeUTCMicros();
@@ -417,7 +413,7 @@ class RTCStatsCollectorWrapper {
   }
 
   scoped_refptr<const RTCStatsReport> GetFreshStatsReport(RunLoop& loop) {
-    stats_collector_->ClearCachedStatsReport();
+    stats_collector_.ClearCachedStatsReport();
     return GetStatsReport(loop);
   }
 
@@ -610,7 +606,7 @@ class RTCStatsCollectorWrapper {
 
  private:
   scoped_refptr<FakePeerConnectionForStats> pc_;
-  std::unique_ptr<RTCStatsCollector> stats_collector_;
+  RTCStatsCollector stats_collector_;
 };
 
 class RTCStatsCollectorTest : public ::testing::Test {
@@ -874,7 +870,7 @@ class RTCStatsCollectorTest : public ::testing::Test {
 
 TEST_F(RTCStatsCollectorTest, SingleCallback) {
   scoped_refptr<const RTCStatsReport> result;
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&result, [&] { main_thread_.Quit(); }));
   main_thread_.Run();
   EXPECT_TRUE(result);
@@ -887,11 +883,11 @@ TEST_F(RTCStatsCollectorTest, MultipleCallbacks) {
     if (--remaining == 0)
       main_thread_.Quit();
   };
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&a, on_complete));
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&b, on_complete));
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&c, on_complete));
   main_thread_.Run();
   EXPECT_TRUE(a);
@@ -908,7 +904,7 @@ TEST_F(RTCStatsCollectorTest, CachedStatsReports) {
   scoped_refptr<const RTCStatsReport> b = stats_->GetStatsReport(main_thread_);
   EXPECT_EQ(a.get(), b.get());
   // Invalidate cache by clearing it.
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   scoped_refptr<const RTCStatsReport> c = stats_->GetStatsReport(main_thread_);
   EXPECT_NE(b.get(), c.get());
   // Invalidate cache by advancing time.
@@ -925,14 +921,14 @@ TEST_F(RTCStatsCollectorTest, MultipleCallbacksWithInvalidatedCacheInBetween) {
     if (--remaining == 0)
       main_thread_.Quit();
   };
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&a, on_complete));
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&b, on_complete));
   // Cache is invalidated after 50 ms.
   main_thread_.Flush();
   fake_clock_.AdvanceTime(TimeDelta::Millis(51));
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       RTCStatsObtainer::Create(&c, on_complete));
   main_thread_.Run();
   EXPECT_TRUE(a);
@@ -1206,7 +1202,7 @@ TEST_F(RTCStatsCollectorTest, CollectRTCCodecStatsOnlyIfReferenced) {
   video_media_info.receivers.clear();
   video_channels.first->SetStats(video_media_info);
   video_channels.second->SetStats(video_media_info);
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   report = stats_->GetStatsReport(main_thread_);
   EXPECT_FALSE(report->Get(expected_inbound_audio_codec.id()));
   EXPECT_FALSE(report->Get(expected_outbound_audio_codec.id()));
@@ -1274,7 +1270,7 @@ TEST_F(RTCStatsCollectorTest, CodecStatsAreCollectedPerTransport) {
   // If a second transport is added with the same PT information, this does
   // count as different codec objects.
   pc_->AddVideoChannel("Mid4", "SecondTransport", info_pt10_pt11);
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   report = stats_->GetStatsReport(main_thread_);
   codec_stats = report->GetStatsOfType<RTCCodecStats>();
   EXPECT_EQ(codec_stats.size(), 4u);
@@ -1335,7 +1331,7 @@ TEST_F(RTCStatsCollectorTest, SamePayloadTypeButDifferentFmtpLines) {
   // in duplicates.
   pc_->AddVideoChannel("Mid3", "BundledTransport", info_nofec);
   pc_->AddVideoChannel("Mid4", "BundledTransport", info_fec);
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   report = stats_->GetStatsReport(main_thread_);
   codec_stats = report->GetStatsOfType<RTCCodecStats>();
   EXPECT_EQ(codec_stats.size(), 2u);
@@ -1358,7 +1354,7 @@ TEST_F(RTCStatsCollectorTest, SamePayloadTypeButDifferentFmtpLines) {
   info_fec_pt112.receivers[0].codec_payload_type =
       inbound_codec_pt112_fec.payload_type;
   pc_->AddVideoChannel("Mid5", "BundledTransport", info_fec_pt112);
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   report = stats_->GetStatsReport(main_thread_);
   codec_stats = report->GetStatsOfType<RTCCodecStats>();
   EXPECT_EQ(codec_stats.size(), 3u);
@@ -1524,7 +1520,7 @@ TEST_F(RTCStatsCollectorTest, CertificateStatsCache) {
       second_report, updated_remote_certinfo->fingerprints[1]));
 
   // Clear the cache, including the cached certificates.
-  stats_->stats_collector()->ClearCachedStatsReport();
+  stats_->stats_collector().ClearCachedStatsReport();
   scoped_refptr<const RTCStatsReport> third_report =
       stats_->GetStatsReport(main_thread_);
   // Now the old certificates stats should be deleted.
@@ -2100,10 +2096,10 @@ TEST_F(RTCStatsCollectorTest, CollectRTCPeerConnectionStats) {
       controller.weak_ptr(), "DummyChannelB", false, InternalDataChannelInit(),
       Thread::Current(), Thread::Current());
 
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_a->internal_id(), DataChannelInterface::DataState::kOpen);
   // Closing a channel that is not opened should not affect the counts.
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_b->internal_id(), DataChannelInterface::DataState::kClosed);
 
   {
@@ -2116,9 +2112,9 @@ TEST_F(RTCStatsCollectorTest, CollectRTCPeerConnectionStats) {
     EXPECT_EQ(expected, report->Get("P")->cast_to<RTCPeerConnectionStats>());
   }
 
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_b->internal_id(), DataChannelInterface::DataState::kOpen);
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_b->internal_id(), DataChannelInterface::DataState::kClosed);
 
   {
@@ -2133,7 +2129,7 @@ TEST_F(RTCStatsCollectorTest, CollectRTCPeerConnectionStats) {
 
   // Re-opening a data channel (or opening a new data channel that is re-using
   // the same address in memory) should increase the opened count.
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_b->internal_id(), DataChannelInterface::DataState::kOpen);
 
   {
@@ -2146,9 +2142,9 @@ TEST_F(RTCStatsCollectorTest, CollectRTCPeerConnectionStats) {
     EXPECT_EQ(expected, report->Get("P")->cast_to<RTCPeerConnectionStats>());
   }
 
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_a->internal_id(), DataChannelInterface::DataState::kClosed);
-  stats_->stats_collector()->OnSctpDataChannelStateChanged(
+  stats_->stats_collector().OnSctpDataChannelStateChanged(
       dummy_channel_b->internal_id(), DataChannelInterface::DataState::kClosed);
 
   {
@@ -3713,7 +3709,7 @@ TEST_F(RTCStatsCollectorTest, GetStatsWithSenderSelector) {
   //                v        v
   //       codec (send)     transport
   scoped_refptr<const RTCStatsReport> sender_report;
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       graph.sender,
       RTCStatsObtainer::Create(&sender_report, [&] { main_thread_.Quit(); }));
   main_thread_.Run();
@@ -3740,7 +3736,7 @@ TEST_F(RTCStatsCollectorTest, GetStatsWithReceiverSelector) {
   //                               v       v
   //                        transport     codec (recv)
   scoped_refptr<const RTCStatsReport> receiver_report;
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       graph.receiver,
       RTCStatsObtainer::Create(&receiver_report, [&] { main_thread_.Quit(); }));
   main_thread_.Run();
@@ -3759,7 +3755,7 @@ TEST_F(RTCStatsCollectorTest, GetStatsWithReceiverSelector) {
 TEST_F(RTCStatsCollectorTest, GetStatsWithNullSenderSelector) {
   ExampleStatsGraph graph = SetupExampleStatsGraphForSelectorTests();
   scoped_refptr<const RTCStatsReport> empty_report;
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       scoped_refptr<RtpSenderInternal>(nullptr),
       RTCStatsObtainer::Create(&empty_report, [&] { main_thread_.Quit(); }));
   main_thread_.Run();
@@ -3771,7 +3767,7 @@ TEST_F(RTCStatsCollectorTest, GetStatsWithNullSenderSelector) {
 TEST_F(RTCStatsCollectorTest, GetStatsWithNullReceiverSelector) {
   ExampleStatsGraph graph = SetupExampleStatsGraphForSelectorTests();
   scoped_refptr<const RTCStatsReport> empty_report;
-  stats_->stats_collector()->GetStatsReport(
+  stats_->stats_collector().GetStatsReport(
       scoped_refptr<RtpReceiverInternal>(nullptr),
       RTCStatsObtainer::Create(&empty_report, [&] { main_thread_.Quit(); }));
   main_thread_.Run();
@@ -3857,8 +3853,8 @@ TEST_F(RTCStatsCollectorTest, DoNotCrashWhenGetStatsCalledDuringCallback) {
       stats_.get(), main_thread_, on_complete);
   auto callback2 = make_ref_counted<RecursiveCallback>(
       stats_.get(), main_thread_, on_complete);
-  stats_->stats_collector()->GetStatsReport(callback1);
-  stats_->stats_collector()->GetStatsReport(callback2);
+  stats_->stats_collector().GetStatsReport(callback1);
+  stats_->stats_collector().GetStatsReport(callback2);
   main_thread_.Run();
   EXPECT_TRUE(callback1->called());
   EXPECT_TRUE(callback2->called());
@@ -3997,7 +3993,7 @@ TEST(RTCStatsCollectorSafetyTest, WaitPendingRequestGetsCallback) {
   RTCStatsCollectorWrapper wrapper(pc, env);
   auto callback = make_ref_counted<MockStatsCollectorCallback>();
   EXPECT_CALL(*callback, OnStatsDelivered(_)).WillOnce([&] { loop.Quit(); });
-  wrapper.stats_collector()->GetStatsReport(callback);
+  wrapper.stats_collector().GetStatsReport(callback);
   loop.Run();
 }
 
@@ -4016,12 +4012,12 @@ TEST(RTCStatsCollectorSafetyTest, CancelPendingRequestPreventsCallback) {
   EXPECT_CALL(*callback, OnStatsDelivered(_)).Times(0);
   // At this point, cancellation has not been made, this posts a task to the
   // network thread.
-  wrapper.stats_collector()->GetStatsReport(callback);
+  wrapper.stats_collector().GetStatsReport(callback);
   // Now cancel any ongoing stats gathering operations. This should have the
   // effect that the gathering that is ongoing on the network thread, will queue
   // up a task for the signaling thread, but that task will be dropped.
   auto network_task =
-      wrapper.stats_collector()->CancelPendingRequestAndGetShutdownTask();
+      wrapper.stats_collector().CancelPendingRequestAndGetShutdownTask();
   loop.Flush();
   // Run the network cleanup task for posterity.
   std::move(network_task)();
@@ -4041,13 +4037,13 @@ TEST(RTCStatsCollectorSafetyTest, NetworkThreadSafetyPreventsCallback) {
   // Start by canceling any ongoing tasks. There aren't actually any ongoing
   // tasks, but this gives us the network cleanup task.
   auto network_task =
-      wrapper.stats_collector()->CancelPendingRequestAndGetShutdownTask();
+      wrapper.stats_collector().CancelPendingRequestAndGetShutdownTask();
   // Clean up the state on the network thread. This will have the effect of
   // dropping any tasks targeting the network thread.
   std::move(network_task)();
   // Now, attempt to get a stats report. This will try to post a task to the
   // network thread, which will be dropped.
-  wrapper.stats_collector()->GetStatsReport(callback);
+  wrapper.stats_collector().GetStatsReport(callback);
 
   loop.Flush();
 }
