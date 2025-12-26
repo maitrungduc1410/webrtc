@@ -23,7 +23,6 @@
 #include "api/priority.h"
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
-#include "api/sctp_transport_interface.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "api/units/timestamp.h"
 #include "pc/peer_connection_internal.h"
@@ -47,7 +46,9 @@ using Message = DataChannelEventObserverInterface::Message;
 using ::testing::_;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
+using ::testing::Ge;
 using ::testing::IsEmpty;
+using ::testing::Lt;
 using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::ReturnPointee;
@@ -191,22 +192,28 @@ TEST_F(DataChannelControllerTest, CloseAfterControllerDestroyed) {
 
 // Allocate the maximum number of data channels and then one more.
 // The last allocation should fail.
+// This verifies that the transport can signal that channels are used up.
 TEST_F(DataChannelControllerTest, MaxChannels) {
+  const int kReducedMaxSctpStreams = 4;
   NiceMock<MockDataChannelTransport> transport;
   int channel_id = 0;
 
   EXPECT_CALL(transport, DtlsRole()).WillRepeatedly([&]() {
     return std::optional<SSLRole>((channel_id & 1) ? SSL_SERVER : SSL_CLIENT);
   });
-
+  EXPECT_CALL(transport, OpenChannel(Lt(kReducedMaxSctpStreams), _))
+      .WillRepeatedly(Return(RTCError::OK()));
+  EXPECT_CALL(transport, OpenChannel(Ge(kReducedMaxSctpStreams), _))
+      .WillRepeatedly(Return(RTCError(RTCErrorType::RESOURCE_EXHAUSTED,
+                                      "Fake said ID too large")));
   DataChannelControllerForTest dcc(pc_.get(), &transport);
 
   // Allocate the maximum number of channels + 1. Inside the loop, the creation
   // process will allocate a stream id for each channel.
-  for (channel_id = 0; channel_id <= kMaxSctpStreams; ++channel_id) {
+  for (channel_id = 0; channel_id <= kReducedMaxSctpStreams; ++channel_id) {
     auto ret = dcc.InternalCreateDataChannelWithProxy(
         "label", InternalDataChannelInit(DataChannelInit()));
-    if (channel_id == kMaxSctpStreams) {
+    if (channel_id == kReducedMaxSctpStreams) {
       // We've reached the maximum and the previous call should have failed.
       EXPECT_FALSE(ret.ok());
     } else {
