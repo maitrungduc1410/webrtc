@@ -491,11 +491,10 @@ RTCError RtpTransceiver::CreateChannel(
               srtp_required, crypto_options);
     }
   });
-  SetChannel(std::move(new_channel), std::move(transport_lookup));
-  return RTCError::OK();
+  return SetChannel(std::move(new_channel), std::move(transport_lookup));
 }
 
-void RtpTransceiver::SetChannel(
+RTCError RtpTransceiver::SetChannel(
     std::unique_ptr<ChannelInterface> channel,
     absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
         transport_lookup) {
@@ -505,7 +504,7 @@ void RtpTransceiver::SetChannel(
   RTC_DCHECK(!channel_);
   // Cannot set a channel on a stopped transceiver.
   if (stopped_) {
-    return;
+    return RTCError(RTCErrorType::INVALID_STATE);
   }
 
   RTC_LOG_THREAD_BLOCK_COUNT();
@@ -524,9 +523,13 @@ void RtpTransceiver::SetChannel(
   // Similarly, if the channel() accessor is limited to the network thread, that
   // helps with keeping the channel implementation requirements being met and
   // avoids synchronization for accessing the pointer or network related state.
-  context()->network_thread()->BlockingCall(
+  RTCError err = context()->network_thread()->BlockingCall(
       [&, flag = signaling_thread_safety_]() {
-        channel_->SetRtpTransport(std::move(transport_lookup)(channel_->mid()));
+        if (!channel_->SetRtpTransport(
+                std::move(transport_lookup)(channel_->mid()))) {
+          return RTCError::InvalidParameter()
+                 << "Invalid transport for mid=" << channel_->mid();
+        }
         channel_->SetFirstPacketReceivedCallback([thread = thread_, flag = flag,
                                                   this]() mutable {
           thread->PostTask(
@@ -541,10 +544,16 @@ void RtpTransceiver::SetChannel(
           RTC_DCHECK_RUN_ON(context()->network_thread());
           OnPacketReceived(flag);
         });
+        return RTCError::OK();
       });
-  PushNewMediaChannel();
+
+  if (err.ok()) {
+    PushNewMediaChannel();
+  }
 
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
+
+  return err;
 }
 
 absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {

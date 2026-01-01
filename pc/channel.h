@@ -311,7 +311,8 @@ class BaseChannel : public ChannelInterface,
   const std::unique_ptr<MediaReceiveChannelInterface> media_receive_channel_;
 
  private:
-  bool ConnectToRtpTransport_n() RTC_RUN_ON(network_thread());
+  bool ConnectToRtpTransport_n(RtpTransportInternal* rtp_transport)
+      RTC_RUN_ON(network_thread());
   void DisconnectFromRtpTransport_n() RTC_RUN_ON(network_thread());
   void SignalSentPacket_n(const SentPacketInfo& sent_packet);
 
