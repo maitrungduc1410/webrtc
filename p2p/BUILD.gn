@@ -1348,6 +1348,7 @@ rtc_library("p2p_server_utils") {
   ]
   deps = [
     ":async_stun_tcp_socket",
+    ":port",
     ":port_interface",
     "../api:array_view",
     "../api:packet_socket_factory",
