@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "api/audio/audio_processing_statistics.h"
@@ -61,7 +62,6 @@
 #include "rtc_base/ssl_certificate.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/thread.h"
-#include "rtc_base/time_utils.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/clock.h"
 
@@ -555,23 +555,21 @@ const char* AdapterTypeToStatsType(AdapterType type) {
   }
 }
 
-LegacyStatsCollector::LegacyStatsCollector(PeerConnectionInternal* pc,
-                                           Clock& clock)
+LegacyStatsCollector::LegacyStatsCollector(
+    PeerConnectionInternal* pc,
+    Clock& clock,
+    absl::AnyInvocable<int64_t()> utc_time_now)
     : pc_(pc),
       clock_(clock),
       stats_gathering_started_(0),
-      use_standard_bytes_stats_(
-          pc->trials().IsEnabled(kUseStandardBytesStats)) {
+      use_standard_bytes_stats_(pc->trials().IsEnabled(kUseStandardBytesStats)),
+      utc_time_now_(std::move(utc_time_now)) {
   RTC_DCHECK(pc_);
+  RTC_DCHECK(utc_time_now_);
 }
 
 LegacyStatsCollector::~LegacyStatsCollector() {
   RTC_DCHECK_RUN_ON(pc_->signaling_thread());
-}
-
-// Wallclock time in ms.
-double LegacyStatsCollector::GetTimeNow() {
-  return static_cast<double>(TimeUTCMillis());
 }
 
 // Adds a MediaStream with tracks that can be used as a `selector` in a call
@@ -684,7 +682,7 @@ void LegacyStatsCollector::UpdateStats(
     return;
   }
   cache_timestamp_ms_ = cache_now_ms;
-  stats_gathering_started_ = GetTimeNow();
+  stats_gathering_started_ = static_cast<double>(utc_time_now_());
 
   // TODO(tommi): ExtractSessionInfo now has a single hop to the network thread
   // to fetch stats, then applies them on the signaling thread. See if we need
