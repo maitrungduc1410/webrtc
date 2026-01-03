@@ -131,10 +131,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
 
   bool SetTrack(MediaStreamTrackInterface* track) override;
   scoped_refptr<MediaStreamTrackInterface> track() const override {
-    // This method is currently called from the worker thread via
-    // RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n
-    // inside TrackMediaInfoMap::Initialize().
-    // RTC_DCHECK_RUN_ON(signaling_thread_);
+    RTC_DCHECK_RUN_ON(signaling_thread_);
     return track_;
   }
 
@@ -160,9 +157,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // description).
   void SetSsrc(uint32_t ssrc) override;
   uint32_t ssrc() const override {
-    // This method is currently called from the worker thread by
-    // RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n.
-    // RTC_DCHECK_RUN_ON(signaling_thread_);
+    RTC_DCHECK_RUN_ON(signaling_thread_);
     return ssrc_;
   }
 

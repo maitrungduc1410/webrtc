@@ -1493,6 +1493,7 @@ rtc_library("track_media_info_map") {
     "../media:stream_params",
     "../rtc_base:checks",
     "../rtc_base:threading",
+    "../rtc_base/containers:flat_map",
   ]
 }
 
