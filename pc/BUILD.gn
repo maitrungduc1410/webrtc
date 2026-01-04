@@ -1118,6 +1118,7 @@ rtc_library("sdp_offer_answer") {
     ":codec_vendor",
     ":connection_context",
     ":data_channel_controller",
+    ":dtls_transport",
     ":jsep_transport_collection",
     ":jsep_transport_controller",
     ":legacy_stats_collector",
