@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/block.h"
@@ -373,8 +374,8 @@ TEST(NeuralResidualEchoEstimatorWithRealModelTest, WrongModelVersion) {
 
   // 5. Deserialize the metadata from the buffer copy, check original version.
   audioproc::ReeModelMetadata metadata_proto;
-  ASSERT_TRUE(
-      metadata_proto.ParseFromArray(metadata_data_ptr, metadata_data_size));
+  ASSERT_TRUE(metadata_proto.ParseFromString(
+      absl::string_view(metadata_data_ptr, metadata_data_size)));
   ASSERT_EQ(metadata_proto.version(), 2);
 
   // 6. Modify the version.
