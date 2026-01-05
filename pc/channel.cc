@@ -283,13 +283,18 @@ bool BaseChannel::SetRtpTransport(RtpTransportInternal* rtp_transport) {
     }
   }
 
+  RTC_DCHECK(!rtp_transport_);
+
   if (!rtp_transport) {
     return true;  // We're done.
   }
 
   if (!ConnectToRtpTransport_n(rtp_transport)) {
+    RTC_DCHECK(!rtp_transport_);
     return false;
   }
+
+  RTC_DCHECK_EQ(rtp_transport_, rtp_transport);
 
   RTC_DCHECK(!media_send_channel()->HasNetworkInterface());
   media_send_channel()->SetInterface(this);
@@ -564,6 +569,13 @@ bool BaseChannel::MaybeUpdateDemuxerAndRtpExtensions_w(
 
   bool success = network_thread()->BlockingCall([&]() mutable {
     RTC_DCHECK_RUN_ON(network_thread());
+    if (!rtp_transport_) {
+      // To repro this situation, run the
+      // `ApplyDescriptionWithSameSsrcsBundledFails` test.
+      RTC_LOG(LS_ERROR) << "No transport assigned for mid=" << mid();
+      return false;
+    }
+
     // NOTE: This doesn't take the BUNDLE case in account meaning the RTP header
     // extension maps are not merged when BUNDLE is enabled. This is fine
     // because the ID for MID should be consistent among all the RTP transports.

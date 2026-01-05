@@ -866,6 +866,7 @@ void PeerConnection::CloseOnNetworkThread(
         std::move(task)();
         task = nullptr;
       }
+      RTC_DCHECK(negotiated_channels_.empty());
       if (network_thread_safety_->alive()) {
         // port_allocator_ and transport_controller_ live on the network thread
         // and must be destroyed there.
@@ -3079,8 +3080,7 @@ void PeerConnection::OnTransportChanging(bool change_done) {
   if (!change_done) {
     // Gather the currently active channels.
     for (const auto& transceiver : rtp_manager()->transceivers()->List()) {
-      ChannelInterface* channel = transceiver->internal()->channel();
-      if (channel && !channel->mid().empty()) {
+      if (auto* channel = transceiver->internal()->channel()) {
         channels.push_back(channel);
       }
     }
@@ -3098,10 +3098,10 @@ void PeerConnection::OnTransportChanging(bool change_done) {
     negotiated_channels_ = std::move(channels);
     return;
   }
-  network_thread()->PostTask(
-      SafeTask(network_thread_safety_, [this, channels = std::move(channels)] {
+  network_thread()->PostTask(SafeTask(
+      network_thread_safety_, [this, channels = std::move(channels)]() mutable {
         RTC_DCHECK_RUN_ON(network_thread());
-        negotiated_channels_ = channels;
+        negotiated_channels_ = std::move(channels);
       }));
 }
 
@@ -3111,14 +3111,12 @@ bool PeerConnection::OnTransportChanged(
     scoped_refptr<DtlsTransport> dtls_transport,
     DataChannelTransportInterface* data_channel_transport) {
   RTC_DCHECK_RUN_ON(network_thread());
-  bool ret = true;
+  RTC_DCHECK(!mid.empty());
   if (ConfiguredForMedia()) {
-    auto it = absl::c_find_if(negotiated_channels_,
-                              [&](const auto* c) { return c->mid() == mid; });
-    if (it != negotiated_channels_.end()) {
-      ret = (*it)->SetRtpTransport(rtp_transport);
-    } else {
-      // This is expected if the channel has been removed or not yet created.
+    for (auto* channel : negotiated_channels_) {
+      if (channel->mid() == mid) {
+        channel->SetRtpTransport(rtp_transport);
+      }
     }
   }
 
@@ -3134,7 +3132,7 @@ bool PeerConnection::OnTransportChanged(
     }
   }
 
-  return ret;
+  return true;
 }
 
 void PeerConnection::RunWithObserver(
