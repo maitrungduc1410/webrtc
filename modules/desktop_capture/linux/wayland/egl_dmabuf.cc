@@ -849,6 +849,11 @@ void EglDmaBuf::EnumerateDrmDevices() {
 }
 
 EglDrmDevice* EglDmaBuf::GetRenderDevice() {
+  if (auto it = devices_.find(preferred_render_device_id_);
+      it != devices_.end()) {
+    return it->second.get();
+  }
+
   if (default_platform_device_) {
     return default_platform_device_.get();
   }
@@ -856,7 +861,27 @@ EglDrmDevice* EglDmaBuf::GetRenderDevice() {
   if (!devices_.empty()) {
     return devices_.begin()->second.get();
   }
+
   return nullptr;
+}
+
+bool EglDmaBuf::SetPreferredRenderDevice(dev_t device_id) {
+  if (device_id == DEVICE_ID_INVALID) {
+    RTC_LOG(LS_ERROR) << "Cannot set invalid device ID as render device";
+    return false;
+  }
+
+  auto it = devices_.find(device_id);
+  if (it == devices_.end()) {
+    RTC_LOG(LS_ERROR) << "Device ID " << device_id << " not found";
+    return false;
+  }
+
+  preferred_render_device_id_ = device_id;
+  RTC_LOG(LS_INFO) << "Render device set to device ID: " << major(device_id)
+                   << ":" << minor(device_id);
+
+  return true;
 }
 
 }  // namespace webrtc
