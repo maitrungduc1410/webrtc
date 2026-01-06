@@ -154,8 +154,7 @@ declare_args() {
   }
 
   # Determines whether NEON code will be built.
-  rtc_build_with_neon =
-      (current_cpu == "arm" && arm_use_neon) || current_cpu == "arm64"
+  rtc_build_with_neon = current_cpu == "arm" || current_cpu == "arm64"
 
   # Enable this to build OpenH264 encoder/FFmpeg decoder. When building WebRTC
   # as part of Chromium, this is delegated to `media_use_openh264`. When

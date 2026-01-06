@@ -448,13 +448,14 @@ config("common_config") {
   }
 
   if (current_cpu == "arm") {
-    defines += [ "WEBRTC_ARCH_ARM" ]
-    if (arm_version >= 7) {
-      defines += [ "WEBRTC_ARCH_ARM_V7" ]
-      if (arm_use_neon) {
-        defines += [ "WEBRTC_HAS_NEON" ]
-      }
-    }
+    defines += [
+      "WEBRTC_ARCH_ARM",
+
+      # TODO(bugs.webrtc.org/473768792): Now that these are always set,
+      # remove all references to them in the code, then remove these defines.
+      "WEBRTC_ARCH_ARM_V7",
+      "WEBRTC_HAS_NEON",
+    ]
   }
 
   if (current_cpu == "mipsel") {
