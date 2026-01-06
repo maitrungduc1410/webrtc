@@ -866,7 +866,6 @@ void PeerConnection::CloseOnNetworkThread(
         std::move(task)();
         task = nullptr;
       }
-      RTC_DCHECK(negotiated_channels_.empty());
       if (network_thread_safety_->alive()) {
         // port_allocator_ and transport_controller_ live on the network thread
         // and must be destroyed there.
@@ -3074,37 +3073,6 @@ void PeerConnection::ReportNegotiatedCiphers(
   }
 }
 
-void PeerConnection::OnTransportChanging(bool change_done) {
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  std::vector<ChannelInterface*> channels;
-  if (!change_done) {
-    // Gather the currently active channels.
-    for (const auto& transceiver : rtp_manager()->transceivers()->List()) {
-      if (auto* channel = transceiver->internal()->channel()) {
-        channels.push_back(channel);
-      }
-    }
-  }
-
-  if (network_thread()->IsCurrent()) {
-    // This is a workaround for tests that configure the network and signaling
-    // threads as one and the same. The problem with that configuration is that
-    // the synchronous blocking call that results in a call to
-    // `OnTransportChanged()` to be issued, will me made directly, but tasks
-    // posted to what should be the `network` alias for the same thread, won't
-    // run before the blocking call. The tests need to be fixed to use a
-    // dedicated network thread.
-    RTC_DCHECK_RUN_ON(network_thread());
-    negotiated_channels_ = std::move(channels);
-    return;
-  }
-  network_thread()->PostTask(SafeTask(
-      network_thread_safety_, [this, channels = std::move(channels)]() mutable {
-        RTC_DCHECK_RUN_ON(network_thread());
-        negotiated_channels_ = std::move(channels);
-      }));
-}
-
 bool PeerConnection::OnTransportChanged(
     absl::string_view mid,
     RtpTransportInternal* rtp_transport,
@@ -3112,10 +3080,13 @@ bool PeerConnection::OnTransportChanged(
     DataChannelTransportInterface* data_channel_transport) {
   RTC_DCHECK_RUN_ON(network_thread());
   RTC_DCHECK(!mid.empty());
+  bool ret = true;
   if (ConfiguredForMedia()) {
-    for (auto* channel : negotiated_channels_) {
-      if (channel->mid() == mid) {
-        channel->SetRtpTransport(rtp_transport);
+    for (const auto& transceiver :
+         rtp_manager()->transceivers()->UnsafeList()) {
+      ChannelInterface* channel = transceiver->internal()->channel();
+      if (channel && channel->mid() == mid) {
+        ret = channel->SetRtpTransport(rtp_transport);
       }
     }
   }
@@ -3132,7 +3103,7 @@ bool PeerConnection::OnTransportChanged(
     }
   }
 
-  return true;
+  return ret;
 }
 
 void PeerConnection::RunWithObserver(

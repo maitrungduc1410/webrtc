@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/cleanup/cleanup.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
@@ -2173,14 +2172,6 @@ RTCError SdpOfferAnswerHandler::ReplaceRemoteDescription(
 
   const auto* local = local_description();
 
-  // We need to update the negotiated channels on the network thread before
-  // the below blocking call, so that OnTransportChanged (which might be called
-  // during SetRemoteDescription) can access the channel map.
-  pc_->OnTransportChanging(/*change_done=*/false);
-  absl::Cleanup cleanup = [this] {
-    pc_->OnTransportChanging(/*change_done=*/true);
-  };
-
   // NOTE: This will perform a BlockingCall() to the network thread.
   return transport_controller_s()->SetRemoteDescription(
       sdp_type, local ? local->description() : nullptr, session_desc);
@@ -3475,10 +3466,6 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       transceiver->internal()->set_mline_index(stable_state.mline_index());
     }
   }
-  pc_->OnTransportChanging(/*change_done=*/false);
-  absl::Cleanup cleanup = [this] {
-    pc_->OnTransportChanging(/*change_done=*/true);
-  };
   RTCError e = transport_controller_s()->RollbackTransports();
   if (!e.ok()) {
     return e;
@@ -5316,11 +5303,6 @@ RTCError SdpOfferAnswerHandler::PushdownTransportDescription(
     SdpType type) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::PushdownTransportDescription");
   RTC_DCHECK_RUN_ON(signaling_thread());
-
-  pc_->OnTransportChanging(/*change_done=*/false);
-  absl::Cleanup cleanup = [this] {
-    pc_->OnTransportChanging(/*change_done=*/true);
-  };
 
   if (source == CS_LOCAL) {
     const SessionDescriptionInterface* sdesc = local_description();

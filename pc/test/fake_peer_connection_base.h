@@ -343,7 +343,6 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
   bool GetSslRole(const std::string& content_name, SSLRole* role) override {
     return false;
   }
-  void OnTransportChanging(bool change_done) override {}
 
   const PeerConnectionInterface::RTCConfiguration* configuration()
       const override {
