@@ -23,7 +23,11 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "modules/desktop_capture/desktop_geometry.h"
+#include "rtc_base/synchronization/mutex.h"
+#include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
 
@@ -61,6 +65,8 @@ class EglDrmDevice {
                        uint8_t* data);
   std::vector<uint64_t> QueryDmaBufModifiers(uint32_t format);
 
+  void MarkModifierFailed(uint32_t format, uint64_t modifier);
+
  private:
   EGLStruct egl_;
   bool initialized_ = false;
@@ -80,6 +86,11 @@ class EglDrmDevice {
 
   GLuint fbo_ = 0;
   GLuint texture_ = 0;
+
+  // Map of format -> failed modifiers that didn't work during import
+  Mutex failed_modifiers_lock_;
+  absl::flat_hash_map<uint32_t, absl::flat_hash_set<uint64_t>> failed_modifiers_
+      RTC_GUARDED_BY(failed_modifiers_lock_);
 };
 
 class EglDmaBuf {
