@@ -373,7 +373,7 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
 
   scoped_refptr<VideoTrackInterface> CreateLocalVideoTrack() {
     FakePeriodicVideoSource::Config config;
-    config.timestamp_offset_ms = env_.clock().TimeInMilliseconds();
+    config.timestamp_offset = env_.clock().CurrentTime();
     return CreateLocalVideoTrackInternal(config);
   }
 
@@ -386,7 +386,7 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
       VideoRotation rotation) {
     FakePeriodicVideoSource::Config config;
     config.rotation = rotation;
-    config.timestamp_offset_ms = env_.clock().TimeInMilliseconds();
+    config.timestamp_offset = env_.clock().CurrentTime();
     return CreateLocalVideoTrackInternal(config);
   }
 
@@ -852,7 +852,7 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
       FakePeriodicVideoSource::Config config) {
     // Set max frame rate to 10fps to reduce the risk of test flakiness.
     // TODO(deadbeef): Do something more robust.
-    config.frame_interval_ms = 100;
+    config.frame_interval = TimeDelta::Millis(100);
 
     video_track_sources_.emplace_back(
         make_ref_counted<FakePeriodicVideoTrackSource>(config,
