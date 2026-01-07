@@ -280,8 +280,6 @@ rtc_library("desktop_capture") {
   visibility = [ "*" ]
   defines = []
   deps = [
-    "//third_party/abseil-cpp/absl/container:flat_hash_map",
-    "//third_party/abseil-cpp/absl/container:flat_hash_set",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
