@@ -22,7 +22,7 @@ namespace webrtc {
 namespace rtcp {
 
 Buffer RtcpPacket::Build() const {
-  Buffer packet(BlockLength());
+  Buffer packet = Buffer::CreateUninitializedWithSize(BlockLength());
 
   size_t length = 0;
   bool created = Create(packet.data(), &length, packet.capacity(), nullptr);

@@ -87,7 +87,7 @@ class RemoteEstimateSerializerImpl : public RemoteEstimateSerializer {
   Buffer Serialize(const NetworkStateEstimate& src) const override {
     size_t max_size = fields_.size() * kFieldSize;
     size_t size = 0;
-    Buffer buf(max_size);
+    Buffer buf = Buffer::CreateUninitializedWithSize(max_size);
     for (const auto& field : fields_) {
       if (field.Write(src, buf.data() + size)) {
         size += kFieldSize;

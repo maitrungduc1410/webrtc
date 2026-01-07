@@ -871,8 +871,12 @@ TEST_F(DtlsTransportInternalImplTest, KeyingMaterialExporter) {
   int key_len;
   int salt_len;
   EXPECT_TRUE(GetSrtpKeyAndSaltLengths(crypto_suite, &key_len, &salt_len));
-  ZeroOnFreeBuffer<uint8_t> client1_out(2 * (key_len + salt_len));
-  ZeroOnFreeBuffer<uint8_t> client2_out(2 * (key_len + salt_len));
+  ZeroOnFreeBuffer<uint8_t> client1_out =
+      ZeroOnFreeBuffer<uint8_t>::CreateUninitializedWithSize(
+          2 * (key_len + salt_len));
+  ZeroOnFreeBuffer<uint8_t> client2_out =
+      ZeroOnFreeBuffer<uint8_t>::CreateUninitializedWithSize(
+          2 * (key_len + salt_len));
   EXPECT_TRUE(client1_.dtls_transport()->ExportSrtpKeyingMaterial(client1_out));
   EXPECT_TRUE(client2_.dtls_transport()->ExportSrtpKeyingMaterial(client2_out));
   EXPECT_EQ(client1_out, client2_out);

@@ -41,7 +41,8 @@ void FuzzOneInputTest(webrtc::ArrayView<const uint8_t> data) {
     const size_t output_size = fuzz_data.SelectOneOf(kOutputSizes);
     const size_t num_generate_calls =
         std::min(fuzz_data.Read<uint8_t>(), static_cast<uint8_t>(17));
-    webrtc::BufferT<int16_t> output(output_size);
+    BufferT<int16_t> output =
+        BufferT<int16_t>::CreateUninitializedWithSize(output_size);
     for (size_t i = 0; i < num_generate_calls; ++i) {
       cng_decoder.Generate(output, new_period);
     }

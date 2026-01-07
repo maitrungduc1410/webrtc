@@ -40,7 +40,8 @@ AudioEncoderG722Impl::AudioEncoderG722Impl(const AudioEncoderG722Config& config,
       num_10ms_frames_buffered_(0),
       first_timestamp_in_buffer_(0),
       encoders_(new EncoderState[num_channels_]),
-      interleave_buffer_(2 * num_channels_) {
+      interleave_buffer_(
+          Buffer::CreateUninitializedWithSize(2 * num_channels_)) {
   RTC_CHECK(config.IsOk());
   const size_t samples_per_channel =
       kSampleRateHz / 100 * num_10ms_frames_per_packet_;

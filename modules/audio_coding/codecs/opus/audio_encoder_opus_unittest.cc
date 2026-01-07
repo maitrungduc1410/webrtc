@@ -793,7 +793,7 @@ TEST_P(AudioEncoderOpusTest, OpusFlagDtxAsNonSpeech) {
 
   // Encode.
   AudioEncoder::EncodedInfo info;
-  Buffer encoded(500);
+  Buffer encoded = Buffer::CreateWithCapacity(500);
   int nonspeech_frames = 0;
   int max_nonspeech_frames = 0;
   int dtx_frames = 0;
