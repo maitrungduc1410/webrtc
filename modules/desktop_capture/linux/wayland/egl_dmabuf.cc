@@ -865,14 +865,6 @@ EglDrmDevice* EglDmaBuf::GetRenderDevice() {
   return nullptr;
 }
 
-EglDrmDevice* EglDmaBuf::GetRenderDevice(dev_t id) {
-  if (auto it = devices_.find(id); it != devices_.end()) {
-    return it->second.get();
-  }
-
-  return nullptr;
-}
-
 bool EglDmaBuf::SetPreferredRenderDevice(dev_t device_id) {
   if (device_id == DEVICE_ID_INVALID) {
     RTC_LOG(LS_ERROR) << "Cannot set invalid device ID as render device";
@@ -890,15 +882,6 @@ bool EglDmaBuf::SetPreferredRenderDevice(dev_t device_id) {
                    << ":" << minor(device_id);
 
   return true;
-}
-
-std::vector<dev_t> EglDmaBuf::GetDevices() const {
-  std::vector<dev_t> device_ids;
-  device_ids.reserve(devices_.size());
-  for (const auto& [device_id, device] : devices_) {
-    device_ids.push_back(device_id);
-  }
-  return device_ids;
 }
 
 }  // namespace webrtc

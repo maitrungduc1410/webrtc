@@ -96,10 +96,6 @@ class EglDmaBuf {
   //    uses EGL device enumeration to discover available DRM devices
   // 3. nullptr - if no devices are available
   EglDrmDevice* GetRenderDevice();
-  // Returns the DRM device given the id or nullptr in case the device is not
-  // found
-  EglDrmDevice* GetRenderDevice(dev_t id);
-  std::vector<dev_t> GetDevices() const;
 
   bool SetPreferredRenderDevice(dev_t device_id);
 
