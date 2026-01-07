@@ -287,8 +287,8 @@ config("rtc_prod_config") {
 }
 
 group("tracing") {
-  all_dependent_configs = [ "//third_party/perfetto/gn:public_config" ]
   if (rtc_use_perfetto) {
+    all_dependent_configs = [ "//third_party/perfetto/gn:public_config" ]
     if (build_with_chromium) {
       public_deps =  # no-presubmit-check TODO(webrtc:8603)
           [ "//third_party/perfetto:libperfetto" ]
@@ -298,9 +298,6 @@ group("tracing") {
         "//third_party/perfetto/include/perfetto/tracing",
       ]
     }
-  } else {
-    public_deps =  # no-presubmit-check TODO(webrtc:8603)
-        [ "//third_party/perfetto/include/perfetto/tracing" ]
   }
 }
 
