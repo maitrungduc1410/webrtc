@@ -259,7 +259,7 @@ static const uint8_t SPS_PPS_BUFFER[] = {
   // clang-format on
 
   webrtc::Buffer annexb_buffer =
-      webrtc::Buffer::CreateUninitializedWithSize(std::size(cmsample_data));
+      webrtc::Buffer::CreateWithCapacity(std::size(cmsample_data));
   CMSampleBufferRef sample_buffer =
       [self createCMSampleBufferRef:(void*)cmsample_data
                        cmsampleSize:std::size(cmsample_data)];

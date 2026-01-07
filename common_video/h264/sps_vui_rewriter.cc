@@ -152,8 +152,8 @@ SpsVuiRewriter::ParseResult SpsVuiRewriter::ParseAndRewriteSps(
   // We're going to completely muck up alignment, so we need a BitBufferWriter
   // to write with.
   Buffer out_buffer =
-      Buffer::CreateUninitializedWithSize(buffer.size() + kMaxVuiSpsIncrease);
-  BitBufferWriter sps_writer(out_buffer.data(), out_buffer.size());
+      Buffer::CreateWithCapacity(buffer.size() + kMaxVuiSpsIncrease);
+  BitBufferWriter sps_writer(out_buffer.data(), out_buffer.capacity());
 
   // Check how far the SpsParser has read, and copy that data in bulk.
   RTC_DCHECK(source_buffer.Ok());
