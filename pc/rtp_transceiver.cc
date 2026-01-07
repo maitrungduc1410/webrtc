@@ -444,6 +444,7 @@ RTCError RtpTransceiver::CreateChannel(
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!channel());
   RTC_DCHECK(!mid_ || mid_.value() == mid);
+  RTC_DCHECK(!stopped_);
 
   mid_ = mid;
 
@@ -468,6 +469,7 @@ RTCError RtpTransceiver::CreateChannel(
           video_bitrate_allocator_factory);
       media_send_channel = std::move(channels.first);
       media_receive_channel = std::move(channels.second);
+      SetMediaChannels(media_send_channel.get(), media_receive_channel.get());
     }
     // Note that this is safe because both sending and
     // receiving channels will be deleted at the same time.
@@ -491,13 +493,15 @@ RTCError RtpTransceiver::CreateChannel(
               srtp_required, crypto_options);
     }
   });
-  return SetChannel(std::move(new_channel), std::move(transport_lookup));
+  return SetChannel(std::move(new_channel), std::move(transport_lookup),
+                    /*set_media_channels=*/false);
 }
 
 RTCError RtpTransceiver::SetChannel(
     std::unique_ptr<ChannelInterface> channel,
     absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
-        transport_lookup) {
+        transport_lookup,
+    bool set_media_channels) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(channel);
   RTC_DCHECK(transport_lookup);
@@ -547,7 +551,7 @@ RTCError RtpTransceiver::SetChannel(
         return RTCError::OK();
       });
 
-  if (err.ok()) {
+  if (err.ok() && set_media_channels) {
     PushNewMediaChannel();
   }
 
@@ -634,27 +638,25 @@ void RtpTransceiver::PushNewMediaChannel() {
   }
   context()->worker_thread()->BlockingCall([&]() {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
-    // Push down the new media_channel.
-    auto* media_send_channel = channel_->media_send_channel();
-    for (const auto& sender : senders_) {
-      sender->internal()->SetMediaChannel(media_send_channel);
-    }
-
-    auto* media_receive_channel = channel_->media_receive_channel();
-    for (const auto& receiver : receivers_) {
-      receiver->internal()->SetMediaChannel(media_receive_channel);
-    }
+    SetMediaChannels(channel_->media_send_channel(),
+                     channel_->media_receive_channel());
   });
 }
 
 // RTC_RUN_ON(context()->worker_thread());
-void RtpTransceiver::ClearMediaChannelReferences() {
+void RtpTransceiver::SetMediaChannels(MediaSendChannelInterface* send,
+                                      MediaReceiveChannelInterface* receive) {
   for (const auto& sender : senders_) {
-    sender->internal()->SetMediaChannel(nullptr);
+    sender->internal()->SetMediaChannel(send);
   }
   for (const auto& receiver : receivers_) {
-    receiver->internal()->SetMediaChannel(nullptr);
+    receiver->internal()->SetMediaChannel(receive);
   }
+}
+
+// RTC_RUN_ON(context()->worker_thread());
+void RtpTransceiver::ClearMediaChannelReferences() {
+  SetMediaChannels(nullptr, nullptr);
   owned_send_channel_ = nullptr;
   owned_receive_channel_ = nullptr;
   media_engine_ref_ = nullptr;

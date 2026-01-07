@@ -184,7 +184,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   RTCError SetChannel(
       std::unique_ptr<ChannelInterface> channel,
       absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
-          transport_lookup);
+          transport_lookup,
+      bool set_media_channels = true);
 
   // Clear the association between the transceiver and the channel.
   void ClearChannel();
@@ -360,6 +361,9 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // in a newly created `channel_`.
   void PushNewMediaChannel();
 
+  void SetMediaChannels(MediaSendChannelInterface* send,
+                        MediaReceiveChannelInterface* receive)
+      RTC_RUN_ON(context()->worker_thread());
   void ClearMediaChannelReferences() RTC_RUN_ON(context()->worker_thread());
 
   RTCError UpdateCodecPreferencesCaches(
