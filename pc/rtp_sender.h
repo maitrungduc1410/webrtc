@@ -261,10 +261,9 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   const Environment env_;
   TaskQueueBase* const signaling_thread_;
   Thread* const worker_thread_;
-  // TODO: bugs.webrtc.org/42222804 - Access to `ssrc_` should be restricted to
-  // the signaling thread. The type should also be `std::optional<uint32_t>`
+  // TODO(tommi): The type for ssrc_ should be `std::optional<uint32_t>`
   // since 0 is a legal SSRC value.
-  uint32_t ssrc_ = 0;
+  uint32_t ssrc_ RTC_GUARDED_BY(signaling_thread_) = 0;
   bool stopped_ RTC_GUARDED_BY(signaling_thread_) = false;
   int attachment_id_ = 0;
   const std::string id_;

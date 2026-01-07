@@ -225,11 +225,10 @@ void RtpSenderBase::SetMediaChannel(MediaSendChannelInterface* media_channel) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   RTC_DCHECK(media_channel == nullptr ||
              media_channel->media_type() == media_type());
-  // TODO: bugs.webrtc.org/42222804 - Here we need to avoid referencing `ssrc_`
-  // since we're on the worker thread.
-  if (!media_channel && media_channel_ && ssrc_) {
-    ClearSend_w(ssrc_);
-  }
+  // Note that setting the media_channel_ to nullptr and clearing the send state
+  // via ClearSend_w, are separate operations. Stopping the actual send
+  // operation, needs to be done via any of the paths that end up with a call to
+  // ClearSend_w(), such as DetachTrackAndGetStopTask().
   media_channel_ = media_channel;
 }
 
@@ -241,12 +240,12 @@ RtpParameters RtpSenderBase::GetParametersInternal() const {
   if (ssrc_ == 0) {
     return init_parameters_;
   }
-  return worker_thread_->BlockingCall([&] {
+  return worker_thread_->BlockingCall([&, ssrc = ssrc_] {
     RTC_DCHECK_RUN_ON(worker_thread_);
     if (!media_channel_) {
       return init_parameters_;
     }
-    RtpParameters result = media_channel_->GetRtpSendParameters(ssrc_);
+    RtpParameters result = media_channel_->GetRtpSendParameters(ssrc);
     RemoveEncodingLayers(disabled_rids_, &result.encodings);
     return result;
   });
@@ -260,12 +259,12 @@ RtpParameters RtpSenderBase::GetParametersInternalWithAllLayers() const {
   if (ssrc_ == 0) {
     return init_parameters_;
   }
-  return worker_thread_->BlockingCall([&] {
+  return worker_thread_->BlockingCall([&, ssrc = ssrc_] {
     RTC_DCHECK_RUN_ON(worker_thread_);
     if (!media_channel_) {
       return init_parameters_;
     }
-    return media_channel_->GetRtpSendParameters(ssrc_);
+    return media_channel_->GetRtpSendParameters(ssrc);
   });
 }
 
