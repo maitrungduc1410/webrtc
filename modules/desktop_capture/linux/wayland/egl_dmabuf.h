@@ -17,8 +17,6 @@
 #include <gbm.h>
 
 #include <cstdint>
-#include <map>
-#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -27,9 +25,7 @@
 
 namespace webrtc {
 
-constexpr dev_t DEVICE_ID_INVALID = static_cast<dev_t>(0);
-
-class EglDrmDevice {
+class EglDmaBuf {
  public:
   struct EGLStruct {
     std::vector<std::string> extensions;
@@ -43,15 +39,11 @@ class EglDrmDevice {
     uint32_t offset;
   };
 
-  EglDrmDevice(EGLDisplay display, dev_t device_id = DEVICE_ID_INVALID);
-  EglDrmDevice(std::string render_node, dev_t device_id = DEVICE_ID_INVALID);
+  EglDmaBuf();
+  ~EglDmaBuf();
 
-  ~EglDrmDevice();
-
-  bool EnsureInitialized();
-  bool IsInitialized() const { return initialized_; }
-  dev_t GetDeviceId() const { return device_id_; }
-
+  // Returns whether the image was successfully imported from
+  // given DmaBuf and its parameters
   bool ImageFromDmaBuf(const DesktopSize& size,
                        uint32_t format,
                        const std::vector<PlaneData>& plane_datas,
@@ -61,48 +53,21 @@ class EglDrmDevice {
                        uint8_t* data);
   std::vector<uint64_t> QueryDmaBufModifiers(uint32_t format);
 
- private:
-  EGLStruct egl_;
-  bool initialized_ = false;
-  bool has_image_dma_buf_import_ext_ = false;
-  dev_t device_id_ = DEVICE_ID_INVALID;
+  bool IsEglInitialized() const { return egl_initialized_; }
 
-  struct GbmDeviceDeleter {
-    void operator()(gbm_device* device) const {
-      if (device) {
-        gbm_device_destroy(device);
-      }
-    }
-  };
-  std::unique_ptr<gbm_device, GbmDeviceDeleter> gbm_device_;
-  int32_t drm_fd_ = -1;
-  std::string render_node_;
+ private:
+  bool GetClientExtensions(EGLDisplay dpy, EGLint name);
+
+  bool egl_initialized_ = false;
+  bool has_image_dma_buf_import_ext_ = false;
+  int32_t drm_fd_ = -1;               // for GBM buffer mmap
+  gbm_device* gbm_device_ = nullptr;  // for passed GBM buffer retrieval
 
   GLuint fbo_ = 0;
   GLuint texture_ = 0;
-};
+  EGLStruct egl_;
 
-class EglDmaBuf {
- public:
-  EglDmaBuf();
-  ~EglDmaBuf() = default;
-
-  // Returns the DRM device to use for querying DMA-BUF modifiers and importing
-  // frames. Device selection follows this priority order:
-  //
-  // 1. Platform device - created from Wayland platform EGL display during
-  //    initialization if EGL platform extensions are available
-  // 2. First enumerated device - fallback if platform device creation fails,
-  //    uses EGL device enumeration to discover available DRM devices
-  // 3. nullptr - if no devices are available
-  EglDrmDevice* GetRenderDevice();
-
- private:
-  bool CreatePlatformDevice();
-  void EnumerateDrmDevices();
-
-  std::map<dev_t, std::unique_ptr<EglDrmDevice>> devices_;
-  std::unique_ptr<EglDrmDevice> default_platform_device_;
+  std::optional<std::string> GetRenderNode();
 };
 
 }  // namespace webrtc
