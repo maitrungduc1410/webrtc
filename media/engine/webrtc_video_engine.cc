@@ -1398,6 +1398,31 @@ RtpParameters WebRtcVideoSendChannel::GetRtpSendParameters(
   return rtp_params;
 }
 
+bool WebRtcVideoSendChannel::SetOptions(const VideoOptions& options) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  default_send_options_ = options;
+  for (auto& kv : send_streams_) {
+    kv.second->SetOptions(options);
+  }
+  return true;
+}
+
+void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetOptions(
+    const VideoOptions& options) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  VideoOptions old_options = parameters_.options;
+  parameters_.options.SetAll(options);
+  if (parameters_.options.is_screencast.value_or(false) !=
+          old_options.is_screencast.value_or(false) &&
+      parameters_.codec_settings) {
+    SetCodec(*parameters_.codec_settings, parameters_.codec_settings_list);
+    old_options.is_screencast = options.is_screencast;
+  }
+  if (parameters_.options != old_options) {
+    ReconfigureEncoder(nullptr);
+  }
+}
+
 RTCError WebRtcVideoSendChannel::SetRtpSendParameters(
     uint32_t ssrc,
     const RtpParameters& parameters,

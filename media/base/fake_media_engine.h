@@ -557,7 +557,7 @@ class FakeVoiceMediaReceiveChannel
 
   bool SetRecvCodecs(const std::vector<Codec>& codecs);
   bool SetMaxSendBandwidth(int bps);
-  bool SetOptions(const AudioOptions& options);
+  bool SetOptions(const AudioOptions& options) override;
 
   std::vector<Codec> recv_codecs_;
   std::map<uint32_t, double> output_scalings_;
@@ -763,10 +763,10 @@ class FakeVideoMediaSendChannel
   bool SendCodecHasNack() const override { return false; }
   std::optional<int> SendCodecRtxTime() const override { return std::nullopt; }
   bool GetStats(VideoMediaSendInfo* info) override;
+  bool SetOptions(const VideoOptions& options) override;
 
  private:
   bool SetSendCodecs(const std::vector<Codec>& codecs);
-  bool SetOptions(const VideoOptions& options);
   bool SetMaxSendBandwidth(int bps);
 
   std::vector<Codec> send_codecs_;

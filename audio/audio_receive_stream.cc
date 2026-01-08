@@ -378,6 +378,17 @@ void AudioReceiveStreamImpl::SetGain(float gain) {
   channel_receive_->SetChannelOutputVolumeScaling(gain);
 }
 
+void AudioReceiveStreamImpl::SetJitterBufferMaxPackets(size_t max_packets) {
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  channel_receive_->SetMaximumBufferPackets(max_packets);
+}
+
+void AudioReceiveStreamImpl::SetJitterBufferFastAccelerate(
+    bool fast_accelerate) {
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  channel_receive_->SetFastAccelerate(fast_accelerate);
+}
+
 bool AudioReceiveStreamImpl::SetBaseMinimumPlayoutDelayMs(int delay_ms) {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   return channel_receive_->SetBaseMinimumPlayoutDelayMs(delay_ms);

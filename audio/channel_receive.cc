@@ -179,6 +179,8 @@ class ChannelReceive : public ChannelReceiveInterface,
   // Audio quality.
   bool SetBaseMinimumPlayoutDelayMs(int delay_ms) override;
   int GetBaseMinimumPlayoutDelayMs() const override;
+  void SetMaximumBufferPackets(size_t max_packets) override;
+  void SetFastAccelerate(bool enable) override;
 
   // Produces the transport-related timestamps; current_delay_ms is left unset.
   std::optional<Syncable::Info> GetSyncInfo() const override;
@@ -1109,6 +1111,18 @@ bool ChannelReceive::SetBaseMinimumPlayoutDelayMs(int delay_ms) {
 int ChannelReceive::GetBaseMinimumPlayoutDelayMs() const {
   MutexLock lock(&neteq_mutex_);
   return neteq_->GetBaseMinimumDelayMs();
+}
+
+void ChannelReceive::SetMaximumBufferPackets(size_t max_packets) {
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  MutexLock lock(&neteq_mutex_);
+  neteq_->SetMaximumBufferPackets(max_packets);
+}
+
+void ChannelReceive::SetFastAccelerate(bool enable) {
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  MutexLock lock(&neteq_mutex_);
+  neteq_->SetFastAccelerate(enable);
 }
 
 std::optional<Syncable::Info> ChannelReceive::GetSyncInfo() const {

@@ -137,6 +137,8 @@ class ChannelReceiveInterface : public RtpPacketSinkInterface {
   // determines minimum delay until audio playout.
   virtual bool SetBaseMinimumPlayoutDelayMs(int delay_ms) = 0;
   virtual int GetBaseMinimumPlayoutDelayMs() const = 0;
+  virtual void SetMaximumBufferPackets(size_t max_packets) = 0;
+  virtual void SetFastAccelerate(bool enable) = 0;
 
   // Produces the transport-related timestamps; current_delay_ms is left unset.
   virtual std::optional<Syncable::Info> GetSyncInfo() const = 0;

@@ -2004,4 +2004,12 @@ NetEqController::PacketArrivedInfo NetEqImpl::ToPacketArrivedInfo(
   return info;
 }
 
+void NetEqImpl::SetMaximumBufferPackets(size_t max_packets) {
+  packet_buffer_->SetMaxNumberOfPackets(max_packets);
+}
+
+void NetEqImpl::SetFastAccelerate(bool enable) {
+  enable_fast_accelerate_ = enable;
+}
+
 }  // namespace webrtc

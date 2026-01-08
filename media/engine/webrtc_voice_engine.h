@@ -409,7 +409,7 @@ class WebRtcVoiceReceiveChannel final
   void SetReceiveNonSenderRttEnabled(bool enabled) override;
 
  private:
-  bool SetOptions(const AudioOptions& options);
+  bool SetOptions(const AudioOptions& options) override;
   bool SetRecvCodecs(const std::vector<Codec>& codecs);
   bool SetLocalSource(uint32_t ssrc, AudioSource* source);
   bool MuteStream(uint32_t ssrc, bool mute);
@@ -446,7 +446,7 @@ class WebRtcVoiceReceiveChannel final
   bool playout_ RTC_GUARDED_BY(worker_thread_) = false;
   Call* const call_ = nullptr;
 
-  const MediaConfig::Audio audio_config_;
+  MediaConfig::Audio audio_config_;
 
   // Queue of unsignaled SSRCs; oldest at the beginning.
   std::vector<uint32_t> unsignaled_recv_ssrcs_ RTC_GUARDED_BY(worker_thread_);

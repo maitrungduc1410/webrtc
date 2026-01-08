@@ -935,6 +935,7 @@ class VoiceMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
   virtual void SetRtcpMode(enum RtcpMode mode) = 0;
   virtual void SetReceiveNackEnabled(bool enabled) = 0;
   virtual void SetReceiveNonSenderRttEnabled(bool enabled) = 0;
+  virtual bool SetOptions(const AudioOptions& options) = 0;
 };
 
 struct VideoSenderParameters : SenderParameters {
@@ -964,6 +965,7 @@ class VideoMediaSendChannelInterface : public MediaSendChannelInterface {
   virtual bool SetVideoSend(uint32_t ssrc,
                             const VideoOptions* options,
                             VideoSourceInterface<VideoFrame>* source) = 0;
+  virtual bool SetOptions(const VideoOptions& options) = 0;
   // Cause generation of a keyframe for `ssrc` on a sending channel.
   virtual void GenerateSendKeyFrame(uint32_t ssrc,
                                     const std::vector<std::string>& rids) = 0;

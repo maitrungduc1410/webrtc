@@ -2114,6 +2114,16 @@ class WebRtcVoiceReceiveChannel::WebRtcAudioReceiveStream {
     return stream_->GetBaseMinimumPlayoutDelayMs();
   }
 
+  void SetJitterBufferMaxPackets(size_t max_packets) {
+    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+    stream_->SetJitterBufferMaxPackets(max_packets);
+  }
+
+  void SetJitterBufferFastAccelerate(bool fast_accelerate) {
+    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+    stream_->SetJitterBufferFastAccelerate(fast_accelerate);
+  }
+
   std::vector<RtpSource> GetSources() {
     RTC_DCHECK_RUN_ON(&worker_thread_checker_);
     return stream_->GetSources();
@@ -2247,6 +2257,28 @@ bool WebRtcVoiceReceiveChannel::SetOptions(const AudioOptions& options) {
   // they go back to the engine default.
   options_.SetAll(options);
   engine()->ApplyOptions(options_);
+
+  // Check if any options changed that should apply to receive streams.
+  if (options.audio_jitter_buffer_max_packets &&
+      *options.audio_jitter_buffer_max_packets !=
+          audio_config_.audio_jitter_buffer_max_packets) {
+    audio_config_.audio_jitter_buffer_max_packets =
+        *options.audio_jitter_buffer_max_packets;
+    for (auto& [unused, stream] : recv_streams_) {
+      stream->SetJitterBufferMaxPackets(
+          audio_config_.audio_jitter_buffer_max_packets);
+    }
+  }
+  if (options.audio_jitter_buffer_fast_accelerate &&
+      *options.audio_jitter_buffer_fast_accelerate !=
+          audio_config_.audio_jitter_buffer_fast_accelerate) {
+    audio_config_.audio_jitter_buffer_fast_accelerate =
+        *options.audio_jitter_buffer_fast_accelerate;
+    for (auto& [unused, stream] : recv_streams_) {
+      stream->SetJitterBufferFastAccelerate(
+          audio_config_.audio_jitter_buffer_fast_accelerate);
+    }
+  }
 
   RTC_LOG(LS_INFO) << "Set voice receive channel options. Current options: "
                    << options_.ToString();
