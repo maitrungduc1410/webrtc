@@ -124,9 +124,7 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
                    params_.virtual_rtt.Get())) {
     last_reaction_to_congestion_time_ = msg.feedback_time;
     if (is_loss) {  // Back off due to loss
-      ref_window_ = ref_window_ * params_.beta_loss.Get() /
-                    std::max(1.0, delay_based_congestion_control_.rtt() /
-                                      params_.virtual_rtt);
+      ref_window_ = ref_window_ * params_.beta_loss.Get();
     }
     if (is_ce) {  // Backoff due to ECN-CE marking
       double backoff = l4s_alpha_ / 2.0;
