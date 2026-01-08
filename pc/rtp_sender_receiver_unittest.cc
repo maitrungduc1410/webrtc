@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
 #include "api/crypto/frame_decryptor_interface.h"
@@ -114,14 +113,12 @@ class RtpSenderReceiverTest
     // Create the channels, discard the result; we get them later.
     // Fake media channels are owned by the media engine.
     voice_media_send_channel_ = media_engine_->voice().CreateSendChannel(
-        env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions(),
-        AudioCodecPairId::Create());
+        env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions());
     video_media_send_channel_ = media_engine_->video().CreateSendChannel(
         env_, &fake_call_, MediaConfig(), VideoOptions(), CryptoOptions(),
         video_bitrate_allocator_factory_.get());
     voice_media_receive_channel_ = media_engine_->voice().CreateReceiveChannel(
-        env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions(),
-        AudioCodecPairId::Create());
+        env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions());
     video_media_receive_channel_ = media_engine_->video().CreateReceiveChannel(
         env_, &fake_call_, MediaConfig(), VideoOptions(), CryptoOptions());
 

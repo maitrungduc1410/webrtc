@@ -103,16 +103,32 @@ class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
       Call* call,
       const MediaConfig& config,
       const AudioOptions& options,
-      const CryptoOptions& crypto_options,
-      AudioCodecPairId codec_pair_id) = 0;
+      const CryptoOptions& crypto_options) = 0;
+  [[deprecated]] virtual std::unique_ptr<VoiceMediaSendChannelInterface>
+  CreateSendChannel(const Environment& env,
+                    Call* call,
+                    const MediaConfig& config,
+                    const AudioOptions& options,
+                    const CryptoOptions& crypto_options,
+                    AudioCodecPairId codec_pair_id) {
+    return CreateSendChannel(env, call, config, options, crypto_options);
+  }
 
   virtual std::unique_ptr<VoiceMediaReceiveChannelInterface>
   CreateReceiveChannel(const Environment& env,
                        Call* call,
                        const MediaConfig& config,
                        const AudioOptions& options,
+                       const CryptoOptions& crypto_options) = 0;
+  [[deprecated]] virtual std::unique_ptr<VoiceMediaReceiveChannelInterface>
+  CreateReceiveChannel(const Environment& env,
+                       Call* call,
+                       const MediaConfig& config,
+                       const AudioOptions& options,
                        const CryptoOptions& crypto_options,
-                       AudioCodecPairId codec_pair_id) = 0;
+                       AudioCodecPairId codec_pair_id) {
+    return CreateReceiveChannel(env, call, config, options, crypto_options);
+  }
 
   // Legacy: Retrieve list of supported codecs.
   // + protection codecs, and assigns PT numbers that may have to be

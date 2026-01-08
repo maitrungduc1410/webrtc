@@ -26,7 +26,6 @@
 #include "api/array_view.h"
 #include "api/audio/audio_processing.h"
 #include "api/audio/builtin_audio_processing_builder.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
@@ -293,12 +292,10 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
   ~WebRtcVoiceEngineTestFake() { engine_->Terminate(); }
 
   bool SetupChannel() {
-    send_channel_ =
-        engine_->CreateSendChannel(env_, &call_, MediaConfig(), AudioOptions(),
-                                   CryptoOptions(), AudioCodecPairId::Create());
+    send_channel_ = engine_->CreateSendChannel(env_, &call_, MediaConfig(),
+                                               AudioOptions(), CryptoOptions());
     receive_channel_ = engine_->CreateReceiveChannel(
-        env_, &call_, MediaConfig(), AudioOptions(), CryptoOptions(),
-        AudioCodecPairId::Create());
+        env_, &call_, MediaConfig(), AudioOptions(), CryptoOptions());
     send_channel_->SetSsrcListChangedCallback(
         [receive_channel =
              receive_channel_.get()](const std::set<uint32_t>& choices) {
@@ -3203,7 +3200,7 @@ TEST_P(WebRtcVoiceEngineTestFake, InitRecordingOnSend) {
 
   std::unique_ptr<VoiceMediaSendChannelInterface> send_channel(
       engine_->CreateSendChannel(env_, &call_, MediaConfig(), AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create()));
+                                 CryptoOptions()));
 
   send_channel->SetSend(true);
 }
@@ -3218,7 +3215,7 @@ TEST_P(WebRtcVoiceEngineTestFake, SkipInitRecordingOnSend) {
 
   std::unique_ptr<VoiceMediaSendChannelInterface> send_channel(
       engine_->CreateSendChannel(env_, &call_, MediaConfig(), options,
-                                 CryptoOptions(), AudioCodecPairId::Create()));
+                                 CryptoOptions()));
 
   send_channel->SetSend(true);
 }
@@ -3243,10 +3240,10 @@ TEST_P(WebRtcVoiceEngineTestFake, SetOptionOverridesViaChannels) {
 
   std::unique_ptr<VoiceMediaSendChannelInterface> send_channel1(
       engine_->CreateSendChannel(env_, &call_, MediaConfig(), AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create()));
+                                 CryptoOptions()));
   std::unique_ptr<VoiceMediaSendChannelInterface> send_channel2(
       engine_->CreateSendChannel(env_, &call_, MediaConfig(), AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create()));
+                                 CryptoOptions()));
 
   // Have to add a stream to make SetSend work.
   StreamParams stream1;
@@ -3360,18 +3357,16 @@ TEST_P(WebRtcVoiceEngineTestFake, TestSetDscpOptions) {
   std::unique_ptr<VoiceMediaSendChannelInterface> channel;
   RtpParameters parameters;
 
-  channel =
-      engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create());
+  channel = engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
+                                       CryptoOptions());
   channel->SetInterface(&network_interface);
   // Default value when DSCP is disabled should be DSCP_DEFAULT.
   EXPECT_EQ(DSCP_DEFAULT, network_interface.dscp());
   channel->SetInterface(nullptr);
 
   config.enable_dscp = true;
-  channel =
-      engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create());
+  channel = engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
+                                       CryptoOptions());
   channel->SetInterface(&network_interface);
   EXPECT_EQ(DSCP_DEFAULT, network_interface.dscp());
 
@@ -3399,9 +3394,8 @@ TEST_P(WebRtcVoiceEngineTestFake, TestSetDscpOptions) {
   // Verify that setting the option to false resets the
   // DiffServCodePoint.
   config.enable_dscp = false;
-  channel =
-      engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create());
+  channel = engine_->CreateSendChannel(env_, &call_, config, AudioOptions(),
+                                       CryptoOptions());
   channel->SetInterface(&network_interface);
   // Default value when DSCP is disabled should be DSCP_DEFAULT.
   EXPECT_EQ(DSCP_DEFAULT, network_interface.dscp());
@@ -3793,12 +3787,11 @@ TEST(WebRtcVoiceEngineTest, StartupShutdown) {
     std::unique_ptr<Call> call = Call::Create(CallConfig(env));
     std::unique_ptr<VoiceMediaSendChannelInterface> send_channel =
         engine.CreateSendChannel(env, call.get(), MediaConfig(), AudioOptions(),
-                                 CryptoOptions(), AudioCodecPairId::Create());
+                                 CryptoOptions());
     EXPECT_TRUE(send_channel);
     std::unique_ptr<VoiceMediaReceiveChannelInterface> receive_channel =
         engine.CreateReceiveChannel(env, call.get(), MediaConfig(),
-                                    AudioOptions(), CryptoOptions(),
-                                    AudioCodecPairId::Create());
+                                    AudioOptions(), CryptoOptions());
     EXPECT_TRUE(receive_channel);
   }
 }
@@ -3821,13 +3814,11 @@ TEST(WebRtcVoiceEngineTest, StartupShutdownWithExternalADM) {
       std::unique_ptr<Call> call = Call::Create(CallConfig(env));
       std::unique_ptr<VoiceMediaSendChannelInterface> send_channel =
           engine.CreateSendChannel(env, call.get(), MediaConfig(),
-                                   AudioOptions(), CryptoOptions(),
-                                   AudioCodecPairId::Create());
+                                   AudioOptions(), CryptoOptions());
       EXPECT_TRUE(send_channel);
       std::unique_ptr<VoiceMediaReceiveChannelInterface> receive_channel =
           engine.CreateReceiveChannel(env, call.get(), MediaConfig(),
-                                      AudioOptions(), CryptoOptions(),
-                                      AudioCodecPairId::Create());
+                                      AudioOptions(), CryptoOptions());
       EXPECT_TRUE(receive_channel);
     }
     // The engine/channel should have dropped their references.
@@ -3901,8 +3892,7 @@ TEST(WebRtcVoiceEngineTest, Has32Channels) {
     while (channels.size() < 32) {
       std::unique_ptr<VoiceMediaSendChannelInterface> channel =
           engine.CreateSendChannel(env, call.get(), MediaConfig(),
-                                   AudioOptions(), CryptoOptions(),
-                                   AudioCodecPairId::Create());
+                                   AudioOptions(), CryptoOptions());
       if (!channel)
         break;
       channels.emplace_back(std::move(channel));
@@ -3935,7 +3925,7 @@ TEST(WebRtcVoiceEngineTest, SetRecvCodecs) {
     std::unique_ptr<Call> call = Call::Create(CallConfig(env));
     WebRtcVoiceReceiveChannel channel(env, &engine, MediaConfig(),
                                       AudioOptions(), CryptoOptions(),
-                                      call.get(), AudioCodecPairId::Create());
+                                      call.get());
     AudioReceiverParameters parameters;
     parameters.codecs = ReceiveCodecsWithId(engine);
     EXPECT_TRUE(channel.SetReceiverParameters(parameters));
@@ -3961,8 +3951,7 @@ TEST(WebRtcVoiceEngineTest, SetRtpSendParametersMaxBitrate) {
   }
   std::unique_ptr<Call> call = Call::Create(std::move(call_config));
   WebRtcVoiceSendChannel channel(env, &engine, MediaConfig(), AudioOptions(),
-                                 CryptoOptions(), call.get(),
-                                 AudioCodecPairId::Create());
+                                 CryptoOptions(), call.get());
   {
     AudioSenderParameter params;
     params.codecs.push_back(CreateAudioCodec(1, "opus", 48000, 2));

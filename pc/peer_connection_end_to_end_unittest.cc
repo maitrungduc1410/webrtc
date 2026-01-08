@@ -427,10 +427,9 @@ TEST_P(PeerConnectionEndToEndTest, CallWithSdesKeyNegotiation) {
 TEST_P(PeerConnectionEndToEndTest, CallWithCustomCodec) {
   class IdLoggingAudioEncoderFactory : public AudioEncoderFactory {
    public:
-    IdLoggingAudioEncoderFactory(
-        scoped_refptr<AudioEncoderFactory> real_factory,
-        std::vector<AudioCodecPairId>* const codec_ids)
-        : fact_(real_factory), codec_ids_(codec_ids) {}
+    explicit IdLoggingAudioEncoderFactory(
+        scoped_refptr<AudioEncoderFactory> real_factory)
+        : fact_(real_factory) {}
     std::vector<AudioCodecSpec> GetSupportedEncoders() override {
       return fact_->GetSupportedEncoders();
     }
@@ -441,22 +440,18 @@ TEST_P(PeerConnectionEndToEndTest, CallWithCustomCodec) {
     std::unique_ptr<AudioEncoder> Create(const Environment& env,
                                          const SdpAudioFormat& format,
                                          Options options) override {
-      EXPECT_TRUE(options.codec_pair_id.has_value());
-      codec_ids_->push_back(*options.codec_pair_id);
       return fact_->Create(env, format, options);
     }
 
    private:
     const scoped_refptr<AudioEncoderFactory> fact_;
-    std::vector<AudioCodecPairId>* const codec_ids_;
   };
 
   class IdLoggingAudioDecoderFactory : public AudioDecoderFactory {
    public:
-    IdLoggingAudioDecoderFactory(
-        scoped_refptr<AudioDecoderFactory> real_factory,
-        std::vector<AudioCodecPairId>* const codec_ids)
-        : fact_(real_factory), codec_ids_(codec_ids) {}
+    explicit IdLoggingAudioDecoderFactory(
+        scoped_refptr<AudioDecoderFactory> real_factory)
+        : fact_(real_factory) {}
     std::vector<AudioCodecSpec> GetSupportedDecoders() override {
       return fact_->GetSupportedDecoders();
     }
@@ -467,43 +462,25 @@ TEST_P(PeerConnectionEndToEndTest, CallWithCustomCodec) {
         const Environment& env,
         const SdpAudioFormat& format,
         std::optional<AudioCodecPairId> codec_pair_id) override {
-      EXPECT_TRUE(codec_pair_id.has_value());
-      codec_ids_->push_back(*codec_pair_id);
       return fact_->Create(env, format, codec_pair_id);
     }
 
    private:
     const scoped_refptr<AudioDecoderFactory> fact_;
-    std::vector<AudioCodecPairId>* const codec_ids_;
   };
 
-  std::vector<AudioCodecPairId> encoder_id1, encoder_id2, decoder_id1,
-      decoder_id2;
-  CreatePcs(make_ref_counted<IdLoggingAudioEncoderFactory>(
-                CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>(),
-                &encoder_id1),
-            make_ref_counted<IdLoggingAudioDecoderFactory>(
-                CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>(),
-                &decoder_id1),
-            make_ref_counted<IdLoggingAudioEncoderFactory>(
-                CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>(),
-                &encoder_id2),
-            make_ref_counted<IdLoggingAudioDecoderFactory>(
-                CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>(),
-                &decoder_id2));
+  CreatePcs(
+      make_ref_counted<IdLoggingAudioEncoderFactory>(
+          CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>()),
+      make_ref_counted<IdLoggingAudioDecoderFactory>(
+          CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>()),
+      make_ref_counted<IdLoggingAudioEncoderFactory>(
+          CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>()),
+      make_ref_counted<IdLoggingAudioDecoderFactory>(
+          CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>()));
   GetAndAddUserMedia();
   Negotiate();
   WaitForCallEstablished();
-
-  // Each codec factory has been used to create one codec. The first pair got
-  // the same ID because they were passed to the same PeerConnectionFactory,
-  // and the second pair got the same ID---but these two IDs are not equal,
-  // because each PeerConnectionFactory has its own ID.
-  EXPECT_EQ(1U, encoder_id1.size());
-  EXPECT_EQ(1U, encoder_id2.size());
-  EXPECT_EQ(encoder_id1, decoder_id1);
-  EXPECT_EQ(encoder_id2, decoder_id2);
-  EXPECT_NE(encoder_id1, encoder_id2);
 }
 
 #ifdef WEBRTC_HAVE_SCTP

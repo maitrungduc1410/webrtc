@@ -24,7 +24,6 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
@@ -240,13 +239,10 @@ CreateMediaContentChannels(
     const CryptoOptions& crypto_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory) {
   if (media_type == MediaType::AUDIO) {
-    AudioCodecPairId codec_pair_id = AudioCodecPairId::Create();
     return {media_engine->voice().CreateSendChannel(
-                env, call, media_config, audio_options, crypto_options,
-                codec_pair_id),
+                env, call, media_config, audio_options, crypto_options),
             media_engine->voice().CreateReceiveChannel(
-                env, call, media_config, audio_options, crypto_options,
-                codec_pair_id)};
+                env, call, media_config, audio_options, crypto_options)};
   }
   return {media_engine->video().CreateSendChannel(
               env, call, media_config, video_options, crypto_options,
