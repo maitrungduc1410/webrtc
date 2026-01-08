@@ -72,11 +72,11 @@ AudioCodecInfo AudioEncoderMultiChannelOpus::QueryAudioEncoder(
 }
 
 std::unique_ptr<AudioEncoder> AudioEncoderMultiChannelOpus::MakeAudioEncoder(
-    const AudioEncoderMultiChannelOpusConfig& config,
+    AudioEncoderMultiChannelOpusConfig config,
     int payload_type,
     std::optional<AudioCodecPairId> /*codec_pair_id*/,
     const FieldTrialsView* /* field_trials */) {
-  return AudioEncoderMultiChannelOpusImpl::MakeAudioEncoder(config,
+  return AudioEncoderMultiChannelOpusImpl::MakeAudioEncoder(std::move(config),
                                                             payload_type);
 }
 

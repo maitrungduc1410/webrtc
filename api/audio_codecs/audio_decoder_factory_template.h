@@ -64,9 +64,9 @@ template <typename Trait,
 absl_nullable std::unique_ptr<AudioDecoder> CreateDecoder(
     Rank1,
     const Environment& env,
-    const typename Trait::Config& config,
+    typename Trait::Config config,
     std::optional<AudioCodecPairId> codec_pair_id) {
-  return Trait::MakeAudioDecoder(env, config, codec_pair_id);
+  return Trait::MakeAudioDecoder(env, std::move(config), codec_pair_id);
 }
 
 template <typename Trait,
@@ -78,9 +78,9 @@ template <typename Trait,
 absl_nullable std::unique_ptr<AudioDecoder> CreateDecoder(
     Rank0,
     const Environment& /* env */,
-    const typename Trait::Config& config,
+    typename Trait::Config config,
     std::optional<AudioCodecPairId> codec_pair_id) {
-  return Trait::MakeAudioDecoder(config, codec_pair_id);
+  return Trait::MakeAudioDecoder(std::move(config), codec_pair_id);
 }
 
 // Inductive case: Called with n + 1 template parameters; calls subroutines
@@ -106,7 +106,8 @@ struct Helper<T, Ts...> {
       std::optional<AudioCodecPairId> codec_pair_id) {
     auto opt_config = T::SdpToConfig(format);
     return opt_config.has_value()
-               ? CreateDecoder<T>(Rank1{}, env, *opt_config, codec_pair_id)
+               ? CreateDecoder<T>(Rank1{}, env, *std::move(opt_config),
+                                  codec_pair_id)
                : Helper<Ts...>::MakeAudioDecoder(env, format, codec_pair_id);
   }
 };

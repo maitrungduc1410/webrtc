@@ -64,9 +64,9 @@ template <typename Trait,
 absl_nullable std::unique_ptr<AudioEncoder> CreateEncoder(
     Rank1,
     const Environment& env,
-    const typename Trait::Config& config,
+    typename Trait::Config config,
     const AudioEncoderFactory::Options& options) {
-  return Trait::MakeAudioEncoder(env, config, options);
+  return Trait::MakeAudioEncoder(env, std::move(config), options);
 }
 
 template <typename Trait,
@@ -79,9 +79,9 @@ template <typename Trait,
 absl_nullable std::unique_ptr<AudioEncoder> CreateEncoder(
     Rank0,
     const Environment& /* env */,
-    const typename Trait::Config& config,
+    typename Trait::Config config,
     const AudioEncoderFactory::Options& options) {
-  return Trait::MakeAudioEncoder(config, options.payload_type,
+  return Trait::MakeAudioEncoder(std::move(config), options.payload_type,
                                  options.codec_pair_id);
 }
 
@@ -110,7 +110,7 @@ struct Helper<T, Ts...> {
       const SdpAudioFormat& format,
       const AudioEncoderFactory::Options& options) {
     if (auto opt_config = T::SdpToConfig(format); opt_config.has_value()) {
-      return CreateEncoder<T>(Rank1{}, env, *opt_config, options);
+      return CreateEncoder<T>(Rank1{}, env, *std::move(opt_config), options);
     }
     return Helper<Ts...>::CreateAudioEncoder(env, format, options);
   }
