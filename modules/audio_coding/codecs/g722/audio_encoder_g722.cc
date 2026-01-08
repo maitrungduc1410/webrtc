@@ -40,8 +40,7 @@ AudioEncoderG722Impl::AudioEncoderG722Impl(const AudioEncoderG722Config& config,
       num_10ms_frames_buffered_(0),
       first_timestamp_in_buffer_(0),
       encoders_(new EncoderState[num_channels_]),
-      interleave_buffer_(
-          Buffer::CreateUninitializedWithSize(2 * num_channels_)) {
+      interleave_buffer_(2 * num_channels_) {
   RTC_CHECK(config.IsOk());
   const size_t samples_per_channel =
       kSampleRateHz / 100 * num_10ms_frames_per_packet_;
@@ -132,13 +131,12 @@ AudioEncoder::EncodedInfo AudioEncoderG722Impl::EncodeImpl(
         for (size_t i = 0; i < samples_per_channel / 2; ++i) {
           for (size_t j = 0; j < num_channels_; ++j) {
             uint8_t two_samples = encoders_[j].encoded_buffer.data()[i];
-            interleave_buffer_.data()[j] = two_samples >> 4;
-            interleave_buffer_.data()[num_channels_ + j] = two_samples & 0xf;
+            interleave_buffer_[j] = two_samples >> 4;
+            interleave_buffer_[num_channels_ + j] = two_samples & 0xf;
           }
           for (size_t j = 0; j < num_channels_; ++j)
             encoded[i * num_channels_ + j] =
-                interleave_buffer_.data()[2 * j] << 4 |
-                interleave_buffer_.data()[2 * j + 1];
+                interleave_buffer_[2 * j] << 4 | interleave_buffer_[2 * j + 1];
         }
 
         return bytes_to_encode;
