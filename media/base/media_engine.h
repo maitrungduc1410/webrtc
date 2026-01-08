@@ -18,7 +18,6 @@
 
 #include "api/array_view.h"
 #include "api/audio/audio_device.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_encoder_factory.h"
 #include "api/audio_options.h"
@@ -104,15 +103,6 @@ class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
       const MediaConfig& config,
       const AudioOptions& options,
       const CryptoOptions& crypto_options) = 0;
-  [[deprecated]] virtual std::unique_ptr<VoiceMediaSendChannelInterface>
-  CreateSendChannel(const Environment& env,
-                    Call* call,
-                    const MediaConfig& config,
-                    const AudioOptions& options,
-                    const CryptoOptions& crypto_options,
-                    AudioCodecPairId codec_pair_id) {
-    return CreateSendChannel(env, call, config, options, crypto_options);
-  }
 
   virtual std::unique_ptr<VoiceMediaReceiveChannelInterface>
   CreateReceiveChannel(const Environment& env,
@@ -120,15 +110,6 @@ class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
                        const MediaConfig& config,
                        const AudioOptions& options,
                        const CryptoOptions& crypto_options) = 0;
-  [[deprecated]] virtual std::unique_ptr<VoiceMediaReceiveChannelInterface>
-  CreateReceiveChannel(const Environment& env,
-                       Call* call,
-                       const MediaConfig& config,
-                       const AudioOptions& options,
-                       const CryptoOptions& crypto_options,
-                       AudioCodecPairId codec_pair_id) {
-    return CreateReceiveChannel(env, call, config, options, crypto_options);
-  }
 
   // Legacy: Retrieve list of supported codecs.
   // + protection codecs, and assigns PT numbers that may have to be

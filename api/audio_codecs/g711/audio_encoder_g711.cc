@@ -18,10 +18,8 @@
 #include <vector>
 
 #include "absl/strings/match.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "api/audio_codecs/audio_format.h"
-#include "api/field_trials_view.h"
 #include "modules/audio_coding/codecs/g711/audio_encoder_pcm.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -72,9 +70,7 @@ AudioCodecInfo AudioEncoderG711::QueryAudioEncoder(const Config& config) {
 
 std::unique_ptr<AudioEncoder> AudioEncoderG711::MakeAudioEncoder(
     const Config& config,
-    int payload_type,
-    std::optional<AudioCodecPairId> /*codec_pair_id*/,
-    const FieldTrialsView* /* field_trials */) {
+    int payload_type) {
   if (!config.IsOk()) {
     RTC_DCHECK_NOTREACHED();
     return nullptr;

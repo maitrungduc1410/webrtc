@@ -425,59 +425,10 @@ TEST_P(PeerConnectionEndToEndTest, CallWithSdesKeyNegotiation) {
 #endif
 
 TEST_P(PeerConnectionEndToEndTest, CallWithCustomCodec) {
-  class IdLoggingAudioEncoderFactory : public AudioEncoderFactory {
-   public:
-    explicit IdLoggingAudioEncoderFactory(
-        scoped_refptr<AudioEncoderFactory> real_factory)
-        : fact_(real_factory) {}
-    std::vector<AudioCodecSpec> GetSupportedEncoders() override {
-      return fact_->GetSupportedEncoders();
-    }
-    std::optional<AudioCodecInfo> QueryAudioEncoder(
-        const SdpAudioFormat& format) override {
-      return fact_->QueryAudioEncoder(format);
-    }
-    std::unique_ptr<AudioEncoder> Create(const Environment& env,
-                                         const SdpAudioFormat& format,
-                                         Options options) override {
-      return fact_->Create(env, format, options);
-    }
-
-   private:
-    const scoped_refptr<AudioEncoderFactory> fact_;
-  };
-
-  class IdLoggingAudioDecoderFactory : public AudioDecoderFactory {
-   public:
-    explicit IdLoggingAudioDecoderFactory(
-        scoped_refptr<AudioDecoderFactory> real_factory)
-        : fact_(real_factory) {}
-    std::vector<AudioCodecSpec> GetSupportedDecoders() override {
-      return fact_->GetSupportedDecoders();
-    }
-    bool IsSupportedDecoder(const SdpAudioFormat& format) override {
-      return fact_->IsSupportedDecoder(format);
-    }
-    std::unique_ptr<AudioDecoder> Create(
-        const Environment& env,
-        const SdpAudioFormat& format,
-        std::optional<AudioCodecPairId> codec_pair_id) override {
-      return fact_->Create(env, format, codec_pair_id);
-    }
-
-   private:
-    const scoped_refptr<AudioDecoderFactory> fact_;
-  };
-
-  CreatePcs(
-      make_ref_counted<IdLoggingAudioEncoderFactory>(
-          CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>()),
-      make_ref_counted<IdLoggingAudioDecoderFactory>(
-          CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>()),
-      make_ref_counted<IdLoggingAudioEncoderFactory>(
-          CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>()),
-      make_ref_counted<IdLoggingAudioDecoderFactory>(
-          CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>()));
+  CreatePcs(CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>(),
+            CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>(),
+            CreateAudioEncoderFactory<AudioEncoderUnicornSparklesRainbow>(),
+            CreateAudioDecoderFactory<AudioDecoderUnicornSparklesRainbow>());
   GetAndAddUserMedia();
   Negotiate();
   WaitForCallEstablished();
