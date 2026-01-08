@@ -37,6 +37,7 @@
 #include "api/rtp_sender_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/video_codecs/video_encoder_factory.h"
 #include "media/base/audio_source.h"
@@ -304,6 +305,9 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // Guard with RTC_GUARDED_BY(worker_thread_) after refactoring.
   std::unique_ptr<VideoEncoderFactory::EncoderSelectorInterface>
       encoder_selector_;
+
+  scoped_refptr<PendingTaskSafetyFlag> worker_safety_;
+  ScopedTaskSafety signaling_safety_;
 };
 
 // LocalAudioSinkAdapter receives data callback as a sink to the local

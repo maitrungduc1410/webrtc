@@ -2014,6 +2014,7 @@ rtc_library("rtp_sender") {
     "../api/crypto:frame_encryptor_interface",
     "../api/environment",
     "../api/task_queue",
+    "../api/task_queue:pending_task_safety_flag",
     "../api/video_codecs:video_codecs_api",
     "../media:audio_source",
     "../media:codec",
