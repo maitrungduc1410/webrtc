@@ -772,10 +772,7 @@ if (rtc_include_tests && !build_with_chromium) {
 
   rtc_test("webrtc_nonparallel_tests") {
     testonly = true
-    deps = [
-      "rtc_base:rtc_base_nonparallel_tests",
-      "test:test_main",
-    ]
+    deps = [ "rtc_base:rtc_base_nonparallel_tests" ]
     if (is_android) {
       shard_timeout = 900
     }

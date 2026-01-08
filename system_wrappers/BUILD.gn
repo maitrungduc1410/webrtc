@@ -82,7 +82,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base:random",
       "../rtc_base:stringutils",
       "../test:rtc_expect_death",
-      "../test:test_main",
       "../test:test_support",
       "//testing/gtest",
       "//third_party/abseil-cpp/absl/strings:string_view",
