@@ -2533,9 +2533,8 @@ TEST_P(PeerConnectionEncodingsIntegrationParameterizedTest, Simulcast) {
               StrCaseEq(mime_type_));
   EXPECT_THAT(GetCurrentCodecMimeType(report, *outbound_rtps[2]),
               StrCaseEq(mime_type_));
-  EXPECT_THAT(*outbound_rtps[0]->scalability_mode, StrEq("L1T3"));
-  EXPECT_THAT(*outbound_rtps[1]->scalability_mode, StrEq("L1T3"));
-  EXPECT_THAT(*outbound_rtps[2]->scalability_mode, StrEq("L1T3"));
+  EXPECT_THAT(report, OutboundRtpStatsAre(
+                          Each(ScalabilityModeIs(Optional(StrEq("L1T3"))))));
 }
 
 // Configure 4:2:1 using `scale_resolution_down_to`.
