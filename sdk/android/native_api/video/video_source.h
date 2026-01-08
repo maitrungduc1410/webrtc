@@ -13,6 +13,7 @@
 
 #include <jni.h>
 
+#include "api/environment/environment.h"
 #include "api/media_stream_interface.h"
 #include "api/scoped_refptr.h"
 #include "rtc_base/thread.h"
@@ -33,6 +34,7 @@ class JavaVideoTrackSourceInterface : public VideoTrackSourceInterface {
 // Creates an instance of JavaVideoTrackSourceInterface,
 scoped_refptr<JavaVideoTrackSourceInterface> CreateJavaVideoSource(
     JNIEnv* env,
+    const Environment& webrtc_env,
     Thread* signaling_thread,
     bool is_screencast,
     bool align_timestamps);

@@ -12,6 +12,7 @@
 
 #include <jni.h>
 
+#include "api/environment/environment.h"
 #include "api/make_ref_counted.h"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_factory.h"
@@ -42,12 +43,12 @@ VideoDecoderFactory* CreateVideoDecoderFactory(
 }
 
 void* CreateVideoSource(JNIEnv* env,
+                        const Environment& webrtc_env,
                         Thread* signaling_thread,
-                        Thread* worker_thread,
                         jboolean is_screencast,
                         jboolean align_timestamps) {
   auto source = make_ref_counted<AndroidVideoTrackSource>(
-      signaling_thread, env, is_screencast, align_timestamps);
+      env, webrtc_env, signaling_thread, is_screencast, align_timestamps);
   return source.release();
 }
 
