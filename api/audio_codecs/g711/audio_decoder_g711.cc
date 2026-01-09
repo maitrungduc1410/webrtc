@@ -16,10 +16,8 @@
 #include <vector>
 
 #include "absl/strings/match.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_decoder.h"
 #include "api/audio_codecs/audio_format.h"
-#include "api/field_trials_view.h"
 #include "modules/audio_coding/codecs/g711/audio_decoder_pcm.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -53,9 +51,7 @@ void AudioDecoderG711::AppendSupportedDecoders(
 }
 
 std::unique_ptr<AudioDecoder> AudioDecoderG711::MakeAudioDecoder(
-    const Config& config,
-    std::optional<AudioCodecPairId> /*codec_pair_id*/,
-    const FieldTrialsView* /* field_trials */) {
+    const Config& config) {
   if (!config.IsOk()) {
     RTC_DCHECK_NOTREACHED();
     return nullptr;

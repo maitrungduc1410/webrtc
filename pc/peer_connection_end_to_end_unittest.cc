@@ -325,11 +325,10 @@ scoped_refptr<AudioDecoderFactory> CreateForwardingMockDecoderFactory(
   EXPECT_CALL(*mock_decoder_factory, Create)
       .Times(AtLeast(2))
       .WillRepeatedly(
-          [real_decoder_factory](
-              const Environment& env, const SdpAudioFormat& format,
-              std::optional<AudioCodecPairId> codec_pair_id) {
-            auto real_decoder =
-                real_decoder_factory->Create(env, format, codec_pair_id);
+          [real_decoder_factory](const Environment& env,
+                                 const SdpAudioFormat& format,
+                                 std::optional<AudioCodecPairId> /* pair */) {
+            auto real_decoder = real_decoder_factory->Create(env, format);
             return real_decoder
                        ? CreateForwardingMockDecoder(std::move(real_decoder))
                        : nullptr;
@@ -363,12 +362,9 @@ struct AudioEncoderUnicornSparklesRainbow {
   static AudioCodecInfo QueryAudioEncoder(const Config& config) {
     return AudioEncoderL16::QueryAudioEncoder(config);
   }
-  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(
-      const Config& config,
-      int payload_type,
-      std::optional<AudioCodecPairId> codec_pair_id = std::nullopt) {
-    return AudioEncoderL16::MakeAudioEncoder(config, payload_type,
-                                             codec_pair_id);
+  static std::unique_ptr<AudioEncoder> MakeAudioEncoder(const Config& config,
+                                                        int payload_type) {
+    return AudioEncoderL16::MakeAudioEncoder(config, payload_type);
   }
 };
 
