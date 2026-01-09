@@ -92,9 +92,8 @@ std::unique_ptr<voe::ChannelReceiveInterface> CreateChannelReceive(
       config.rtcp_send_transport, config.rtp.local_ssrc, config.rtp.remote_ssrc,
       config.jitter_buffer_max_packets, config.jitter_buffer_fast_accelerate,
       config.jitter_buffer_min_delay_ms, config.enable_non_sender_rtt,
-      config.decoder_factory, config.codec_pair_id,
-      std::move(config.frame_decryptor), config.crypto_options,
-      std::move(config.frame_transformer));
+      config.decoder_factory, std::move(config.frame_decryptor),
+      config.crypto_options, std::move(config.frame_transformer));
 }
 }  // namespace
 

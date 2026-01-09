@@ -24,7 +24,6 @@
 #include "api/array_view.h"
 #include "api/audio/audio_device.h"
 #include "api/audio/audio_mixer.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/call/audio_sink.h"
@@ -97,14 +96,12 @@ constexpr TimeDelta kVoiceEngineMaxMinPlayoutDelay = TimeDelta::Seconds(10);
 
 std::unique_ptr<NetEq> CreateNetEq(
     NetEqFactory* neteq_factory,
-    std::optional<AudioCodecPairId> codec_pair_id,
     size_t jitter_buffer_max_packets,
     bool jitter_buffer_fast_playout,
     int jitter_buffer_min_delay_ms,
     const Environment& env,
     scoped_refptr<AudioDecoderFactory> decoder_factory) {
   NetEq::Config config;
-  config.codec_pair_id = codec_pair_id;
   config.max_packets_in_buffer = jitter_buffer_max_packets;
   config.enable_fast_accelerate = jitter_buffer_fast_playout;
   config.enable_muted_state = true;
@@ -130,7 +127,6 @@ class ChannelReceive : public ChannelReceiveInterface,
                  int jitter_buffer_min_delay_ms,
                  bool enable_non_sender_rtt,
                  scoped_refptr<AudioDecoderFactory> decoder_factory,
-                 std::optional<AudioCodecPairId> codec_pair_id,
                  scoped_refptr<FrameDecryptorInterface> frame_decryptor,
                  const CryptoOptions& crypto_options,
                  scoped_refptr<FrameTransformerInterface> frame_transformer);
@@ -578,7 +574,6 @@ ChannelReceive::ChannelReceive(
     int jitter_buffer_min_delay_ms,
     bool enable_non_sender_rtt,
     scoped_refptr<AudioDecoderFactory> decoder_factory,
-    std::optional<AudioCodecPairId> codec_pair_id,
     scoped_refptr<FrameDecryptorInterface> frame_decryptor,
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer)
@@ -588,7 +583,6 @@ ChannelReceive::ChannelReceive(
       remote_ssrc_(remote_ssrc),
       source_tracker_(&env_.clock()),
       neteq_(CreateNetEq(neteq_factory,
-                         codec_pair_id,
                          jitter_buffer_max_packets,
                          jitter_buffer_fast_playout,
                          jitter_buffer_min_delay_ms,
@@ -1221,7 +1215,6 @@ std::unique_ptr<ChannelReceiveInterface> CreateChannelReceive(
     int jitter_buffer_min_delay_ms,
     bool enable_non_sender_rtt,
     scoped_refptr<AudioDecoderFactory> decoder_factory,
-    std::optional<AudioCodecPairId> codec_pair_id,
     scoped_refptr<FrameDecryptorInterface> frame_decryptor,
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
@@ -1229,8 +1222,7 @@ std::unique_ptr<ChannelReceiveInterface> CreateChannelReceive(
       env, neteq_factory, audio_device_module, rtcp_send_transport, local_ssrc,
       remote_ssrc, jitter_buffer_max_packets, jitter_buffer_fast_playout,
       jitter_buffer_min_delay_ms, enable_non_sender_rtt, decoder_factory,
-      codec_pair_id, std::move(frame_decryptor), crypto_options,
-      std::move(frame_transformer));
+      std::move(frame_decryptor), crypto_options, std::move(frame_transformer));
 }
 
 }  // namespace voe

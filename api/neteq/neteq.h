@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "api/array_view.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_packet_info.h"
@@ -138,7 +137,6 @@ class NetEq {
     bool enable_fast_accelerate = false;
     bool enable_muted_state = false;
     bool enable_rtx_handling = false;
-    std::optional<AudioCodecPairId> codec_pair_id;
     bool for_test_no_time_stretching = false;  // Use only for testing.
   };
 

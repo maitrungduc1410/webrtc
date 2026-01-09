@@ -343,7 +343,7 @@ TEST_F(NetEqImplTest, InsertPacket) {
         return mock_decoder;
       }));
   DecoderDatabase::DecoderInfo info(env, SdpAudioFormat("pcmu", 8000, 1),
-                                    std::nullopt, mock_decoder_factory.get());
+                                    mock_decoder_factory.get());
 
   // Expectations for decoder database.
   EXPECT_CALL(*mock_decoder_database_, GetDecoderInfo(kPayloadType))
@@ -1577,7 +1577,7 @@ TEST_F(NetEqImplTest, NoCrashWithMaxChannels) {
         return dec;
       }));
   DecoderDatabase::DecoderInfo info(env, SdpAudioFormat("pcmu", 8000, 1),
-                                    std::nullopt, mock_decoder_factory.get());
+                                    mock_decoder_factory.get());
   // Expectations for decoder database.
   EXPECT_CALL(*mock_decoder_database_, GetDecoderInfo(kPayloadType))
       .WillRepeatedly(Return(&info));

@@ -21,7 +21,6 @@
 
 #include "api/audio/audio_frame.h"
 #include "api/audio/audio_mixer.h"
-#include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/call/audio_sink.h"
@@ -183,7 +182,6 @@ std::unique_ptr<ChannelReceiveInterface> CreateChannelReceive(
     int jitter_buffer_min_delay_ms,
     bool enable_non_sender_rtt,
     scoped_refptr<AudioDecoderFactory> decoder_factory,
-    std::optional<AudioCodecPairId> codec_pair_id,
     scoped_refptr<FrameDecryptorInterface> frame_decryptor,
     const webrtc::CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer);
