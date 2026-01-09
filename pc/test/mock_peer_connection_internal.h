@@ -72,7 +72,7 @@ namespace webrtc {
 class MockPeerConnectionInternal : public PeerConnectionInternal {
  public:
   MockPeerConnectionInternal() {}
-  ~MockPeerConnectionInternal() = default;
+  ~MockPeerConnectionInternal() override = default;
   // PeerConnectionInterface
   MOCK_METHOD(scoped_refptr<StreamCollectionInterface>,
               local_streams,

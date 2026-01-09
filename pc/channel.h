@@ -91,7 +91,7 @@ class BaseChannel : public ChannelInterface,
       bool srtp_required,
       CryptoOptions crypto_options,
       UniqueRandomIdGenerator* ssrc_generator);
-  virtual ~BaseChannel();
+  ~BaseChannel() override;
 
   TaskQueueBase* worker_thread() const { return worker_thread_; }
   Thread* network_thread() const { return network_thread_; }
@@ -389,7 +389,7 @@ class VoiceChannel : public BaseChannel {
       CryptoOptions crypto_options,
       UniqueRandomIdGenerator* ssrc_generator);
 
-  ~VoiceChannel();
+  ~VoiceChannel() override;
 
   VideoChannel* AsVideoChannel() override {
     RTC_CHECK_NOTREACHED();
@@ -456,7 +456,7 @@ class VideoChannel : public BaseChannel {
       bool srtp_required,
       CryptoOptions crypto_options,
       UniqueRandomIdGenerator* ssrc_generator);
-  ~VideoChannel();
+  ~VideoChannel() override;
 
   VideoChannel* AsVideoChannel() override { return this; }
   VoiceChannel* AsVoiceChannel() override {

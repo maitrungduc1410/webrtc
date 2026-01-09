@@ -32,3 +32,4 @@ c018bae80743596694db91478b879815f19dfb74
 bceec84aeedcb9f5992d30dae0b477fb5e227fee
 # Format the rest
 7220ee97aafaa33a914f578e0f04184a94d17974
+# Run clang-tidy on the repo

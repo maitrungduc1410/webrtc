@@ -1213,7 +1213,7 @@ TEST(EchoCanceller3, InjectedNeuralResidualEchoEstimatorIsUsed) {
                       &neural_residual_echo_estimator,
                       /*sample_rate_hz=*/kSampleRateHz,
                       /*num_render_channels=*/kNumChannels,
-                      /*num_capture_input_channels=*/kNumChannels);
+                      /*num_capture_channels=*/kNumChannels);
   constexpr int kNumFramesToProcess = 300;
   for (int k = 0; k < kNumFramesToProcess; ++k) {
     RunAecInSMono(buffer, aec3, k);

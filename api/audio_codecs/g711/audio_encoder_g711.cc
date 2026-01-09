@@ -58,7 +58,7 @@ std::optional<AudioEncoderG711::Config> AudioEncoderG711::SdpToConfig(
 void AudioEncoderG711::AppendSupportedEncoders(
     std::vector<AudioCodecSpec>* specs) {
   for (const char* type : {"PCMU", "PCMA"}) {
-    specs->push_back({{type, 8000, 1}, {8000, 1, 64000}});
+    specs->push_back({.format = {type, 8000, 1}, .info = {8000, 1, 64000}});
   }
 }
 

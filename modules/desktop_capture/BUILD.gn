@@ -280,6 +280,7 @@ rtc_library("desktop_capture") {
   visibility = [ "*" ]
   defines = []
   deps = [
+    "../../media:video_common",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",

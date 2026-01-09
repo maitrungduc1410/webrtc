@@ -227,7 +227,7 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
   virtual AudioMixer::Source* source() = 0;
 
  protected:
-  virtual ~AudioReceiveStreamInterface() {}
+  ~AudioReceiveStreamInterface() override {}
 };
 
 }  // namespace webrtc

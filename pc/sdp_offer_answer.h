@@ -80,7 +80,7 @@ namespace webrtc {
 // This class lives on the signaling thread.
 class SdpOfferAnswerHandler : public SdpStateProvider {
  public:
-  ~SdpOfferAnswerHandler();
+  ~SdpOfferAnswerHandler() override;
 
   // Creates an SdpOfferAnswerHandler. Modifies dependencies.
   static std::unique_ptr<SdpOfferAnswerHandler> Create(

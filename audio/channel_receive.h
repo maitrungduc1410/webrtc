@@ -94,7 +94,7 @@ class ChannelSendInterface;
 
 class ChannelReceiveInterface : public RtpPacketSinkInterface {
  public:
-  virtual ~ChannelReceiveInterface() = default;
+  ~ChannelReceiveInterface() override = default;
 
   virtual void SetSink(AudioSinkInterface* sink) = 0;
 

@@ -178,7 +178,7 @@ class AudioSendStream : public AudioSender {
     scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer;
   };
 
-  virtual ~AudioSendStream() = default;
+  ~AudioSendStream() override = default;
 
   virtual const webrtc::AudioSendStream::Config& GetConfig() const = 0;
 

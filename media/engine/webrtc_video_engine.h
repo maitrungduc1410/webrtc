@@ -666,7 +666,7 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
         bool default_stream,
         const std::vector<VideoCodecSettings>& recv_codecs,
         const FlexfecReceiveStream::Config& flexfec_config);
-    ~WebRtcVideoReceiveStream();
+    ~WebRtcVideoReceiveStream() override;
 
     VideoReceiveStreamInterface& stream();
     // Return value may be nullptr.

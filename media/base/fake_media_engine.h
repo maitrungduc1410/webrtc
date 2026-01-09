@@ -89,7 +89,7 @@ class RtpReceiveChannelHelper : public Base, public MediaChannelUtil {
         fail_set_recv_codecs_(false),
         transport_overhead_per_packet_(0),
         num_network_route_changes_(0) {}
-  virtual ~RtpReceiveChannelHelper() = default;
+  ~RtpReceiveChannelHelper() override = default;
   const std::vector<RtpExtension>& recv_extensions() {
     return recv_extensions_;
   }
@@ -247,7 +247,7 @@ class RtpSendChannelHelper : public Base, public MediaChannelUtil {
         ready_to_send_(false),
         transport_overhead_per_packet_(0),
         num_network_route_changes_(0) {}
-  virtual ~RtpSendChannelHelper() = default;
+  ~RtpSendChannelHelper() override = default;
   const std::vector<RtpExtension>& send_extensions() {
     return send_extensions_;
   }
@@ -490,7 +490,7 @@ class FakeVoiceMediaReceiveChannel
   };
   FakeVoiceMediaReceiveChannel(const AudioOptions& options,
                                TaskQueueBase* network_thread);
-  virtual ~FakeVoiceMediaReceiveChannel();
+  ~FakeVoiceMediaReceiveChannel() override;
 
   // Test methods
   const std::vector<Codec>& recv_codecs() const;
@@ -661,7 +661,7 @@ class FakeVideoMediaReceiveChannel
   FakeVideoMediaReceiveChannel(const VideoOptions& options,
                                TaskQueueBase* network_thread);
 
-  virtual ~FakeVideoMediaReceiveChannel();
+  ~FakeVideoMediaReceiveChannel() override;
 
   VideoMediaReceiveChannelInterface* AsVideoReceiveChannel() override {
     return this;
@@ -726,7 +726,7 @@ class FakeVideoMediaSendChannel
   FakeVideoMediaSendChannel(const VideoOptions& options,
                             TaskQueueBase* network_thread);
 
-  virtual ~FakeVideoMediaSendChannel();
+  ~FakeVideoMediaSendChannel() override;
 
   VideoMediaSendChannelInterface* AsVideoSendChannel() override { return this; }
   VoiceMediaSendChannelInterface* AsVoiceSendChannel() override {
@@ -828,9 +828,9 @@ class FakeVoiceEngine : public VoiceEngineInterface {
       // engine's "send_codecs/recv_codecs" and have them show up later.
       std::vector<AudioCodecSpec> specs;
       for (const auto& codec : owner_->send_codecs_) {
-        specs.push_back(
-            AudioCodecSpec{{codec.name, codec.clockrate, codec.channels},
-                           {codec.clockrate, codec.channels, codec.bitrate}});
+        specs.push_back(AudioCodecSpec{
+            .format = {codec.name, codec.clockrate, codec.channels},
+            .info = {codec.clockrate, codec.channels, codec.bitrate}});
       }
       return specs;
     }
@@ -855,9 +855,9 @@ class FakeVoiceEngine : public VoiceEngineInterface {
       // engine's "send_codecs/recv_codecs" and have them show up later.
       std::vector<AudioCodecSpec> specs;
       for (const auto& codec : owner_->recv_codecs_) {
-        specs.push_back(
-            AudioCodecSpec{{codec.name, codec.clockrate, codec.channels},
-                           {codec.clockrate, codec.channels, codec.bitrate}});
+        specs.push_back(AudioCodecSpec{
+            .format = {codec.name, codec.clockrate, codec.channels},
+            .info = {codec.clockrate, codec.channels, codec.bitrate}});
       }
       return specs;
     }

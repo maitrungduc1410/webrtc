@@ -315,7 +315,8 @@ std::vector<Resolution> GetStreamResolutions(
   std::vector<Resolution> res;
   for (const auto& s : streams) {
     if (s.active) {
-      res.push_back({checked_cast<int>(s.width), checked_cast<int>(s.height)});
+      res.push_back({.width = checked_cast<int>(s.width),
+                     .height = checked_cast<int>(s.height)});
     }
   }
   return res;
@@ -1002,7 +1003,7 @@ WebRtcVideoEngineTest::SetRecvParamsWithAllSupportedCodecs() {
 void WebRtcVideoEngineTest::ExpectRtpCapabilitySupport(const char* uri,
                                                        bool supported) const {
   const std::vector<RtpExtension> header_extensions =
-      GetDefaultEnabledRtpHeaderExtensions(*engine_.get(),
+      GetDefaultEnabledRtpHeaderExtensions(*engine_,
                                            /* field_trials= */ nullptr);
   if (supported) {
     EXPECT_THAT(header_extensions, Contains(Field(&RtpExtension::uri, uri)));

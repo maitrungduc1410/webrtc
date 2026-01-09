@@ -49,7 +49,7 @@ class RtpSenderEgress {
     NonPacedPacketSender(TaskQueueBase& worker_queue,
                          RtpSenderEgress* sender,
                          PacketSequencer* sequencer);
-    virtual ~NonPacedPacketSender();
+    ~NonPacedPacketSender() override;
 
     void EnqueuePackets(
         std::vector<std::unique_ptr<RtpPacketToSend>> packets) override;

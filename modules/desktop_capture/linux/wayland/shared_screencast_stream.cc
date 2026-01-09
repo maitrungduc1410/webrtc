@@ -31,7 +31,6 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -41,6 +40,7 @@
 #include <vector>
 
 #include "api/scoped_refptr.h"
+#include "media/base/video_common.h"
 #include "modules/desktop_capture/desktop_capture_types.h"
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "modules/desktop_capture/desktop_frame.h"
@@ -337,7 +337,7 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
                                : (1 << SPA_DATA_MemFd);
 
   uint8_t buffer[2048] = {};
-  auto builder = spa_pod_builder{buffer, sizeof(buffer)};
+  auto builder = spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
   std::vector<const spa_pod*> params;
   params.push_back(reinterpret_cast<spa_pod*>(spa_pod_builder_add_object(
       &builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers,

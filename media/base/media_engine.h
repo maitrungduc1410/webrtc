@@ -83,7 +83,7 @@ class RtpHeaderExtensionQueryInterface {
 class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
  public:
   VoiceEngineInterface() = default;
-  virtual ~VoiceEngineInterface() = default;
+  ~VoiceEngineInterface() override = default;
 
   VoiceEngineInterface(const VoiceEngineInterface&) = delete;
   VoiceEngineInterface& operator=(const VoiceEngineInterface&) = delete;
@@ -142,7 +142,7 @@ class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
 class VideoEngineInterface : public RtpHeaderExtensionQueryInterface {
  public:
   VideoEngineInterface() = default;
-  virtual ~VideoEngineInterface() = default;
+  ~VideoEngineInterface() override = default;
 
   VideoEngineInterface(const VideoEngineInterface&) = delete;
   VideoEngineInterface& operator=(const VideoEngineInterface&) = delete;

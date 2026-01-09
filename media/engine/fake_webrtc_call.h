@@ -207,7 +207,7 @@ class FakeVideoSendStream final : public VideoSendStream,
   int GetLastWidth() const;
   int GetLastHeight() const;
   int64_t GetLastTimestamp() const;
-  void SetStats(const VideoSendStream::Stats& stats);
+  void SetStats(const VideoSendStream::Stats& stats) override;
   void SetCsrcs(ArrayView<const uint32_t> csrcs) override;
   int num_encoder_reconfigurations() const {
     return num_encoder_reconfigurations_;
@@ -220,7 +220,7 @@ class FakeVideoSendStream final : public VideoSendStream,
   void InjectVideoSinkWants(const VideoSinkWants& wants);
 
   VideoSourceInterface<VideoFrame>* source() const { return source_; }
-  void GenerateKeyFrame(const std::vector<std::string>& rids);
+  void GenerateKeyFrame(const std::vector<std::string>& rids) override;
   const std::vector<std::string>& GetKeyFramesRequested() const {
     return keyframes_requested_by_rid_;
   }
@@ -291,7 +291,7 @@ class FakeVideoReceiveStream final : public VideoReceiveStreamInterface {
     config_.rtp.local_ssrc = local_ssrc;
   }
 
-  void UpdateRtxSsrc(uint32_t ssrc) { config_.rtp.rtx_ssrc = ssrc; }
+  void UpdateRtxSsrc(uint32_t ssrc) override { config_.rtp.rtx_ssrc = ssrc; }
 
   void SetFrameDecryptor(scoped_refptr<FrameDecryptorInterface>
                          /* frame_decryptor */) override {}
@@ -332,7 +332,8 @@ class FakeVideoReceiveStream final : public VideoReceiveStreamInterface {
     config_.rtp.rtcp_xr = rtcp_xr;
   }
 
-  void SetAssociatedPayloadTypes(std::map<int, int> associated_payload_types) {
+  void SetAssociatedPayloadTypes(
+      std::map<int, int> associated_payload_types) override {
     config_.rtp.rtx_associated_payload_types =
         std::move(associated_payload_types);
   }
@@ -435,8 +436,10 @@ class FakeCall final : public Call, public PacketReceiver {
       const BitrateSettings& /* preferences */) override {}
   void SetPreferredRtcpCcAckType(
       RtcpFeedbackType preferred_rtcp_cc_ack_type) override {}
-  std::optional<int> FeedbackAccordingToRfc8888Count() { return 0; }
-  std::optional<int> FeedbackAccordingToTransportCcCount() { return 0; }
+  std::optional<int> FeedbackAccordingToRfc8888Count() override { return 0; }
+  std::optional<int> FeedbackAccordingToTransportCcCount() override {
+    return 0;
+  }
 
  private:
   AudioSendStream* CreateAudioSendStream(

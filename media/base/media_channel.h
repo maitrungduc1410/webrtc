@@ -344,7 +344,7 @@ struct MediaSenderInfo {
     return retval;
   }
   // Returns true if the media has been connected.
-  bool connected() const { return local_stats.size() > 0; }
+  bool connected() const { return !local_stats.empty(); }
   // Utility accessor for clients that make the assumption only one ssrc
   // exists per media.
   // This will eventually go away.
@@ -410,7 +410,7 @@ struct MediaReceiverInfo {
     return retval;
   }
   // Returns true if the media has been connected.
-  bool connected() const { return local_stats.size() > 0; }
+  bool connected() const { return !local_stats.empty(); }
   // Utility accessor for clients that make the assumption only one ssrc
   // exists per media.
   // This will eventually go away.

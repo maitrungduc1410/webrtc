@@ -289,7 +289,7 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
     }
   }
 
-  ~WebRtcVoiceEngineTestFake() { engine_->Terminate(); }
+  ~WebRtcVoiceEngineTestFake() override { engine_->Terminate(); }
 
   bool SetupChannel() {
     send_channel_ = engine_->CreateSendChannel(env_, &call_, MediaConfig(),

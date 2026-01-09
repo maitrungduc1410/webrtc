@@ -74,7 +74,7 @@ class TimeDomainFeatureExtractor : public FeatureExtractor {
 class FrequencyDomainFeatureExtractor : public FeatureExtractor {
  public:
   explicit FrequencyDomainFeatureExtractor(int step_size);
-  ~FrequencyDomainFeatureExtractor();
+  ~FrequencyDomainFeatureExtractor() override;
 
   bool ReadyForInference() const override;
 

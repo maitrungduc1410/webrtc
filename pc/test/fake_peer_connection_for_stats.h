@@ -298,7 +298,7 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
         /*lna_permission_factory=*/nullptr, std::move(config));
   }
 
-  ~FakePeerConnectionForStats() {
+  ~FakePeerConnectionForStats() override {
     for (auto transceiver : transceivers_) {
       transceiver->internal()->ClearChannel();
     }
@@ -570,7 +570,9 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
       return nullptr;
     }
   }
-  PayloadTypePicker& payload_type_picker() { return payload_type_picker_; }
+  PayloadTypePicker& payload_type_picker() override {
+    return payload_type_picker_;
+  }
 
  private:
   TransportStats GetTransportStatsByName(const std::string& transport_name) {

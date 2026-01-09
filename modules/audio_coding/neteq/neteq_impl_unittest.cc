@@ -1077,10 +1077,18 @@ TEST_F(NetEqImplTest, CodecInternalCng) {
     AudioDecoder::SpeechType decoder_output_type;
   };
   std::vector<Packet> packets = {
-      {0, 0, AudioDecoder::kSpeech},
-      {1, kPayloadLengthSamples, AudioDecoder::kComfortNoise},
-      {2, 2 * kPayloadLengthSamples, AudioDecoder::kSpeech},
-      {1, kPayloadLengthSamples, AudioDecoder::kSpeech}};
+      {.sequence_number_delta = 0,
+       .timestamp_delta = 0,
+       .decoder_output_type = AudioDecoder::kSpeech},
+      {.sequence_number_delta = 1,
+       .timestamp_delta = kPayloadLengthSamples,
+       .decoder_output_type = AudioDecoder::kComfortNoise},
+      {.sequence_number_delta = 2,
+       .timestamp_delta = 2 * kPayloadLengthSamples,
+       .decoder_output_type = AudioDecoder::kSpeech},
+      {.sequence_number_delta = 1,
+       .timestamp_delta = kPayloadLengthSamples,
+       .decoder_output_type = AudioDecoder::kSpeech}};
 
   for (size_t i = 0; i < packets.size(); ++i) {
     rtp_header.sequenceNumber += packets[i].sequence_number_delta;

@@ -316,7 +316,7 @@ class LocalAudioSinkAdapter : public AudioTrackSinkInterface,
                               public AudioSource {
  public:
   LocalAudioSinkAdapter();
-  virtual ~LocalAudioSinkAdapter();
+  ~LocalAudioSinkAdapter() override;
 
  private:
   // AudioSinkInterface implementation.
@@ -366,7 +366,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
       LegacyStatsCollectorInterface* stats,
       SetStreamsObserver* set_streams_observer,
       MediaSendChannelInterface* media_channel);
-  virtual ~AudioRtpSender();
+  ~AudioRtpSender() override;
 
   // DtmfSenderProvider implementation.
   bool CanInsertDtmf() override;
@@ -435,7 +435,7 @@ class VideoRtpSender : public RtpSenderBase {
       absl::string_view id,
       SetStreamsObserver* set_streams_observer,
       MediaSendChannelInterface* media_channel);
-  virtual ~VideoRtpSender();
+  ~VideoRtpSender() override;
 
   // ObserverInterface implementation
   void OnChanged() override;

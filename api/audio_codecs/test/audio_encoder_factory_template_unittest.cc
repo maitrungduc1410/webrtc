@@ -106,7 +106,7 @@ struct BaseAudioEncoderApi {
   }
 
   static void AppendSupportedEncoders(std::vector<AudioCodecSpec>* specs) {
-    specs->push_back({AudioFormat(), CodecInfo()});
+    specs->push_back({.format = AudioFormat(), .info = CodecInfo()});
   }
 
   static AudioCodecInfo QueryAudioEncoder(const Config&) { return CodecInfo(); }
