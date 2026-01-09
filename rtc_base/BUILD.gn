@@ -137,6 +137,7 @@ rtc_library("bit_buffer") {
   ]
   deps = [
     ":checks",
+    "../api:array_view",
     "../api/units:data_size",
     "//third_party/abseil-cpp/absl/numeric:bits",
     "//third_party/abseil-cpp/absl/strings:string_view",
