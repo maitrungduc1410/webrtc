@@ -980,8 +980,11 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
       }
     }
   }
-  if (scale_resolution_down_to !=
-          video_source_sink_controller_.scale_resolution_down_to() ||
+
+  bool scale_down_to_changed =
+      scale_resolution_down_to !=
+      video_source_sink_controller_.scale_resolution_down_to();
+  if (scale_down_to_changed ||
       active != video_source_sink_controller_.active() ||
       max_framerate !=
           video_source_sink_controller_.frame_rate_upper_limit().value_or(-1)) {
@@ -994,10 +997,11 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
     }
     video_source_sink_controller_.SetActive(active);
     video_source_sink_controller_.PushSourceSinkSettings();
+    video_source_sink_controller_.RequestRefreshFrame();
   }
 
   encoder_queue_->PostTask([this, config = std::move(config),
-                            max_data_payload_length,
+                            max_data_payload_length, scale_down_to_changed,
                             callback = std::move(callback)]() mutable {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
     RTC_DCHECK(sink_);
@@ -1049,7 +1053,15 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
         encoder_configuration_callbacks_.push_back(std::move(callback));
       }
 
-      ReconfigureEncoder();
+      // Defer the reconfiguration if we know the source resolution is about to
+      // change. If only framerate changed, we should reconfigure immediately to
+      // apply settings, as no resolution mismatch will occur on the next frame.
+      if (!scale_down_to_changed) {
+        ReconfigureEncoder();
+      } else {
+        RTC_LOG(LS_INFO) << "Deferring reconfiguration until next frame due to "
+                            "pending resolution change.";
+      }
     } else {
       InvokeSetParametersCallback(callback, RTCError::OK());
     }
