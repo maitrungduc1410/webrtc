@@ -99,6 +99,7 @@ class MockModelRunner : public NeuralResidualEchoEstimatorImpl::ModelRunner {
   ArrayView<const float> GetOutput(ModelOutputEnum output_enum) override {
     switch (output_enum) {
       case ModelOutputEnum::kEchoMask:
+      case ModelOutputEnum::kUnboundedEchoMask:
         return ArrayView<const float>(output_echo_mask_.data(),
                                       constants_.frame_size_by_2_plus_1);
       case ModelOutputEnum::kModelState:
@@ -182,7 +183,8 @@ TEST_P(NeuralResidualEchoEstimatorImplTest,
     for (size_t j = 0; j < kBlockSize; ++j) {
       render_block.View(/*band=*/0, /*ch=*/0)[j] = x[j];
     }
-    estimator.Estimate(render_block, y, e, S2, Y2, E2, R2, R2_unbounded);
+    estimator.Estimate(render_block, y, e, S2, Y2, E2,
+                       /*dominant_nearend=*/false, R2, R2_unbounded);
   }
 
   // Check that old buffer content is shifted down properly.
@@ -256,7 +258,8 @@ TEST_P(NeuralResidualEchoEstimatorImplTest, OutputMaskIsApplied) {
     for (size_t j = 0; j < kBlockSize; ++j) {
       render_block.View(/*band=*/0, /*ch=*/0)[j] = x[j];
     }
-    estimator.Estimate(render_block, y, e, S2, Y2, E2, R2, R2_unbounded);
+    estimator.Estimate(render_block, y, e, S2, Y2, E2,
+                       /*dominant_nearend=*/false, R2, R2_unbounded);
   }
 
   // Check that the mocked output mask is applied.
@@ -315,7 +318,8 @@ TEST(NeuralResidualEchoEstimatorWithRealModelTest,
     for (size_t j = 0; j < kBlockSize; ++j) {
       render_block.View(/*band=*/0, /*ch=*/0)[j] = x[j];
     }
-    estimator.Estimate(render_block, y, e, S2, Y2, E2, R2, R2_unbounded);
+    estimator.Estimate(render_block, y, e, S2, Y2, E2,
+                       /*dominant_nearend=*/false, R2, R2_unbounded);
 
     // Check that the output is populated.
     for (int ch = 0; ch < kNumCaptureChannels; ++ch) {

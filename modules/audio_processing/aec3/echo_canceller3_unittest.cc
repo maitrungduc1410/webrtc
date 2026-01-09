@@ -1176,6 +1176,7 @@ TEST(EchoCanceller3, InjectedNeuralResidualEchoEstimatorIsUsed) {
                   ArrayView<const std::array<float, 65>> S2_linear,
                   ArrayView<const std::array<float, 65>> Y2,
                   ArrayView<const std::array<float, 65>> E2,
+                  bool dominant_nearend,
                   ArrayView<std::array<float, 65>> R2,
                   ArrayView<std::array<float, 65>> R2_unbounded) override {
       residual_echo_estimate_requested_ = true;
