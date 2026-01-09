@@ -250,11 +250,11 @@ class NetEq {
   virtual int RemovePayloadType(uint8_t rtp_payload_type) = 0;
 
   // Set the maximum number of packets to hold in the IO packet buffer.
-  virtual void SetMaximumBufferPackets(size_t max_packets) {}
+  virtual void SetMaximumBufferPackets(size_t max_packets) = 0;
 
   // Set if the FastAccelerate feature (accelerate based on arrival time) is
   // enabled.
-  virtual void SetFastAccelerate(bool enable) {}
+  virtual void SetFastAccelerate(bool enable) = 0;
 
   // Removes all payload types from the codec database.
   virtual void RemoveAllPayloadTypes() = 0;
