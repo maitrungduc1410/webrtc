@@ -729,6 +729,10 @@ RTCError UpdateSimulcastLayerStatusInSender(
     const std::vector<SimulcastLayer>& layers,
     scoped_refptr<RtpSenderInternal> sender) {
   RTC_DCHECK(sender);
+  // In practice simulcast is supported only for video. However, this can
+  // currently get called for non-video senders in tests.
+  // See the `external/wpt/webrtc/simulcast/negotiation-encodings.https.html`
+  // test in chromium.
   RtpParameters parameters = sender->GetParametersInternalWithAllLayers();
   std::vector<std::string> disabled_layers;
 
