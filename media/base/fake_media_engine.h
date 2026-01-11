@@ -606,6 +606,7 @@ class FakeVoiceMediaSendChannel
 
   bool CanInsertDtmf() override;
   bool InsertDtmf(uint32_t ssrc, int event_code, int duration) override;
+  bool SetOptions(const AudioOptions& options) override;
 
   bool SenderNackEnabled() const override { return false; }
   bool SenderNonSenderRttEnabled() const override { return false; }
@@ -637,7 +638,6 @@ class FakeVoiceMediaSendChannel
 
   bool SetSendCodecs(const std::vector<Codec>& codecs);
   bool SetMaxSendBandwidth(int bps);
-  bool SetOptions(const AudioOptions& options);
   bool SetLocalSource(uint32_t ssrc, AudioSource* source);
 
   std::vector<Codec> send_codecs_;

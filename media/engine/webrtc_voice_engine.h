@@ -250,6 +250,7 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
                              const NetworkRoute& network_route) override;
   void OnReadyToSend(bool ready) override;
   bool GetStats(VoiceMediaSendInfo* info) override;
+  bool SetOptions(const AudioOptions& options) override;
 
   // Sets a frame transformer between encoder and packetizer, to transform
   // encoded frames before sending them out the network.
@@ -262,7 +263,6 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   bool SendCodecHasNack() const override { return SenderNackEnabled(); }
 
  private:
-  bool SetOptions(const AudioOptions& options);
   bool SetSendCodecs(const std::vector<Codec>& codecs,
                      std::optional<Codec> preferred_codec);
   bool SetLocalSource(uint32_t ssrc, AudioSource* source);
