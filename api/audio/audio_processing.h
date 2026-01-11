@@ -156,7 +156,7 @@ class RTC_EXPORT AudioProcessing : public RefCountInterface {
       // needed).
       DownmixMethod capture_downmix_method = DownmixMethod::kAverageChannels;
       DownmixMethod capture_downmix_method_stereo_aec =
-          DownmixMethod::kAverageChannels;
+          DownmixMethod::kAdaptive;
     } pipeline;
 
     // Enabled the pre-amplifier. It amplifies the capture signal
