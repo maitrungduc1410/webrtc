@@ -14,10 +14,13 @@ rtc_library("stereo_remixer") {
   sources = [
     "audio_content_analyzer.cc",
     "audio_content_analyzer.h",
+    "channel_content_remixer.h",
     "dc_levels_estimator.cc",
     "dc_levels_estimator.h",
     "energy_estimator.cc",
     "energy_estimator.h",
+    "remixing_logic.cc",
+    "remixing_logic.h",
     "saturation_estimator.cc",
     "saturation_estimator.h",
   ]
@@ -37,6 +40,7 @@ rtc_library("capture_mixer_unittests") {
     "audio_content_analyzer_unittest.cc",
     "dc_levels_estimator_unittest.cc",
     "energy_estimator_unittest.cc",
+    "remixing_logic_unittest.cc",
     "saturation_estimator_unittest.cc",
   ]
   deps = [
