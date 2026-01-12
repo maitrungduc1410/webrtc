@@ -10,7 +10,6 @@
 
 #include "modules/audio_processing/audio_buffer.h"
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -53,11 +52,13 @@ AudioBuffer::AudioBuffer(size_t input_rate,
                   buffer_num_channels,
                   output_rate) {}
 
-AudioBuffer::AudioBuffer(size_t input_rate,
-                         size_t input_num_channels,
-                         size_t buffer_rate,
-                         size_t buffer_num_channels,
-                         size_t output_rate)
+AudioBuffer::AudioBuffer(
+    size_t input_rate,
+    size_t input_num_channels,
+    size_t buffer_rate,
+    size_t buffer_num_channels,
+    size_t output_rate,
+    AudioProcessing::Config::Pipeline::DownmixMethod downmix_method)
     : input_num_frames_(static_cast<int>(input_rate) / 100),
       input_num_channels_(input_num_channels),
       buffer_num_frames_(static_cast<int>(buffer_rate) / 100),
@@ -67,14 +68,19 @@ AudioBuffer::AudioBuffer(size_t input_rate,
       num_channels_(buffer_num_channels),
       num_bands_(NumBandsFromFramesPerChannel(buffer_num_frames_)),
       num_split_frames_(CheckedDivExact(buffer_num_frames_, num_bands_)),
-      data_(
-          new ChannelBuffer<float>(buffer_num_frames_, buffer_num_channels_)) {
+      data_(new ChannelBuffer<float>(buffer_num_frames_, buffer_num_channels_)),
+      downmix_by_averaging_(
+          downmix_method ==
+          AudioProcessing::Config::Pipeline::DownmixMethod::kAverageChannels),
+      channel_for_downmixing_() {
   RTC_DCHECK_GT(input_num_frames_, 0);
   RTC_DCHECK_GT(buffer_num_frames_, 0);
   RTC_DCHECK_GT(output_num_frames_, 0);
   RTC_DCHECK_GT(input_num_channels_, 0);
   RTC_DCHECK_GT(buffer_num_channels_, 0);
   RTC_DCHECK_LE(buffer_num_channels_, input_num_channels_);
+  RTC_DCHECK(downmix_by_averaging_ ||
+             input_num_channels_ > channel_for_downmixing_);
 
   const bool input_resampling_needed = input_num_frames_ != buffer_num_frames_;
   const bool output_resampling_needed =
@@ -102,16 +108,6 @@ AudioBuffer::AudioBuffer(size_t input_rate,
 }
 
 AudioBuffer::~AudioBuffer() {}
-
-void AudioBuffer::set_downmixing_to_specific_channel(size_t channel) {
-  downmix_by_averaging_ = false;
-  RTC_DCHECK_GT(input_num_channels_, channel);
-  channel_for_downmixing_ = std::min(channel, input_num_channels_ - 1);
-}
-
-void AudioBuffer::set_downmixing_by_averaging() {
-  downmix_by_averaging_ = true;
-}
 
 void AudioBuffer::CopyFrom(const float* const* stacked_data,
                            const StreamConfig& stream_config) {

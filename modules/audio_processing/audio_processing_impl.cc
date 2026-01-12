@@ -321,19 +321,6 @@ int HandleUnsupportedAudioFormats(const float* const* src,
   return error_code;
 }
 
-using DownmixMethod = AudioProcessing::Config::Pipeline::DownmixMethod;
-
-void SetDownmixMethod(AudioBuffer& buffer, DownmixMethod method) {
-  switch (method) {
-    case DownmixMethod::kAverageChannels:
-      buffer.set_downmixing_by_averaging();
-      break;
-    case DownmixMethod::kUseFirstChannel:
-      buffer.set_downmixing_to_specific_channel(/*channel=*/0);
-      break;
-  }
-}
-
 bool NeedEchoController(const AudioProcessing::Config& config,
                         bool has_echo_control_factory) {
   // For legacy reasons, having an echo control factory overrides the config.
@@ -590,10 +577,7 @@ void AudioProcessingImpl::InitializeLocked() {
       capture_nonlocked_.capture_processing_format.sample_rate_hz(),
       formats_.api_format.output_stream().num_channels(),
       formats_.api_format.output_stream().sample_rate_hz(),
-      formats_.api_format.output_stream().num_channels()));
-  SetDownmixMethod(*capture_.capture_audio,
-                   config_.pipeline.capture_downmix_method);
-
+      config_.pipeline.capture_downmix_method));
   if (capture_nonlocked_.capture_processing_format.sample_rate_hz() <
           formats_.api_format.output_stream().sample_rate_hz() &&
       formats_.api_format.output_stream().sample_rate_hz() == 48000) {
@@ -603,9 +587,7 @@ void AudioProcessingImpl::InitializeLocked() {
                         formats_.api_format.output_stream().sample_rate_hz(),
                         formats_.api_format.output_stream().num_channels(),
                         formats_.api_format.output_stream().sample_rate_hz(),
-                        formats_.api_format.output_stream().num_channels()));
-    SetDownmixMethod(*capture_.capture_fullband_audio,
-                     config_.pipeline.capture_downmix_method);
+                        config_.pipeline.capture_downmix_method));
   } else {
     capture_.capture_fullband_audio.reset();
   }

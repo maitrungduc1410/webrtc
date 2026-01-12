@@ -45,22 +45,19 @@ class AudioBuffer {
               size_t output_rate,
               size_t output_num_channels);
 
-  AudioBuffer(size_t input_rate,
-              size_t input_num_channels,
-              size_t buffer_rate,
-              size_t buffer_num_channels,
-              size_t output_rate);
+  AudioBuffer(
+      size_t input_rate,
+      size_t input_num_channels,
+      size_t buffer_rate,
+      size_t buffer_num_channels,
+      size_t output_rate,
+      AudioProcessing::Config::Pipeline::DownmixMethod downmix_method =
+          AudioProcessing::Config::Pipeline::DownmixMethod::kAverageChannels);
 
   virtual ~AudioBuffer();
 
   AudioBuffer(const AudioBuffer&) = delete;
   AudioBuffer& operator=(const AudioBuffer&) = delete;
-
-  // Specify that downmixing should be done by selecting a single channel.
-  void set_downmixing_to_specific_channel(size_t channel);
-
-  // Specify that downmixing should be done by averaging all channels,.
-  void set_downmixing_by_averaging();
 
   // Set the number of channels in the buffer. The specified number of channels
   // cannot be larger than the specified buffer_num_channels. The number is also
