@@ -980,8 +980,11 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
       }
     }
   }
-  if (scale_resolution_down_to !=
-          video_source_sink_controller_.scale_resolution_down_to() ||
+
+  bool scale_down_to_changed =
+      scale_resolution_down_to !=
+      video_source_sink_controller_.scale_resolution_down_to();
+  if (scale_down_to_changed ||
       active != video_source_sink_controller_.active() ||
       max_framerate !=
           video_source_sink_controller_.frame_rate_upper_limit().value_or(-1)) {
@@ -994,6 +997,7 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
     }
     video_source_sink_controller_.SetActive(active);
     video_source_sink_controller_.PushSourceSinkSettings();
+    video_source_sink_controller_.RequestRefreshFrame();
   }
 
   encoder_queue_->PostTask([this, config = std::move(config),
