@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '0e3a041724bc79ab2f99d57e2716056d492014d4',
+  'chromium_revision': '3597135a8f1b4fc02aecbf2f62ec60b5087ae44c',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@d52803852e6286721f846f3d0165e4925560d1a9',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@4022251023c7d377fd270e555d4569f179a308a4',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@3052f51ada5e06b1ce10dbe07b77f5a7cc282401',
+    'https://chromium.googlesource.com/chromium/src/testing@638dac5e71bb24a2cb9905205dac34774da331f2',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@cf00990cb15f926963b57f439f8cb42854879daf',
+    'https://chromium.googlesource.com/chromium/src/third_party@9b1640370198a071cd9c71c1bad3648a00dd2c00',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -337,7 +337,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8f11bb1d4438d0239d0dfc1bd9456a9f31629dda',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@259b6a7101beea301d6dfb96445f03f7d2e13754',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@e9f0fd9932428fc109b848892050daadc2d91cc9',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@a726f5347e1e423d59f5c2d434b6a29265c43051',
 
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@011f561226beab23106405d3a62d3de6f061dfee',
+    'https://boringssl.googlesource.com/boringssl.git@13526b337f4d30d6303d9f51825c61519a2b1af1',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@bcf7b6f1596e52a8ff0bbd0c9e32a321380b3954',
   'src/third_party/catapult':
@@ -505,13 +505,13 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@e50bb42b1a1dab196c7bd93ead39851b1499229d',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@fb0b652edba70f5c4ac867f3beca9e535f905b4c',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@fd8d327732d4c4a3ef831f4de49635e9528cb73e',
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@77e7a2cb7fc931967dd9ca9e36b818d4d6869f0c',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@cd7f33321065a632fb22be3a26093b98691b82cf',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@a64d73a3b73d585221b6b27e7c8d7a961fe63d8a',
+    'https://chromium.googlesource.com/chromium/src/tools@5497b8611e84cb46e8d3a01a77bf907093cde9fc',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'WLWA4dir1xBHuGFp9O4u6Cdw7OfkjV7dMwvzfe1YwiwC',
+          'version': 'bo9o6xqxT5PzuuVeE3IQampSOl4-K9LhBy7s_ekEu94C',
       },
     ],
     'condition': 'checkout_android and non_git_source',
