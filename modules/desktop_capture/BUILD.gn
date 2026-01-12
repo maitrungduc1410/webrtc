@@ -204,6 +204,7 @@ if (rtc_include_tests) {
       }
       deps += [
         ":desktop_capture_mock",
+        "../../api:make_ref_counted",
         "../../system_wrappers:metrics",
       ]
       public_configs = [ ":x11_config" ]
