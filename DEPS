@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '3597135a8f1b4fc02aecbf2f62ec60b5087ae44c',
+  'chromium_revision': '86cd6c0b05db1dcde3a25d7a9f9a87003fc5bf73',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@d747365c051153cc89f25e6adc95538aabcdd319',
+    'https://chromium.googlesource.com/chromium/src/build@75489df9cb57087efa5ef49f5ceb2f29ce302632',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@4dc32b3f510b330137385e2b3a631ca8e13a8e22',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@4022251023c7d377fd270e555d4569f179a308a4',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@b4ba4e6585ff9c478d1f3276b096ca269dc47589',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@638dac5e71bb24a2cb9905205dac34774da331f2',
+    'https://chromium.googlesource.com/chromium/src/testing@abe0cb4162303126aa88fb7e54d27198f6f04f2c',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@9b1640370198a071cd9c71c1bad3648a00dd2c00',
+    'https://chromium.googlesource.com/chromium/src/third_party@ae7dba2f6ba96a03becead08e8ed53c88691dce1',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@13526b337f4d30d6303d9f51825c61519a2b1af1',
+    'https://boringssl.googlesource.com/boringssl.git@41b290f319b3f6f7cc8a44c47f29b8dd27ce21c0',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@bcf7b6f1596e52a8ff0bbd0c9e32a321380b3954',
   'src/third_party/catapult':
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@cd7f33321065a632fb22be3a26093b98691b82cf',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@ae8671efbd172bf80b8279903619b658ffd2486e',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -519,7 +519,7 @@ deps = {
       'condition': 'checkout_linux',
   },
   'src/third_party/freetype/src':
-    'https://chromium.googlesource.com/chromium/src/third_party/freetype2.git@b91f75bd02db43b06d634591eb286d3eb0ce3b65',
+    'https://chromium.googlesource.com/chromium/src/third_party/freetype2.git@341049a95bacfc5debf6c9daf537b7acec27f3dd',
   'src/third_party/harfbuzz-ng/src':
     'https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git@fa2908bf16d2ccd6623f4d575455fea72a1a722b',
   'src/third_party/google_benchmark/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@5497b8611e84cb46e8d3a01a77bf907093cde9fc',
+    'https://chromium.googlesource.com/chromium/src/tools@88162e4e0e83c5dd6bf391dac5fb0afa59be6960',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'bo9o6xqxT5PzuuVeE3IQampSOl4-K9LhBy7s_ekEu94C',
+          'version': 'WX3ELG4TgH2nEIDT11VHoWCYzpSsS-BVAZwPnNs34AUC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
