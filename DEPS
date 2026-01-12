@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '76b0415649e27971ae67f72dd33f6e91ccfb2551',
+  'chromium_revision': '0e3a041724bc79ab2f99d57e2716056d492014d4',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@cb314ee0d8bdd1f5b4a0a6c1d0b8116defd27226',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@d52803852e6286721f846f3d0165e4925560d1a9',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@3052f51ada5e06b1ce10dbe07b77f5a7cc282401',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@6c42a263d0c04eec69e4aaae70aaae6a9862fc1d',
+    'https://chromium.googlesource.com/chromium/src/third_party@cf00990cb15f926963b57f439f8cb42854879daf',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -505,13 +505,13 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@7c837b993aba7a5efbd5ca6f00271f2df7d1e495',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@e50bb42b1a1dab196c7bd93ead39851b1499229d',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@fd8d327732d4c4a3ef831f4de49635e9528cb73e',
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@e26388c56d6c43df38dc7499a851b13de9d54892',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@77e7a2cb7fc931967dd9ca9e36b818d4d6869f0c',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@5f898c0812388e2b1a39eab51e1d9094225afd1f',
+    'https://chromium.googlesource.com/chromium/src/tools@a64d73a3b73d585221b6b27e7c8d7a961fe63d8a',
 
   'src/third_party/espresso': {
       'packages': [
