@@ -33,7 +33,10 @@ namespace webrtc {
 LogScreamSimulation::LogScreamSimulation(const Config& config,
                                          const Environment& env)
 
-    : env_(env), send_rate_tracker_(config.rate_window) {}
+    : env_(env), send_rate_tracker_(config.rate_window) {
+  // Scream is recreated if candidates change.
+  scream_.emplace(env_);
+}
 
 void LogScreamSimulation::ProcessUntil(Timestamp to_time) {
   current_time_ = to_time;
