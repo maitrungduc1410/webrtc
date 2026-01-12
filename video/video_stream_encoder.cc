@@ -1416,7 +1416,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
         frame_instrumentation_generator_ =
             FrameInstrumentationGeneratorFactory::Create(
                 env_, encoder_config_.codec_type,
-                send_codec_.GetScalabilityMode());
+                GetScalabilityModeFromVideoCodec(send_codec_));
       }
     }
 

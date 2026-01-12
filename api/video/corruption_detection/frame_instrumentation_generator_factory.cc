@@ -23,7 +23,9 @@ namespace webrtc {
 
 std::unique_ptr<FrameInstrumentationGenerator>
 FrameInstrumentationGeneratorFactory::Create(VideoCodecType video_codec_type) {
-  return std::make_unique<FrameInstrumentationGeneratorImpl>(video_codec_type);
+  return std::make_unique<FrameInstrumentationGeneratorImpl>(
+      /*environment=*/nullptr, video_codec_type,
+      /*scalability_mode=*/std::nullopt);
 }
 
 std::unique_ptr<FrameInstrumentationGenerator>
@@ -31,9 +33,8 @@ FrameInstrumentationGeneratorFactory::Create(
     const Environment& environment,
     VideoCodecType video_codec_type,
     std::optional<ScalabilityMode> scalability_mode) {
-  // TODO: bugs.webrtc.org/358039777 - Update FrameInstrumentationGeneratorImpl
-  // to use the environment and scalability mode.
-  return std::make_unique<FrameInstrumentationGeneratorImpl>(video_codec_type);
+  return std::make_unique<FrameInstrumentationGeneratorImpl>(
+      &environment, video_codec_type, scalability_mode);
 }
 
 }  // namespace webrtc
