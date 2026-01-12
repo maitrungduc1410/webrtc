@@ -222,6 +222,9 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   RTCError SetRtpSendParameters(uint32_t ssrc,
                                 const RtpParameters& parameters,
                                 SetParametersCallback callback) override;
+  void SetOnRtpSendParametersChanged(
+      absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+          callback) override;
 
   void SetSend(bool send) override;
   bool SetAudioSend(uint32_t ssrc,
@@ -312,6 +315,8 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   // Callback invoked whenever the list of SSRCs changes.
   absl::AnyInvocable<void(const std::set<uint32_t>&)>
       ssrc_list_changed_callback_ RTC_GUARDED_BY(worker_thread_);
+  absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+      on_rtp_send_parameters_changed_callback_ RTC_GUARDED_BY(worker_thread_);
 };
 
 class WebRtcVoiceReceiveChannel final

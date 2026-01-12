@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/functional/bind_front.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
@@ -1112,7 +1113,9 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
   if (!send_streams_.empty()) {
     // Since we do not support mixed-codec simulcast yet,
     // all send streams must have the same codec value.
-    auto rtp_parameters = send_streams_.begin()->second->GetRtpParameters();
+    auto [ssrc, send_stream] = *send_streams_.begin();
+    bool needs_update = false;
+    auto rtp_parameters = send_stream->GetRtpParameters();
     if (rtp_parameters.encodings[0].codec) {
       auto matched_codec =
           absl::c_find_if(negotiated_codecs, [&](auto negotiated_codec) {
@@ -1125,10 +1128,20 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
         // The requested codec has been negotiated away, we clear it from the
         // parameters.
         for (auto& encoding : rtp_parameters.encodings) {
-          encoding.codec.reset();
+          if (encoding.codec.has_value()) {
+            needs_update = true;
+            encoding.codec.reset();
+          }
         }
-        send_streams_.begin()->second->SetRtpParameters(rtp_parameters,
-                                                        nullptr);
+        if (needs_update) {
+          RTCError error =
+              send_stream->SetRtpParameters(rtp_parameters, nullptr);
+          if (error.ok() && on_rtp_send_parameters_changed_callback_) {
+            on_rtp_send_parameters_changed_callback_(ssrc, rtp_parameters);
+          }
+        } else {
+          RTC_DCHECK(rtp_parameters == send_stream->GetRtpParameters());
+        }
       }
     }
   }
@@ -1148,7 +1161,8 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
   std::vector<VideoCodecSettings> send_codecs;
   if (!send_streams_.empty() && !negotiated_codecs.empty()) {
     bool needs_update = false;
-    auto rtp_parameters = send_streams_.begin()->second->GetRtpParameters();
+    auto [ssrc, send_stream] = *send_streams_.begin();
+    auto rtp_parameters = send_stream->GetRtpParameters();
     for (auto& encoding : rtp_parameters.encodings) {
       if (encoding.codec) {
         auto matched_codec =
@@ -1170,7 +1184,11 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
     }
 
     if (needs_update) {
-      send_streams_.begin()->second->SetRtpParameters(rtp_parameters, nullptr);
+      RTC_DCHECK(send_stream->GetRtpParameters() != rtp_parameters);
+      RTCError error = send_stream->SetRtpParameters(rtp_parameters, nullptr);
+      if (error.ok() && on_rtp_send_parameters_changed_callback_) {
+        on_rtp_send_parameters_changed_callback_(ssrc, rtp_parameters);
+      }
     }
   }
 
@@ -1440,7 +1458,7 @@ RTCError WebRtcVideoSendChannel::SetRtpSendParameters(
 
   // TODO(deadbeef): Handle setting parameters with a list of codecs in a
   // different order (which should change the send codec).
-  RtpParameters current_parameters = GetRtpSendParameters(ssrc);
+  const RtpParameters current_parameters = GetRtpSendParameters(ssrc);
   if (current_parameters.codecs != parameters.codecs) {
     RTC_DLOG(LS_ERROR) << "Using SetParameters to change the set of codecs "
                           "is not currently supported.";
@@ -1493,7 +1511,21 @@ RTCError WebRtcVideoSendChannel::SetRtpSendParameters(
     SetPreferredDscp(new_dscp);
   }
 
-  return it->second->SetRtpParameters(parameters, std::move(callback));
+  bool changed = (parameters != current_parameters);
+  RTCError error =
+      it->second->SetRtpParameters(parameters, std::move(callback));
+  if (changed && error.ok() && on_rtp_send_parameters_changed_callback_) {
+    on_rtp_send_parameters_changed_callback_(ssrc, parameters);
+  }
+  return error;
+}
+
+void WebRtcVideoSendChannel::SetOnRtpSendParametersChanged(
+    absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+        callback) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  RTC_DCHECK(!on_rtp_send_parameters_changed_callback_);
+  on_rtp_send_parameters_changed_callback_ = std::move(callback);
 }
 std::optional<Codec> WebRtcVideoSendChannel::GetSendCodec() const {
   RTC_DCHECK_RUN_ON(&thread_checker_);

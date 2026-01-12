@@ -349,10 +349,14 @@ class RtpSendChannelHelper : public Base, public MediaChannelUtil {
       if (!result.ok()) {
         return InvokeSetParametersCallback(callback, result);
       }
-
+      bool changed = (parameters_iterator->second != parameters);
       parameters_iterator->second = parameters;
-
-      return InvokeSetParametersCallback(callback, RTCError::OK());
+      // Invoke the callback if set.
+      if (changed && on_rtp_send_parameters_changed_callback_) {
+        on_rtp_send_parameters_changed_callback_(ssrc, parameters);
+      }
+      InvokeSetParametersCallback(callback, RTCError::OK());
+      return RTCError::OK();
     }
     // Replicate the behavior of the real media channel: return false
     // when setting parameters for unknown SSRCs.
@@ -405,6 +409,13 @@ class RtpSendChannelHelper : public Base, public MediaChannelUtil {
   }
 
   // Stuff that deals with encryptors, transformers and the like
+  void SetOnRtpSendParametersChanged(
+      absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+          callback) override {
+    RTC_DCHECK(!on_rtp_send_parameters_changed_callback_);
+    on_rtp_send_parameters_changed_callback_ = std::move(callback);
+  }
+
   void SetFrameEncryptor(uint32_t /* ssrc */,
                          scoped_refptr<FrameEncryptorInterface>
                          /* frame_encryptor */) override {}
@@ -477,6 +488,8 @@ class RtpSendChannelHelper : public Base, public MediaChannelUtil {
   MediaChannelNetworkInterface* network_interface_ = nullptr;
   absl::AnyInvocable<void(const std::set<uint32_t>&)>
       ssrc_list_changed_callback_ = nullptr;
+  absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+      on_rtp_send_parameters_changed_callback_;
 };
 
 class FakeVoiceMediaReceiveChannel

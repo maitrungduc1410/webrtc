@@ -786,6 +786,40 @@ TEST_F(WebRtcVideoEngineTest, UseFactoryForVp8WhenSupported) {
   EXPECT_EQ(0u, encoder_factory_->encoders().size());
 }
 
+TEST_F(WebRtcVideoEngineTest, OnRtpSendParametersChangedCallback) {
+  AddSupportedVideoCodecType("VP8");
+  auto send_channel = SetSendParamsWithAllSupportedCodecs();
+  EXPECT_TRUE(send_channel->AddSendStream(StreamParams::CreateLegacy(kSsrc)));
+
+  std::optional<uint32_t> callback_ssrc;
+  RtpParameters callback_params;
+  int callback_count = 0;
+  send_channel->SetOnRtpSendParametersChanged(
+      [&](std::optional<uint32_t> ssrc, const RtpParameters& params) {
+        callback_ssrc = ssrc;
+        callback_params = params;
+        ++callback_count;
+      });
+
+  RtpParameters parameters = send_channel->GetRtpSendParameters(kSsrc);
+  EXPECT_EQ(callback_count, 0);
+
+  // Change parameters.
+  parameters.encodings[0].max_bitrate_bps = 500000;
+  EXPECT_TRUE(send_channel->SetRtpSendParameters(kSsrc, parameters).ok());
+
+  EXPECT_EQ(callback_count, 1);
+  EXPECT_EQ(callback_ssrc, kSsrc);
+  EXPECT_EQ(callback_params.encodings[0].max_bitrate_bps, 500000);
+
+  // Now set the parameters again. This time we're setting them to the same
+  // value as they were already set to. That should not result in the
+  // callback being issued.
+  EXPECT_TRUE(send_channel->SetRtpSendParameters(kSsrc, parameters).ok());
+  // No additional callback should have been issued.
+  EXPECT_EQ(callback_count, 1);
+}
+
 // Test that when an encoder factory supports H264, we add an RTX
 // codec for it.
 // TODO(deadbeef): This test should be updated if/when we start

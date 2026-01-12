@@ -198,6 +198,9 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   RTCError SetRtpSendParameters(uint32_t ssrc,
                                 const RtpParameters& parameters,
                                 SetParametersCallback callback) override;
+  void SetOnRtpSendParametersChanged(
+      absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+          callback) override;
   RtpParameters GetRtpSendParameters(uint32_t ssrc) const override;
   std::optional<Codec> GetSendCodec() const override;
   bool SetSend(bool send) override;
@@ -469,6 +472,10 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   int default_recv_base_minimum_delay_ms_ RTC_GUARDED_BY(thread_checker_) = 0;
 
   const MediaConfig::Video video_config_ RTC_GUARDED_BY(thread_checker_);
+
+  mutable absl::AnyInvocable<void(std::optional<uint32_t>,
+                                  const RtpParameters&)>
+      on_rtp_send_parameters_changed_callback_ RTC_GUARDED_BY(thread_checker_);
 
   // Using primary-ssrc (first ssrc) as key.
   std::map<uint32_t, WebRtcVideoSendStream*> send_streams_

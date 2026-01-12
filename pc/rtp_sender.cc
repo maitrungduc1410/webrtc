@@ -239,7 +239,20 @@ RtpParameters RtpSenderBase::GetParametersInternalWithAllLayers() const {
 
 RtpParameters RtpSenderBase::GetParameters() const {
   RTC_DCHECK_RUN_ON(signaling_thread_);
+  // TODO(tommi): Here, we can use `last_transaction_id_` to allow for
+  // multiple GetParameters() calls in a row return cached parameters
+  // (we could still generate a new transaction_id every time). Since
+  // `last_transaction_id_` will be reset whenever the parameters change, we
+  // could reliably cache the currently active parameters and whenever
+  // `last_transaction_id_` has been reset, only then take the penalty of
+  // refreshing the cached value (or even rely on the `changed` callback to
+  // refresh the cached parameters). Alternatively, we could maintain such a
+  // cache only at the GetParametersInternal() level that's used internally in
+  // webrtc, e.g. for stats purposes, and use the cache only when
+  // GetParametersInternal() is called directly and not via GetParameters().
   RtpParameters result = GetParametersInternal();
+  // Start a new transaction. `last_transaction_id_` will be reset whenever
+  // the parameters change.
   last_transaction_id_ = CreateRandomUuid();
   result.transaction_id = last_transaction_id_.value();
   return result;

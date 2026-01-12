@@ -1336,7 +1336,9 @@ bool WebRtcVoiceSendChannel::SetSenderParameters(
     // Since audio simulcast is not supported, currently, only PlanB
     // has multiple tracks and we don't care about getting the
     // functionality working there properly.
-    auto rtp_parameters = send_streams_.begin()->second->rtp_parameters();
+    auto [ssrc, send_stream] = *send_streams_.begin();
+    bool needs_update = false;
+    auto rtp_parameters = send_stream->rtp_parameters();
     if (rtp_parameters.encodings[0].codec) {
       auto matched_codec =
           absl::c_find_if(params.codecs, [&](auto negotiated_codec) {
@@ -1349,10 +1351,20 @@ bool WebRtcVoiceSendChannel::SetSenderParameters(
         // The requested codec has been negotiated away, we clear it from the
         // parameters.
         for (auto& encoding : rtp_parameters.encodings) {
-          encoding.codec.reset();
+          if (encoding.codec.has_value()) {
+            needs_update = true;
+            encoding.codec.reset();
+          }
         }
-        send_streams_.begin()->second->SetRtpParameters(rtp_parameters,
-                                                        nullptr);
+        if (needs_update) {
+          RTCError error =
+              send_stream->SetRtpParameters(rtp_parameters, nullptr);
+          if (error.ok() && on_rtp_send_parameters_changed_callback_) {
+            on_rtp_send_parameters_changed_callback_(ssrc, rtp_parameters);
+          }
+        } else {
+          RTC_DCHECK(rtp_parameters == send_stream->rtp_parameters());
+        }
       }
     }
   }
@@ -1670,7 +1682,16 @@ bool WebRtcVoiceSendChannel::RemoveSendStream(uint32_t ssrc) {
 void WebRtcVoiceSendChannel::SetSsrcListChangedCallback(
     absl::AnyInvocable<void(const std::set<uint32_t>&)> callback) {
   RTC_DCHECK_RUN_ON(worker_thread_);
+  RTC_DCHECK(!ssrc_list_changed_callback_);
   ssrc_list_changed_callback_ = std::move(callback);
+}
+
+void WebRtcVoiceSendChannel::SetOnRtpSendParametersChanged(
+    absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
+        callback) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  RTC_DCHECK(!on_rtp_send_parameters_changed_callback_);
+  on_rtp_send_parameters_changed_callback_ = std::move(callback);
 }
 
 bool WebRtcVoiceSendChannel::SetLocalSource(uint32_t ssrc,
@@ -2004,7 +2025,12 @@ RTCError WebRtcVoiceSendChannel::SetRtpSendParameters(
   // Codecs are handled at the WebRtcVoiceMediaChannel level.
   RtpParameters reduced_params = parameters;
   reduced_params.codecs.clear();
-  return it->second->SetRtpParameters(reduced_params, std::move(callback));
+  RTCError error =
+      it->second->SetRtpParameters(reduced_params, std::move(callback));
+  if (error.ok() && on_rtp_send_parameters_changed_callback_) {
+    on_rtp_send_parameters_changed_callback_(ssrc, parameters);
+  }
+  return error;
 }
 
 // -------------------------- WebRtcVoiceReceiveChannel ----------------------
