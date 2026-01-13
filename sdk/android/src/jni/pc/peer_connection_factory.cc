@@ -33,7 +33,6 @@
 #include "api/enable_media.h"
 #include "api/environment/deprecated_global_field_trials.h"
 #include "api/environment/environment.h"
-#include "api/environment/environment_factory.h"
 #include "api/fec_controller.h"
 #include "api/media_stream_interface.h"
 #include "api/neteq/neteq_factory.h"
@@ -523,10 +522,9 @@ static jlong JNI_PeerConnectionFactory_CreateVideoSource(
     jboolean align_timestamps) {
   OwnedFactoryAndThreads* factory =
       reinterpret_cast<OwnedFactoryAndThreads*>(native_factory);
-  // TODO(danilchap): use the same `Environment` `factory->factory()` uses.
-  return NativeToJavaPointer(
-      CreateVideoSource(jni, CreateEnvironment(), factory->signaling_thread(),
-                        is_screencast, align_timestamps));
+  return jlongFromPointer(CreateVideoSource(jni, factory->signaling_thread(),
+                                            factory->worker_thread(),
+                                            is_screencast, align_timestamps));
 }
 
 static jlong JNI_PeerConnectionFactory_CreateVideoTrack(
