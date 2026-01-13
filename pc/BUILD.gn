@@ -131,6 +131,7 @@ rtc_library("dtls_srtp_transport") {
   ]
   deps = [
     ":srtp_transport",
+    "../api:array_view",
     "../api:dtls_transport_interface",
     "../api:field_trials_view",
     "../p2p:dtls_transport_internal",
