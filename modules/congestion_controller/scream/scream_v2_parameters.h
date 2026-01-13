@@ -82,18 +82,15 @@ struct ScreamV2Parameters {
   // Determines how often the base delay history is updated.
   FieldTrialParameter<TimeDelta> base_delay_history_update_interval;
 
-  // Initial queue delay target.
+  // Reference window is reduced if average queue delay is above
+  // `queue_delay_first_reaction`. Reduction is reduced linearly between
+  // 'queue_delay_first_reaction' and 'queue_delay_max_reaction'.
+  FieldTrialParameter<TimeDelta> queue_delay_first_reaction;
+  // Reference window is reduced by 50% if average queue delay is
+  // `queue_delay_max_reaction` or above.
   // TODO: bugs.webrtc.org/447037083 -  Consider implementing 4.2.1.4.1.
   // Competing Flows Compensation.
-  FieldTrialParameter<TimeDelta> queue_delay_target;
-
-  // Queue delay is "detected" if queue delay is higher than
-  // `queue_delay_target`* `queue_delay_increased_threshold`.
-  FieldTrialParameter<double> queue_delay_increased_threshold;
-
-  // Reference window should be reduced if average queue delay is above
-  // `queue_delay_target`* `queue_delay_threshold`
-  FieldTrialParameter<double> queue_delay_threshold;
+  FieldTrialParameter<TimeDelta> queue_delay_max_reaction;
 
   // If the minimum queue delay is below this threshold, queues are deamed to be
   // drained.

@@ -348,6 +348,23 @@ TEST(ScreamTest, MaybeTest(LinkCapacity1000KbpsRtt100msEcn)) {
                                               DataRate::KilobitsPerSec(1000))));
 }
 
+TEST(ScreamTest, MaybeTest(LinkCapacity1500KbpsRtt30msNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.test_duration = TimeDelta::Seconds(30);
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(1500), TimeDelta::Millis(15));
+  params.caller_to_callee_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(1500), TimeDelta::Millis(15));
+
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+  EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(800),
+                                              DataRate::KilobitsPerSec(1900))));
+}
+
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcn)) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params;
@@ -360,16 +377,15 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcn)) {
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  // TODO: bugs.webrtc.org/447037083 - investigate if we can make Scream react
-  // less aggressive to overuse when codec is slow to ramp up.
   EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(1000),
+                                              DataRate::KilobitsPerSec(1500),
                                               DataRate::KilobitsPerSec(2300))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msEcn)) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params;
+  params.test_duration = TimeDelta::Seconds(30);
   params.callee_to_caller_path =
       CreateNetworkPath(s, /*use_dual_pi= */ true,
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
@@ -379,8 +395,6 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msEcn)) {
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
 
-  // Ignore estimate during rampup.
-  // Encoder does not produce more than around 1Mbit - thus BWE is low.
   EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(1300),
                                               DataRate::KilobitsPerSec(2100))));
@@ -389,6 +403,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msEcn)) {
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithGoogCC)) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params;
+  params.test_duration = TimeDelta::Seconds(30);
   params.callee_to_caller_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
