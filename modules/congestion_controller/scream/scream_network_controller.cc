@@ -11,6 +11,7 @@
 #include "modules/congestion_controller/scream/scream_network_controller.h"
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -20,6 +21,7 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "logging/rtc_event_log/events/rtc_event_remote_estimate.h"
 #include "modules/congestion_controller/scream/scream_v2.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -160,7 +162,9 @@ NetworkControlUpdate ScreamNetworkController::OnTransportLossReport(
 NetworkControlUpdate ScreamNetworkController::OnNetworkStateEstimate(
     NetworkStateEstimate msg) {
   // TODO: bugs.webrtc.org/447037083 - Implement;
-  RTC_LOG_F(LS_INFO) << "Not implemented";
+  env_.event_log().Log(std::make_unique<RtcEventRemoteEstimate>(
+      msg.link_capacity_lower, msg.link_capacity_upper));
+
   return NetworkControlUpdate();
 }
 
