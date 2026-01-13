@@ -1701,6 +1701,7 @@ rtc_library("rtp_transceiver") {
     "../media:media_channel",
     "../media:media_engine",
     "../media:rtc_media_config",
+    "../media:stream_params",
     "../rtc_base:checks",
     "../rtc_base:crypto_random",
     "../rtc_base:logging",

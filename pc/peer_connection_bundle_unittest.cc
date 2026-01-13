@@ -128,7 +128,7 @@ class PeerConnectionWrapperForBundleTest : public PeerConnectionWrapper {
     auto transceivers = GetInternalPeerConnection()->GetTransceiversInternal();
     for (const auto& transceiver : transceivers) {
       if (transceiver->media_type() == MediaType::AUDIO) {
-        return static_cast<VoiceChannel*>(transceiver->internal()->channel());
+        return transceiver->internal()->voice_channel();
       }
     }
     return nullptr;
@@ -142,7 +142,7 @@ class PeerConnectionWrapperForBundleTest : public PeerConnectionWrapper {
     auto transceivers = GetInternalPeerConnection()->GetTransceiversInternal();
     for (const auto& transceiver : transceivers) {
       if (transceiver->media_type() == MediaType::VIDEO) {
-        return static_cast<VideoChannel*>(transceiver->internal()->channel());
+        return transceiver->internal()->video_channel();
       }
     }
     return nullptr;

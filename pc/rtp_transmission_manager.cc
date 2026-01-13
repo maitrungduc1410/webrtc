@@ -136,31 +136,27 @@ VoiceMediaSendChannelInterface*
 RtpTransmissionManager::voice_media_send_channel() const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
-  auto* voice_channel = GetAudioTransceiver()->internal()->channel();
-  return voice_channel ? voice_channel->voice_media_send_channel() : nullptr;
+  return GetAudioTransceiver()->internal()->voice_media_send_channel();
 }
 
 VideoMediaSendChannelInterface*
 RtpTransmissionManager::video_media_send_channel() const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
-  auto* video_channel = GetVideoTransceiver()->internal()->channel();
-  return video_channel ? video_channel->video_media_send_channel() : nullptr;
+  return GetVideoTransceiver()->internal()->video_media_send_channel();
 }
 VoiceMediaReceiveChannelInterface*
 RtpTransmissionManager::voice_media_receive_channel() const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
-  auto* voice_channel = GetAudioTransceiver()->internal()->channel();
-  return voice_channel ? voice_channel->voice_media_receive_channel() : nullptr;
+  return GetAudioTransceiver()->internal()->voice_media_receive_channel();
 }
 
 VideoMediaReceiveChannelInterface*
 RtpTransmissionManager::video_media_receive_channel() const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
-  auto* video_channel = GetVideoTransceiver()->internal()->channel();
-  return video_channel ? video_channel->video_media_receive_channel() : nullptr;
+  return GetVideoTransceiver()->internal()->video_media_receive_channel();
 }
 
 RTCErrorOr<scoped_refptr<RtpSenderInterface>>

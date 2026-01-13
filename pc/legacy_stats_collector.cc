@@ -1133,9 +1133,9 @@ void LegacyStatsCollector::ExtractBweInfo() {
     if (transceiver->media_type() != MediaType::VIDEO) {
       continue;
     }
-    auto* video_channel = transceiver->internal()->channel();
-    if (video_channel) {
-      video_media_channels.push_back(video_channel->video_media_send_channel());
+    if (transceiver->internal()->HasChannel()) {
+      video_media_channels.push_back(
+          transceiver->internal()->video_media_send_channel());
     }
   }
 
@@ -1261,15 +1261,16 @@ class VideoChannelStatsGatherer final : public ChannelStatsGatherer {
 };
 
 std::unique_ptr<ChannelStatsGatherer> CreateChannelStatsGatherer(
-    ChannelInterface* channel) {
-  RTC_DCHECK(channel);
-  if (channel->media_type() == MediaType::AUDIO) {
+    RtpTransceiver* transceiver) {
+  RTC_DCHECK(transceiver);
+  RTC_DCHECK(transceiver->HasChannel());
+  if (transceiver->media_type() == MediaType::AUDIO) {
     return std::make_unique<VoiceChannelStatsGatherer>(
-        channel->AsVoiceChannel());
+        transceiver->voice_channel());
   } else {
-    RTC_DCHECK_EQ(channel->media_type(), MediaType::VIDEO);
+    RTC_DCHECK_EQ(transceiver->media_type(), MediaType::VIDEO);
     return std::make_unique<VideoChannelStatsGatherer>(
-        channel->AsVideoChannel());
+        transceiver->video_channel());
   }
 }
 
@@ -1285,12 +1286,11 @@ void LegacyStatsCollector::ExtractMediaInfo(
   {
     Thread::ScopedDisallowBlockingCalls no_blocking_calls;
     for (const auto& transceiver : transceivers) {
-      ChannelInterface* channel = transceiver->internal()->channel();
-      if (!channel) {
+      if (!transceiver->internal()->HasChannel()) {
         continue;
       }
       std::unique_ptr<ChannelStatsGatherer> gatherer =
-          CreateChannelStatsGatherer(channel);
+          CreateChannelStatsGatherer(transceiver->internal());
       if (transceiver->mid()) {
         gatherer->mid = *transceiver->mid();
       }
@@ -1318,8 +1318,7 @@ void LegacyStatsCollector::ExtractMediaInfo(
     // Populate `receiver_track_id_by_ssrc` for the gatherers.
     int i = 0;
     for (const auto& transceiver : transceivers) {
-      ChannelInterface* channel = transceiver->internal()->channel();
-      if (!channel)
+      if (!transceiver->internal()->HasChannel())
         continue;
       ChannelStatsGatherer* gatherer = gatherers[i++].get();
       for (const auto& receiver : transceiver->internal()->receivers()) {

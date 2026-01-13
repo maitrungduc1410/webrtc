@@ -2561,7 +2561,7 @@ void PeerConnection::OnTransportControllerConnectionState(
         std::vector<std::pair<std::string, MediaType>> transceiver_info;
         if (ConfiguredForMedia()) {
           for (const auto& t : rtp_manager()->transceivers()->List()) {
-            if (t->internal()->channel()) {
+            if (t->internal()->HasChannel()) {
               std::optional<std::string> mid = t->mid();
               if (mid) {
                 transceiver_info.emplace_back(*mid, t->media_type());
@@ -3084,9 +3084,9 @@ bool PeerConnection::OnTransportChanged(
   if (ConfiguredForMedia()) {
     for (const auto& transceiver :
          rtp_manager()->transceivers()->UnsafeList()) {
-      ChannelInterface* channel = transceiver->internal()->channel();
-      if (channel && channel->mid() == mid) {
-        ret = channel->SetRtpTransport(rtp_transport);
+      auto internal = transceiver->internal();
+      if (internal->HasChannel() && internal->mid() == mid) {
+        ret = internal->SetChannelRtpTransport(rtp_transport);
       }
     }
   }

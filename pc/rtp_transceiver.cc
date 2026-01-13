@@ -48,6 +48,7 @@
 #include "media/base/media_channel.h"
 #include "media/base/media_config.h"
 #include "media/base/media_engine.h"
+#include "media/base/stream_params.h"
 #include "pc/audio_rtp_receiver.h"
 #include "pc/channel.h"
 #include "pc/channel_interface.h"
@@ -533,23 +534,23 @@ RTCError RtpTransceiver::SetChannel(
   // helps with keeping the channel implementation requirements being met and
   // avoids synchronization for accessing the pointer or network related state.
   RTCError err = context()->network_thread()->BlockingCall(
-      [&, flag = signaling_thread_safety_]() {
-        if (!channel_->SetRtpTransport(
-                std::move(transport_lookup)(channel_->mid()))) {
+      [&, flag = signaling_thread_safety_, channel = channel_.get()]() {
+        if (!channel->SetRtpTransport(
+                std::move(transport_lookup)(channel->mid()))) {
           return RTCError::InvalidParameter()
-                 << "Invalid transport for mid=" << channel_->mid();
+                 << "Invalid transport for mid=" << channel->mid();
         }
-        channel_->SetFirstPacketReceivedCallback([thread = thread_, flag = flag,
-                                                  this]() mutable {
+        channel->SetFirstPacketReceivedCallback([thread = thread_, flag = flag,
+                                                 this]() mutable {
           thread->PostTask(
               SafeTask(std::move(flag), [this]() { OnFirstPacketReceived(); }));
         });
-        channel_->SetFirstPacketSentCallback([thread = thread_, flag = flag,
-                                              this]() mutable {
+        channel->SetFirstPacketSentCallback([thread = thread_, flag = flag,
+                                             this]() mutable {
           thread->PostTask(
               SafeTask(std::move(flag), [this]() { OnFirstPacketSent(); }));
         });
-        channel_->SetPacketReceivedCallback_n([this, flag = flag]() {
+        channel->SetPacketReceivedCallback_n([this, flag = flag]() {
           RTC_DCHECK_RUN_ON(context()->network_thread());
           OnPacketReceived(flag);
         });
@@ -637,14 +638,15 @@ void RtpTransceiver::ClearChannel() {
 }
 
 void RtpTransceiver::PushNewMediaChannel() {
+  RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(channel_);
   if (senders_.empty() && receivers_.empty()) {
     return;
   }
-  context()->worker_thread()->BlockingCall([&]() {
+  context()->worker_thread()->BlockingCall([&, channel = channel_.get()]() {
     RTC_DCHECK_RUN_ON(context()->worker_thread());
-    SetMediaChannels(channel_->media_send_channel(),
-                     channel_->media_receive_channel());
+    SetMediaChannels(channel->media_send_channel(),
+                     channel->media_receive_channel());
   });
 }
 
@@ -1217,6 +1219,119 @@ void RtpTransceiver::OnNegotiationUpdate(
       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
     }
   }
+}
+
+bool RtpTransceiver::SetChannelRtpTransport(
+    RtpTransportInternal* rtp_transport) {
+  RTC_DCHECK_RUN_ON(context()->network_thread());
+  RTC_DCHECK(channel_);
+  return channel_->SetRtpTransport(rtp_transport);
+}
+
+bool RtpTransceiver::SetChannelLocalContent(
+    const MediaContentDescription* content,
+    SdpType type,
+    std::string& error_desc) {
+  RTC_DCHECK_RUN_ON(context()->worker_thread());
+  RTC_DCHECK(channel_);
+  return channel_->SetLocalContent(content, type, error_desc);
+}
+
+bool RtpTransceiver::SetChannelRemoteContent(
+    const MediaContentDescription* content,
+    SdpType type,
+    std::string& error_desc) {
+  RTC_DCHECK_RUN_ON(context()->worker_thread());
+  RTC_DCHECK(channel_);
+  return channel_->SetRemoteContent(content, type, error_desc);
+}
+
+bool RtpTransceiver::SetChannelPayloadTypeDemuxingEnabled(bool enabled) {
+  RTC_DCHECK_RUN_ON(context()->worker_thread());
+  RTC_DCHECK(channel_);
+  return channel_->SetPayloadTypeDemuxingEnabled(enabled);
+}
+
+void RtpTransceiver::EnableChannel(bool enable) {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(channel_);
+  channel_->Enable(enable);
+}
+
+const std::vector<StreamParams>& RtpTransceiver::channel_local_streams() const {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(channel_);
+  return channel_->local_streams();
+}
+
+const std::vector<StreamParams>& RtpTransceiver::channel_remote_streams()
+    const {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(channel_);
+  return channel_->remote_streams();
+}
+
+absl::string_view RtpTransceiver::channel_transport_name() const {
+  RTC_DCHECK_RUN_ON(context()->network_thread());
+  RTC_DCHECK(channel_);
+  return channel_->transport_name();
+}
+
+MediaSendChannelInterface* RtpTransceiver::media_send_channel() {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->media_send_channel() : nullptr;
+}
+
+const MediaSendChannelInterface* RtpTransceiver::media_send_channel() const {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->media_send_channel() : nullptr;
+}
+
+MediaReceiveChannelInterface* RtpTransceiver::media_receive_channel() {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->media_receive_channel() : nullptr;
+}
+
+const MediaReceiveChannelInterface* RtpTransceiver::media_receive_channel()
+    const {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->media_receive_channel() : nullptr;
+}
+
+VideoMediaSendChannelInterface* RtpTransceiver::video_media_send_channel() {
+  // Accessed from multiple threads.
+  // See https://issues.webrtc.org/475126742
+  return channel_ ? channel_->video_media_send_channel() : nullptr;
+}
+
+VoiceMediaSendChannelInterface* RtpTransceiver::voice_media_send_channel() {
+  // Accessed from multiple threads.
+  // See https://issues.webrtc.org/475126742
+  return channel_ ? channel_->voice_media_send_channel() : nullptr;
+}
+
+VideoMediaReceiveChannelInterface*
+RtpTransceiver::video_media_receive_channel() {
+  // Accessed from multiple threads.
+  // See https://issues.webrtc.org/475126742
+  return channel_ ? channel_->video_media_receive_channel() : nullptr;
+}
+
+VoiceMediaReceiveChannelInterface*
+RtpTransceiver::voice_media_receive_channel() {
+  // Accessed from multiple threads.
+  // See https://issues.webrtc.org/475126742
+  return channel_ ? channel_->voice_media_receive_channel() : nullptr;
+}
+
+VideoChannel* RtpTransceiver::video_channel() {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->AsVideoChannel() : nullptr;
+}
+
+VoiceChannel* RtpTransceiver::voice_channel() {
+  RTC_DCHECK_RUN_ON(thread_);
+  return channel_ ? channel_->AsVoiceChannel() : nullptr;
 }
 
 }  // namespace webrtc
