@@ -2623,6 +2623,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/environment:environment_factory",
       "../api/rtc_event_log",
       "../api/rtc_event_log:rtc_event_log_factory",
+      "../api/task_queue",
       "../api/task_queue:pending_task_safety_flag",
       "../api/transport:bitrate_settings",
       "../api/transport:datagram_transport_interface",

@@ -124,6 +124,8 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
     virtual void OnSetStreams() = 0;
   };
 
+  ~RtpSenderBase() override;
+
   // Sets the underlying MediaEngine channel associated with this RtpSender.
   // A VoiceMediaChannel should be used for audio RtpSenders and
   // a VideoMediaChannel should be used for video RtpSenders.
@@ -236,6 +238,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
                 absl::string_view id,
                 SetStreamsObserver* set_streams_observer,
                 MediaSendChannelInterface* media_channel);
+
   // TODO(bugs.webrtc.org/8694): Since SSRC == 0 is technically valid, figure
   // out some other way to test if we have a valid SSRC.
   bool can_send_track() const RTC_RUN_ON(signaling_thread_) {

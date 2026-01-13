@@ -152,6 +152,10 @@ RtpSenderBase::RtpSenderBase(const Environment& env,
   init_parameters_.encodings.emplace_back();
 }
 
+RtpSenderBase::~RtpSenderBase() {
+  RTC_DCHECK(!media_channel_) << "Missing call to SetMediaChannel(nullptr)";
+}
+
 void RtpSenderBase::SetFrameEncryptor(
     scoped_refptr<FrameEncryptorInterface> frame_encryptor) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
@@ -598,10 +602,20 @@ void RtpSenderBase::Stop() {
     DetachTrack();
     track_->UnregisterObserver(this);
   }
-  if (can_send_track()) {
-    ClearSend();
+
+  bool clear_send = can_send_track();
+  if (clear_send) {
     RemoveTrackFromStats();
   }
+
+  worker_thread_->BlockingCall([this, clear_send, ssrc = ssrc_] {
+    RTC_DCHECK_RUN_ON(worker_thread_);
+    if (clear_send) {
+      ClearSend_w(ssrc);
+    }
+    SetMediaChannel(nullptr);
+  });
+
   stopped_ = true;
 }
 
@@ -617,17 +631,19 @@ absl::AnyInvocable<void() &&> RtpSenderBase::DetachTrackAndGetStopTask() {
     track_->UnregisterObserver(this);
   }
 
-  stopped_ = true;
-
-  if (can_send_track()) {
+  bool clear_send = can_send_track();
+  if (clear_send) {
     RemoveTrackFromStats();
-  } else {
-    return nullptr;
   }
 
-  return [this, ssrc = ssrc_] {
+  stopped_ = true;
+
+  return [this, clear_send, ssrc = ssrc_] {
     RTC_DCHECK_RUN_ON(worker_thread_);
-    ClearSend_w(ssrc);
+    if (clear_send) {
+      ClearSend_w(ssrc);
+    }
+    SetMediaChannel(nullptr);
   };
 }
 
