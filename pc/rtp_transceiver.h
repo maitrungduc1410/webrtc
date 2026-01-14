@@ -373,12 +373,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
   VideoMediaReceiveChannelInterface* video_media_receive_channel();
   VoiceMediaReceiveChannelInterface* voice_media_receive_channel();
 
-  // Downcasts for the channel. These will crash if the channel is of the
-  // wrong type, consistent with the ChannelInterface implementation.
-  // Returns null if there is no channel.
-  VideoChannel* video_channel();
-  VoiceChannel* voice_channel();
-
  private:
   // Returns the Voice/VideoChannel set for this transceiver. May be null if
   // the transceiver is not in the currently set local/remote description.

@@ -1324,14 +1324,4 @@ RtpTransceiver::voice_media_receive_channel() {
   return channel_ ? channel_->voice_media_receive_channel() : nullptr;
 }
 
-VideoChannel* RtpTransceiver::video_channel() {
-  RTC_DCHECK_RUN_ON(thread_);
-  return channel_ ? channel_->AsVideoChannel() : nullptr;
-}
-
-VoiceChannel* RtpTransceiver::voice_channel() {
-  RTC_DCHECK_RUN_ON(thread_);
-  return channel_ ? channel_->AsVoiceChannel() : nullptr;
-}
-
 }  // namespace webrtc
