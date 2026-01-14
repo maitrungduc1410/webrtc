@@ -438,12 +438,6 @@ if (rtc_include_tests) {
 
       defines = []
 
-      if (rtc_prefer_fixed_point) {
-        defines += [ "WEBRTC_AUDIOPROC_FIXED_PROFILE" ]
-      } else {
-        defines += [ "WEBRTC_AUDIOPROC_FLOAT_PROFILE" ]
-      }
-
       if (rtc_enable_protobuf) {
         defines += [ "WEBRTC_AUDIOPROC_DEBUG_DUMP" ]
         deps += [

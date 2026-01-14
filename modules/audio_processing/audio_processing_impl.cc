@@ -324,9 +324,7 @@ int HandleUnsupportedAudioFormats(const float* const* src,
 bool NeedEchoController(const AudioProcessing::Config& config,
                         bool has_echo_control_factory) {
   // For legacy reasons, having an echo control factory overrides the config.
-  return (config.echo_canceller.enabled &&
-          !config.echo_canceller.mobile_mode) ||
-         has_echo_control_factory;
+  return config.echo_canceller.enabled || has_echo_control_factory;
 }
 
 constexpr int kUnspecifiedDataDumpInputVolume = -100;
@@ -699,8 +697,7 @@ void AudioProcessingImpl::ApplyConfig(const AudioProcessing::Config& config) {
           config.pipeline.capture_downmix_method_stereo_aec;
 
   const bool aec_config_changed =
-      config_.echo_canceller.enabled != config.echo_canceller.enabled ||
-      config_.echo_canceller.mobile_mode != config.echo_canceller.mobile_mode;
+      config_.echo_canceller.enabled != config.echo_canceller.enabled;
 
   const bool agc1_config_changed =
       config_.gain_controller1 != config.gain_controller1;
@@ -1872,8 +1869,7 @@ bool AudioProcessingImpl::UpdateActiveSubmoduleStates() {
 void AudioProcessingImpl::InitializeHighPassFilter(bool forced_reset) {
   bool high_pass_filter_needed_by_aec =
       config_.echo_canceller.enabled &&
-      config_.echo_canceller.enforce_high_pass_filtering &&
-      !config_.echo_canceller.mobile_mode;
+      config_.echo_canceller.enforce_high_pass_filtering;
   if (submodule_states_.HighPassFilteringRequired() ||
       high_pass_filter_needed_by_aec) {
     bool use_full_band = config_.high_pass_filter.apply_in_full_band &&
@@ -1949,33 +1945,6 @@ void AudioProcessingImpl::InitializeEchoController() {
 
     return;
   }
-
-  if (!(config_.echo_canceller.enabled && config_.echo_canceller.mobile_mode)) {
-    return;
-  }
-
-  // Create and activate AECM.
-  size_t max_element_size =
-      std::max(static_cast<size_t>(1),
-               kMaxAllowedValuesOfSamplesPerBand *
-                   EchoControlMobileImpl::NumCancellersRequired(
-                       num_output_channels(), num_reverse_channels()));
-
-  std::vector<int16_t> template_queue_element(max_element_size);
-
-  aecm_render_signal_queue_.reset(
-      new SwapQueue<std::vector<int16_t>, RenderQueueItemVerifier<int16_t>>(
-          kMaxNumFramesToBuffer, template_queue_element,
-          RenderQueueItemVerifier<int16_t>(max_element_size)));
-
-  aecm_render_queue_buffer_.resize(max_element_size);
-  aecm_capture_queue_buffer_.resize(max_element_size);
-
-  submodules_.echo_control_mobile.reset(new EchoControlMobileImpl());
-
-  submodules_.echo_control_mobile->Initialize(proc_split_sample_rate_hz(),
-                                              num_reverse_channels(),
-                                              num_output_channels());
 }
 
 void AudioProcessingImpl::InitializeGainController1() {
@@ -2178,15 +2147,6 @@ void AudioProcessingImpl::WriteAecDumpConfigMessage(bool forced) {
   apm_config.aec_delay_agnostic_enabled = false;
   apm_config.aec_extended_filter_enabled = false;
   apm_config.aec_suppression_level = 0;
-
-  apm_config.aecm_enabled = !!submodules_.echo_control_mobile;
-  apm_config.aecm_comfort_noise_enabled =
-      submodules_.echo_control_mobile &&
-      submodules_.echo_control_mobile->is_comfort_noise_enabled();
-  apm_config.aecm_routing_mode =
-      submodules_.echo_control_mobile
-          ? static_cast<int>(submodules_.echo_control_mobile->routing_mode())
-          : 0;
 
   apm_config.agc_enabled = !!submodules_.gain_control;
 
