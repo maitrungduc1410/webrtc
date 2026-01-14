@@ -374,10 +374,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
   VoiceMediaReceiveChannelInterface* voice_media_receive_channel();
 
  private:
-  // Returns the Voice/VideoChannel set for this transceiver. May be null if
-  // the transceiver is not in the currently set local/remote description.
-  ChannelInterface* channel() const { return channel_.get(); }
-
   MediaEngineInterface* media_engine() RTC_RUN_ON(context()->worker_thread());
   ConnectionContext* context() const { return context_; }
   CodecVendor& codec_vendor() {

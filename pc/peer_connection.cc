@@ -1233,11 +1233,6 @@ PeerConnection::AddTransceiver(MediaType media_type,
   return scoped_refptr<RtpTransceiverInterface>(transceiver);
 }
 
-void PeerConnection::OnNegotiationNeeded() {
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(!IsClosed());
-  sdp_handler_->UpdateNegotiationNeeded();
-}
 
 scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
     const std::string& kind,
@@ -2429,21 +2424,6 @@ bool PeerConnection::GetSslRole(const std::string& content_name,
   return false;
 }
 
-bool PeerConnection::GetTransportDescription(
-    const SessionDescription* description,
-    const std::string& content_name,
-    TransportDescription* tdesc) {
-  if (!description || !tdesc) {
-    return false;
-  }
-  const TransportInfo* transport_info =
-      description->GetTransportInfoByName(content_name);
-  if (!transport_info) {
-    return false;
-  }
-  *tdesc = transport_info->description;
-  return true;
-}
 
 std::vector<DataChannelStats> PeerConnection::GetDataChannelStats() const {
   RTC_DCHECK_RUN_ON(network_thread());

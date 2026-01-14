@@ -439,7 +439,7 @@ RTCError RtpTransceiver::CreateChannel(
     absl::AnyInvocable<RtpTransportInternal*(absl::string_view) &&>
         transport_lookup) {
   RTC_DCHECK_RUN_ON(thread_);
-  RTC_DCHECK(!channel());
+  RTC_DCHECK(!channel_);
   RTC_DCHECK(!mid_ || mid_.value() == mid);
   RTC_DCHECK(!stopped_);
 
