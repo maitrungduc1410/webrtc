@@ -1418,9 +1418,33 @@ TEST_F(SSLStreamAdapterTestDTLS, TestDTLSSrtpExporter) {
   ZeroOnFreeBuffer<uint8_t> server_out =
       ZeroOnFreeBuffer<uint8_t>::CreateUninitializedWithSize(
           2 * (key_len + salt_len));
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   EXPECT_TRUE(client_ssl_->ExportSrtpKeyingMaterial(client_out));
   EXPECT_TRUE(server_ssl_->ExportSrtpKeyingMaterial(server_out));
+  EXPECT_EQ(client_out, server_out);
+#pragma clang diagnostic pop
+
+  ZeroOnFreeBuffer<uint8_t> append_client_out;
+  ZeroOnFreeBuffer<uint8_t> append_server_out;
+
+  EXPECT_TRUE(client_ssl_->AppendSrtpKeyingMaterial(append_client_out));
+  EXPECT_TRUE(server_ssl_->AppendSrtpKeyingMaterial(append_server_out));
+  EXPECT_EQ(client_out, append_client_out);
+  EXPECT_EQ(client_out, append_server_out);
+}
+
+TEST_F(SSLStreamAdapterTestDTLS, TestDTLSSrtpExporterWithAppend) {
+  const std::vector<int> crypto_suites = {kSrtpAes128CmSha1_80};
+  SetDtlsSrtpCryptoSuites(crypto_suites, true);
+  SetDtlsSrtpCryptoSuites(crypto_suites, false);
+
+  TestHandshake();
+  ZeroOnFreeBuffer<uint8_t> client_out;
+  ZeroOnFreeBuffer<uint8_t> server_out;
+
+  EXPECT_TRUE(client_ssl_->AppendSrtpKeyingMaterial(client_out));
+  EXPECT_TRUE(server_ssl_->AppendSrtpKeyingMaterial(server_out));
   EXPECT_EQ(client_out, server_out);
 }
 
