@@ -292,6 +292,7 @@ long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
     case BIO_CTRL_PENDING:
       return 0;
     case BIO_CTRL_FLUSH: {
+      // Flush signals the end of a flight of handshake packets.
       StreamInterface* stream = static_cast<StreamInterface*>(BIO_get_data(b));
       RTC_DCHECK(stream);
       if (stream->Flush()) {
