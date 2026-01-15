@@ -30,7 +30,7 @@ struct ScreamV2Parameters {
 
   // Exponentially Weighted Moving Average (EWMA) factor for smoothed rtt.
   FieldTrialParameter<double> smoothed_rtt_avg_g_up;
-  FieldTrialParameter<double> smoothed_l4s_avg_g_down;
+  FieldTrialParameter<double> smoothed_rtt_avg_g_down;
 
   // Maximum Segment Size (MSS)
   // Size of the largest data segment that a sender is able to transmit. I.e

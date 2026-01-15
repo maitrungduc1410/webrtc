@@ -101,7 +101,7 @@ void DelayBasedCongestionControl::UpdateSmoothedRtt(TimeDelta rtt_sample) {
   } else {
     double g = params_.smoothed_rtt_avg_g_up.Get();
     if (rtt_sample < last_smoothed_rtt_) {
-      g = params_.smoothed_l4s_avg_g_down.Get();
+      g = params_.smoothed_rtt_avg_g_down.Get();
     }
     last_smoothed_rtt_ = rtt_sample * g + last_smoothed_rtt_ * (1.0 - g);
   }
