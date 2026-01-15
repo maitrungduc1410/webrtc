@@ -83,6 +83,7 @@ rtc_library("audio") {
     "../common_audio",
     "../common_audio:common_audio_c",
     "../logging:rtc_event_audio",
+    "../logging:rtc_event_rtp_rtcp",
     "../logging:rtc_stream_config",
     "../media:media_channel",
     "../media:media_channel_impl",
