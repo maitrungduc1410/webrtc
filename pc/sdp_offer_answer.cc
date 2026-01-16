@@ -3460,11 +3460,12 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
         transceivers()->Remove(transceiver);
       }
     }
+    auto sender_internal = transceiver->internal()->sender_internal();
     if (stable_state.init_send_encodings()) {
-      transceiver->internal()->sender_internal()->set_init_send_encodings(
+      sender_internal->set_init_send_encodings(
           stable_state.init_send_encodings().value());
     }
-    transceiver->internal()->sender_internal()->set_transport(nullptr);
+    sender_internal->set_transport(nullptr);
     transceiver->internal()->receiver_internal()->set_transport(nullptr);
     if (stable_state.has_m_section()) {
       transceiver->internal()->set_mid(stable_state.mid());

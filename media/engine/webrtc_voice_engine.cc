@@ -2035,7 +2035,7 @@ RTCError WebRtcVoiceSendChannel::SetRtpSendParameters(
   RTCError error =
       it->second->SetRtpParameters(reduced_params, std::move(callback));
   if (error.ok()) {
-    on_rtp_send_parameters_changed_callback_.Send(ssrc, parameters);
+    on_rtp_send_parameters_changed_callback_.Send(ssrc, reduced_params);
   }
   return error;
 }

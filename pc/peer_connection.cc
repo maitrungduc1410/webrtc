@@ -1264,16 +1264,17 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
 
   scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> new_sender;
   if (kind == MediaStreamTrackInterface::kAudioKind) {
-    auto audio_sender = AudioRtpSender::Create(
-        env_, worker_thread(), CreateRandomUuid(), legacy_stats_.get(), nullptr,
-        rtp_manager()->voice_media_send_channel());
+    auto audio_sender =
+        AudioRtpSender::Create(env_, signaling_thread(), worker_thread(),
+                               CreateRandomUuid(), legacy_stats_.get(), nullptr,
+                               rtp_manager()->voice_media_send_channel());
     new_sender = RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         signaling_thread(), audio_sender);
     rtp_manager()->GetAudioTransceiver()->internal()->AddSenderPlanB(
         new_sender);
   } else if (kind == MediaStreamTrackInterface::kVideoKind) {
     auto video_sender = VideoRtpSender::Create(
-        env_, worker_thread(), CreateRandomUuid(), nullptr,
+        env_, signaling_thread(), worker_thread(), CreateRandomUuid(), nullptr,
         rtp_manager()->video_media_send_channel());
     new_sender = RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         signaling_thread(), video_sender);

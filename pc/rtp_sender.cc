@@ -31,6 +31,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
+#include "api/media_types.h"
 #include "api/priority.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
@@ -132,15 +133,18 @@ bool UnimplementedRtpParameterHasValue(const RtpParameters& parameters) {
 }
 
 RtpSenderBase::RtpSenderBase(const Environment& env,
+                             Thread* signaling_thread,
                              Thread* worker_thread,
                              absl::string_view id,
+                             MediaType media_type,
                              SetStreamsObserver* set_streams_observer,
                              MediaSendChannelInterface* media_channel)
     : env_(env),
-      signaling_thread_(Thread::Current()),
+      signaling_thread_(signaling_thread),
       worker_thread_(worker_thread),
       id_(id),
-      media_channel_(media_channel),
+      media_type_(media_type),
+      media_channel_(nullptr),  // Will be set in SetMediaChannel().
       set_streams_observer_(set_streams_observer),
       worker_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
           /*alive=*/media_channel != nullptr,
@@ -148,8 +152,17 @@ RtpSenderBase::RtpSenderBase(const Environment& env,
       signaling_safety_(
           PendingTaskSafetyFlag::CreateAttachedToTaskQueue(/*alive=*/true,
                                                            signaling_thread_)) {
-  RTC_DCHECK(worker_thread);
+  RTC_DCHECK(worker_thread_);
   init_parameters_.encodings.emplace_back();
+  if (media_channel) {
+    // When initialized with a valid media channel, we need to be running on the
+    // worker thread in order to set things up properly.
+    RTC_DCHECK_RUN_ON(worker_thread_);
+    SetMediaChannel(media_channel);
+  } else {
+    // Otherwise, we're less picky (but probably running on the signaling
+    // thread).
+  }
 }
 
 RtpSenderBase::~RtpSenderBase() {
@@ -194,15 +207,36 @@ void RtpSenderBase::SetEncoderSelectorOnChannel() {
 
 void RtpSenderBase::SetMediaChannel(MediaSendChannelInterface* media_channel) {
   RTC_DCHECK_RUN_ON(worker_thread_);
-  RTC_DCHECK(media_channel == nullptr ||
-             media_channel->media_type() == media_type());
+  RTC_DCHECK(!media_channel || media_channel->media_type() == media_type_);
+  if (media_channel_ == media_channel) {
+    return;
+  }
+
   // Note that setting the media_channel_ to nullptr and clearing the send state
   // via ClearSend_w, are separate operations. Stopping the actual send
   // operation, needs to be done via any of the paths that end up with a call to
   // ClearSend_w(), such as DetachTrackAndGetStopTask().
+  if (media_channel_) {
+    media_channel_->UnsubscribeRtpSendParametersChanged(this);
+  }
+
   media_channel_ = media_channel;
-  media_channel_ != nullptr ? worker_safety_->SetAlive()
-                            : worker_safety_->SetNotAlive();
+
+  if (media_channel_) {
+    worker_safety_->SetAlive();
+    media_channel_->SubscribeRtpSendParametersChanged(
+        this,
+        [this](std::optional<uint32_t> ssrc, const RtpParameters& parameters) {
+          RTC_DCHECK_RUN_ON(worker_thread_);
+          signaling_thread_->PostTask(
+              SafeTask(signaling_safety_.flag(), [this]() mutable {
+                RTC_DCHECK_RUN_ON(signaling_thread_);
+                last_transaction_id_.reset();
+              }));
+        });
+  } else {
+    worker_safety_->SetNotAlive();
+  }
 }
 
 RtpParameters RtpSenderBase::GetParametersInternal() const {
@@ -748,30 +782,35 @@ void LocalAudioSinkAdapter::SetSink(AudioSource::Sink* sink) {
 
 scoped_refptr<AudioRtpSender> AudioRtpSender::Create(
     const Environment& env,
+    Thread* signaling_thread,
     Thread* worker_thread,
     absl::string_view id,
     LegacyStatsCollectorInterface* stats,
     SetStreamsObserver* set_streams_observer,
     MediaSendChannelInterface* media_channel) {
-  return make_ref_counted<AudioRtpSender>(env, worker_thread, id, stats,
-                                          set_streams_observer, media_channel);
+  return make_ref_counted<AudioRtpSender>(env, signaling_thread, worker_thread,
+                                          id, stats, set_streams_observer,
+                                          media_channel);
 }
 
 AudioRtpSender::AudioRtpSender(const Environment& env,
+                               Thread* signaling_thread,
                                Thread* worker_thread,
                                absl::string_view id,
                                LegacyStatsCollectorInterface* stats,
                                SetStreamsObserver* set_streams_observer,
                                MediaSendChannelInterface* media_channel)
     : RtpSenderBase(env,
+                    signaling_thread,
                     worker_thread,
                     id,
+                    MediaType::AUDIO,
                     set_streams_observer,
                     media_channel),
       legacy_stats_(stats),
-      dtmf_sender_(DtmfSender::Create(Thread::Current(), this)),
+      dtmf_sender_(DtmfSender::Create(signaling_thread, this)),
       dtmf_sender_proxy_(
-          DtmfSenderProxy::Create(Thread::Current(), dtmf_sender_)),
+          DtmfSenderProxy::Create(signaling_thread, dtmf_sender_)),
       sink_adapter_(new LocalAudioSinkAdapter()) {}
 
 AudioRtpSender::~AudioRtpSender() {
@@ -915,22 +954,27 @@ void AudioRtpSender::ClearSend_w(uint32_t ssrc) {
 
 scoped_refptr<VideoRtpSender> VideoRtpSender::Create(
     const Environment& env,
+    Thread* signaling_thread,
     Thread* worker_thread,
     absl::string_view id,
     SetStreamsObserver* set_streams_observer,
     MediaSendChannelInterface* media_channel) {
-  return make_ref_counted<VideoRtpSender>(env, worker_thread, id,
-                                          set_streams_observer, media_channel);
+  return make_ref_counted<VideoRtpSender>(env, signaling_thread, worker_thread,
+                                          id, set_streams_observer,
+                                          media_channel);
 }
 
 VideoRtpSender::VideoRtpSender(const Environment& env,
+                               Thread* signaling_thread,
                                Thread* worker_thread,
                                absl::string_view id,
                                SetStreamsObserver* set_streams_observer,
                                MediaSendChannelInterface* media_channel)
     : RtpSenderBase(env,
+                    signaling_thread,
                     worker_thread,
                     id,
+                    MediaType::VIDEO,
                     set_streams_observer,
                     media_channel) {}
 
