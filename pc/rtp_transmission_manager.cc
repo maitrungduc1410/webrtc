@@ -167,9 +167,9 @@ RtpTransmissionManager::AddTrackPlanB(
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
   if (stream_ids.size() > 1u) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::UNSUPPORTED_OPERATION,
-                         "AddTrack with more than one stream is not "
-                         "supported with Plan B semantics.");
+    return LOG_ERROR(RTCError::UnsupportedOperation()
+                     << "AddTrack with more than one stream is not supported "
+                        "with Plan B semantics.");
   }
   std::vector<std::string> adjusted_stream_ids;
   if (stream_ids.empty()) {
@@ -222,8 +222,8 @@ RtpTransmissionManager::AddTrackUnifiedPlan(
                      << MediaTypeToString(transceiver->media_type())
                      << " transceiver for AddTrack.";
     if (transceiver->stopping()) {
-      LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                           "The existing transceiver is stopping.");
+      return LOG_ERROR(RTCError::InvalidParameter()
+                       << "The existing transceiver is stopping.");
     }
 
     if (transceiver->direction() == RtpTransceiverDirection::kRecvOnly) {

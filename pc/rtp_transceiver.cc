@@ -97,17 +97,16 @@ RTCError VerifyCodecPreferences(const std::vector<RtpCodecCapability>& codecs,
                                 return IsSameRtpCodec(codec_capability, codec);
                               });
       })) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_MODIFICATION,
-                         "Invalid codec preferences: Missing codec from codec "
-                         "capabilities.");
+    return LOG_ERROR(RTCError::InvalidModification()
+                     << "Invalid codec preferences: Missing codec from codec "
+                        "capabilities.");
   }
   // If `codecs` only contains entries for RTX, RED, FEC or Comfort Noise, throw
   // InvalidModificationError.
   if (!HasAnyMediaCodec(codecs)) {
-    LOG_AND_RETURN_ERROR(
-        RTCErrorType::INVALID_MODIFICATION,
-        "Invalid codec preferences: codec list must have a non "
-        "RTX, RED, FEC or Comfort Noise entry.");
+    return LOG_ERROR(RTCError::InvalidModification()
+                     << "Invalid codec preferences: codec list must have a non "
+                        "RTX, RED, FEC or Comfort Noise entry.");
   }
   return RTCError::OK();
 }
@@ -509,7 +508,7 @@ RTCError RtpTransceiver::SetChannel(
   RTC_DCHECK(!channel_);
   // Cannot set a channel on a stopped transceiver.
   if (stopped_) {
-    return RTCError(RTCErrorType::INVALID_STATE);
+    return RTCError::InvalidState();
   }
 
   RTC_LOG_THREAD_BLOCK_COUNT();
@@ -854,15 +853,15 @@ RtpTransceiverDirection RtpTransceiver::direction() const {
 RTCError RtpTransceiver::SetDirectionWithError(
     RtpTransceiverDirection new_direction) {
   if (unified_plan_ && stopping()) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
-                         "Cannot set direction on a stopping transceiver.");
+    return LOG_ERROR(RTCError::InvalidState()
+                     << "Cannot set direction on a stopping transceiver.");
   }
   if (new_direction == direction_)
     return RTCError::OK();
 
   if (new_direction == RtpTransceiverDirection::kStopped) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                         "The set direction 'stopped' is invalid.");
+    return LOG_ERROR(RTCError::InvalidParameter()
+                     << "The set direction 'stopped' is invalid.");
   }
 
   direction_ = new_direction;
@@ -1160,20 +1159,20 @@ RTCError RtpTransceiver::SetHeaderExtensionsToNegotiate(
   RTC_DCHECK_RUN_ON(thread_);
   // https://w3c.github.io/webrtc-extensions/#dom-rtcrtptransceiver-setheaderextensionstonegotiate
   if (header_extensions.size() != header_extensions_to_negotiate_.size()) {
-    return RTCError(RTCErrorType::INVALID_MODIFICATION,
-                    "Size of extensions to negotiate does not match.");
+    return RTCError::InvalidModification()
+           << "Size of extensions to negotiate does not match.";
   }
   // For each index i of extensions, run the following steps: ...
   for (size_t i = 0; i < header_extensions.size(); i++) {
     const auto& extension = header_extensions[i];
     if (extension.uri != header_extensions_to_negotiate_[i].uri) {
-      return RTCError(RTCErrorType::INVALID_MODIFICATION,
-                      "Reordering extensions is not allowed.");
+      return RTCError::InvalidModification()
+             << "Reordering extensions is not allowed.";
     }
     if (IsMandatoryHeaderExtension(extension.uri) &&
         extension.direction != RtpTransceiverDirection::kSendRecv) {
-      return RTCError(RTCErrorType::INVALID_MODIFICATION,
-                      "Attempted to stop a mandatory extension.");
+      return RTCError::InvalidModification()
+             << "Attempted to stop a mandatory extension.";
     }
 
     // TODO(bugs.webrtc.org/7477): Currently there are no recvonly extensions so

@@ -303,12 +303,9 @@ void RtpSenderBase::SetParametersInternal(const RtpParameters& parameters,
   RTC_DCHECK(!stopped_);
 
   if (UnimplementedRtpParameterHasValue(parameters)) {
-    RTCError error(
-        RTCErrorType::UNSUPPORTED_PARAMETER,
-        "Attempted to set an unimplemented parameter of RtpParameters.");
-    RTC_LOG(LS_ERROR) << error.message() << " (" << ToString(error.type())
-                      << ")";
-    std::move(callback)(error);
+    std::move(callback)(
+        RTCError::UnsupportedParameter()
+        << "Attempted to set an unimplemented parameter of RtpParameters.");
     return;
   }
 
@@ -344,7 +341,7 @@ void RtpSenderBase::SetParametersInternal(const RtpParameters& parameters,
                parameters = std::move(parameters), ssrc = ssrc_]() mutable {
     RTC_DCHECK_RUN_ON(worker_thread_);
     if (!media_channel_) {
-      std::move(callback)(RTCError(RTCErrorType::INVALID_STATE));
+      std::move(callback)(RTCError::InvalidState());
       return;
     }
     RtpParameters old_parameters = media_channel_->GetRtpSendParameters(ssrc);
@@ -382,9 +379,9 @@ RTCError RtpSenderBase::SetParametersInternalWithAllLayers(
   RTC_DCHECK(!stopped_);
 
   if (UnimplementedRtpParameterHasValue(parameters)) {
-    LOG_AND_RETURN_ERROR(
-        RTCErrorType::UNSUPPORTED_PARAMETER,
-        "Attempted to set an unimplemented parameter of RtpParameters.");
+    return LOG_ERROR(RTCError::UnsupportedParameter()
+                     << "Attempted to set an unimplemented parameter of "
+                        "RtpParameters.");
   }
   if (ssrc_ == 0) {
     auto result = CheckRtpParametersInvalidModificationAndValues(
@@ -398,7 +395,7 @@ RTCError RtpSenderBase::SetParametersInternalWithAllLayers(
   return worker_thread_->BlockingCall([&, ssrc = ssrc_] {
     RTC_DCHECK_RUN_ON(worker_thread_);
     if (!media_channel_) {
-      return RTCError(RTCErrorType::INVALID_STATE);
+      return RTCError::InvalidState();
     }
     RtpParameters rtp_parameters = parameters;
     return media_channel_->SetRtpSendParameters(ssrc, rtp_parameters, nullptr);
@@ -408,20 +405,20 @@ RTCError RtpSenderBase::SetParametersInternalWithAllLayers(
 RTCError RtpSenderBase::CheckSetParameters(const RtpParameters& parameters) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   if (stopped_) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
-                         "Cannot set parameters on a stopped sender.");
+    return LOG_ERROR(RTCError::InvalidState()
+                     << "Cannot set parameters on a stopped sender.");
   }
   if (!last_transaction_id_) {
-    LOG_AND_RETURN_ERROR(
-        RTCErrorType::INVALID_STATE,
-        "Failed to set parameters since getParameters() has never been called"
-        " on this sender");
+    return LOG_ERROR(RTCError::InvalidState()
+                     << "Failed to set parameters since getParameters() has "
+                        "never been called"
+                        " on this sender");
   }
   if (last_transaction_id_ != parameters.transaction_id) {
-    LOG_AND_RETURN_ERROR(
-        RTCErrorType::INVALID_MODIFICATION,
-        "Failed to set parameters since the transaction_id doesn't match"
-        " the last value returned from getParameters()");
+    return LOG_ERROR(RTCError::InvalidModification()
+                     << "Failed to set parameters since the transaction_id "
+                        "doesn't match"
+                        " the last value returned from getParameters()");
   }
 
   return RTCError::OK();
@@ -685,8 +682,8 @@ RTCError RtpSenderBase::DisableEncodingLayers(
     const std::vector<std::string>& rids) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   if (stopped_) {
-    LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_STATE,
-                         "Cannot disable encodings on a stopped sender.");
+    return LOG_ERROR(RTCError::InvalidState()
+                     << "Cannot disable encodings on a stopped sender.");
   }
 
   if (rids.empty()) {
@@ -700,8 +697,9 @@ RTCError RtpSenderBase::DisableEncodingLayers(
                         [&rid](const RtpEncodingParameters& encoding) {
                           return encoding.rid == rid;
                         })) {
-      LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                           "RID: " + rid + " does not refer to a valid layer.");
+      return LOG_ERROR(RTCError::InvalidParameter()
+                       << "RID: " << rid
+                       << " does not refer to a valid layer.");
     }
   }
 
@@ -898,8 +896,8 @@ RTCError AudioRtpSender::GenerateKeyFrame(
     const std::vector<std::string>& rids) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DLOG(LS_ERROR) << "Tried to get generate a key frame for audio.";
-  return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
-                  "Generating key frames for audio is not supported.");
+  return RTCError::UnsupportedOperation()
+         << "Generating key frames for audio is not supported.";
 }
 
 void AudioRtpSender::SetSend() {
@@ -1020,15 +1018,15 @@ RTCError VideoRtpSender::GenerateKeyFrame(
   const auto parameters = GetParametersInternal();
   for (const auto& rid : rids) {
     if (rid.empty()) {
-      LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                           "Attempted to specify an empty rid.");
+      return LOG_ERROR(RTCError::InvalidParameter()
+                       << "Attempted to specify an empty rid.");
     }
     if (!absl::c_any_of(parameters.encodings,
                         [&rid](const RtpEncodingParameters& parameters) {
                           return parameters.rid == rid;
                         })) {
-      LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                           "Attempted to specify a rid not configured.");
+      return LOG_ERROR(RTCError::InvalidParameter()
+                       << "Attempted to specify a rid not configured.");
     }
   }
   worker_thread_->PostTask(SafeTask(worker_safety_, [this, rids, ssrc = ssrc_] {
