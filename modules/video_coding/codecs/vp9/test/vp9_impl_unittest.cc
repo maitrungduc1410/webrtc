@@ -175,7 +175,7 @@ TEST_P(TestVp9ImplForPixelFormat, EncodeDecode) {
   CodecSpecificInfo codec_specific_info;
   ASSERT_TRUE(WaitForEncodedFrame(&encoded_frame, &codec_specific_info));
   // First frame should be a key frame.
-  encoded_frame._frameType = VideoFrameType::kVideoFrameKey;
+  encoded_frame.set_frame_type(VideoFrameType::kVideoFrameKey);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, decoder_->Decode(encoded_frame, 0));
   std::unique_ptr<VideoFrame> decoded_frame;
   std::optional<uint8_t> decoded_qp;
@@ -243,7 +243,7 @@ TEST_P(TestVp9ImplForPixelFormat, DecodedQpEqualsEncodedQp) {
   CodecSpecificInfo codec_specific_info;
   ASSERT_TRUE(WaitForEncodedFrame(&encoded_frame, &codec_specific_info));
   // First frame should be a key frame.
-  encoded_frame._frameType = VideoFrameType::kVideoFrameKey;
+  encoded_frame.set_frame_type(VideoFrameType::kVideoFrameKey);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, decoder_->Decode(encoded_frame, 0));
   std::unique_ptr<VideoFrame> decoded_frame;
   std::optional<uint8_t> decoded_qp;
@@ -833,7 +833,8 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrame) {
           codec_specific_info[0].codecSpecific.VP9.ss_data_available;
     }
     // No key-frames generated for disabling layers.
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+    EXPECT_TRUE(encoded_frame[0].IsDelta());
+
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 2);
   }
   EXPECT_TRUE(seen_ss_data);
@@ -848,7 +849,8 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrame) {
     std::vector<CodecSpecificInfo> codec_specific_info;
     ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
     // Key-frame should be produced.
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameKey);
+    EXPECT_TRUE(encoded_frame[0].IsKey());
+
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 2);
   }
 
@@ -860,7 +862,8 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrame) {
     std::vector<EncodedImage> encoded_frame;
     std::vector<CodecSpecificInfo> codec_specific_info;
     ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+    EXPECT_TRUE(encoded_frame[0].IsDelta());
+
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 2);
   }
 
@@ -888,7 +891,7 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrame) {
     const VideoFrameType expected_type = frame_num == 0
                                              ? VideoFrameType::kVideoFrameKey
                                              : VideoFrameType::kVideoFrameDelta;
-    EXPECT_EQ(encoded_frame[0]._frameType, expected_type);
+    EXPECT_EQ(encoded_frame[0].frame_type(), expected_type);
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 1);
     EXPECT_EQ(encoded_frame[1].SpatialIndex().value_or(-1), 2);
   }
@@ -917,7 +920,7 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrame) {
     const VideoFrameType expected_type = frame_num == 0
                                              ? VideoFrameType::kVideoFrameKey
                                              : VideoFrameType::kVideoFrameDelta;
-    EXPECT_EQ(encoded_frame[0]._frameType, expected_type);
+    EXPECT_EQ(encoded_frame[0].frame_type(), expected_type);
   }
 }
 
@@ -980,7 +983,8 @@ TEST(Vp9ImplTest, DisableEnableBaseLayerWithSvcControllerTriggersKeyFrame) {
   frames = producer.ForceKeyFrame().SetNumInputFrames(1).Encode();
   ASSERT_THAT(frames, SizeIs(1));
   // Key-frame should be produced.
-  EXPECT_EQ(frames[0].encoded_image._frameType, VideoFrameType::kVideoFrameKey);
+  EXPECT_EQ(frames[0].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameKey);
   ASSERT_TRUE(frames[0].codec_specific_info.template_structure);
   ASSERT_TRUE(frames[0].codec_specific_info.generic_frame_info);
   EXPECT_EQ(frames[0].codec_specific_info.generic_frame_info->spatial_id, 2);
@@ -988,7 +992,8 @@ TEST(Vp9ImplTest, DisableEnableBaseLayerWithSvcControllerTriggersKeyFrame) {
   frames = producer.SetNumInputFrames(num_frames_to_encode).Encode();
   ASSERT_THAT(frames, SizeIs(num_frames_to_encode));
   for (const auto& frame : frames) {
-    EXPECT_EQ(frame.encoded_image._frameType, VideoFrameType::kVideoFrameDelta);
+    EXPECT_TRUE(frame.encoded_image.IsDelta());
+
     EXPECT_FALSE(frame.codec_specific_info.template_structure);
     ASSERT_TRUE(frame.codec_specific_info.generic_frame_info);
     EXPECT_EQ(frame.codec_specific_info.generic_frame_info->spatial_id, 2);
@@ -1005,12 +1010,13 @@ TEST(Vp9ImplTest, DisableEnableBaseLayerWithSvcControllerTriggersKeyFrame) {
 
   frames = producer.SetNumInputFrames(num_frames_to_encode).Encode();
   ASSERT_THAT(frames, SizeIs(num_frames_to_encode * 2));
-  EXPECT_EQ(frames[0].encoded_image._frameType, VideoFrameType::kVideoFrameKey);
+  EXPECT_EQ(frames[0].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameKey);
   EXPECT_TRUE(frames[0].codec_specific_info.template_structure);
   ASSERT_TRUE(frames[0].codec_specific_info.generic_frame_info);
   EXPECT_EQ(frames[0].codec_specific_info.generic_frame_info->spatial_id, 1);
   for (size_t i = 1; i < frames.size(); ++i) {
-    EXPECT_EQ(frames[i].encoded_image._frameType,
+    EXPECT_EQ(frames[i].encoded_image.frame_type(),
               VideoFrameType::kVideoFrameDelta);
     EXPECT_FALSE(frames[i].codec_specific_info.template_structure);
     ASSERT_TRUE(frames[i].codec_specific_info.generic_frame_info);
@@ -1094,7 +1100,8 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrameForScreenshare) {
     EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.ss_data_available,
               frame_num == 0);
     // No key-frames generated for disabling layers.
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+    EXPECT_TRUE(encoded_frame[0].IsDelta());
+
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 2);
   }
 
@@ -1108,7 +1115,7 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrameForScreenshare) {
     std::vector<CodecSpecificInfo> codec_specific_info;
     ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
     // Key-frame should be produced.
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameKey);
+    EXPECT_TRUE(encoded_frame[0].IsKey());
 
     // Enable the second layer back.
     // Allocate high bit rate to avoid frame dropping due to rate control.
@@ -1133,7 +1140,7 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrameForScreenshare) {
     const VideoFrameType expected_type = frame_num == 0
                                              ? VideoFrameType::kVideoFrameKey
                                              : VideoFrameType::kVideoFrameDelta;
-    EXPECT_EQ(encoded_frame[0]._frameType, expected_type);
+    EXPECT_EQ(encoded_frame[0].frame_type(), expected_type);
     EXPECT_EQ(encoded_frame[0].SpatialIndex().value_or(-1), 1);
     EXPECT_EQ(encoded_frame[1].SpatialIndex().value_or(-1), 2);
   }
@@ -1160,7 +1167,7 @@ TEST_F(TestVp9Impl, DisableEnableBaseLayerTriggersKeyFrameForScreenshare) {
     const VideoFrameType expected_type = frame_num == 0
                                              ? VideoFrameType::kVideoFrameKey
                                              : VideoFrameType::kVideoFrameDelta;
-    EXPECT_EQ(encoded_frame[0]._frameType, expected_type);
+    EXPECT_EQ(encoded_frame[0].frame_type(), expected_type);
   }
 }
 
@@ -1314,19 +1321,17 @@ TEST_F(TestVp9Impl,
         const bool is_first_upper_layer_frame = (sl_idx > 0 && frame_num == 0);
         if (is_first_upper_layer_frame) {
           if (inter_layer_pred == InterLayerPredMode::kOn) {
-            EXPECT_EQ(encoded_frame[0]._frameType,
-                      VideoFrameType::kVideoFrameDelta);
+            EXPECT_TRUE(encoded_frame[0].IsDelta());
           } else {
-            EXPECT_EQ(encoded_frame[0]._frameType,
-                      VideoFrameType::kVideoFrameKey);
+            EXPECT_TRUE(encoded_frame[0].IsKey());
           }
+
         } else if (sl_idx == 0 && frame_num == 0) {
-          EXPECT_EQ(encoded_frame[0]._frameType,
-                    VideoFrameType::kVideoFrameKey);
+          EXPECT_TRUE(encoded_frame[0].IsKey());
+
         } else {
           for (size_t i = 0; i <= sl_idx; ++i) {
-            EXPECT_EQ(encoded_frame[i]._frameType,
-                      VideoFrameType::kVideoFrameDelta);
+            EXPECT_TRUE(encoded_frame[i].IsDelta());
           }
         }
       }
@@ -1372,8 +1377,7 @@ TEST_F(TestVp9Impl,
         ASSERT_EQ(codec_specific_info.size(), sl_idx + 1);
 
         for (size_t i = 0; i <= sl_idx; ++i) {
-          const bool is_keyframe =
-              encoded_frame[0]._frameType == VideoFrameType::kVideoFrameKey;
+          const bool is_keyframe = encoded_frame[0].IsKey();
           const bool is_first_upper_layer_frame =
               (i == sl_idx && frame_num == 0);
           // Interframe references are there, unless it's a keyframe,
@@ -1439,7 +1443,8 @@ TEST_F(TestVp9Impl, EnablingDisablingUpperLayerInTheSameGof) {
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(NextInputFrame(), nullptr));
   ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
   ASSERT_EQ(codec_specific_info.size(), 1u);
-  EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+  EXPECT_TRUE(encoded_frame[0].IsDelta());
+
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.temporal_idx, 1);
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.inter_pic_predicted, true);
 
@@ -1456,7 +1461,8 @@ TEST_F(TestVp9Impl, EnablingDisablingUpperLayerInTheSameGof) {
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(NextInputFrame(), nullptr));
   ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
   ASSERT_EQ(codec_specific_info.size(), 2u);
-  EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+  EXPECT_TRUE(encoded_frame[0].IsDelta());
+
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.temporal_idx, 0);
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.inter_pic_predicted, true);
   EXPECT_EQ(codec_specific_info[1].codecSpecific.VP9.inter_pic_predicted, true);
@@ -1513,7 +1519,8 @@ TEST_F(TestVp9Impl, EnablingDisablingUpperLayerAccrossGof) {
               encoder_->Encode(NextInputFrame(), nullptr));
     ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
     ASSERT_EQ(codec_specific_info.size(), 1u);
-    EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+    EXPECT_TRUE(encoded_frame[0].IsDelta());
+
     EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.temporal_idx, 1 - i % 2);
     EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.inter_pic_predicted,
               true);
@@ -1532,7 +1539,8 @@ TEST_F(TestVp9Impl, EnablingDisablingUpperLayerAccrossGof) {
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(NextInputFrame(), nullptr));
   ASSERT_TRUE(WaitForEncodedFrames(&encoded_frame, &codec_specific_info));
   ASSERT_EQ(codec_specific_info.size(), 2u);
-  EXPECT_EQ(encoded_frame[0]._frameType, VideoFrameType::kVideoFrameDelta);
+  EXPECT_TRUE(encoded_frame[0].IsDelta());
+
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.temporal_idx, 0);
   EXPECT_EQ(codec_specific_info[0].codecSpecific.VP9.inter_pic_predicted, true);
   EXPECT_EQ(codec_specific_info[1].codecSpecific.VP9.inter_pic_predicted,
@@ -2211,7 +2219,7 @@ TEST_F(TestVp9ImplProfile2, EncodeDecode) {
   CodecSpecificInfo codec_specific_info;
   ASSERT_TRUE(WaitForEncodedFrame(&encoded_frame, &codec_specific_info));
   // First frame should be a key frame.
-  encoded_frame._frameType = VideoFrameType::kVideoFrameKey;
+  encoded_frame.set_frame_type(VideoFrameType::kVideoFrameKey);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, decoder_->Decode(encoded_frame, 0));
   std::unique_ptr<VideoFrame> decoded_frame;
   std::optional<uint8_t> decoded_qp;
@@ -2304,7 +2312,7 @@ TEST_F(TestVp9Impl, ReenablingUpperLayerAfterKFWithInterlayerPredIsEnabled) {
             encoder_->Encode(NextInputFrame(), &frame_types));
   ASSERT_TRUE(WaitForEncodedFrames(&encoded_frames, &codec_specific));
   EXPECT_EQ(encoded_frames.size(), num_spatial_layers - 1);
-  ASSERT_EQ(encoded_frames[0]._frameType, VideoFrameType::kVideoFrameKey);
+  ASSERT_TRUE(encoded_frames[0].IsKey());
 
   // Re-enable the last layer.
   bitrate_allocation.SetBitrate(
@@ -2318,7 +2326,7 @@ TEST_F(TestVp9Impl, ReenablingUpperLayerAfterKFWithInterlayerPredIsEnabled) {
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(NextInputFrame(), nullptr));
   ASSERT_TRUE(WaitForEncodedFrames(&encoded_frames, &codec_specific));
   EXPECT_EQ(encoded_frames.size(), num_spatial_layers);
-  EXPECT_EQ(encoded_frames[0]._frameType, VideoFrameType::kVideoFrameDelta);
+  EXPECT_TRUE(encoded_frames[0].IsDelta());
 }
 
 TEST_F(TestVp9Impl, HandlesEmptyDecoderConfigure) {

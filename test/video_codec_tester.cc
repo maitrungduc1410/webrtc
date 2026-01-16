@@ -442,7 +442,7 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
          temporal_idx = encoded_frame.TemporalIndex().value_or(0),
          width = encoded_frame._encodedWidth,
          height = encoded_frame._encodedHeight,
-         frame_type = encoded_frame._frameType,
+         v_frame_type = encoded_frame.frame_type(),
          frame_size_bytes = encoded_frame.size(), qp = encoded_frame.qp_,
          encode_finished]() {
           if (spatial_idx > 0) {
@@ -461,7 +461,7 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
           frame.height = height;
           frame.frame_size = DataSize::Bytes(frame_size_bytes);
           frame.qp = qp;
-          frame.keyframe = frame_type == VideoFrameType::kVideoFrameKey;
+          frame.keyframe = v_frame_type == VideoFrameType::kVideoFrameKey;
           frame.encode_time = encode_finished - frame.encode_start;
           frame.encoded = true;
         });
@@ -476,7 +476,7 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
          temporal_idx = encoded_frame.TemporalIndex().value_or(0),
          width = encoded_frame._encodedWidth,
          height = encoded_frame._encodedHeight,
-         frame_type = encoded_frame._frameType, qp = encoded_frame.qp_,
+         v_frame_type = encoded_frame.frame_type(), qp = encoded_frame.qp_,
          frame_size_bytes = encoded_frame.size(), decode_start]() {
           bool decode_only = frames_.find(timestamp_rtp) == frames_.end();
           if (decode_only || frames_.at(timestamp_rtp).find(spatial_idx) ==
@@ -487,7 +487,7 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
                               .temporal_idx = temporal_idx};
             frame.width = width;
             frame.height = height;
-            frame.keyframe = frame_type == VideoFrameType::kVideoFrameKey;
+            frame.keyframe = v_frame_type == VideoFrameType::kVideoFrameKey;
             frame.qp = qp;
             if (decode_only) {
               frame.frame_size = DataSize::Bytes(frame_size_bytes);
@@ -1294,7 +1294,7 @@ class Encoder : public EncodedImageCallback {
     ScalabilityMode scalability_mode = *codec_specific_info.scalability_mode;
     return (kFullSvcScalabilityModes.count(scalability_mode) ||
             (kKeySvcScalabilityModes.count(scalability_mode) &&
-             encoded_frame.FrameType() == VideoFrameType::kVideoFrameKey));
+             encoded_frame.IsKey()));
   }
 
   const EncodedImage& MakeSuperFrame(

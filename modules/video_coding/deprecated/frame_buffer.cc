@@ -34,7 +34,7 @@ VCMFrameBuffer::VCMFrameBuffer()
 
 VCMFrameBuffer::~VCMFrameBuffer() {}
 
-VideoFrameType VCMFrameBuffer::FrameType() const {
+VideoFrameType VCMFrameBuffer::frame_type() const {
   return _sessionInfo.FrameType();
 }
 
@@ -265,7 +265,7 @@ void VCMFrameBuffer::PrepareForDecode(bool continuous) {
   set_size(size() - bytes_removed);
   // Transfer frame information to EncodedFrame and create any codec
   // specific information.
-  _frameType = _sessionInfo.FrameType();
+  set_frame_type(_sessionInfo.FrameType());
   _missingFrame = !continuous;
 }
 

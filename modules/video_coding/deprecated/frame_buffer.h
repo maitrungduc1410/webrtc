@@ -72,7 +72,7 @@ class VCMFrameBuffer : public VCMEncodedFrame {
 
   int64_t LatestPacketTimeMs() const;
 
-  VideoFrameType FrameType() const;
+  VideoFrameType frame_type() const;
 
  private:
   void SetState(VCMFrameBufferStateEnum state);  // Set state of frame

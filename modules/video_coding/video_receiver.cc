@@ -164,7 +164,7 @@ int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {
     if (drop_frames_until_keyframe_) {
       // Still getting delta frames, schedule another keyframe request as if
       // decode failed.
-      if (frame->FrameType() != VideoFrameType::kVideoFrameKey) {
+      if (!frame->IsKey()) {
         drop_frame = true;
         _scheduleKeyRequest = true;
       } else {

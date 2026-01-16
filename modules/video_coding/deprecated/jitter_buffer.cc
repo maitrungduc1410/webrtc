@@ -42,7 +42,7 @@ static const int64_t kDefaultRtt = 200;
 typedef std::pair<uint32_t, VCMFrameBuffer*> FrameListPair;
 
 bool IsKeyFrame(FrameListPair pair) {
-  return pair.second->FrameType() == VideoFrameType::kVideoFrameKey;
+  return pair.second->frame_type() == VideoFrameType::kVideoFrameKey;
 }
 
 bool HasNonEmptyState(FrameListPair pair) {
@@ -81,7 +81,7 @@ int FrameList::RecycleFramesUntilKeyFrame(FrameList::iterator* key_frame_it,
     erase(it++);
     ++drop_count;
     if (it != end() &&
-        it->second->FrameType() == VideoFrameType::kVideoFrameKey) {
+        it->second->frame_type() == VideoFrameType::kVideoFrameKey) {
       *key_frame_it = it;
       return drop_count;
     }
@@ -630,7 +630,7 @@ std::vector<uint16_t> VCMJitterBuffer::GetNackList(bool* request_key_frame) {
     VCMFrameBuffer* next_frame = NextFrame();
     const bool first_frame_is_key =
         next_frame &&
-        next_frame->FrameType() == VideoFrameType::kVideoFrameKey &&
+        next_frame->frame_type() == VideoFrameType::kVideoFrameKey &&
         next_frame->HaveFirstPacket();
     if (!first_frame_is_key) {
       bool have_non_empty_frame =

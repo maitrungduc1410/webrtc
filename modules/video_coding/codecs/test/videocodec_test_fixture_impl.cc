@@ -37,7 +37,6 @@
 #include "api/video/resolution.h"
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
-#include "api/video/video_frame_type.h"
 #include "api/video_codecs/h264_profile_level_id.h"
 #include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/simulcast_stream.h"
@@ -410,11 +409,11 @@ void VideoCodecTestFixtureImpl::H264KeyframeChecker::CheckEncodedFrame(
       contains_idr = true;
     }
   }
-  if (encoded_frame._frameType == VideoFrameType::kVideoFrameKey) {
+  if (encoded_frame.IsKey()) {
     EXPECT_TRUE(contains_sps) << "Keyframe should contain SPS.";
     EXPECT_TRUE(contains_pps) << "Keyframe should contain PPS.";
     EXPECT_TRUE(contains_idr) << "Keyframe should contain IDR.";
-  } else if (encoded_frame._frameType == VideoFrameType::kVideoFrameDelta) {
+  } else if (encoded_frame.IsDelta()) {
     EXPECT_FALSE(contains_sps) << "Delta frame should not contain SPS.";
     EXPECT_FALSE(contains_pps) << "Delta frame should not contain PPS.";
     EXPECT_FALSE(contains_idr) << "Delta frame should not contain IDR.";

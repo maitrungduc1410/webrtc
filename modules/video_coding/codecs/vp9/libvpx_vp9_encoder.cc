@@ -1765,9 +1765,9 @@ void LibvpxVp9Encoder::GetEncodedLayerFrame(const vpx_codec_cx_pkt* pkt) {
   RTC_DCHECK(is_key_frame || !force_key_frame_);
 
   // Check if encoded frame is a key frame.
-  encoded_image_._frameType = VideoFrameType::kVideoFrameDelta;
+  encoded_image_.set_frame_type(VideoFrameType::kVideoFrameDelta);
   if (is_key_frame) {
-    encoded_image_._frameType = VideoFrameType::kVideoFrameKey;
+    encoded_image_.set_frame_type(VideoFrameType::kVideoFrameKey);
     force_key_frame_ = false;
   }
 
