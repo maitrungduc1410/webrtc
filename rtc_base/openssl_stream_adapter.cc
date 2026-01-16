@@ -646,9 +646,11 @@ void OpenSSLStreamAdapter::UpdateRetransmissionTimeout(int timeout_ms) {
   dtls_handshake_timeout_ms_ = timeout_ms;
 #ifdef OPENSSL_IS_BORINGSSL
   if (ssl_ctx_ != nullptr && ssl_mode_ == SSL_MODE_DTLS) {
-    // TODO (jonaso, webrtc:367395350): Switch to upcoming
-    // DTLSv1_update_timeout_duration.
-    DTLSv1_set_initial_timeout_duration(ssl_, dtls_handshake_timeout_ms_);
+    // TODO jonaso, webrtc:404763475 : Now that this is actually
+    // implemented in BORING_SSL we need to update test cases that
+    // will otherwise start to fail.
+    // DTLSv1_set_initial_timeout_duration(ssl_, dtls_handshake_timeout_ms_);
+
     // Clear the DTLS timer
     timeout_task_.Stop();
     MaybeSetTimeout();
