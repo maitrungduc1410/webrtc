@@ -105,9 +105,13 @@ struct ScreamV2Parameters {
   // Padding is periodically used in order to increase target rate even if a
   // stream does not produce a high enough rate.
   FieldTrialParameter<TimeDelta> periodic_padding_interval;
-
-  // Duration padding is used when periodic padding start.
+  // Max duration padding is used when periodic padding start.
+  // Padding is stopped if congestion occur.
   FieldTrialParameter<TimeDelta> periodic_padding_duration;
+  // Padding is allowed to be used after this duration since the last
+  // time reference window was reduced but at least `periodic_padding_interval`
+  // must have passed since last time padding was used.
+  FieldTrialParameter<TimeDelta> allow_padding_after_last_congestion_time;
 
   // Factor multiplied by the current target rate to decide the pacing rate.
   FieldTrialParameter<double> pacing_factor;

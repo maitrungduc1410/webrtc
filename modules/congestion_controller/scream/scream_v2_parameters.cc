@@ -50,8 +50,11 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView& trials)
       queue_delay_drain_threshold("QDelayDrainThreshold", TimeDelta::Millis(5)),
       queue_delay_drain_period("QDelayDrainPeriod", TimeDelta::Seconds(20)),
       queue_delay_drain_rtts("QDelayDrainRtts", 5),
-      periodic_padding_interval("PeriodicPadding", TimeDelta::Seconds(10)),
-      periodic_padding_duration("PaddingDuration", TimeDelta::Seconds(1)),
+      periodic_padding_interval("PeriodicPadding", TimeDelta::Seconds(6)),
+      periodic_padding_duration("PaddingDuration", TimeDelta::Seconds(3)),
+      allow_padding_after_last_congestion_time(
+          "AllowPaddingAfterLastCongestionTimeout",
+          TimeDelta::Seconds(1)),
       pacing_factor("PacingFactor", 1.1),
       feedback_hold_time_avg_g("FeedbackHoldTimeAvgG", 1.0 / 8.0) {
   ParseFieldTrial({&min_ref_window,
@@ -80,6 +83,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView& trials)
                    &queue_delay_drain_rtts,
                    &periodic_padding_interval,
                    &periodic_padding_duration,
+                   &allow_padding_after_last_congestion_time,
                    &pacing_factor,
                    &feedback_hold_time_avg_g},
                   trials.Lookup("WebRTC-Bwe-ScreamV2"));

@@ -150,6 +150,23 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPath1MbitDelayIncreaseAfter3S(
   return {schedulable_builder.Build()};
 }
 
+std::vector<EmulatedNetworkNode*> CreateNetworkPathWithChangedCapacityAfter5s(
+    PeerScenario& s,
+    DataRate link_capacity_1,
+    DataRate link_capacity_2) {
+  network_behaviour::NetworkConfigSchedule schedule;
+  auto initial_config = schedule.add_item();
+  initial_config->set_link_capacity_kbps(link_capacity_1.kbps());
+  initial_config->set_queue_delay_ms(15);
+  auto updated_capacity = schedule.add_item();
+  updated_capacity->set_time_since_first_sent_packet_ms(5000);
+  updated_capacity->set_link_capacity_kbps(link_capacity_2.kbps());
+
+  SchedulableNetworkNodeBuilder schedulable_builder(*s.net(),
+                                                    std::move(schedule));
+  return {schedulable_builder.Build()};
+}
+
 struct SendMediaTestResult {
   // Stats gathered every second during the call.
   std::vector<scoped_refptr<const RTCStatsReport>> caller_stats;
@@ -243,6 +260,27 @@ TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt100msNoEcn)) {
   EXPECT_THAT(result.caller().subview(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(250),
                                               DataRate::KilobitsPerSec(700))));
+}
+
+TEST(ScreamTest,
+     MaybeTest(LinkCapacityIncreaseFrom500KbitTo5MbpsAfter5sNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.caller_to_callee_path = CreateNetworkPathWithChangedCapacityAfter5s(
+      s, DataRate::KilobitsPerSec(500), DataRate::KilobitsPerSec(5000));
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(3000), TimeDelta::Millis(25));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+  // Stats 2-5s
+  EXPECT_THAT(
+      result.caller().subview(1, 3),
+      Each(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(200),
+                                         DataRate::KilobitsPerSec(600))));
+  // Stats after 8s
+  EXPECT_THAT(result.caller().subview(8), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(1500),
+                                              DataRate::KilobitsPerSec(5000))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt20msNoEcn)) {

@@ -71,8 +71,8 @@ void ScreamV2::SetTargetBitrateConstraints(DataRate min, DataRate max) {
   RTC_DCHECK_GE(max, min);
   min_target_bitrate_ = min;
   max_target_bitrate_ = max;
-  RTC_LOG_F(LS_INFO) << "min_target_bitrate_=" << min_target_bitrate_
-                     << " max_target_bitrate_=" << max_target_bitrate_;
+  RTC_LOG_F(LS_VERBOSE) << "min_target_bitrate_=" << min_target_bitrate_
+                        << " max_target_bitrate_=" << max_target_bitrate_;
 }
 
 void ScreamV2::OnPacketSent(DataSize data_in_flight) {
@@ -277,6 +277,9 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
     // It means that `ref_window_i` can increase if `rew_window` increase and
     // there is a congestion event.
     allow_ref_window_i_update_ = true;
+  }
+  if (previous_ref_window > ref_window_) {
+    last_ref_window_decrease_time_ = msg.feedback_time;
   }
 
   RTC_LOG_IF(LS_VERBOSE, previous_ref_window != ref_window_)
