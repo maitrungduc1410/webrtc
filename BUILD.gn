@@ -177,6 +177,10 @@ config("common_inherited_config") {
     defines += [ "RTC_ENABLE_WIN_WGC" ]
   }
 
+  if (deprecate_plan_b) {
+    defines += [ "WEBRTC_DEPRECATE_PLAN_B" ]
+  }
+
   if (!rtc_use_perfetto) {
     # Some tests need to declare their own trace event handlers. If this define is
     # not set, the first time TRACE_EVENT_* is called it will store the return

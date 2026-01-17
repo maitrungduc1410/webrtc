@@ -153,6 +153,9 @@ declare_args() {
     rtc_prefer_fixed_point = true
   }
 
+  # When set to true, Plan B will be deprecated.
+  deprecate_plan_b = false
+
   # Determines whether NEON code will be built.
   rtc_build_with_neon =
       (current_cpu == "arm" && arm_use_neon) || current_cpu == "arm64"
