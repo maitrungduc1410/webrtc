@@ -40,6 +40,7 @@
 #include "api/transport/bandwidth_estimation_settings.h"
 #include "api/transport/bitrate_settings.h"
 #include "pc/proxy.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 
 namespace webrtc {
@@ -51,10 +52,12 @@ namespace webrtc {
 // an implementation detail.
 BEGIN_PROXY_MAP(PeerConnection)
 PROXY_PRIMARY_THREAD_DESTRUCTOR()
+RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
 PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>, local_streams)
 PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>, remote_streams)
 PROXY_METHOD1(bool, AddStream, MediaStreamInterface*)
 PROXY_METHOD1(void, RemoveStream, MediaStreamInterface*)
+RTC_ALLOW_PLAN_B_DEPRECATION_END()
 PROXY_METHOD2(RTCErrorOr<scoped_refptr<RtpSenderInterface>>,
               AddTrack,
               scoped_refptr<MediaStreamTrackInterface>,
@@ -79,10 +82,12 @@ PROXY_METHOD2(RTCErrorOr<scoped_refptr<RtpTransceiverInterface>>,
               AddTransceiver,
               webrtc::MediaType,
               const RtpTransceiverInit&)
+RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
 PROXY_METHOD2(scoped_refptr<RtpSenderInterface>,
               CreateSender,
               const std::string&,
               const std::string&)
+RTC_ALLOW_PLAN_B_DEPRECATION_END()
 PROXY_CONSTMETHOD0(std::vector<scoped_refptr<RtpSenderInterface>>, GetSenders)
 PROXY_CONSTMETHOD0(std::vector<scoped_refptr<RtpReceiverInterface>>,
                    GetReceivers)

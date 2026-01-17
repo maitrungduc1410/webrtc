@@ -119,6 +119,7 @@
 #include "rtc_base/socket_address.h"
 #include "rtc_base/ssl_certificate.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 #include "rtc_base/unique_id_generator.h"
@@ -905,7 +906,10 @@ scoped_refptr<StreamCollectionInterface> PeerConnection::local_streams() {
   RTC_CHECK(!IsUnifiedPlan()) << "local_streams is not available with Unified "
                                  "Plan SdpSemantics. Please use GetSenders "
                                  "instead.";
-  return sdp_handler_->local_streams();
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  auto result = sdp_handler_->local_streams();
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  return result;
 }
 
 scoped_refptr<StreamCollectionInterface> PeerConnection::remote_streams() {
@@ -913,7 +917,10 @@ scoped_refptr<StreamCollectionInterface> PeerConnection::remote_streams() {
   RTC_CHECK(!IsUnifiedPlan()) << "remote_streams is not available with Unified "
                                  "Plan SdpSemantics. Please use GetReceivers "
                                  "instead.";
-  return sdp_handler_->remote_streams();
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  auto result = sdp_handler_->remote_streams();
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  return result;
 }
 
 bool PeerConnection::AddStream(MediaStreamInterface* local_stream) {
@@ -925,7 +932,10 @@ bool PeerConnection::AddStream(MediaStreamInterface* local_stream) {
     RTC_LOG(LS_ERROR) << "AddStream: Not configured for media";
     return false;
   }
-  return sdp_handler_->AddStream(local_stream);
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  bool result = sdp_handler_->AddStream(local_stream);
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  return result;
 }
 
 void PeerConnection::RemoveStream(MediaStreamInterface* local_stream) {
@@ -935,7 +945,9 @@ void PeerConnection::RemoveStream(MediaStreamInterface* local_stream) {
                                  "Plan SdpSemantics. Please use RemoveTrack "
                                  "instead.";
   TRACE_EVENT0("webrtc", "PeerConnection::RemoveStream");
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   sdp_handler_->RemoveStream(local_stream);
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
 }
 
 RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
@@ -986,8 +998,10 @@ RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
         sdp_handler_->video_bitrate_allocator_factory(), track, stream_ids,
         init_send_encodings);
   } else {
+    RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
     sender_or_error =
         rtp_manager()->AddTrackPlanB(track, stream_ids, init_send_encodings);
+    RTC_ALLOW_PLAN_B_DEPRECATION_END();
   }
   if (sender_or_error.ok()) {
     sdp_handler_->UpdateNegotiationNeeded();
@@ -1025,6 +1039,7 @@ RTCError PeerConnection::RemoveTrackOrError(
     }
   } else {
     bool removed;
+    RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
     if (sender->media_type() == webrtc::MediaType::AUDIO) {
       removed =
           rtp_manager()->GetAudioTransceiver()->internal()->RemoveSenderPlanB(
@@ -1035,6 +1050,7 @@ RTCError PeerConnection::RemoveTrackOrError(
           rtp_manager()->GetVideoTransceiver()->internal()->RemoveSenderPlanB(
               sender.get());
     }
+    RTC_ALLOW_PLAN_B_DEPRECATION_END();
     if (!removed) {
       LOG_AND_RETURN_ERROR(
           RTCErrorType::INVALID_PARAMETER,
@@ -1263,6 +1279,7 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
   }
 
   scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> new_sender;
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   if (kind == MediaStreamTrackInterface::kAudioKind) {
     auto audio_sender =
         AudioRtpSender::Create(env_, signaling_thread(), worker_thread(),
@@ -1282,6 +1299,10 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
         new_sender);
   } else {
     RTC_LOG(LS_ERROR) << "CreateSender called with invalid kind: " << kind;
+  }
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+
+  if (!new_sender) {
     return nullptr;
   }
   new_sender->internal()->set_stream_ids(stream_ids);

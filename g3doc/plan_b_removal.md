@@ -34,6 +34,15 @@ PLAN_B_ONLY void MyPlanBSpecificFunction();
 - When `deprecate_plan_b` is `true`, `PLAN_B_ONLY` expands to `[[deprecated]]`.
 - When `deprecate_plan_b` is `false`, `PLAN_B_ONLY` expands to an empty string.
 
+### Suppression Macros
+
+To allow existing Plan B code to compile when `deprecate_plan_b = true`, the following macros are provided in `rtc_base/system/plan_b_only.h`:
+
+- `RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()`
+- `RTC_ALLOW_PLAN_B_DEPRECATION_END()`
+
+These macros use compiler pragmas to locally disable deprecation warnings.
+
 ## Usage Guidelines
 
 ### Annotating New Plan B Code
@@ -41,6 +50,17 @@ Avoid adding new Plan B code. If it is absolutely necessary, ensure it is annota
 
 ### Identifying Plan B Dependencies
 By setting `deprecate_plan_b = true`, developers can identify all call sites that still rely on Plan B. This is the primary method for auditing the progress of the migration to Unified Plan.
+
+### Suppressing Deprecation Warnings in Legacy Code
+Existing Plan B call sites in "glue code" (e.g., `PeerConnection` delegation logic) should be wrapped with the suppression macros to allow the build to pass.
+
+```cpp
+RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+sdp_handler_->RemoveStream(local_stream);
+RTC_ALLOW_PLAN_B_DEPRECATION_END();
+```
+
+This ensures that the build only fails on *new*, unwrapped Plan B usage, while clearly marking legacy code that requires migration.
 
 ### Transitioning to Unified Plan
 Functions that are compatible with both Plan B and Unified Plan should **not** be annotated. Only those that are functionally incorrect or redundant under Unified Plan (often guarded by `RTC_DCHECK(!IsUnifiedPlan())`) should be marked.
