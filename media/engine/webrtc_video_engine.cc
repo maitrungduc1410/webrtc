@@ -927,20 +927,14 @@ WebRtcVideoSendChannel::WebRtcVideoSendChannel(
       env_(env),
       worker_thread_(call->worker_thread()),
       sending_(false),
-      receiving_(false),
       call_(call),
-      default_sink_(nullptr),
       video_config_(config.video),
       encoder_factory_(encoder_factory),
       bitrate_allocator_factory_(bitrate_allocator_factory),
       default_send_options_(options),
       last_send_stats_log_ms_(-1),
-      last_receive_stats_log_ms_(-1),
-      discard_unknown_ssrc_packets_(env_.field_trials().IsEnabled(
-          "WebRTC-Video-DiscardPacketsWithUnknownSsrc")),
       crypto_options_(crypto_options) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  rtcp_receiver_report_ssrc_ = kDefaultRtcpReceiverReportSsrc;
 }
 
 WebRtcVideoSendChannel::~WebRtcVideoSendChannel() {
@@ -1379,11 +1373,6 @@ bool WebRtcVideoSendChannel::ApplyChangedParams(
 
   for (auto& kv : send_streams_) {
     kv.second->SetSenderParameters(changed_params);
-  }
-  if (changed_params.send_codec || changed_params.rtcp_mode) {
-    if (send_codec_changed_callback_) {
-      send_codec_changed_callback_();
-    }
   }
   return true;
 }
@@ -2842,7 +2831,6 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveChannel(
       default_sink_(nullptr),
       video_config_(config.video),
       decoder_factory_(decoder_factory),
-      default_send_options_(options),
       last_receive_stats_log_ms_(-1),
       discard_unknown_ssrc_packets_(env_.field_trials().IsEnabled(
           "WebRTC-Video-DiscardPacketsWithUnknownSsrc")),
