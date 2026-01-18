@@ -54,6 +54,7 @@
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/session_description.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -94,6 +95,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // channel set.
   // `media_type` specifies the type of RtpTransceiver (and, by transitivity,
   // the type of senders, receivers, and channel). Can either by audio or video.
+  // This should be PLAN_B_ONLY; but this marking is deferred due to templating
+  // issues
   RtpTransceiver(const Environment& env,
                  MediaType media_type,
                  ConnectionContext* context,
@@ -200,20 +203,20 @@ class RtpTransceiver : public RtpTransceiverInterface {
   absl::AnyInvocable<void() &&> GetDeleteChannelWorkerTask(bool stop_senders);
 
   // Adds an RtpSender of the appropriate type to be owned by this transceiver.
-  scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> AddSenderPlanB(
-      scoped_refptr<MediaStreamTrackInterface> track,
-      absl::string_view sender_id,
-      const std::vector<std::string>& stream_ids,
-      const std::vector<RtpEncodingParameters>& send_encodings);
+  PLAN_B_ONLY scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>
+  AddSenderPlanB(scoped_refptr<MediaStreamTrackInterface> track,
+                 absl::string_view sender_id,
+                 const std::vector<std::string>& stream_ids,
+                 const std::vector<RtpEncodingParameters>& send_encodings);
 
   // Adds an RtpSender of the appropriate type to be owned by this transceiver.
   // Must not be null.
-  void AddSenderPlanB(
+  PLAN_B_ONLY void AddSenderPlanB(
       scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender);
 
   // Removes the given RtpSender. Returns false if the sender is not owned by
   // this transceiver.
-  bool RemoveSenderPlanB(RtpSenderInterface* sender);
+  PLAN_B_ONLY bool RemoveSenderPlanB(RtpSenderInterface* sender);
 
   // Returns a vector of the senders owned by this transceiver.
   std::vector<scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>
@@ -223,13 +226,13 @@ class RtpTransceiver : public RtpTransceiverInterface {
 
   // Adds an RtpReceiver of the appropriate type to be owned by this
   // transceiver. Must not be null.
-  void AddReceiverPlanB(
+  PLAN_B_ONLY void AddReceiverPlanB(
       scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
           receiver);
 
   // Removes the given RtpReceiver. Returns false if the receiver is not owned
   // by this transceiver.
-  bool RemoveReceiverPlanB(RtpReceiverInterface* receiver);
+  PLAN_B_ONLY bool RemoveReceiverPlanB(RtpReceiverInterface* receiver);
 
   // Returns a vector of the receivers owned by this transceiver.
   std::vector<scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>>

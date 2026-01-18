@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "api/units/time_delta.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
@@ -25,14 +26,10 @@ namespace webrtc {
 // Jingle call, the content name can be anything, so don't rely on
 // these values being the same as the ones received.
 // Note: these were used in the deprecated "plan-b".
-[[deprecated("plan-b")]]
-extern const char CN_AUDIO[];
-[[deprecated("plan-b")]]
-extern const char CN_VIDEO[];
-[[deprecated("plan-b")]]
-extern const char CN_DATA[];
-[[deprecated("plan-b")]]
-extern const char CN_OTHER[];
+PLAN_B_ONLY extern const char CN_AUDIO[];
+PLAN_B_ONLY extern const char CN_VIDEO[];
+PLAN_B_ONLY extern const char CN_DATA[];
+PLAN_B_ONLY extern const char CN_OTHER[];
 
 extern const char GROUP_TYPE_BUNDLE[];
 

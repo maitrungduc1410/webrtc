@@ -793,9 +793,7 @@ RTCError DisableSimulcastInSender(scoped_refptr<RtpSenderInternal> sender) {
 
 // The SDP parser used to populate these values by default for the 'content
 // name' if an a=mid line was absent.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-std::string GetDefaultMidForPlanB(MediaType media_type) {
+PLAN_B_ONLY std::string GetDefaultMidForPlanB(MediaType media_type) {
   switch (media_type) {
     case MediaType::AUDIO:
       return CN_AUDIO;
@@ -812,10 +810,9 @@ std::string GetDefaultMidForPlanB(MediaType media_type) {
   RTC_DCHECK_NOTREACHED();
   return "";
 }
-#pragma clang diagnostic pop
 
 // Add options to |[audio/video]_media_description_options| from `senders`.
-void AddPlanBRtpSenderOptions(
+PLAN_B_ONLY void AddPlanBRtpSenderOptions(
     const std::vector<
         scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>& senders,
     MediaDescriptionOptions* audio_media_description_options,
@@ -4347,7 +4344,9 @@ void SdpOfferAnswerHandler::FillInMissingRemoteMids(
         source_explanation = "generated just now";
       }
     } else {
+      RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
       new_mid = GetDefaultMidForPlanB(content.media_description()->type());
+      RTC_ALLOW_PLAN_B_DEPRECATION_END();
       source_explanation = "to match pre-existing behavior";
     }
     RTC_DCHECK(!new_mid.empty());

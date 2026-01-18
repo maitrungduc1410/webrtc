@@ -50,14 +50,17 @@ namespace webrtc {
 // and support for a secondary thread is provided via 'SECONDARY' macros.
 // TODO(deadbeef): Move this to .cc file. What threads methods are called on is
 // an implementation detail.
+
+// The use of multiple macros here means that clang-format does badly.
+// clang-format off
 BEGIN_PROXY_MAP(PeerConnection)
 PROXY_PRIMARY_THREAD_DESTRUCTOR()
-RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
-PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>, local_streams)
-PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>, remote_streams)
-PROXY_METHOD1(bool, AddStream, MediaStreamInterface*)
-PROXY_METHOD1(void, RemoveStream, MediaStreamInterface*)
-RTC_ALLOW_PLAN_B_DEPRECATION_END()
+PLAN_B_ONLY PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>,
+                          local_streams)
+PLAN_B_ONLY PROXY_METHOD0(scoped_refptr<StreamCollectionInterface>,
+                          remote_streams)
+PLAN_B_ONLY PROXY_METHOD1(bool, AddStream, MediaStreamInterface*)
+PLAN_B_ONLY PROXY_METHOD1(void, RemoveStream, MediaStreamInterface*)
 PROXY_METHOD2(RTCErrorOr<scoped_refptr<RtpSenderInterface>>,
               AddTrack,
               scoped_refptr<MediaStreamTrackInterface>,
@@ -82,12 +85,10 @@ PROXY_METHOD2(RTCErrorOr<scoped_refptr<RtpTransceiverInterface>>,
               AddTransceiver,
               webrtc::MediaType,
               const RtpTransceiverInit&)
-RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
-PROXY_METHOD2(scoped_refptr<RtpSenderInterface>,
-              CreateSender,
-              const std::string&,
-              const std::string&)
-RTC_ALLOW_PLAN_B_DEPRECATION_END()
+PLAN_B_ONLY PROXY_METHOD2(scoped_refptr<RtpSenderInterface>,
+                          CreateSender,
+                          const std::string&,
+                          const std::string&)
 PROXY_CONSTMETHOD0(std::vector<scoped_refptr<RtpSenderInterface>>, GetSenders)
 PROXY_CONSTMETHOD0(std::vector<scoped_refptr<RtpReceiverInterface>>,
                    GetReceivers)
@@ -198,6 +199,7 @@ PROXY_METHOD0(void, Close)
 
 BYPASS_PROXY_CONSTMETHOD0(Thread*, signaling_thread)
 END_PROXY_MAP(PeerConnection)
+// clang-format on
 
 }  // namespace webrtc
 

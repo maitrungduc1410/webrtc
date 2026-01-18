@@ -906,10 +906,7 @@ scoped_refptr<StreamCollectionInterface> PeerConnection::local_streams() {
   RTC_CHECK(!IsUnifiedPlan()) << "local_streams is not available with Unified "
                                  "Plan SdpSemantics. Please use GetSenders "
                                  "instead.";
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  auto result = sdp_handler_->local_streams();
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  return result;
+  return sdp_handler_->local_streams();
 }
 
 scoped_refptr<StreamCollectionInterface> PeerConnection::remote_streams() {
@@ -917,10 +914,7 @@ scoped_refptr<StreamCollectionInterface> PeerConnection::remote_streams() {
   RTC_CHECK(!IsUnifiedPlan()) << "remote_streams is not available with Unified "
                                  "Plan SdpSemantics. Please use GetReceivers "
                                  "instead.";
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  auto result = sdp_handler_->remote_streams();
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  return result;
+  return sdp_handler_->remote_streams();
 }
 
 bool PeerConnection::AddStream(MediaStreamInterface* local_stream) {
@@ -932,10 +926,7 @@ bool PeerConnection::AddStream(MediaStreamInterface* local_stream) {
     RTC_LOG(LS_ERROR) << "AddStream: Not configured for media";
     return false;
   }
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  bool result = sdp_handler_->AddStream(local_stream);
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  return result;
+  return sdp_handler_->AddStream(local_stream);
 }
 
 void PeerConnection::RemoveStream(MediaStreamInterface* local_stream) {
@@ -945,9 +936,7 @@ void PeerConnection::RemoveStream(MediaStreamInterface* local_stream) {
                                  "Plan SdpSemantics. Please use RemoveTrack "
                                  "instead.";
   TRACE_EVENT0("webrtc", "PeerConnection::RemoveStream");
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   sdp_handler_->RemoveStream(local_stream);
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
 }
 
 RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
@@ -1279,7 +1268,6 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
   }
 
   scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> new_sender;
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   if (kind == MediaStreamTrackInterface::kAudioKind) {
     auto audio_sender =
         AudioRtpSender::Create(env_, signaling_thread(), worker_thread(),
@@ -1300,7 +1288,6 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
   } else {
     RTC_LOG(LS_ERROR) << "CreateSender called with invalid kind: " << kind;
   }
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
 
   if (!new_sender) {
     return nullptr;

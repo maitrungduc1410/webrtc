@@ -66,6 +66,7 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 
 namespace webrtc {
@@ -663,7 +664,7 @@ void RtpTransceiver::ClearMediaChannelReferences() {
   media_engine_ref_ = nullptr;
 }
 
-void RtpTransceiver::AddSenderPlanB(
+PLAN_B_ONLY void RtpTransceiver::AddSenderPlanB(
     scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!stopped_);
@@ -675,7 +676,7 @@ void RtpTransceiver::AddSenderPlanB(
   senders_.push_back(sender);
 }
 
-scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>
+PLAN_B_ONLY scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>
 RtpTransceiver::AddSenderPlanB(
     scoped_refptr<MediaStreamTrackInterface> track,
     absl::string_view sender_id,
@@ -697,7 +698,7 @@ RtpTransceiver::AddSenderPlanB(
   return senders_.back();
 }
 
-bool RtpTransceiver::RemoveSenderPlanB(RtpSenderInterface* sender) {
+PLAN_B_ONLY bool RtpTransceiver::RemoveSenderPlanB(RtpSenderInterface* sender) {
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK_EQ(media_type(), sender->media_type());
   auto it = absl::c_find(senders_, sender);
@@ -709,7 +710,7 @@ bool RtpTransceiver::RemoveSenderPlanB(RtpSenderInterface* sender) {
   return true;
 }
 
-void RtpTransceiver::AddReceiverPlanB(
+PLAN_B_ONLY void RtpTransceiver::AddReceiverPlanB(
     scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>> receiver) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!stopped_);
@@ -720,7 +721,8 @@ void RtpTransceiver::AddReceiverPlanB(
   receivers_.push_back(receiver);
 }
 
-bool RtpTransceiver::RemoveReceiverPlanB(RtpReceiverInterface* receiver) {
+PLAN_B_ONLY bool RtpTransceiver::RemoveReceiverPlanB(
+    RtpReceiverInterface* receiver) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK_EQ(media_type(), receiver->media_type());
