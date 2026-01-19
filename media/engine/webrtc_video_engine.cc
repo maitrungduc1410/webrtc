@@ -1128,11 +1128,7 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
           }
         }
         if (needs_update) {
-          RTCError error =
-              send_stream->SetRtpParameters(rtp_parameters, nullptr);
-          if (error.ok()) {
-            on_rtp_send_parameters_changed_callback_.Send(ssrc, rtp_parameters);
-          }
+          send_stream->SetRtpParameters(rtp_parameters, nullptr);
         } else {
           RTC_DCHECK(rtp_parameters == send_stream->GetRtpParameters());
         }
@@ -1179,10 +1175,7 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
 
     if (needs_update) {
       RTC_DCHECK(send_stream->GetRtpParameters() != rtp_parameters);
-      RTCError error = send_stream->SetRtpParameters(rtp_parameters, nullptr);
-      if (error.ok()) {
-        on_rtp_send_parameters_changed_callback_.Send(ssrc, rtp_parameters);
-      }
+      send_stream->SetRtpParameters(rtp_parameters, nullptr);
     }
   }
 
@@ -1500,29 +1493,9 @@ RTCError WebRtcVideoSendChannel::SetRtpSendParameters(
     SetPreferredDscp(new_dscp);
   }
 
-  bool changed = (parameters != current_parameters);
-  RTCError error =
-      it->second->SetRtpParameters(parameters, std::move(callback));
-  if (changed && error.ok()) {
-    on_rtp_send_parameters_changed_callback_.Send(ssrc, parameters);
-  }
-  return error;
+  return it->second->SetRtpParameters(parameters, std::move(callback));
 }
 
-void WebRtcVideoSendChannel::SubscribeRtpSendParametersChanged(
-    const void* tag,
-    absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
-        callback) {
-  RTC_DCHECK_RUN_ON(&thread_checker_);
-  on_rtp_send_parameters_changed_callback_.AddReceiver(tag,
-                                                       std::move(callback));
-}
-
-void WebRtcVideoSendChannel::UnsubscribeRtpSendParametersChanged(
-    const void* tag) {
-  RTC_DCHECK_RUN_ON(&thread_checker_);
-  on_rtp_send_parameters_changed_callback_.RemoveReceivers(tag);
-}
 std::optional<Codec> WebRtcVideoSendChannel::GetSendCodec() const {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   if (!send_codec()) {

@@ -216,27 +216,8 @@ void RtpSenderBase::SetMediaChannel(MediaSendChannelInterface* media_channel) {
   // via ClearSend_w, are separate operations. Stopping the actual send
   // operation, needs to be done via any of the paths that end up with a call to
   // ClearSend_w(), such as DetachTrackAndGetStopTask().
-  if (media_channel_) {
-    media_channel_->UnsubscribeRtpSendParametersChanged(this);
-  }
-
   media_channel_ = media_channel;
-
-  if (media_channel_) {
-    worker_safety_->SetAlive();
-    media_channel_->SubscribeRtpSendParametersChanged(
-        this,
-        [this](std::optional<uint32_t> ssrc, const RtpParameters& parameters) {
-          RTC_DCHECK_RUN_ON(worker_thread_);
-          signaling_thread_->PostTask(
-              SafeTask(signaling_safety_.flag(), [this]() mutable {
-                RTC_DCHECK_RUN_ON(signaling_thread_);
-                last_transaction_id_.reset();
-              }));
-        });
-  } else {
-    worker_safety_->SetNotAlive();
-  }
+  media_channel_ ? worker_safety_->SetAlive() : worker_safety_->SetNotAlive();
 }
 
 RtpParameters RtpSenderBase::GetParametersInternal() const {

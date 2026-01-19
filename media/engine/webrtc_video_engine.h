@@ -63,7 +63,6 @@
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "rtc_base/callback_list.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/network_route.h"
@@ -199,11 +198,6 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   RTCError SetRtpSendParameters(uint32_t ssrc,
                                 const RtpParameters& parameters,
                                 SetParametersCallback callback) override;
-  void SubscribeRtpSendParametersChanged(
-      const void* tag,
-      absl::AnyInvocable<void(std::optional<uint32_t>, const RtpParameters&)>
-          callback) override;
-  void UnsubscribeRtpSendParametersChanged(const void* tag) override;
   RtpParameters GetRtpSendParameters(uint32_t ssrc) const override;
   std::optional<Codec> GetSendCodec() const override;
   bool SetSend(bool send) override;
@@ -468,9 +462,6 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   Call* const call_;
 
   const MediaConfig::Video video_config_ RTC_GUARDED_BY(thread_checker_);
-
-  mutable CallbackList<std::optional<uint32_t>, const RtpParameters&>
-      on_rtp_send_parameters_changed_callback_ RTC_GUARDED_BY(thread_checker_);
 
   // Using primary-ssrc (first ssrc) as key.
   std::map<uint32_t, WebRtcVideoSendStream*> send_streams_
