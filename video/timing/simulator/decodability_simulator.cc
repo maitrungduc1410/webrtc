@@ -163,6 +163,10 @@ class DecodabilitySimulatorStream : public RtcEventLogDriver::StreamInterface {
 
 }  // namespace
 
+DecodabilitySimulator::DecodabilitySimulator(Config config) : config_(config) {}
+
+DecodabilitySimulator::~DecodabilitySimulator() = default;
+
 DecodabilitySimulator::Results DecodabilitySimulator::Simulate(
     const ParsedRtcEventLog& parsed_log) const {
   // Outputs.
@@ -172,11 +176,10 @@ DecodabilitySimulator::Results DecodabilitySimulator::Simulate(
   auto stream_factory = [&results](const Environment& env, uint32_t ssrc) {
     return std::make_unique<DecodabilitySimulatorStream>(env, ssrc, &results);
   };
-  // In order to keep the decodability data clean, we do not reuse streams.
   // Decodability should not be a function of any field trials, so we pass the
   // empty string here.
   RtcEventLogDriver rtc_event_log_simulator(
-      {.reuse_streams = false}, &parsed_log,
+      {.reuse_streams = config_.reuse_streams}, &parsed_log,
       /*field_trials_string=*/"", std::move(stream_factory));
   rtc_event_log_simulator.Simulate();
 

@@ -42,6 +42,8 @@ class RenderingSimulator {
       return std::make_unique<VCMTiming>(&env.clock(), env.field_trials());
     };
 
+    // Whether or not to reset the stream state on newly logged streams with the
+    // same SSRC.
     bool reuse_streams = true;
   };
 

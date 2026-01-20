@@ -50,7 +50,8 @@ TEST(DecodabilitySimulatorTest, VideoRecvVp8) {
   std::unique_ptr<ParsedRtcEventLog> parsed_log =
       ParsedRtcEventLogFromResources("video_recv_vp8_pt96");
 
-  DecodabilitySimulator simulator;
+  DecodabilitySimulator::Config config;
+  DecodabilitySimulator simulator(config);
   DecodabilitySimulator::Results results = simulator.Simulate(*parsed_log);
 
   ASSERT_THAT(results.streams, SizeIs(1));
@@ -73,7 +74,8 @@ TEST(DecodabilitySimulatorTest, VideoRecvVp9) {
   std::unique_ptr<ParsedRtcEventLog> parsed_log =
       ParsedRtcEventLogFromResources("video_recv_vp9_pt98");
 
-  DecodabilitySimulator simulator;
+  DecodabilitySimulator::Config config;
+  DecodabilitySimulator simulator(config);
   DecodabilitySimulator::Results results = simulator.Simulate(*parsed_log);
 
   ASSERT_THAT(results.streams, SizeIs(1));
@@ -96,7 +98,8 @@ TEST(DecodabilitySimulatorTest, VideoRecvAv1) {
   std::unique_ptr<ParsedRtcEventLog> parsed_log =
       ParsedRtcEventLogFromResources("video_recv_av1_pt45");
 
-  DecodabilitySimulator simulator;
+  DecodabilitySimulator::Config config;
+  DecodabilitySimulator simulator(config);
   DecodabilitySimulator::Results results = simulator.Simulate(*parsed_log);
 
   ASSERT_THAT(results.streams, SizeIs(1));
@@ -120,7 +123,8 @@ TEST(DecodabilitySimulatorTest, VideoRecvSequentialJoinVp8Vp9Av1) {
   std::unique_ptr<ParsedRtcEventLog> parsed_log =
       ParsedRtcEventLogFromResources("video_recv_sequential_join_vp8_vp9_av1");
 
-  DecodabilitySimulator simulator;
+  DecodabilitySimulator::Config config;
+  DecodabilitySimulator simulator(config);
   DecodabilitySimulator::Results results = simulator.Simulate(*parsed_log);
 
   EXPECT_THAT(results.streams,

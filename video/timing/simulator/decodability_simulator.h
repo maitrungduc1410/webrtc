@@ -26,6 +26,13 @@ namespace webrtc::video_timing_simulator {
 // sequence of metadata about decodable frames that were contained in the log.
 class DecodabilitySimulator {
  public:
+  struct Config {
+    // Whether or not to reset the stream state on newly logged streams with the
+    // same SSRC. This can be useful for simulation, but likely not for data
+    // analysis.
+    bool reuse_streams = false;
+  };
+
   // Metadata about a single decodable frame.
   struct Frame {
     // Frame information.
@@ -94,13 +101,16 @@ class DecodabilitySimulator {
     std::vector<Stream> streams;
   };
 
-  DecodabilitySimulator() = default;
-  ~DecodabilitySimulator() = default;
+  explicit DecodabilitySimulator(Config config);
+  ~DecodabilitySimulator();
 
   DecodabilitySimulator(const DecodabilitySimulator&) = delete;
   DecodabilitySimulator& operator=(const DecodabilitySimulator&) = delete;
 
   Results Simulate(const ParsedRtcEventLog& parsed_log) const;
+
+ private:
+  const Config config_;
 };
 
 }  // namespace webrtc::video_timing_simulator
