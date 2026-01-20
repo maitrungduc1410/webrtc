@@ -1415,7 +1415,7 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
     submodules_.agc_manager->Process(*capture_buffer);
 
     std::optional<int> new_digital_gain =
-        submodules_.agc_manager->GetDigitalComressionGain();
+        submodules_.agc_manager->GetDigitalCompressionGain();
     if (new_digital_gain && submodules_.gain_control) {
       submodules_.gain_control->set_compression_gain_db(*new_digital_gain);
     }
