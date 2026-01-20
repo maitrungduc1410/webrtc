@@ -148,7 +148,7 @@ declare_args() {
   rtc_sanitize_coverage = ""
 
   # When set to true, Plan B will be deprecated.
-  deprecate_plan_b = false
+  deprecate_plan_b = true
 
   # Determines whether NEON code will be built.
   rtc_build_with_neon =
