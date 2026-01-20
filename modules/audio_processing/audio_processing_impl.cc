@@ -45,7 +45,6 @@
 #include "modules/audio_processing/agc2/input_volume_stats_reporter.h"
 #include "modules/audio_processing/audio_buffer.h"
 #include "modules/audio_processing/capture_levels_adjuster/capture_levels_adjuster.h"
-#include "modules/audio_processing/echo_control_mobile_impl.h"
 #include "modules/audio_processing/gain_control_impl.h"
 #include "modules/audio_processing/gain_controller2.h"
 #include "modules/audio_processing/high_pass_filter.h"
@@ -345,7 +344,6 @@ AudioProcessingImpl::SubmoduleStates::SubmoduleStates(
 
 bool AudioProcessingImpl::SubmoduleStates::Update(
     bool high_pass_filter_enabled,
-    bool mobile_echo_controller_enabled,
     bool noise_suppressor_enabled,
     bool adaptive_gain_controller_enabled,
     bool gain_controller2_enabled,
@@ -353,8 +351,6 @@ bool AudioProcessingImpl::SubmoduleStates::Update(
     bool echo_controller_enabled) {
   bool changed = false;
   changed |= (high_pass_filter_enabled != high_pass_filter_enabled_);
-  changed |=
-      (mobile_echo_controller_enabled != mobile_echo_controller_enabled_);
   changed |= (noise_suppressor_enabled != noise_suppressor_enabled_);
   changed |=
       (adaptive_gain_controller_enabled != adaptive_gain_controller_enabled_);
@@ -363,7 +359,6 @@ bool AudioProcessingImpl::SubmoduleStates::Update(
   changed |= (echo_controller_enabled != echo_controller_enabled_);
   if (changed) {
     high_pass_filter_enabled_ = high_pass_filter_enabled;
-    mobile_echo_controller_enabled_ = mobile_echo_controller_enabled;
     noise_suppressor_enabled_ = noise_suppressor_enabled;
     adaptive_gain_controller_enabled_ = adaptive_gain_controller_enabled;
     gain_controller2_enabled_ = gain_controller2_enabled;
@@ -1084,23 +1079,6 @@ void AudioProcessingImpl::HandleRenderRuntimeSettings() {
 void AudioProcessingImpl::QueueBandedRenderAudio(AudioBuffer* audio) {
   RTC_DCHECK_GE(160, audio->num_frames_per_band());
 
-  if (submodules_.echo_control_mobile) {
-    EchoControlMobileImpl::PackRenderAudioBuffer(audio, num_output_channels(),
-                                                 num_reverse_channels(),
-                                                 &aecm_render_queue_buffer_);
-    RTC_DCHECK(aecm_render_signal_queue_);
-    // Insert the samples into the queue.
-    if (!aecm_render_signal_queue_->Insert(&aecm_render_queue_buffer_)) {
-      // The data queue is full and needs to be emptied.
-      EmptyQueuedRenderAudio();
-
-      // Retry the insert (should always work).
-      bool result =
-          aecm_render_signal_queue_->Insert(&aecm_render_queue_buffer_);
-      RTC_DCHECK(result);
-    }
-  }
-
   if (!submodules_.agc_manager && submodules_.gain_control) {
     GainControlImpl::PackRenderAudioBuffer(*audio, &agc_render_queue_buffer_);
     // Insert the samples into the queue.
@@ -1189,14 +1167,6 @@ void AudioProcessingImpl::EmptyQueuedRenderAudio() {
 }
 
 void AudioProcessingImpl::EmptyQueuedRenderAudioLocked() {
-  if (submodules_.echo_control_mobile) {
-    RTC_DCHECK(aecm_render_signal_queue_);
-    while (aecm_render_signal_queue_->Remove(&aecm_capture_queue_buffer_)) {
-      submodules_.echo_control_mobile->ProcessRenderAudio(
-          aecm_capture_queue_buffer_);
-    }
-  }
-
   if (submodules_.gain_control) {
     while (agc_render_signal_queue_->Remove(&agc_capture_queue_buffer_)) {
       submodules_.gain_control->ProcessRenderAudio(agc_capture_queue_buffer_);
@@ -1251,12 +1221,6 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
   EmptyQueuedRenderAudioLocked();
   HandleCaptureRuntimeSettings();
   DenormalDisabler denormal_disabler;
-
-  // Ensure that not both the AEC and AECM are active at the same time.
-  // TODO(peah): Simplify once the public API Enable functions for these
-  // are moved to APM.
-  RTC_DCHECK_LE(
-      !!submodules_.echo_controller + !!submodules_.echo_control_mobile, 1);
 
   data_dumper_->DumpRaw(
       "applied_input_volume",
@@ -1371,25 +1335,11 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
   }
 
   if ((!config_.noise_suppression.analyze_linear_aec_output_when_available ||
-       !linear_aec_buffer || submodules_.echo_control_mobile) &&
+       !linear_aec_buffer) &&
       submodules_.noise_suppressor) {
     submodules_.noise_suppressor->Analyze(*capture_buffer);
   }
 
-  if (submodules_.echo_control_mobile) {
-    // Ensure that the stream delay was set before the call to the
-    // AECM ProcessCaptureAudio function.
-    if (!capture_.was_stream_delay_set) {
-      return AudioProcessing::kStreamParameterNotSetError;
-    }
-
-    if (submodules_.noise_suppressor) {
-      submodules_.noise_suppressor->Process(capture_buffer);
-    }
-
-    RETURN_ON_ERR(submodules_.echo_control_mobile->ProcessCaptureAudio(
-        capture_buffer, stream_delay_ms()));
-  } else {
     if (submodules_.echo_controller) {
       data_dumper_->DumpRaw("stream_delay", stream_delay_ms());
 
@@ -1409,7 +1359,6 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
     if (submodules_.noise_suppressor) {
       submodules_.noise_suppressor->Process(capture_buffer);
     }
-  }
 
   if (submodules_.agc_manager) {
     submodules_.agc_manager->Process(*capture_buffer);
@@ -1859,9 +1808,8 @@ AudioProcessing::Config AudioProcessingImpl::GetConfig() const {
 
 bool AudioProcessingImpl::UpdateActiveSubmoduleStates() {
   return submodule_states_.Update(
-      config_.high_pass_filter.enabled, !!submodules_.echo_control_mobile,
-      !!submodules_.noise_suppressor, !!submodules_.gain_control,
-      !!submodules_.gain_controller2,
+      config_.high_pass_filter.enabled, !!submodules_.noise_suppressor,
+      !!submodules_.gain_control, !!submodules_.gain_controller2,
       config_.pre_amplifier.enabled || config_.capture_level_adjustment.enabled,
       NeedEchoController(config_, !!echo_control_factory_));
 }
@@ -1895,8 +1843,6 @@ void AudioProcessingImpl::InitializeEchoController() {
   submodules_.echo_controller.reset();
   capture_.linear_aec_output.reset();
   submodules_.post_filter.reset();
-  submodules_.echo_control_mobile.reset();
-  aecm_render_signal_queue_.reset();
 
   bool use_echo_controller =
       NeedEchoController(config_, !!echo_control_factory_);

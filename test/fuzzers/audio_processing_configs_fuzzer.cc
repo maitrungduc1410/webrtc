@@ -109,7 +109,6 @@ webrtc::scoped_refptr<AudioProcessing> CreateApm(
   apm_config.pipeline.multi_channel_render = true;
   apm_config.pipeline.multi_channel_capture = true;
   apm_config.echo_canceller.enabled = use_aec || use_aecm;
-  apm_config.echo_canceller.mobile_mode = use_aecm;
   apm_config.high_pass_filter.enabled = use_hpf;
   apm_config.gain_controller1.enabled = use_agc;
   apm_config.gain_controller1.enable_limiter = use_agc_limiter;
