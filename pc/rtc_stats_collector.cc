@@ -1105,6 +1105,14 @@ void SetAudioProcessingStats(StatsType* stats,
   }
 }
 
+// Helper function for inserting into voice/video send/receive std::map types
+// while also DCHECKing for uniqueness.
+template <typename StatsMap>
+void AddChannelStats(StatsMap& stats_map, typename StatsMap::key_type channel) {
+  RTC_DCHECK(!stats_map.contains(channel));
+  stats_map.insert(std::make_pair(channel, typename StatsMap::mapped_type()));
+}
+
 }  // namespace
 
 scoped_refptr<RTCStatsReport> RTCStatsCollector::CreateReportFilteredBySelector(
@@ -2201,7 +2209,8 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
         .media_type = transceiver->media_type(),
         .mid = transceiver->mid(),
         .transport_name = std::nullopt,
-        .current_direction = transceiver->current_direction()};
+        .current_direction = transceiver->current_direction(),
+        .has_channel = transceiver->HasChannel()};
 
     for (const auto& sender : transceiver->senders()) {
       stats.sender_infos.push_back(
@@ -2219,6 +2228,22 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
     }
     stats.has_receivers = !stats.receivers.empty();
 
+    if (stats.has_channel) {
+      if (stats.media_type == MediaType::AUDIO) {
+        AddChannelStats(voice_send_stats,
+                        transceiver->voice_media_send_channel());
+        AddChannelStats(voice_receive_stats,
+                        transceiver->voice_media_receive_channel());
+      } else if (stats.media_type == MediaType::VIDEO) {
+        AddChannelStats(video_send_stats,
+                        transceiver->video_media_send_channel());
+        AddChannelStats(video_receive_stats,
+                        transceiver->video_media_receive_channel());
+      } else {
+        RTC_DCHECK_NOTREACHED();
+      }
+    }
+
     transceiver_stats_infos_.push_back(std::move(stats));
   }
 
@@ -2235,44 +2260,10 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
       [&, &transceiver_stats_infos = transceiver_stats_infos_]()
           RTC_NO_THREAD_SAFETY_ANALYSIS mutable {
             Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-
             for (auto& stats : transceiver_stats_infos) {
-              if (!stats.transceiver->HasChannel()) {
-                continue;
-              }
-
-              stats.transport_name =
-                  std::string(stats.transceiver->channel_transport_name());
-
-              if (stats.media_type == MediaType::AUDIO) {
-                auto voice_send_channel =
-                    stats.transceiver->voice_media_send_channel();
-                RTC_DCHECK(voice_send_stats.find(voice_send_channel) ==
-                           voice_send_stats.end());
-                voice_send_stats.insert(
-                    std::make_pair(voice_send_channel, VoiceMediaSendInfo()));
-
-                auto voice_receive_channel =
-                    stats.transceiver->voice_media_receive_channel();
-                RTC_DCHECK(voice_receive_stats.find(voice_receive_channel) ==
-                           voice_receive_stats.end());
-                voice_receive_stats.insert(std::make_pair(
-                    voice_receive_channel, VoiceMediaReceiveInfo()));
-              } else if (stats.media_type == MediaType::VIDEO) {
-                auto video_send_channel =
-                    stats.transceiver->video_media_send_channel();
-                RTC_DCHECK(video_send_stats.find(video_send_channel) ==
-                           video_send_stats.end());
-                video_send_stats.insert(
-                    std::make_pair(video_send_channel, VideoMediaSendInfo()));
-                auto video_receive_channel =
-                    stats.transceiver->video_media_receive_channel();
-                RTC_DCHECK(video_receive_stats.find(video_receive_channel) ==
-                           video_receive_stats.end());
-                video_receive_stats.insert(std::make_pair(
-                    video_receive_channel, VideoMediaReceiveInfo()));
-              } else {
-                RTC_DCHECK_NOTREACHED();
+              if (stats.has_channel) {
+                stats.transport_name =
+                    std::string(stats.transceiver->channel_transport_name());
               }
             }
           });
@@ -2323,19 +2314,18 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
         receiver_parameters.push_back(receiver->GetParameters());
       }
 
-      auto transceiver = stats.transceiver;
       std::optional<VoiceMediaInfo> voice_media_info;
       std::optional<VideoMediaInfo> video_media_info;
-      if (transceiver->HasChannel()) {
-        MediaType media_type = transceiver->media_type();
-        if (media_type == MediaType::AUDIO) {
+      if (stats.has_channel) {
+        auto& transceiver = stats.transceiver;
+        if (stats.media_type == MediaType::AUDIO) {
           auto voice_send_channel = transceiver->voice_media_send_channel();
           auto voice_receive_channel =
               transceiver->voice_media_receive_channel();
           voice_media_info = VoiceMediaInfo(
               std::move(voice_send_stats[voice_send_channel]),
               std::move(voice_receive_stats[voice_receive_channel]));
-        } else if (media_type == MediaType::VIDEO) {
+        } else if (stats.media_type == MediaType::VIDEO) {
           auto video_send_channel = transceiver->video_media_send_channel();
           auto video_receive_channel =
               transceiver->video_media_receive_channel();
@@ -2349,7 +2339,7 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
           std::move(voice_media_info), std::move(video_media_info),
           std::move(stats.sender_infos), std::move(stats.receiver_infos),
           std::move(receiver_parameters));
-      if (transceiver->media_type() == MediaType::AUDIO) {
+      if (stats.media_type == MediaType::AUDIO) {
         has_audio_receiver |= stats.has_receivers;
       }
     }
