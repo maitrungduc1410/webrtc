@@ -60,12 +60,8 @@ class MockRtpSenderInternal : public RtpSenderInternal {
               set_transport,
               (webrtc::scoped_refptr<DtlsTransportInterface>),
               (override));
-  MOCK_METHOD(void, SetCachedParameters, (RtpParameters), (override));
   MOCK_METHOD(RtpParameters, GetParameters, (), (const, override));
-  MOCK_METHOD(RtpParameters,
-              GetParametersInternal,
-              (bool, bool),
-              (const, override));
+  MOCK_METHOD(RtpParameters, GetParametersInternal, (), (const, override));
   MOCK_METHOD(RtpParameters,
               GetParametersInternalWithAllLayers,
               (),
@@ -75,7 +71,7 @@ class MockRtpSenderInternal : public RtpSenderInternal {
               SetParametersAsync,
               (const RtpParameters&, SetParametersCallback),
               (override));
-  MOCK_METHOD(RTCError,
+  MOCK_METHOD(void,
               SetParametersInternal,
               (const RtpParameters&, SetParametersCallback, bool blocking),
               (override));

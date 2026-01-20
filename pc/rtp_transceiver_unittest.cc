@@ -898,7 +898,7 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   RtpParameters simulcast_parameters;
   simulcast_parameters.encodings.resize(2);
   auto simulcast_sender = MockSender(MediaType::VIDEO);
-  EXPECT_CALL(*simulcast_sender, GetParametersInternal(_, _))
+  EXPECT_CALL(*simulcast_sender, GetParametersInternal())
       .WillRepeatedly(Return(simulcast_parameters));
   auto simulcast_transceiver = make_ref_counted<RtpTransceiver>(
       env(),
@@ -926,7 +926,7 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   svc_parameters.encodings[0].scalability_mode = "L3T3";
 
   auto svc_sender = MockSender(MediaType::VIDEO);
-  EXPECT_CALL(*svc_sender, GetParametersInternal(_, _))
+  EXPECT_CALL(*svc_sender, GetParametersInternal())
       .WillRepeatedly(Return(svc_parameters));
   auto svc_transceiver = make_ref_counted<RtpTransceiver>(
       env(),

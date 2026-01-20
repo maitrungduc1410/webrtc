@@ -348,9 +348,9 @@ scoped_refptr<MockRtpSenderInternal> CreateMockSender(
   EXPECT_CALL(*sender, ssrc()).WillRepeatedly(Return(ssrc));
   EXPECT_CALL(*sender, media_type()).WillRepeatedly(Return(media_type));
   EXPECT_CALL(*sender, GetParameters()).WillRepeatedly([s = sender.get()]() {
-    return s->GetParametersInternal(false, false);
+    return s->GetParametersInternal();
   });
-  EXPECT_CALL(*sender, GetParametersInternal(_, _)).WillRepeatedly([ssrc]() {
+  EXPECT_CALL(*sender, GetParametersInternal()).WillRepeatedly([ssrc]() {
     RtpParameters params;
     params.encodings.push_back(RtpEncodingParameters());
     params.encodings[0].ssrc = ssrc;
@@ -454,9 +454,9 @@ class RTCStatsCollectorWrapper {
       return media_type;
     });
     EXPECT_CALL(*sender, GetParameters()).WillRepeatedly([s = sender.get()]() {
-      return s->GetParametersInternal(false, false);
+      return s->GetParametersInternal();
     });
-    EXPECT_CALL(*sender, GetParametersInternal(_, _)).WillRepeatedly([ssrc]() {
+    EXPECT_CALL(*sender, GetParametersInternal()).WillRepeatedly([ssrc]() {
       RtpParameters params;
       params.encodings.push_back(RtpEncodingParameters());
       params.encodings[0].ssrc = ssrc;

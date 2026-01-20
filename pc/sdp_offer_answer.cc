@@ -5210,14 +5210,16 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
     // - bugs.webrtc.org/12462
     // - crbug.com/1157227
     // - crbug.com/1187289
-    for (const auto& [transceiver, content] : channels) {
+    for (const auto& entry : channels) {
       std::string error;
-      bool success =
-          (source == CS_LOCAL)
-              ? transceiver->SetChannelLocalContent(content, type, error)
-              : transceiver->SetChannelRemoteContent(content, type, error);
+      bool success = context_->worker_thread()->BlockingCall([&]() {
+        return (source == CS_LOCAL) ? entry.first->SetChannelLocalContent(
+                                          entry.second, type, error)
+                                    : entry.first->SetChannelRemoteContent(
+                                          entry.second, type, error);
+      });
       if (!success) {
-        return LOG_ERROR(RTCError::InvalidParameter() << error);
+        LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER, error);
       }
     }
     // If local and remote are both set, we assume that it's safe to trigger
