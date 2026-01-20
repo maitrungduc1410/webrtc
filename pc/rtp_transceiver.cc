@@ -331,7 +331,10 @@ RtpTransceiver::RtpTransceiver(
   receivers_.push_back(std::move(receiver));
   if (media_type_ == MediaType::VIDEO) {
     ConfigureExtraVideoHeaderExtensions(
-        sender_internal->GetParametersInternal().encodings,
+        sender_internal
+            ->GetParametersInternal(/*may_use_cache*/ true,
+                                    /*with_all_layers=*/false)
+            .encodings,
         header_extensions_to_negotiate_);
   }
   ConfigureSendCodecs(codec_vendor(), media_type_, sender_internal);
@@ -1230,18 +1233,66 @@ bool RtpTransceiver::SetChannelLocalContent(
     const MediaContentDescription* content,
     SdpType type,
     std::string& error_desc) {
-  RTC_DCHECK_RUN_ON(context()->worker_thread());
-  RTC_DCHECK(channel_);
-  return channel_->SetLocalContent(content, type, error_desc);
+  RTC_DCHECK_RUN_ON(context()->signaling_thread());
+  return SetChannelContent([&]() {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
+    return channel_->SetLocalContent(content, type, error_desc);
+  });
 }
 
 bool RtpTransceiver::SetChannelRemoteContent(
     const MediaContentDescription* content,
     SdpType type,
     std::string& error_desc) {
-  RTC_DCHECK_RUN_ON(context()->worker_thread());
-  RTC_DCHECK(channel_);
-  return channel_->SetRemoteContent(content, type, error_desc);
+  RTC_DCHECK_RUN_ON(context()->signaling_thread());
+  return SetChannelContent([&]() {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
+    return channel_->SetRemoteContent(content, type, error_desc);
+  });
+}
+
+bool RtpTransceiver::SetChannelContent(
+    absl::AnyInvocable<bool() &&> set_content) {
+  RTC_DCHECK_RUN_ON(context()->signaling_thread());
+  if (!channel_) {
+    return false;
+  }
+
+  struct SenderParameters {
+    const uint32_t ssrc;
+    RtpSenderInternal* const sender;
+    std::optional<RtpParameters> parameters;
+  };
+
+  std::vector<SenderParameters> sender_parameters;
+  sender_parameters.reserve(senders_.size());
+  for (const auto& sender : senders_) {
+    sender_parameters.push_back(
+        {.ssrc = sender->ssrc(), .sender = sender->internal()});
+  }
+
+  // Calls the callback on the worker thread, fetches and returns the
+  // RtpParameters for the senders.
+  bool result = context()->worker_thread()->BlockingCall([&]() {
+    if (!std::move(set_content)()) {
+      return false;
+    }
+    for (auto& entry : sender_parameters) {
+      if (entry.ssrc != 0) {
+        entry.parameters =
+            channel_->media_send_channel()->GetRtpSendParameters(entry.ssrc);
+      }
+    }
+    return true;
+  });
+
+  for (auto& entry : sender_parameters) {
+    if (entry.parameters) {
+      entry.sender->SetCachedParameters(std::move(*entry.parameters));
+    }
+  }
+
+  return result;
 }
 
 bool RtpTransceiver::SetChannelPayloadTypeDemuxingEnabled(bool enabled) {
