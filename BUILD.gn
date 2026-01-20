@@ -286,30 +286,6 @@ config("rtc_prod_config") {
   }
 }
 
-group("tracing") {
-  if (rtc_use_perfetto) {
-    all_dependent_configs = [ "//third_party/perfetto/gn:public_config" ]
-    if (build_with_chromium) {
-      public_deps =  # no-presubmit-check TODO(webrtc:8603)
-          [ "//third_party/perfetto:libperfetto" ]
-    } else {
-      public_deps = [  # no-presubmit-check TODO(webrtc:8603)
-        ":webrtc_libperfetto",
-        "//third_party/perfetto/include/perfetto/tracing",
-      ]
-    }
-  }
-}
-
-if (rtc_use_perfetto) {
-  rtc_library("webrtc_libperfetto") {
-    deps = [
-      "//third_party/perfetto/src/tracing:client_api_without_backends",
-      "//third_party/perfetto/src/tracing:platform_impl",
-    ]
-  }
-}
-
 config("common_config") {
   cflags = []
   cflags_c = []
@@ -574,7 +550,6 @@ if (!build_with_chromium) {
       "modules/video_capture:video_capture_internal_impl",
       "pc:libjingle_peerconnection",
       "pc:rtc_pc",
-      "sdk",
       "video",
     ]
 
@@ -598,6 +573,14 @@ if (!build_with_chromium) {
 
     if (rtc_include_internal_audio_device) {
       deps += [ "api/audio:create_audio_device_module" ]
+    }
+    if (!build_with_chromium) {
+      if (is_android) {
+        deps += [ "sdk/android" ]
+      }
+      if (is_ios) {
+        deps += [ "sdk:framework_objc" ]
+      }
     }
   }
 
