@@ -241,7 +241,7 @@ class RTCStatsCollector {
   PrepareTransportCertificateStats_n(
       const std::map<std::string, TransportStats>& transport_stats_by_name);
   // The results are stored in `transceiver_stats_infos_` and `call_stats_`.
-  void PrepareTransceiverStatsInfosAndCallStats_s_w_n();
+  void PrepareTransceiverStatsInfosAndCallStats_s_w();
 
   // Stats gathering on a particular thread.
   void ProducePartialResultsOnSignalingThread(Timestamp timestamp);
@@ -286,7 +286,7 @@ class RTCStatsCollector {
   // has updated the value of `network_report_`.
   Event network_report_event_;
 
-  // Cleared and set in `PrepareTransceiverStatsInfosAndCallStats_s_w_n`,
+  // Cleared and set in `PrepareTransceiverStatsInfosAndCallStats_s_w`,
   // starting out on the signaling thread, then network. Later read on the
   // network and signaling threads as part of collecting stats and finally
   // reset on the signaling thread when the work is done.

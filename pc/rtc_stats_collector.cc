@@ -1299,7 +1299,7 @@ void RTCStatsCollector::GetStatsReportInternal(
     // Prepare `transceiver_stats_infos_` and `call_stats_` for use in
     // `ProducePartialResultsOnNetworkThread` and
     // `ProducePartialResultsOnSignalingThread`.
-    PrepareTransceiverStatsInfosAndCallStats_s_w_n();
+    PrepareTransceiverStatsInfosAndCallStats_s_w();
 
     // Create the initial `partial_report_` for the gathering operation.
     ProducePartialResultsOnSignalingThread(timestamp);
@@ -2188,7 +2188,7 @@ RTCStatsCollector::PrepareTransportCertificateStats_n(
   return transport_cert_stats;
 }
 
-void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
+void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
 
   transceiver_stats_infos_.clear();
@@ -2252,40 +2252,7 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
   }
 
   // TODO(tommi): See if we can avoid synchronously blocking the signaling
-  // thread while we do this (or avoid the BlockingCall at all). Note also that
-  // where PrepareTransceiverStatsInfosAndCallStats_s_w_n is called from,
-  // there's a PostTask() to the network thread to call
-  // ProducePartialResultsOnNetworkThread(). See if this block should be merged
-  // with that.
-  // Currently using RTC_NO_THREAD_SAFETY_ANALYSIS here and below due to use of
-  // transceiver_stats_infos_. Remove this and pass transceiver_stats_infos_ in
-  // an object that's used to gather the data from start to finish.
-  network_thread_->BlockingCall(
-      [&, &transceiver_stats_infos = transceiver_stats_infos_]()
-          RTC_NO_THREAD_SAFETY_ANALYSIS mutable {
-            Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-            for (auto& stats : transceiver_stats_infos) {
-              if (stats.has_channel) {
-#if RTC_DCHECK_IS_ON
-                // Sanity check before we start relying on the
-                // `transceiver->transport_name()` property and remove the
-                // blocking call to the network thread. Verify that the channel
-                // transport name matches. The transport name must match the one
-                // in the transceiver.
-                std::string name(stats.transceiver->channel_transport_name());
-                if (name.empty()) {
-                  RTC_DCHECK(!stats.transport_name);
-                } else {
-                  RTC_DCHECK(stats.transport_name)
-                      << "No transport name set in transceiver";
-                  RTC_DCHECK_EQ(stats.transport_name.value(), name);
-                }
-#endif
-                stats.transport_name =
-                    std::string(stats.transceiver->channel_transport_name());
-              }
-            }
-          });
+  // thread while we do this (or avoid the BlockingCall at all).
 
   // We jump to the worker thread and call GetStats() on each media channel as
   // well as GetCallStats(). At the same time we construct the
