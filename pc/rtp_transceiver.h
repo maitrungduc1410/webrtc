@@ -418,6 +418,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   GetOfferedAndImplementedHeaderExtensions(
       const MediaContentDescription* content) const;
 
+  bool SetChannelContent(absl::AnyInvocable<bool() &&> set_content);
+
   const Environment env_;
   // Enforce that this object is created, used and destroyed on one thread.
   // This TQ typically represents the signaling thread.
