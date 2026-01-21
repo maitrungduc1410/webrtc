@@ -126,6 +126,11 @@ namespace webrtc {
 
 namespace {
 
+struct DtlsTransportAndName {
+  scoped_refptr<DtlsTransport> transport;
+  std::optional<std::string> transport_name;
+};
+
 typedef PeerConnectionInterface::RTCOfferAnswerOptions RTCOfferAnswerOptions;
 
 // Error messages
@@ -180,7 +185,7 @@ flat_map<std::string, const ContentGroup*> GetBundleGroupsByMid(
 
 // Helper function to look up DTLS transports for all transceivers in a single
 // blocking call to the network thread.
-flat_map<std::string, scoped_refptr<DtlsTransport>> GetDtlsTransports(
+flat_map<std::string, DtlsTransportAndName> GetDtlsTransports(
     const TransceiverList& transceivers,
     Thread* network_thread,
     JsepTransportController* transport_controller) {
@@ -193,18 +198,26 @@ flat_map<std::string, scoped_refptr<DtlsTransport>> GetDtlsTransports(
     }
   }
   if (mids_to_lookup.empty()) {
-    return flat_map<std::string, scoped_refptr<DtlsTransport>>();
+    return flat_map<std::string, DtlsTransportAndName>();
   }
   return network_thread->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread);
-    std::vector<std::pair<std::string, scoped_refptr<DtlsTransport>>> entries;
+    std::vector<std::pair<std::string, DtlsTransportAndName>> entries;
     entries.reserve(mids_to_lookup.size());
     for (const auto& mid : mids_to_lookup) {
+      // Here we essentially look up the same transport twice because
+      // the `transport_controller` doesn't have a public method that allows us
+      // to look up the JsepTransport object. This could be improved.
+      auto transport = transport_controller->LookupDtlsTransportByMid_n(mid);
+      auto internal_transport = transport_controller->GetDtlsTransport(mid);
       entries.emplace_back(
-          mid, transport_controller->LookupDtlsTransportByMid_n(mid));
+          mid, DtlsTransportAndName{
+                   transport, internal_transport
+                                  ? std::optional<std::string>(
+                                        internal_transport->transport_name())
+                                  : std::nullopt});
     }
-    return flat_map<std::string, scoped_refptr<DtlsTransport>>(
-        std::move(entries));
+    return flat_map<std::string, DtlsTransportAndName>(std::move(entries));
   });
 }
 
@@ -1901,10 +1914,9 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     if (ConfiguredForMedia()) {
       std::vector<scoped_refptr<RtpTransceiverInterface>> remove_list;
       std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
-      flat_map<std::string, scoped_refptr<DtlsTransport>>
-          dtls_transports_by_mid =
-              GetDtlsTransports(*transceivers(), context_->network_thread(),
-                                transport_controller_s());
+      flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
+          GetDtlsTransports(*transceivers(), context_->network_thread(),
+                            transport_controller_s());
 
       for (const auto& transceiver_ext : transceivers()->List()) {
         auto transceiver = transceiver_ext->internal();
@@ -1918,8 +1930,8 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
         if (transceiver->mid()) {
           auto it = dtls_transports_by_mid.find(*transceiver->mid());
           RTC_DCHECK(it != dtls_transports_by_mid.end());
-          transceiver->sender_internal()->set_transport(it->second);
-          transceiver->receiver_internal()->set_transport(it->second);
+          transceiver->SetTransport(it->second.transport,
+                                    it->second.transport_name);
         }
 
         const ContentInfo* content =
@@ -2308,7 +2320,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   std::vector<scoped_refptr<RtpTransceiverInterface>> remove_list;
   std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
-  flat_map<std::string, scoped_refptr<DtlsTransport>> dtls_transports_by_mid =
+  flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
       GetDtlsTransports(*transceivers(), context_->network_thread(),
                         transport_controller_s());
 
@@ -2389,8 +2401,8 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
       if (transceiver->mid()) {
         auto it = dtls_transports_by_mid.find(*transceiver->mid());
         RTC_DCHECK(it != dtls_transports_by_mid.end());
-        transceiver->sender_internal()->set_transport(it->second);
-        transceiver->receiver_internal()->set_transport(it->second);
+        transceiver->SetTransport(it->second.transport,
+                                  it->second.transport_name);
       }
     }
     // 2.2.8.1.12: If the media description is rejected, and transceiver is
@@ -3473,8 +3485,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       sender_internal->set_init_send_encodings(
           stable_state.init_send_encodings().value());
     }
-    sender_internal->set_transport(nullptr);
-    transceiver->internal()->receiver_internal()->set_transport(nullptr);
+    transceiver->internal()->SetTransport(nullptr, std::nullopt);
     if (stable_state.has_m_section()) {
       transceiver->internal()->set_mid(stable_state.mid());
       transceiver->internal()->set_mline_index(stable_state.mline_index());

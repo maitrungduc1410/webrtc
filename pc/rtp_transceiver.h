@@ -54,10 +54,13 @@
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/session_description.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
+
+class DtlsTransport;
 
 class PeerConnectionSdpMethods;
 
@@ -256,6 +259,18 @@ class RtpTransceiver : public RtpTransceiverInterface {
     mline_index_ = mline_index;
   }
 
+  const std::optional<std::string>& transport_name() const {
+    RTC_DCHECK_RUN_ON(thread_);
+    RTC_DCHECK(!transport_name_ || HasChannel());
+    return transport_name_;
+  }
+
+  // Sets or clears the transport for the sender and receiver.
+  // This method is assumed to be called in tandem with transport changes being
+  // applied to the channel. Must be called on the signaling thread.
+  void SetTransport(scoped_refptr<DtlsTransport> transport,
+                    std::optional<std::string> transport_name);
+
   // Sets the MID for this transceiver. If the MID is not null, then the
   // transceiver is considered "associated" with the media section that has the
   // same MID.
@@ -423,6 +438,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
   std::optional<RtpTransceiverDirection> current_direction_;
   std::optional<RtpTransceiverDirection> fired_direction_;
   std::optional<std::string> mid_;
+  std::optional<std::string> transport_name_ RTC_GUARDED_BY(thread_) =
+      std::nullopt;
   std::optional<size_t> mline_index_;
   bool created_by_addtrack_ = false;
   bool reused_for_addtrack_ = false;
