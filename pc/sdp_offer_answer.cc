@@ -1986,6 +1986,20 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
         return error;
       }
     }
+    // Plan B transport synchronization.
+    flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
+        GetDtlsTransports(*transceivers(), context_->network_thread(),
+                          transport_controller_s());
+    for (const auto& transceiver_ext : transceivers()->List()) {
+      auto transceiver = transceiver_ext->internal();
+      if (transceiver->mid()) {
+        auto it = dtls_transports_by_mid.find(*transceiver->mid());
+        if (it != dtls_transports_by_mid.end()) {
+          transceiver->SetTransport(it->second.transport,
+                                    it->second.transport_name);
+        }
+      }
+    }
     // Remove unused channels if MediaContentDescription is rejected.
     RemoveUnusedChannels(local_description()->description());
   }
@@ -2291,6 +2305,21 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
         GetFirstVideoContent(remote_description()->description()),
         GetFirstVideoContentDescription(remote_description()->description()));
     RTC_ALLOW_PLAN_B_DEPRECATION_END();
+
+    // Plan B transport synchronization.
+    flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
+        GetDtlsTransports(*transceivers(), context_->network_thread(),
+                          transport_controller_s());
+    for (const auto& transceiver_ext : transceivers()->List()) {
+      auto transceiver = transceiver_ext->internal();
+      if (transceiver->mid()) {
+        auto it = dtls_transports_by_mid.find(*transceiver->mid());
+        if (it != dtls_transports_by_mid.end()) {
+          transceiver->SetTransport(it->second.transport,
+                                    it->second.transport_name);
+        }
+      }
+    }
   }
 
   if (operation->type() == SdpType::kAnswer) {

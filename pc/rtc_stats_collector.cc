@@ -2204,11 +2204,12 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
 
   for (const auto& transceiver_proxy : transceivers) {
     RtpTransceiver* transceiver = transceiver_proxy->internal();
+
     RtpTransceiverStatsInfo stats{
         .transceiver = scoped_refptr<RtpTransceiver>(transceiver),
         .media_type = transceiver->media_type(),
         .mid = transceiver->mid(),
-        .transport_name = std::nullopt,
+        .transport_name = transceiver->transport_name(),
         .current_direction = transceiver->current_direction(),
         .has_channel = transceiver->HasChannel()};
 
@@ -2262,6 +2263,21 @@ void RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w_n() {
             Thread::ScopedDisallowBlockingCalls no_blocking_calls;
             for (auto& stats : transceiver_stats_infos) {
               if (stats.has_channel) {
+#if RTC_DCHECK_IS_ON
+                // Sanity check before we start relying on the
+                // `transceiver->transport_name()` property and remove the
+                // blocking call to the network thread. Verify that the channel
+                // transport name matches. The transport name must match the one
+                // in the transceiver.
+                std::string name(stats.transceiver->channel_transport_name());
+                if (name.empty()) {
+                  RTC_DCHECK(!stats.transport_name);
+                } else {
+                  RTC_DCHECK(stats.transport_name)
+                      << "No transport name set in transceiver";
+                  RTC_DCHECK_EQ(stats.transport_name.value(), name);
+                }
+#endif
                 stats.transport_name =
                     std::string(stats.transceiver->channel_transport_name());
               }

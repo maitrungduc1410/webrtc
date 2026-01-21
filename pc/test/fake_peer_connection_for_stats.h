@@ -384,11 +384,15 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
     }
     RTC_DCHECK(!transceiver->HasChannel());
     RTC_DCHECK(transceiver->mid());
-    transceiver->SetChannel(std::move(voice_channel),
-                            [](const std::string&) { return nullptr; });
+    UpdateJsepTransportController(mid, transport_name);
+    transceiver->SetChannel(
+        std::move(voice_channel), [this](const std::string& mid) {
+          return transport_controller_->GetRtpTransport(mid);
+        });
+    auto dtls_transport = transport_controller_->LookupDtlsTransportByMid(mid);
+    transceiver->SetTransport(dtls_transport, transport_name);
     voice_media_send_channel_ptr->SetStats(initial_stats);
     voice_media_receive_channel_ptr->SetStats(initial_stats);
-    UpdateJsepTransportController(mid, transport_name);
     return std::make_pair(voice_media_send_channel_ptr,
                           voice_media_receive_channel_ptr);
   }
@@ -419,11 +423,15 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
     }
     RTC_DCHECK(!transceiver->HasChannel());
     RTC_DCHECK(transceiver->mid());
-    transceiver->SetChannel(std::move(video_channel),
-                            [](const std::string&) { return nullptr; });
+    UpdateJsepTransportController(mid, transport_name);
+    transceiver->SetChannel(
+        std::move(video_channel), [this](const std::string& mid) {
+          return transport_controller_->GetRtpTransport(mid);
+        });
+    auto dtls_transport = transport_controller_->LookupDtlsTransportByMid(mid);
+    transceiver->SetTransport(dtls_transport, transport_name);
     video_media_send_channel_ptr->SetStats(initial_stats);
     video_media_receive_channel_ptr->SetStats(initial_stats);
-    UpdateJsepTransportController(mid, transport_name);
     return std::make_pair(video_media_send_channel_ptr,
                           video_media_receive_channel_ptr);
   }
