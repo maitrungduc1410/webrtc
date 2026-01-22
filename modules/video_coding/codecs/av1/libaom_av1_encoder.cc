@@ -965,7 +965,8 @@ int32_t LibaomAv1Encoder::Encode(
       RTC_DCHECK(output.encoded_image.has_value());
 
       speed_controller.OnEncodedFrame(
-          ToSpeedControllerEncodeResult(output, frame_info, settings.speed));
+          ToSpeedControllerEncodeResult(output, frame_info, settings.speed),
+          /*baseline_results=*/std::nullopt);
 
       RTC_DCHECK_GT(output.encoded_image->size(), 0u);
       PopulateEncodedImageFromVideoFrame(frame, *output.encoded_image);
