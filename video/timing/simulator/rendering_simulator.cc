@@ -16,7 +16,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "api/environment/environment.h"
@@ -33,6 +32,7 @@
 #include "rtc_base/numerics/sequence_number_unwrapper.h"
 #include "rtc_base/thread_annotations.h"
 #include "video/timing/simulator/assembler.h"
+#include "video/timing/simulator/frame_base.h"
 #include "video/timing/simulator/rendering_tracker.h"
 #include "video/timing/simulator/rtc_event_log_driver.h"
 
@@ -151,7 +151,7 @@ class RenderedFrameCollector : public AssemblerEvents,
       RTC_DCHECK_EQ(key, value.frame_id);
       stream.frames.push_back(value);
     }
-    absl::c_sort(stream.frames);
+    SortByArrivalOrder(stream.frames);
     return stream;
   }
 
@@ -240,7 +240,7 @@ RenderingSimulator::Results RenderingSimulator::Simulate(
   rtc_event_log_simulator.Simulate();
 
   // Return.
-  absl::c_sort(results.streams);
+  SortByStreamOrder(results.streams);
   return results;
 }
 
