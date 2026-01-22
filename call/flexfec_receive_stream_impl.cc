@@ -23,6 +23,7 @@
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_incoming.h"
 #include "modules/rtp_rtcp/include/flexfec_receiver.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
@@ -114,20 +115,21 @@ FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
                                            config,
                                            recovered_packet_receiver)),
       rtp_receive_statistics_(ReceiveStatistics::Create(&env.clock())),
-      rtp_rtcp_(env,
-                {.audio = false,
-                 .receiver_only = true,
-                 .receive_statistics = rtp_receive_statistics_.get(),
-                 .outgoing_transport = config.rtcp_send_transport,
-                 .rtt_stats = rtt_stats,
-                 .local_media_ssrc = config.rtp.local_ssrc}) {
+      rtp_rtcp_(ModuleRtpRtcpImpl2::CreateReceiveModule(
+          env,
+          {.audio = false,
+           .receiver_only = true,
+           .receive_statistics = rtp_receive_statistics_.get(),
+           .outgoing_transport = config.rtcp_send_transport,
+           .rtt_stats = rtt_stats,
+           .local_media_ssrc = config.rtp.local_ssrc})) {
   RTC_LOG(LS_INFO) << "FlexfecReceiveStreamImpl: " << config.ToString();
   RTC_DCHECK_GE(payload_type_, -1);
 
   packet_sequence_checker_.Detach();
 
   // RTCP reporting.
-  rtp_rtcp_.SetRTCPStatus(config.rtcp_mode);
+  rtp_rtcp_->SetRTCPStatus(config.rtcp_mode);
 }
 
 FlexfecReceiveStreamImpl::~FlexfecReceiveStreamImpl() {
@@ -182,10 +184,10 @@ int FlexfecReceiveStreamImpl::payload_type() const {
 
 void FlexfecReceiveStreamImpl::SetLocalSsrc(uint32_t local_ssrc) {
   RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
-  if (local_ssrc == rtp_rtcp_.local_media_ssrc())
+  if (local_ssrc == rtp_rtcp_->local_media_ssrc())
     return;
 
-  rtp_rtcp_.SetLocalSsrc(local_ssrc);
+  rtp_rtcp_->SetLocalSsrc(local_ssrc);
 }
 
 }  // namespace webrtc

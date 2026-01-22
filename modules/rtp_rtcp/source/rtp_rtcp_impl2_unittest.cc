@@ -262,7 +262,7 @@ class RtpRtcpModule : public RtcpPacketTypeCounterObserver,
     config.send_packet_observer = this;
     config.rtp_stats_callback = this;
     config.fec_generator = fec_generator_;
-    impl_ = std::make_unique<ModuleRtpRtcpImpl2>(env_, config);
+    impl_ = ModuleRtpRtcpImpl2::CreateSendModule(env_, config);
     impl_->SetRemoteSSRC(is_sender_ ? kReceiverSsrc : kSenderSsrc);
     impl_->SetRTCPStatus(RtcpMode::kCompound);
   }

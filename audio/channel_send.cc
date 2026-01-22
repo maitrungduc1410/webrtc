@@ -541,7 +541,7 @@ ChannelSend::ChannelSend(
   configuration.rtcp_packet_type_counter_observer = this;
   configuration.local_media_ssrc = ssrc;
 
-  rtp_rtcp_ = std::make_unique<ModuleRtpRtcpImpl2>(env_, configuration);
+  rtp_rtcp_ = ModuleRtpRtcpImpl2::CreateSendModule(env_, configuration);
   rtp_rtcp_->SetSendingMediaStatus(false);
 
   rtp_sender_audio_ =
