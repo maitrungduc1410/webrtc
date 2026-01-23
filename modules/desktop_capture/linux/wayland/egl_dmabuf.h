@@ -97,12 +97,15 @@ class EglDmaBuf {
   // 3. nullptr - if no devices are available
   EglDrmDevice* GetRenderDevice();
 
+  bool SetPreferredRenderDevice(dev_t device_id);
+
  private:
   bool CreatePlatformDevice();
   void EnumerateDrmDevices();
 
   std::map<dev_t, std::unique_ptr<EglDrmDevice>> devices_;
   std::unique_ptr<EglDrmDevice> default_platform_device_;
+  dev_t preferred_render_device_id_ = DEVICE_ID_INVALID;
 };
 
 }  // namespace webrtc
