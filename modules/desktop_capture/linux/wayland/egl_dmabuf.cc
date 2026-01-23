@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "modules/desktop_capture/desktop_geometry.h"
 #include "rtc_base/checks.h"
@@ -580,6 +581,13 @@ void EglDrmDevice::MarkModifierFailed(uint32_t format, uint64_t modifier) {
   failed_modifiers_[format].insert(modifier);
 }
 
+void EglDrmDevice::MarkModifierFailed(uint64_t modifier) {
+  for (uint32_t format : {SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_RGBA,
+                          SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx}) {
+    MarkModifierFailed(format, modifier);
+  }
+}
+
 RTC_NO_SANITIZE("cfi-icall")
 bool EglDrmDevice::ImageFromDmaBuf(const DesktopSize& size,
                                    uint32_t format,
@@ -737,24 +745,33 @@ bool EglDrmDevice::ImageFromDmaBuf(const DesktopSize& size,
   return !error;
 }
 
+std::unique_ptr<EglDmaBuf> EglDmaBuf::CreateDefault() {
+  auto instance = absl::WrapUnique(new EglDmaBuf());
+  if (!instance->Initialize()) {
+    RTC_LOG(LS_WARNING) << "EglDmaBuf initialization failed";
+    return nullptr;
+  }
+  return instance;
+}
+
 RTC_NO_SANITIZE("cfi-icall")
-EglDmaBuf::EglDmaBuf() {
+bool EglDmaBuf::Initialize() {
   if (!LoadEGL()) {
     RTC_LOG(LS_ERROR) << "Unable to load EGL entry functions.";
     CloseLibrary(g_lib_egl);
-    return;
+    return false;
   }
 
   if (!LoadGL()) {
     RTC_LOG(LS_ERROR) << "Failed to load OpenGL entry functions.";
     CloseLibrary(g_lib_gl);
-    return;
+    return false;
   }
 
   std::vector<std::string> client_extensions =
       GetClientExtensions(EGL_NO_DISPLAY, EGL_EXTENSIONS);
   if (client_extensions.empty()) {
-    return;
+    return false;
   }
 
   bool has_platform_base_ext = false;
@@ -777,11 +794,13 @@ EglDmaBuf::EglDmaBuf() {
   if (!has_platform_base_ext || !has_platform_gbm_ext ||
       !has_khr_platform_gbm_ext) {
     RTC_LOG(LS_ERROR) << "One of required EGL extensions is missing";
-    return;
+    return false;
   }
 
   CreatePlatformDevice();
   EnumerateDrmDevices();
+
+  return GetRenderDevice() != nullptr;
 }
 
 // BUG: crbug.com/1290566

@@ -81,6 +81,7 @@ constexpr PipeWireVersion kDropSingleModifierMinVersion = {.major = 0,
 class SharedScreenCastStreamPrivate {
  public:
   SharedScreenCastStreamPrivate();
+  explicit SharedScreenCastStreamPrivate(std::unique_ptr<EglDmaBuf> egl_dmabuf);
   ~SharedScreenCastStreamPrivate();
 
   bool StartScreenCastStream(uint32_t stream_node_id,
@@ -313,6 +314,15 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
   that->stream_size_ = DesktopSize(that->spa_video_format_.size.width,
                                    that->spa_video_format_.size.height);
 
+  if (that->observer_) {
+    that->observer_->OnFormatChanged(
+        that->spa_video_format_.format, that->spa_video_format_.size.width,
+        that->spa_video_format_.size.height,
+        that->spa_video_format_.framerate.num /
+            that->spa_video_format_.framerate.denom,
+        that->modifier_);
+  }
+
   if (RTC_LOG_CHECK_LEVEL(LS_INFO)) {
     StringBuilder sb;
     sb << "PipeWire stream format changed:\n";
@@ -432,6 +442,10 @@ void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
 
 SharedScreenCastStreamPrivate::SharedScreenCastStreamPrivate() {}
 
+SharedScreenCastStreamPrivate::SharedScreenCastStreamPrivate(
+    std::unique_ptr<EglDmaBuf> egl_dmabuf)
+    : egl_dmabuf_(std::move(egl_dmabuf)) {}
+
 SharedScreenCastStreamPrivate::~SharedScreenCastStreamPrivate() {
   StopAndCleanupStream();
 }
@@ -452,7 +466,9 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
     RTC_LOG(LS_ERROR) << "Unable to open PipeWire library";
     return false;
   }
-  egl_dmabuf_ = std::make_unique<EglDmaBuf>();
+  if (!egl_dmabuf_) {
+    egl_dmabuf_ = EglDmaBuf::CreateDefault();
+  }
 
   pw_stream_node_id_ = stream_node_id;
 
@@ -1049,12 +1065,24 @@ void SharedScreenCastStreamPrivate::ConvertRGBxToBGRx(uint8_t* frame,
 SharedScreenCastStream::SharedScreenCastStream()
     : private_(std::make_unique<SharedScreenCastStreamPrivate>()) {}
 
+SharedScreenCastStream::SharedScreenCastStream(
+    std::unique_ptr<EglDmaBuf> egl_dmabuf)
+    : private_(std::make_unique<SharedScreenCastStreamPrivate>(
+          std::move(egl_dmabuf))) {}
+
 SharedScreenCastStream::~SharedScreenCastStream() {}
 
-webrtc::scoped_refptr<SharedScreenCastStream>
-SharedScreenCastStream::CreateDefault() {
+scoped_refptr<SharedScreenCastStream> SharedScreenCastStream::CreateDefault() {
   // Explicit new, to access non-public constructor.
   return scoped_refptr<SharedScreenCastStream>(new SharedScreenCastStream());
+}
+
+scoped_refptr<SharedScreenCastStream>
+SharedScreenCastStream::CreateWithEglDmaBuf(
+    std::unique_ptr<EglDmaBuf> egl_dmabuf) {
+  // Explicit new, to access non-public constructor.
+  return scoped_refptr<SharedScreenCastStream>(
+      new SharedScreenCastStream(std::move(egl_dmabuf)));
 }
 
 bool SharedScreenCastStream::StartScreenCastStream(uint32_t stream_node_id) {
