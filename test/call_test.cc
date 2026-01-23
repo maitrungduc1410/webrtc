@@ -512,9 +512,9 @@ void CallTest::CreateMatchingFecConfig(
     const VideoSendStream::Config& send_config) {
   FlexfecReceiveStream::Config config(transport);
   config.payload_type = send_config.rtp.flexfec.payload_type;
-  config.rtp.remote_ssrc = send_config.rtp.flexfec.ssrc;
+  config.remote_ssrc = send_config.rtp.flexfec.ssrc;
   config.protected_media_ssrcs = send_config.rtp.flexfec.protected_media_ssrcs;
-  config.rtp.local_ssrc = VideoTestConstants::kReceiverLocalVideoSsrc;
+  config.local_ssrc = VideoTestConstants::kReceiverLocalVideoSsrc;
   if (!video_receive_configs_.empty()) {
     video_receive_configs_[0].rtp.protected_by_flexfec = true;
     video_receive_configs_[0].rtp.packet_sink_ = this;

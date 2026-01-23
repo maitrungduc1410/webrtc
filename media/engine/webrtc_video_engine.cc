@@ -67,7 +67,6 @@
 #include "call/packet_receiver.h"
 #include "call/payload_type.h"
 #include "call/payload_type_picker.h"
-#include "call/receive_stream.h"
 #include "call/rtp_config.h"
 #include "call/rtp_transport_controller_send_interface.h"
 #include "call/video_receive_stream.h"
@@ -3118,9 +3117,9 @@ void WebRtcVideoReceiveChannel::ConfigureReceiverRtp(
   // TODO(brandtr): Generalize when we add support for multistream protection.
   flexfec_config->payload_type = recv_flexfec_payload_type_;
   if (!env_.field_trials().IsDisabled("WebRTC-FlexFEC-03-Advertised") &&
-      sp.GetFecFrSsrc(ssrc, &flexfec_config->rtp.remote_ssrc)) {
+      sp.GetFecFrSsrc(ssrc, &flexfec_config->remote_ssrc)) {
     flexfec_config->protected_media_ssrcs = {ssrc};
-    flexfec_config->rtp.local_ssrc = config->rtp.local_ssrc;
+    flexfec_config->local_ssrc = config->rtp.local_ssrc;
     flexfec_config->rtcp_mode = config->rtp.rtcp_mode;
   }
 }
@@ -3915,7 +3914,7 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::GetVideoReceiverInfo(
     const ReceiveStatistics* fec_stats = flexfec_stream_->GetStats();
     if (fec_stats) {
       const StreamStatistician* statistican =
-          fec_stats->GetStatistician(flexfec_config_.rtp.remote_ssrc);
+          fec_stats->GetStatistician(flexfec_config_.remote_ssrc);
       if (statistican) {
         const RtpReceiveStats fec_rtp_stats = statistican->GetStats();
         info.fec_packets_received = fec_rtp_stats.packet_counter.packets;
