@@ -1,0 +1,29 @@
+# Copyright 2025 The Chromium Project. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# See also:
+# * Chromium's documentation on the Clang unsafe buffers plugin.
+# * Chromium's version of this file, under `//build/config/`.
+
+-api/
+-audio/
+-call/
+-common_audio/
+-common_video/
+-examples/
+-logging/
+-media/
+-modules/
+-net/
+-p2p/
+-pc/
+-rtc_base/
+-rtc_tools/
+-sdk/
+-stats/
+-test/
+-testing/
+-third_party/
+-tools/
+-video/
