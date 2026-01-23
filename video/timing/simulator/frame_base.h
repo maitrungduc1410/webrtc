@@ -95,7 +95,7 @@ inline bool AssembledOrder(const FrameT& a, const FrameT& b) {
   return a.assembled_timestamp < b.assembled_timestamp;
 }
 template <typename FrameT>
-inline void SortByAssembledOrder(std::vector<FrameT> frames) {
+inline void SortByAssembledOrder(std::vector<FrameT>& frames) {
   absl::c_stable_sort(frames, AssembledOrder<FrameT>);
 }
 
