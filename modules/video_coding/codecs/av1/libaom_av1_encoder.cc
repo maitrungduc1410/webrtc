@@ -183,8 +183,7 @@ class LibaomAv1Encoder final : public VideoEncoder {
 
   CodecSpecificInfo CreateCodecSpecificInfo(
       const EncodedImage& image,
-      const ScalableVideoController::LayerFrameConfig& layer_frame,
-      bool end_of_picture);
+      const ScalableVideoController::LayerFrameConfig& layer_frame);
 
   std::unique_ptr<ScalableVideoController> svc_controller_;
   std::optional<ScalabilityMode> scalability_mode_;
@@ -905,6 +904,9 @@ int32_t LibaomAv1Encoder::Encode(
       svc_params_ ? svc_params_->number_spatial_layers : 1;
   auto next_layer_frame = layer_frames.begin();
   std::vector<std::pair<EncodedImage, CodecSpecificInfo>> encoded_images;
+  // Index into `encoded_images` indicating the last active layer which produced
+  // an encoded image. Used to correctly set `end_of_picture`.
+  std::optional<size_t> last_encoded_image_index;
   for (size_t sid = 0; sid < num_spatial_layers; ++sid) {
     // The libaom AV1 encoder requires that `aom_codec_encode` is called for
     // every spatial layer, even if the configured bitrate for that layer is
@@ -921,7 +923,6 @@ int32_t LibaomAv1Encoder::Encode(
       non_encoded_layer_frame.emplace().S(sid);
       layer_frame = &*non_encoded_layer_frame;
     }
-    const bool end_of_picture = (next_layer_frame == layer_frames.end());
 
     aom_enc_frame_flags_t flags =
         layer_frame->IsKeyframe() ? AOM_EFLAG_FORCE_KF : 0;
@@ -938,6 +939,7 @@ int32_t LibaomAv1Encoder::Encode(
     }
 #endif
 
+    EncodeResult output;
     if (!speed_controllers_.empty()) {
       RTC_DCHECK_GT(speed_controllers_.size(), sid);
       EncoderSpeedController& speed_controller = *speed_controllers_[sid];
@@ -949,7 +951,7 @@ int32_t LibaomAv1Encoder::Encode(
           speed_controller.GetEncodeSettings(frame_info);
 
       SET_ENCODER_PARAM_OR_RETURN_ERROR(AOME_SET_CPUUSED, settings.speed);
-      EncodeResult output = DoEncode(duration, flags, layer_frame);
+      output = DoEncode(duration, flags, layer_frame);
       if (output.status_code != AOM_CODEC_OK) {
         RTC_LOG(LS_WARNING)
             << "LibaomAv1Encoder::Encode returned error: '"
@@ -957,66 +959,69 @@ int32_t LibaomAv1Encoder::Encode(
         return WEBRTC_VIDEO_CODEC_ERROR;
       }
 
-      if (!output.encoded_image.has_value()) {
+      if (non_encoded_layer_frame || !output.encoded_image.has_value()) {
         // Frame dropped, presumably by rate controller. This is not an error.
+        EncodedImage dropped_image;
+        dropped_image.SetSpatialIndex(sid);
+        dropped_image.set_end_of_temporal_unit(sid == num_spatial_layers - 1);
+        encoded_images.emplace_back(std::move(dropped_image),
+                                    CodecSpecificInfo());
         continue;
       }
-
-      RTC_DCHECK(output.encoded_image.has_value());
 
       speed_controller.OnEncodedFrame(
           ToSpeedControllerEncodeResult(output, frame_info, settings.speed),
           /*baseline_results=*/std::nullopt);
 
-      RTC_DCHECK_GT(output.encoded_image->size(), 0u);
-      PopulateEncodedImageFromVideoFrame(frame, *output.encoded_image);
-      CodecSpecificInfo codec_specifics = CreateCodecSpecificInfo(
-          *output.encoded_image, *layer_frame, end_of_picture);
-
-      if (non_encoded_layer_frame) {
-        continue;
-      }
-
-      encoded_images.emplace_back(std::move(*output.encoded_image),
-                                  std::move(codec_specifics));
     } else {
       // No speed controller used.
-      EncodeResult output = DoEncode(duration, flags, layer_frame);
+      output = DoEncode(duration, flags, layer_frame);
       if (output.status_code != AOM_CODEC_OK) {
         RTC_LOG(LS_WARNING)
             << "LibaomAv1Encoder::Encode returned error: '"
             << aom_codec_err_to_string(output.status_code) << "'.";
         return WEBRTC_VIDEO_CODEC_ERROR;
       }
-      if (!output.encoded_image.has_value()) {
-        // Status code OK but no image - the encoder dropped the frame,
-        // presumable due to rate control. This is not an error.
+      if (non_encoded_layer_frame || !output.encoded_image.has_value()) {
+        // Frame dropped, presumably by rate controller. This is not an error.
+        EncodedImage dropped_image;
+        dropped_image.SetSpatialIndex(sid);
+        dropped_image.set_end_of_temporal_unit(sid == num_spatial_layers - 1);
+        encoded_images.emplace_back(std::move(dropped_image),
+                                    CodecSpecificInfo());
         continue;
       }
+    }
 
-      if (non_encoded_layer_frame) {
-        continue;
+    RTC_DCHECK(output.encoded_image.has_value());
+    RTC_DCHECK_GT(output.encoded_image->size(), 0u);
+
+    PopulateEncodedImageFromVideoFrame(frame, *output.encoded_image);
+    CodecSpecificInfo codec_specifics =
+        CreateCodecSpecificInfo(*output.encoded_image, *layer_frame);
+
+    output.encoded_image->set_end_of_temporal_unit(sid ==
+                                                   num_spatial_layers - 1);
+    last_encoded_image_index = encoded_images.size();
+    encoded_images.emplace_back(std::move(*output.encoded_image),
+                                std::move(codec_specifics));
+  }
+
+  for (size_t i = 0; i < encoded_images.size(); ++i) {
+    auto& [encoded_image, codec_specifics] = encoded_images[i];
+    codec_specifics.end_of_picture = i == last_encoded_image_index;
+    if (encoded_image.size() > 0) {
+      encoded_image_callback_->OnEncodedImage(encoded_image, &codec_specifics);
+      if (encoded_image.SpatialIndex().has_value()) {
+        last_encoded_timestamp_by_sid_[*encoded_image.SpatialIndex()] =
+            frame.rtp_timestamp();
       }
-
-      RTC_DCHECK_GT(output.encoded_image->size(), 0u);
-      PopulateEncodedImageFromVideoFrame(frame, *output.encoded_image);
-      CodecSpecificInfo codec_specifics = CreateCodecSpecificInfo(
-          *output.encoded_image, *layer_frame, end_of_picture);
-
-      encoded_images.emplace_back(std::move(*output.encoded_image),
-                                  std::move(codec_specifics));
+      continue;
     }
-  }
-
-  if (!encoded_images.empty()) {
-    encoded_images.back().second.end_of_picture = true;
-  }
-  for (auto& [encoded_image, codec_specifics] : encoded_images) {
-    encoded_image_callback_->OnEncodedImage(encoded_image, &codec_specifics);
-    if (encoded_image.SpatialIndex().has_value()) {
-      last_encoded_timestamp_by_sid_[*encoded_image.SpatialIndex()] =
-          frame.rtp_timestamp();
-    }
+    // Size 0 indicates a dropped frame (inserted above).
+    encoded_image_callback_->OnFrameDropped(
+        frame.rtp_timestamp(), *encoded_image.SpatialIndex(),
+        *encoded_image.is_end_of_temporal_unit());
   }
 
   return WEBRTC_VIDEO_CODEC_OK;
@@ -1109,11 +1114,9 @@ EncodeResult LibaomAv1Encoder::DoEncode(
 
 CodecSpecificInfo LibaomAv1Encoder::CreateCodecSpecificInfo(
     const EncodedImage& image,
-    const ScalableVideoController::LayerFrameConfig& layer_frame,
-    bool end_of_picture) {
+    const ScalableVideoController::LayerFrameConfig& layer_frame) {
   CodecSpecificInfo codec_specific_info;
   codec_specific_info.codecType = kVideoCodecAV1;
-  codec_specific_info.end_of_picture = end_of_picture;
   codec_specific_info.scalability_mode = scalability_mode_;
   bool is_keyframe = layer_frame.IsKeyframe();
   codec_specific_info.generic_frame_info =
