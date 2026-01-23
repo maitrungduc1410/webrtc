@@ -549,7 +549,35 @@ std::vector<uint64_t> EglDrmDevice::QueryDmaBufModifiers(uint32_t format) {
 
   // Support modifier-less buffers
   modifiers.push_back(DRM_FORMAT_MOD_INVALID);
-  return modifiers;
+
+  // Filter out failed modifiers
+  MutexLock lock(&failed_modifiers_lock_);
+  auto it = failed_modifiers_.find(format);
+  if (it == failed_modifiers_.end()) {
+    return modifiers;
+  }
+
+  const auto& failed_set = it->second;
+
+  // Special case: if DRM_FORMAT_MOD_INVALID is in the failed set,
+  // it means all modifiers failed for this format (older PipeWire)
+  if (failed_set.count(DRM_FORMAT_MOD_INVALID) > 0) {
+    return {};
+  }
+
+  std::vector<uint64_t> filtered;
+  for (uint64_t modifier : modifiers) {
+    if (failed_set.count(modifier) == 0) {
+      filtered.push_back(modifier);
+    }
+  }
+
+  return filtered;
+}
+
+void EglDrmDevice::MarkModifierFailed(uint32_t format, uint64_t modifier) {
+  MutexLock lock(&failed_modifiers_lock_);
+  failed_modifiers_[format].insert(modifier);
 }
 
 RTC_NO_SANITIZE("cfi-icall")

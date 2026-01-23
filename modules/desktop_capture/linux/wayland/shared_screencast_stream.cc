@@ -128,8 +128,6 @@ class SharedScreenCastStreamPrivate {
 
   int64_t modifier_;
   std::unique_ptr<EglDmaBuf> egl_dmabuf_;
-  // List of modifiers we query as supported by the graphics card/driver
-  std::vector<uint64_t> modifiers_;
 
   // PipeWire types
   std::unique_ptr<PipeWireInitializer> pw_initializer_;
@@ -428,9 +426,15 @@ void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
 
     for (uint32_t format : {SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_RGBA,
                             SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx}) {
-      if (!that->modifiers_.empty()) {
+      std::vector<uint64_t> modifiers;
+      auto render_device = that->egl_dmabuf_->GetRenderDevice();
+      if (render_device) {
+        modifiers = render_device->QueryDmaBufModifiers(format);
+      }
+
+      if (!modifiers.empty()) {
         params.push_back(
-            BuildFormat(&builder, format, that->modifiers_,
+            BuildFormat(&builder, format, modifiers,
                         that->width_ && that->height_ ? &resolution : nullptr,
                         &frame_rate));
       }
@@ -558,13 +562,14 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
                             SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx}) {
       // Modifiers can be used with PipeWire >= 0.3.33
       if (has_required_pw_client_version && has_required_pw_server_version) {
+        std::vector<uint64_t> modifiers;
         auto render_device = egl_dmabuf_->GetRenderDevice();
         if (render_device) {
-          modifiers_ = render_device->QueryDmaBufModifiers(format);
+          modifiers = render_device->QueryDmaBufModifiers(format);
         }
 
-        if (!modifiers_.empty()) {
-          params.push_back(BuildFormat(&builder, format, modifiers_,
+        if (!modifiers.empty()) {
+          params.push_back(BuildFormat(&builder, format, modifiers,
                                        set_resolution ? &resolution : nullptr,
                                        &default_frame_rate));
         }
@@ -1033,13 +1038,20 @@ bool SharedScreenCastStreamPrivate::ProcessDMABuffer(
       stream_size_, spa_video_format_.format, plane_datas, modifier_, offset,
       frame.size(), frame.data());
   if (!imported) {
-    RTC_LOG(LS_ERROR) << "Dropping DMA-BUF modifier: " << modifier_
-                      << " and trying to renegotiate stream parameters";
+    RTC_LOG(LS_ERROR)
+        << "DMA-BUF modifier " << modifier_ << " failed for format "
+        << spa_video_format_.format << " ("
+        << spa_debug_type_find_name(spa_type_video_format,
+                                    spa_video_format_.format)
+        << "), marking as failed and renegotiating stream parameters";
 
     if (pw_server_version_ >= kDropSingleModifierMinVersion) {
-      std::erase(modifiers_, modifier_);
+      render_device->MarkModifierFailed(spa_video_format_.format, modifier_);
     } else {
-      modifiers_.clear();
+      // For older PipeWire versions, mark all modifiers as failed for this
+      // format
+      render_device->MarkModifierFailed(spa_video_format_.format,
+                                        DRM_FORMAT_MOD_INVALID);
     }
 
     pw_loop_signal_event(pw_thread_loop_get_loop(pw_main_loop_), renegotiate_);
