@@ -23,9 +23,9 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "modules/desktop_capture/desktop_geometry.h"
+#include "rtc_base/containers/flat_map.h"
+#include "rtc_base/containers/flat_set.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -88,8 +88,12 @@ class EglDrmDevice {
   GLuint texture_ = 0;
 
   // Map of format -> failed modifiers that didn't work during import
+  // The lock is needed for concurrent read/write in case a frame import
+  // fails, we started to negotiate a new format, but meanwhile can still
+  // receive a new frame and fail again, leading to again marking modifier
+  // as failed.
   Mutex failed_modifiers_lock_;
-  absl::flat_hash_map<uint32_t, absl::flat_hash_set<uint64_t>> failed_modifiers_
+  flat_map<uint32_t, flat_set<uint64_t>> failed_modifiers_
       RTC_GUARDED_BY(failed_modifiers_lock_);
 };
 

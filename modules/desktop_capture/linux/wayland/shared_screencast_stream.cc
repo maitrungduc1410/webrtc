@@ -415,7 +415,6 @@ void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
     PipeWireThreadLoopLock thread_loop_lock(that->pw_main_loop_);
 
     uint8_t buffer[4096] = {};
-
     spa_pod_builder builder =
         spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
 
@@ -423,25 +422,9 @@ void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
     struct spa_rectangle resolution =
         SPA_RECTANGLE(that->width_, that->height_);
     struct spa_fraction frame_rate = SPA_FRACTION(that->frame_rate_, 1);
-
-    for (uint32_t format : {SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_RGBA,
-                            SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx}) {
-      std::vector<uint64_t> modifiers;
-      auto render_device = that->egl_dmabuf_->GetRenderDevice();
-      if (render_device) {
-        modifiers = render_device->QueryDmaBufModifiers(format);
-      }
-
-      if (!modifiers.empty()) {
-        params.push_back(
-            BuildFormat(&builder, format, modifiers,
-                        that->width_ && that->height_ ? &resolution : nullptr,
-                        &frame_rate));
-      }
-      params.push_back(BuildFormat(
-          &builder, format, /*modifiers=*/{},
-          that->width_ && that->height_ ? &resolution : nullptr, &frame_rate));
-    }
+    BuildFullFormat(&builder, that->egl_dmabuf_->GetRenderDevice(),
+                    that->width_ && that->height_ ? &resolution : nullptr,
+                    &frame_rate, params);
 
     pw_stream_update_params(that->pw_stream_, params.data(), params.size());
   }
@@ -541,43 +524,35 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
 
     pw_stream_add_listener(pw_stream_, &spa_stream_listener_,
                            &pw_stream_events_, this);
-    uint8_t buffer[4096] = {};
 
-    spa_pod_builder builder =
-        spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
-
-    std::vector<const spa_pod*> params;
-    const bool has_required_pw_client_version =
-        pw_client_version_ >= kDmaBufModifierMinVersion;
-    const bool has_required_pw_server_version =
+    // Modifiers can be used with PipeWire >= 0.3.33
+    const bool has_dmabuf_support =
+        egl_dmabuf_ && pw_client_version_ >= kDmaBufModifierMinVersion &&
         pw_server_version_ >= kDmaBufModifierMinVersion;
+
+    struct spa_fraction default_frame_rate = SPA_FRACTION(frame_rate_, 1);
     struct spa_rectangle resolution;
     bool set_resolution = false;
     if (width && height) {
       resolution = SPA_RECTANGLE(width, height);
       set_resolution = true;
     }
-    struct spa_fraction default_frame_rate = SPA_FRACTION(frame_rate_, 1);
-    for (uint32_t format : {SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_RGBA,
-                            SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx}) {
-      // Modifiers can be used with PipeWire >= 0.3.33
-      if (has_required_pw_client_version && has_required_pw_server_version) {
-        std::vector<uint64_t> modifiers;
-        auto render_device = egl_dmabuf_->GetRenderDevice();
-        if (render_device) {
-          modifiers = render_device->QueryDmaBufModifiers(format);
-        }
 
-        if (!modifiers.empty()) {
-          params.push_back(BuildFormat(&builder, format, modifiers,
-                                       set_resolution ? &resolution : nullptr,
-                                       &default_frame_rate));
-        }
-      }
+    uint8_t buffer[4096] = {};
+    spa_pod_builder builder =
+        spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
 
-      params.push_back(BuildFormat(&builder, format, /*modifiers=*/{},
-                                   set_resolution ? &resolution : nullptr,
-                                   &default_frame_rate));
+    RTC_LOG(LS_INFO) << "DMABufs are "
+                     << (has_dmabuf_support ? "supported" : "not supported");
+
+    std::vector<const spa_pod*> params;
+    if (has_dmabuf_support) {
+      BuildFullFormat(&builder, egl_dmabuf_->GetRenderDevice(),
+                      set_resolution ? &resolution : nullptr,
+                      &default_frame_rate, params);
+    } else {
+      BuildBaseFormat(&builder, set_resolution ? &resolution : nullptr,
+                      &default_frame_rate, params);
     }
 
     if (pw_stream_connect(pw_stream_, PW_DIRECTION_INPUT, pw_stream_node_id_,

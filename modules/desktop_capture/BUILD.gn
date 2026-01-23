@@ -282,8 +282,8 @@ rtc_library("desktop_capture") {
   defines = []
   deps = [
     "../../media:video_common",
-    "//third_party/abseil-cpp/absl/container:flat_hash_map",
-    "//third_party/abseil-cpp/absl/container:flat_hash_set",
+    "../../rtc_base/containers:flat_map",
+    "../../rtc_base/containers:flat_set",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",

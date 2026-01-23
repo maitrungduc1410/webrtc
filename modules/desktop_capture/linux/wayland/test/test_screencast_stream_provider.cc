@@ -104,9 +104,14 @@ TestScreenCastStreamProvider::TestScreenCastStreamProvider(Observer* observer,
     spa_rectangle resolution =
         SPA_RECTANGLE(uint32_t(width_), uint32_t(height_));
     struct spa_fraction default_frame_rate = SPA_FRACTION(60, 1);
-    params.push_back(BuildFormat(&builder, SPA_VIDEO_FORMAT_BGRx,
-                                 /*modifiers=*/{}, &resolution,
-                                 &default_frame_rate));
+
+    struct spa_pod_frame frame;
+    spa_pod_builder_push_object(&builder, &frame, SPA_TYPE_OBJECT_Format,
+                                SPA_PARAM_EnumFormat);
+    BuildBaseFormatParams(&builder, SPA_VIDEO_FORMAT_BGRx, &resolution,
+                          &default_frame_rate);
+    params.push_back(
+        static_cast<spa_pod*>(spa_pod_builder_pop(&builder, &frame)));
 
     auto flags =
         pw_stream_flags(PW_STREAM_FLAG_DRIVER | PW_STREAM_FLAG_ALLOC_BUFFERS);
