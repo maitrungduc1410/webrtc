@@ -138,14 +138,14 @@ class RenderingSimulator {
     // with a deficit margin (delayed frames/buffer underruns => video freezes),
     // while also minimizing the stream-level min/p10 of the excess margin
     // (early frames spending a long time in the buffer => high latency).
-    std::optional<TimeDelta> RenderedExcessMargin() const {
+    std::optional<TimeDelta> RenderExcessMargin() const {
       TimeDelta margin = RenderMargin();
       if (margin < TimeDelta::Zero()) {
         return std::nullopt;
       }
       return margin;
     }
-    std::optional<TimeDelta> RenderedDeficitMargin() const {
+    std::optional<TimeDelta> RenderDeficitMargin() const {
       TimeDelta margin = RenderMargin();
       if (margin > TimeDelta::Zero()) {
         return std::nullopt;
