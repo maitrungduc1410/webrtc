@@ -27,6 +27,10 @@ class TaskQueueFactory {
     kNormal = 0,
     // High priority. Use for latency-sensitive tasks.
     kHigh,
+    // Video priority. Use for video pipeline tasks.
+    kVideo,
+    // Audio priority. Use for audio pipeline tasks not including rendering.
+    kAudio,
     // Low priority. Use for background tasks (e.g. logging, cleanup).
     kLow,
 

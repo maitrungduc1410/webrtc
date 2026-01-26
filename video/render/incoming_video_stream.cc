@@ -35,8 +35,10 @@ IncomingVideoStream::IncomingVideoStream(
     : render_buffers_(env, delay_ms),
       callback_(callback),
       incoming_render_queue_(env.task_queue_factory().CreateTaskQueue(
-          "IncomingVideoStream",
-          TaskQueueFactory::Priority::kHigh)) {}
+          "IncomingVideoStreamQueue",
+          env.field_trials().IsEnabled("WebRTC-MediaTaskQueuePriorities")
+              ? TaskQueueFactory::Priority::kVideo
+              : TaskQueueFactory::Priority::kHigh)) {}
 
 IncomingVideoStream::~IncomingVideoStream() {
   RTC_DCHECK(main_thread_checker_.IsCurrent());

@@ -517,8 +517,10 @@ ChannelSend::ChannelSend(
       frame_encryptor_(frame_encryptor),
       crypto_options_(crypto_options),
       encoder_queue_(env_.task_queue_factory().CreateTaskQueue(
-          "AudioEncoder",
-          TaskQueueFactory::Priority::kNormal)),
+          "AudioEncoderQueue",
+          env_.field_trials().IsEnabled("WebRTC-MediaTaskQueuePriorities")
+              ? TaskQueueFactory::Priority::kAudio
+              : TaskQueueFactory::Priority::kNormal)),
       encoder_queue_checker_(encoder_queue_.get()),
       encoder_format_("x-unknown", 0, 0) {
   audio_coding_ = AudioCodingModule::Create();

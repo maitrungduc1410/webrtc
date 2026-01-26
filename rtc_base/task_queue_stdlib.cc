@@ -43,6 +43,10 @@ ThreadPriority TaskQueuePriorityToThreadPriority(
       return ThreadPriority::kLow;
     case TaskQueueFactory::Priority::kNormal:
       return ThreadPriority::kNormal;
+    case TaskQueueFactory::Priority::kVideo:
+      return ThreadPriority::kVideo;
+    case TaskQueueFactory::Priority::kAudio:
+      return ThreadPriority::kAudio;
   }
 }
 
