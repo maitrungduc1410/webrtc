@@ -2315,7 +2315,8 @@ std::string ProduceDebugText(int render_input_sample_rate_hz,
 // of sample rates and number of channels works as intended.
 void RunApmRateAndChannelTest(ArrayView<const int> sample_rates_hz,
                               ArrayView<const int> render_channel_counts,
-                              ArrayView<const int> capture_channel_counts) {
+                              ArrayView<const int> capture_channel_counts,
+                              ArrayView<const bool> mono_capture_output) {
   AudioProcessing::Config apm_config;
   apm_config.pipeline.multi_channel_render = true;
   apm_config.pipeline.multi_channel_capture = true;
@@ -2343,59 +2344,64 @@ void RunApmRateAndChannelTest(ArrayView<const int> sample_rates_hz,
         for (auto capture_output_sample_rate_hz : sample_rates_hz) {
           for (size_t render_input_num_channels : render_channel_counts) {
             for (size_t capture_input_num_channels : capture_channel_counts) {
-              size_t render_output_num_channels = render_input_num_channels;
-              size_t capture_output_num_channels = capture_input_num_channels;
-              auto populate_audio_frame = [](int sample_rate_hz,
-                                             size_t num_channels,
-                                             StreamConfig* cfg,
-                                             std::vector<float>* channels_data,
-                                             std::vector<float*>* frame_data) {
-                cfg->set_sample_rate_hz(sample_rate_hz);
-                cfg->set_num_channels(num_channels);
+              for (bool use_mono_capture_output : mono_capture_output) {
+                size_t render_output_num_channels = render_input_num_channels;
+                size_t capture_output_num_channels =
+                    use_mono_capture_output ? 1 : capture_input_num_channels;
+                auto populate_audio_frame =
+                    [](int sample_rate_hz, size_t num_channels,
+                       StreamConfig* cfg, std::vector<float>* channels_data,
+                       std::vector<float*>* frame_data) {
+                      cfg->set_sample_rate_hz(sample_rate_hz);
+                      cfg->set_num_channels(num_channels);
 
-                size_t max_frame_size =
-                    AudioProcessing::GetFrameSize(sample_rate_hz);
-                channels_data->resize(num_channels * max_frame_size);
-                std::fill(channels_data->begin(), channels_data->end(), 0.5f);
-                frame_data->resize(num_channels);
-                for (size_t channel = 0; channel < num_channels; ++channel) {
-                  (*frame_data)[channel] =
-                      &(*channels_data)[channel * max_frame_size];
+                      size_t max_frame_size =
+                          AudioProcessing::GetFrameSize(sample_rate_hz);
+                      channels_data->resize(num_channels * max_frame_size);
+                      std::fill(channels_data->begin(), channels_data->end(),
+                                0.5f);
+                      frame_data->resize(num_channels);
+                      for (size_t channel = 0; channel < num_channels;
+                           ++channel) {
+                        (*frame_data)[channel] =
+                            &(*channels_data)[channel * max_frame_size];
+                      }
+                    };
+
+                populate_audio_frame(
+                    render_input_sample_rate_hz, render_input_num_channels,
+                    &render_input_stream_config, &render_input_frame_channels,
+                    &render_input_frame);
+                populate_audio_frame(
+                    render_output_sample_rate_hz, render_output_num_channels,
+                    &render_output_stream_config, &render_output_frame_channels,
+                    &render_output_frame);
+                populate_audio_frame(
+                    capture_input_sample_rate_hz, capture_input_num_channels,
+                    &capture_input_stream_config, &capture_input_frame_channels,
+                    &capture_input_frame);
+                populate_audio_frame(
+                    capture_output_sample_rate_hz, capture_output_num_channels,
+                    &capture_output_stream_config,
+                    &capture_output_frame_channels, &capture_output_frame);
+
+                for (size_t frame = 0; frame < 2; ++frame) {
+                  SCOPED_TRACE(ProduceDebugText(
+                      render_input_sample_rate_hz, render_output_sample_rate_hz,
+                      capture_input_sample_rate_hz,
+                      capture_output_sample_rate_hz, render_input_num_channels,
+                      render_output_num_channels, render_input_num_channels,
+                      capture_output_num_channels));
+
+                  int result = apm->ProcessReverseStream(
+                      &render_input_frame[0], render_input_stream_config,
+                      render_output_stream_config, &render_output_frame[0]);
+                  EXPECT_EQ(result, AudioProcessing::kNoError);
+                  result = apm->ProcessStream(
+                      &capture_input_frame[0], capture_input_stream_config,
+                      capture_output_stream_config, &capture_output_frame[0]);
+                  EXPECT_EQ(result, AudioProcessing::kNoError);
                 }
-              };
-
-              populate_audio_frame(
-                  render_input_sample_rate_hz, render_input_num_channels,
-                  &render_input_stream_config, &render_input_frame_channels,
-                  &render_input_frame);
-              populate_audio_frame(
-                  render_output_sample_rate_hz, render_output_num_channels,
-                  &render_output_stream_config, &render_output_frame_channels,
-                  &render_output_frame);
-              populate_audio_frame(
-                  capture_input_sample_rate_hz, capture_input_num_channels,
-                  &capture_input_stream_config, &capture_input_frame_channels,
-                  &capture_input_frame);
-              populate_audio_frame(
-                  capture_output_sample_rate_hz, capture_output_num_channels,
-                  &capture_output_stream_config, &capture_output_frame_channels,
-                  &capture_output_frame);
-
-              for (size_t frame = 0; frame < 2; ++frame) {
-                SCOPED_TRACE(ProduceDebugText(
-                    render_input_sample_rate_hz, render_output_sample_rate_hz,
-                    capture_input_sample_rate_hz, capture_output_sample_rate_hz,
-                    render_input_num_channels, render_output_num_channels,
-                    render_input_num_channels, capture_output_num_channels));
-
-                int result = apm->ProcessReverseStream(
-                    &render_input_frame[0], render_input_stream_config,
-                    render_output_stream_config, &render_output_frame[0]);
-                EXPECT_EQ(result, AudioProcessing::kNoError);
-                result = apm->ProcessStream(
-                    &capture_input_frame[0], capture_input_stream_config,
-                    capture_output_stream_config, &capture_output_frame[0]);
-                EXPECT_EQ(result, AudioProcessing::kNoError);
               }
             }
           }
@@ -2797,16 +2803,18 @@ TEST(ApmConfiguration, HandlingOfRateAndChannelCombinations) {
   std::array<int, 3> sample_rates_hz = {16000, 32000, 48000};
   std::array<int, 2> render_channel_counts = {1, 7};
   std::array<int, 2> capture_channel_counts = {1, 7};
+  std::array<bool, 2> mono_capture_output = {true, false};
   RunApmRateAndChannelTest(sample_rates_hz, render_channel_counts,
-                           capture_channel_counts);
+                           capture_channel_counts, mono_capture_output);
 }
 
 TEST(ApmConfiguration, HandlingOfChannelCombinations) {
   std::array<int, 1> sample_rates_hz = {48000};
   std::array<int, 8> render_channel_counts = {1, 2, 3, 4, 5, 6, 7, 8};
   std::array<int, 8> capture_channel_counts = {1, 2, 3, 4, 5, 6, 7, 8};
+  std::array<bool, 2> mono_capture_output = {true, false};
   RunApmRateAndChannelTest(sample_rates_hz, render_channel_counts,
-                           capture_channel_counts);
+                           capture_channel_counts, mono_capture_output);
 }
 
 TEST(ApmConfiguration, HandlingOfRateCombinations) {
@@ -2819,8 +2827,9 @@ TEST(ApmConfiguration, HandlingOfRateCombinations) {
                                         44100, 48000, 88200, 96000};
   std::array<int, 1> render_channel_counts = {2};
   std::array<int, 1> capture_channel_counts = {2};
+  std::array<bool, 2> mono_capture_output = {true, false};
   RunApmRateAndChannelTest(sample_rates_hz, render_channel_counts,
-                           capture_channel_counts);
+                           capture_channel_counts, mono_capture_output);
 }
 
 TEST(ApmConfiguration, SelfAssignment) {
