@@ -101,7 +101,7 @@ CallTest::CallTest(FieldTrials field_trials)
       audio_encoder_factory_(CreateBuiltinAudioEncoderFactory()),
       task_queue_(env_.task_queue_factory().CreateTaskQueue(
           "CallTestTaskQueue",
-          TaskQueueFactory::Priority::NORMAL)) {}
+          TaskQueueFactory::Priority::kNormal)) {}
 
 CallTest::~CallTest() = default;
 

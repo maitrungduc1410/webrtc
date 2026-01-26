@@ -50,7 +50,7 @@ RtcEventLogDriver::RtcEventLogDriver(
       prev_log_timestamp_(std::nullopt),
       simulator_queue_(time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
           "simulator_queue",
-          TaskQueueFactory::Priority::NORMAL)),
+          TaskQueueFactory::Priority::kNormal)),
       packet_simulator_(env_) {
   RTC_DCHECK(stream_factory_) << "stream_factory must be provided";
 

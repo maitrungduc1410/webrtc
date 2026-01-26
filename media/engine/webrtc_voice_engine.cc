@@ -526,7 +526,7 @@ void WebRtcVoiceEngine::Init() {
   // TaskQueue expects to be created/destroyed on the same thread.
   RTC_DCHECK(!low_priority_worker_queue_);
   low_priority_worker_queue_ = env_.task_queue_factory().CreateTaskQueue(
-      "rtc-low-prio", TaskQueueFactory::Priority::LOW);
+      "rtc-low-prio", TaskQueueFactory::Priority::kLow);
 
   adm_helpers::Init(adm());
 

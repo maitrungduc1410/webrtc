@@ -33,11 +33,11 @@ namespace {
 
 int TaskQueuePriorityToGCD(TaskQueueFactory::Priority priority) {
   switch (priority) {
-    case TaskQueueFactory::Priority::NORMAL:
+    case TaskQueueFactory::Priority::kNormal:
       return DISPATCH_QUEUE_PRIORITY_DEFAULT;
-    case TaskQueueFactory::Priority::HIGH:
+    case TaskQueueFactory::Priority::kHigh:
       return DISPATCH_QUEUE_PRIORITY_HIGH;
-    case TaskQueueFactory::Priority::LOW:
+    case TaskQueueFactory::Priority::kLow:
       return DISPATCH_QUEUE_PRIORITY_LOW;
   }
 }

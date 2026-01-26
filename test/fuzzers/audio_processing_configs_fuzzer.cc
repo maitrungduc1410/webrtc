@@ -143,7 +143,7 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
 
   std::unique_ptr<TaskQueueBase, TaskQueueDeleter> worker_queue =
       GetEnvironment().task_queue_factory().CreateTaskQueue(
-          "rtc-low-prio", TaskQueueFactory::Priority::LOW);
+          "rtc-low-prio", TaskQueueFactory::Priority::kLow);
   auto apm = CreateApm(&fuzz_data, worker_queue.get());
 
   if (apm) {

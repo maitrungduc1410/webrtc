@@ -57,11 +57,11 @@ void CALLBACK InitializeQueueThread(ULONG_PTR param) {
 ThreadPriority TaskQueuePriorityToThreadPriority(
     TaskQueueFactory::Priority priority) {
   switch (priority) {
-    case TaskQueueFactory::Priority::HIGH:
+    case TaskQueueFactory::Priority::kHigh:
       return ThreadPriority::kRealtime;
-    case TaskQueueFactory::Priority::LOW:
+    case TaskQueueFactory::Priority::kLow:
       return ThreadPriority::kLow;
-    case TaskQueueFactory::Priority::NORMAL:
+    case TaskQueueFactory::Priority::kNormal:
       return ThreadPriority::kNormal;
   }
 }

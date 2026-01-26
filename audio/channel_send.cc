@@ -518,7 +518,7 @@ ChannelSend::ChannelSend(
       crypto_options_(crypto_options),
       encoder_queue_(env_.task_queue_factory().CreateTaskQueue(
           "AudioEncoder",
-          TaskQueueFactory::Priority::NORMAL)),
+          TaskQueueFactory::Priority::kNormal)),
       encoder_queue_checker_(encoder_queue_.get()),
       encoder_format_("x-unknown", 0, 0) {
   audio_coding_ = AudioCodingModule::Create();

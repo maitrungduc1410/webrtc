@@ -36,7 +36,7 @@ IncomingVideoStream::IncomingVideoStream(
       callback_(callback),
       incoming_render_queue_(env.task_queue_factory().CreateTaskQueue(
           "IncomingVideoStream",
-          TaskQueueFactory::Priority::HIGH)) {}
+          TaskQueueFactory::Priority::kHigh)) {}
 
 IncomingVideoStream::~IncomingVideoStream() {
   RTC_DCHECK(main_thread_checker_.IsCurrent());

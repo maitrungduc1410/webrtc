@@ -1680,7 +1680,7 @@ TEST_F(RtpSenderVideoWithFrameTransformerTest,
   RTPVideoHeader video_header;
   video_header.frame_type = VideoFrameType::kVideoFrameKey;
   auto encoder_queue = time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
-      "encoder_queue", TaskQueueFactory::Priority::NORMAL);
+      "encoder_queue", TaskQueueFactory::Priority::kNormal);
   encoder_queue->PostTask([&] {
     rtp_sender_video->SendEncodedImage(
         kPayloadType, kType, kTimestamp, *encoded_image, video_header,
@@ -1738,7 +1738,7 @@ TEST_F(RtpSenderVideoWithFrameTransformerTest, OnTransformedFrameSendsVideo) {
             callback->OnTransformedFrame(std::move(frame));
           });
   auto encoder_queue = time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
-      "encoder_queue", TaskQueueFactory::Priority::NORMAL);
+      "encoder_queue", TaskQueueFactory::Priority::kNormal);
   encoder_queue->PostTask([&] {
     rtp_sender_video->SendEncodedImage(kPayloadType, kType, kTimestamp,
                                        *encoded_image, video_header,
@@ -1778,7 +1778,7 @@ TEST_F(RtpSenderVideoWithFrameTransformerTest,
             callback->OnTransformedFrame(std::move(frame));
           });
   auto encoder_queue = time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
-      "encoder_queue", TaskQueueFactory::Priority::NORMAL);
+      "encoder_queue", TaskQueueFactory::Priority::kNormal);
   const int kFramesPerSecond = 25;
   for (int i = 0; i < kFramesPerSecond; ++i) {
     encoder_queue->PostTask([&] {
@@ -1882,7 +1882,7 @@ TEST_F(RtpSenderVideoWithFrameTransformerTest,
             callback->OnTransformedFrame(std::move(clone));
           });
   auto encoder_queue = time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
-      "encoder_queue", TaskQueueFactory::Priority::NORMAL);
+      "encoder_queue", TaskQueueFactory::Priority::kNormal);
   encoder_queue->PostTask([&] {
     rtp_sender_video->SendEncodedImage(kPayloadType, kType, kTimestamp,
                                        *encoded_image, video_header,

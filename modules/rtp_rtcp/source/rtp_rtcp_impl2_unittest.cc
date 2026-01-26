@@ -115,7 +115,7 @@ class SendTransport : public Transport {
         last_packet_(&header_extensions_),
         rtcp_packets_(task_queue_factory.CreateTaskQueue(
             "transport",
-            TaskQueueFactory::Priority::NORMAL)) {}
+            TaskQueueFactory::Priority::kNormal)) {}
 
   ~SendTransport() override = default;
 
