@@ -48,7 +48,6 @@
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
-#include "test/run_loop.h"
 #include "test/wait_until.h"
 
 using ::testing::Contains;
@@ -160,10 +159,9 @@ class RTCStatsIntegrationTest : public ::testing::Test {
     return stats_obtainer->report();
   }
 
-  test::RunLoop run_loop_;
-  const Environment env_;
   // `network_thread_` uses `virtual_socket_server_` so they must be
   // constructed/destructed in the correct order.
+  const Environment env_;
   VirtualSocketServer virtual_socket_server_;
   std::unique_ptr<Thread> network_thread_;
   std::unique_ptr<Thread> worker_thread_;
@@ -1172,11 +1170,10 @@ TEST_F(RTCStatsIntegrationTest,
 TEST_F(RTCStatsIntegrationTest, GetsStatsWhileClosingPeerConnection) {
   StartCall();
 
-  scoped_refptr<RTCStatsObtainer> stats_obtainer =
-      RTCStatsObtainer::Create(nullptr, [&]() { run_loop_.Quit(); });
+  scoped_refptr<RTCStatsObtainer> stats_obtainer = RTCStatsObtainer::Create();
   caller_->pc()->GetStats(stats_obtainer.get());
   caller_->pc()->Close();
-  run_loop_.Run();
+
   ASSERT_TRUE(stats_obtainer->report());
 }
 
