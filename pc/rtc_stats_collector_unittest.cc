@@ -3957,8 +3957,6 @@ class FakeRTCStatsCollector final : public RTCStatsCollector {
       const std::map<std::string, TransportStats>& transport_stats_by_name,
       const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
       const std::vector<RtpTransceiverStatsInfo>& transceiver_stats_infos,
-      const Call::Stats& call_stats,
-      const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
       RTCStatsReport* partial_report) override {
     EXPECT_TRUE(network_thread_->IsCurrent());
     {
