@@ -589,7 +589,6 @@
 -p2p/test/turn_server.cc
 -pc/channel_unittest.cc
 -pc/dtls_srtp_transport_unittest.cc
--pc/external_hmac.cc
 -pc/ice_server_parsing.cc
 -pc/jsep_transport_unittest.cc
 -pc/media_session_unittest.cc
