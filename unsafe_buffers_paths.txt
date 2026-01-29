@@ -377,6 +377,7 @@
 -modules/audio_processing/vad/voice_activity_detector.cc
 -modules/audio_processing/ns/noise_suppressor.cc
 -modules/audio_processing/ns/noise_suppressor_unittest.cc
+-modules/audio_processing/logging/apm_data_dumper.h
 -modules/congestion_controller/goog_cc/send_side_bandwidth_estimation.cc
 -modules/congestion_controller/rtp/transport_feedback_adapter_unittest.cc
 -modules/desktop_capture/desktop_and_cursor_composer.cc
