@@ -716,6 +716,7 @@ if (rtc_include_tests) {
         ":test_support",
         ":test_support_test_artifacts",
         ":video_codec_tester",
+        ":video_frame_matcher",
         ":video_frame_writer",
         ":video_test_common",
         ":video_test_support",
@@ -813,6 +814,7 @@ if (rtc_include_tests) {
         "testsupport/yuv_frame_reader_unittest.cc",
         "testsupport/yuv_frame_writer_unittest.cc",
         "video_codec_tester_unittest.cc",
+        "video_frame_matcher_unittest.cc",
         "wait_until_unittest.cc",
       ]
 
@@ -1143,6 +1145,22 @@ rtc_source_set("test_renderer") {
     public_deps +=  # no-presubmit-check TODO(webrtc:8603)
         [ ":test_renderer_objc" ]
   }
+}
+
+rtc_library("video_frame_matcher") {
+  testonly = true
+  sources = [
+    "video_frame_matcher.cc",
+    "video_frame_matcher.h",
+  ]
+  deps = [
+    ":test_support",
+    "../api:array_view",
+    "../api:scoped_refptr",
+    "../api/video:video_frame",
+    "../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
 }
 
 if (is_mac) {
