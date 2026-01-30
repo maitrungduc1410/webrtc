@@ -408,7 +408,6 @@
 -modules/remote_bitrate_estimator/overuse_detector_unittest.cc
 -modules/remote_bitrate_estimator/packet_arrival_map.cc
 -modules/remote_bitrate_estimator/tools/rtp_to_text.cc
--modules/rtp_rtcp/include/rtp_header_extension_map.h
 -modules/rtp_rtcp/source/byte_io.h
 -modules/rtp_rtcp/source/byte_io_unittest.cc
 -modules/rtp_rtcp/source/corruption_detection_extension.cc
@@ -467,7 +466,6 @@
 -modules/rtp_rtcp/source/rtp_format_vp9.cc
 -modules/rtp_rtcp/source/rtp_format_vp9_unittest.cc
 -modules/rtp_rtcp/source/rtp_generic_frame_descriptor.cc
--modules/rtp_rtcp/source/rtp_header_extension_map.cc
 -modules/rtp_rtcp/source/rtp_header_extensions.cc
 -modules/rtp_rtcp/source/rtp_packet.cc
 -modules/rtp_rtcp/source/rtp_packet_unittest.cc
