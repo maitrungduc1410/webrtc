@@ -67,7 +67,6 @@
 #include "rtc_base/cpu_time.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/system/file_wrapper.h"
 #include "rtc_base/system_time.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
@@ -819,12 +818,10 @@ bool VideoCodecTestFixtureImpl::SetUpAndInitObjects(
           const std::string output_file_path = output_filename_base + "tl" +
                                                std::to_string(temporal_idx) +
                                                ".ivf";
-          FileWrapper ivf_file = FileWrapper::OpenWriteOnly(output_file_path);
-
           const VideoProcessor::LayerKey layer_key(simulcast_svc_idx,
                                                    temporal_idx);
           encoded_frame_writers_[layer_key] =
-              IvfFileWriter::Wrap(std::move(ivf_file), /*byte_limit=*/0);
+              IvfFileWriter::Wrap(output_file_path, /*byte_limit=*/0);
         }
       }
 

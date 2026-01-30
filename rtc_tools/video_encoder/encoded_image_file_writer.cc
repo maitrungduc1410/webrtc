@@ -21,7 +21,6 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/system/file_wrapper.h"
 
 namespace webrtc {
 namespace test {
@@ -53,8 +52,7 @@ EncodedImageFileWriter::EncodedImageFileWriter(
            << j << ".ivf";
 
       decode_target_writers_.emplace_back(std::make_pair(
-          IvfFileWriter::Wrap(FileWrapper::OpenWriteOnly(name.str()), 0),
-          name.str()));
+          IvfFileWriter::Wrap(name.str(), /*byte_limit=*/0), name.str()));
     }
   }
 }

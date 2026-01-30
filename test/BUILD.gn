@@ -1520,7 +1520,6 @@ rtc_library("video_codec_tester") {
     "../rtc_base:threading",
     "../rtc_base:timeutils",
     "../rtc_base/synchronization:mutex",
-    "../rtc_base/system:file_wrapper",
     "../system_wrappers",
     "../video/config:encoder_config",
     "../video/config:streams_config",

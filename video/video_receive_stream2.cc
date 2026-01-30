@@ -81,7 +81,6 @@
 #include "rtc_base/race_checker.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/mutex.h"
-#include "rtc_base/system/file_wrapper.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/clock.h"
 #include "system_wrappers/include/ntp_time.h"
@@ -588,8 +587,8 @@ void VideoReceiveStream2::CreateAndRegisterExternalDecoder(
     SimpleStringBuilder ssb(filename_buffer);
     ssb << decoded_output_file << "/webrtc_receive_stream_" << remote_ssrc()
         << "-" << env_.clock().TimeInMicroseconds() << ".ivf";
-    video_decoder = CreateFrameDumpingDecoderWrapper(
-        std::move(video_decoder), FileWrapper::OpenWriteOnly(ssb.str()));
+    video_decoder =
+        CreateFrameDumpingDecoderWrapper(std::move(video_decoder), ssb.str());
   }
 
   video_receiver_.RegisterExternalDecoder(std::move(video_decoder),

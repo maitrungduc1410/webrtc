@@ -79,7 +79,6 @@
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/mutex.h"
-#include "rtc_base/system/file_wrapper.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
@@ -353,11 +352,10 @@ class TesterIvfWriter {
       if (ivf_file_writers_.find(spatial_idx) == ivf_file_writers_.end()) {
         std::string ivf_path =
             base_path_ + "-s" + std::to_string(spatial_idx) + ".ivf";
-        FileWrapper ivf_file = FileWrapper::OpenWriteOnly(ivf_path);
-        RTC_CHECK(ivf_file.is_open());
-
+        int error = 0;
         std::unique_ptr<IvfFileWriter> ivf_writer =
-            IvfFileWriter::Wrap(std::move(ivf_file), /*byte_limit=*/0);
+            IvfFileWriter::Wrap(ivf_path, /*byte_limit=*/0, &error);
+        RTC_CHECK(error == 0);
         RTC_CHECK(ivf_writer);
 
         ivf_file_writers_[spatial_idx] = std::move(ivf_writer);
