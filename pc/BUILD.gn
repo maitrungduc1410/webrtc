@@ -2732,6 +2732,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../test:test_support",
       "../test:wait_until",
       "../test/pc/sctp:fake_sctp_transport",
+      "../test/time_controller",
       "//third_party/abseil-cpp/absl/algorithm:container",
       "//third_party/abseil-cpp/absl/base:nullability",
       "//third_party/abseil-cpp/absl/functional:any_invocable",
