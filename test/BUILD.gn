@@ -591,11 +591,13 @@ if (rtc_include_tests) {
       ]
 
       deps = [
+        ":create_test_environment",
         ":fileutils",
         ":perf_test",
         ":resources_dir_flag",
         ":test_flags",
         ":test_support",
+        "../api/environment",
         "../api/test/metrics:chrome_perf_dashboard_metrics_exporter",
         "../api/test/metrics:global_metrics_logger_and_exporter",
         "../api/test/metrics:metric",
