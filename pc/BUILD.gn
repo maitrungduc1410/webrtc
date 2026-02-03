@@ -2528,6 +2528,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":audio_track",
       ":codec_vendor",
       ":connection_context",
+      ":data_channel_utils",
       ":dtls_srtp_transport",
       ":dtls_transport",
       ":dtmf_sender",

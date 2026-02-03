@@ -3928,13 +3928,9 @@ class FakeRTCStatsCollector final : public RTCStatsCollector {
     if (!delivered_report_)
       return false;
     EXPECT_EQ(produced_on_signaling_thread_, 1);
-    EXPECT_EQ(produced_on_network_thread_, 1);
-
     EXPECT_TRUE(delivered_report_->Get("SignalingThreadStats"));
-    EXPECT_TRUE(delivered_report_->Get("NetworkThreadStats"));
 
     produced_on_signaling_thread_ = 0;
-    produced_on_network_thread_ = 0;
     delivered_report_ = nullptr;
     return true;
   }
@@ -3955,24 +3951,6 @@ class FakeRTCStatsCollector final : public RTCStatsCollector {
     partial_report->AddStats(std::unique_ptr<const RTCStats>(
         new RTCTestStats("SignalingThreadStats", timestamp)));
   }
-  void ProducePartialResultsOnNetworkThreadImpl(
-      Timestamp timestamp,
-      const std::map<std::string, TransportStats>& transport_stats_by_name,
-      const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
-      const std::vector<RtpTransceiverStatsInfo>& transceiver_stats_infos,
-      const Call::Stats& call_stats,
-      const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
-      RTCStatsReport* partial_report) override {
-    EXPECT_TRUE(network_thread_->IsCurrent());
-    {
-      MutexLock lock(&lock_);
-      EXPECT_FALSE(delivered_report_);
-      ++produced_on_network_thread_;
-    }
-
-    partial_report->AddStats(std::unique_ptr<const RTCStats>(
-        new RTCTestStats("NetworkThreadStats", timestamp)));
-  }
 
  private:
   Thread* const signaling_thread_;
@@ -3983,7 +3961,6 @@ class FakeRTCStatsCollector final : public RTCStatsCollector {
   Mutex lock_;
   scoped_refptr<const RTCStatsReport> delivered_report_;
   int produced_on_signaling_thread_ = 0;
-  int produced_on_network_thread_ = 0;
 };
 
 // Simple test that verifies that GetStatsReport() can be called and async

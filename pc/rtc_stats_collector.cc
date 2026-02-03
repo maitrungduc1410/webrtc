@@ -1215,11 +1215,6 @@ struct RTCStatsCollector::CollectionContext {
   // merged into this report. It is only touched on the signaling thread. Once
   // all partial reports are merged this is the result of a request.
   scoped_refptr<RTCStatsReport> partial_report;
-
-  // Holds the result of ProducePartialResultsOnNetworkThread(). It is merged
-  // into `partial_report` on the signaling thread and then nulled by
-  // MergeNetworkReport_s().
-  scoped_refptr<RTCStatsReport> network_report;
 };
 
 RTCStatsCollector::RTCStatsCollector(PeerConnectionInternal* pc,
@@ -1346,7 +1341,7 @@ void RTCStatsCollector::GetStatsReportInternal(
                           results = std::move(results)]() mutable {
           ProducePartialResultsOnNetworkThread(
               std::move(signaling_flag), timestamp, std::move(transport_names),
-              results);
+              std::move(results));
         }));
   };
 
@@ -1411,7 +1406,7 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThread(
     scoped_refptr<PendingTaskSafetyFlag> signaling_safety,
     Timestamp timestamp,
     std::set<std::string> transport_names,
-    const StatsGatheringResults& results) {
+    StatsGatheringResults results) {
   TRACE_EVENT0("webrtc",
                "RTCStatsCollector::ProducePartialResultsOnNetworkThread");
   RTC_DCHECK_RUN_ON(network_thread_);
@@ -1419,7 +1414,7 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThread(
 
   auto network_report = RTCStatsReport::Create(timestamp);
 
-  ProduceDataChannelStats_n(timestamp, network_report.get());
+  std::vector<DataChannelStats> data_channel_stats = pc_->GetDataChannelStats();
 
   std::map<std::string, TransportStats> transport_stats_by_name =
       pc_->GetTransportStatsByNames(transport_names);
@@ -1433,8 +1428,10 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThread(
 
   signaling_thread_->PostTask(
       SafeTask(std::move(signaling_safety),
-               [this, network_report = std::move(network_report)]() mutable {
-                 OnNetworkReportReady(std::move(network_report));
+               [this, network_report = std::move(network_report),
+                data_channel_stats = std::move(data_channel_stats)]() mutable {
+                 OnNetworkReportReady(std::move(network_report),
+                                      std::move(data_channel_stats));
                }));
 }
 
@@ -1459,16 +1456,18 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThreadImpl(
 }
 
 void RTCStatsCollector::OnNetworkReportReady(
-    scoped_refptr<RTCStatsReport> network_report) {
+    scoped_refptr<RTCStatsReport> network_report,
+    std::vector<DataChannelStats> data_channel_stats) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(collection_context_);
+  RTC_DCHECK(collection_context_->partial_report);
+  RTC_DCHECK(network_report);
 
-  // If an ongoing operation was cancelled before `network_report` was
-  // populated, it will be nullptr.
-  if (network_report) {
-    RTC_DCHECK(collection_context_->partial_report);
-    collection_context_->partial_report->TakeMembersFrom(network_report);
-  }
+  collection_context_->partial_report->TakeMembersFrom(network_report);
+
+  ProduceDataChannelStats_s(collection_context_->partial_report->timestamp(),
+                            data_channel_stats,
+                            collection_context_->partial_report.get());
 
   cache_timestamp_us_ = collection_context_->partial_report_timestamp_us;
   cached_report_ = std::move(collection_context_->partial_report);
@@ -1530,12 +1529,13 @@ void RTCStatsCollector::ProduceCertificateStats_n(
   }
 }
 
-void RTCStatsCollector::ProduceDataChannelStats_n(
+void RTCStatsCollector::ProduceDataChannelStats_s(
     Timestamp timestamp,
+    const std::vector<DataChannelStats>& data_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-  std::vector<DataChannelStats> data_stats = pc_->GetDataChannelStats();
+
   for (const auto& stats : data_stats) {
     auto data_channel_stats = std::make_unique<RTCDataChannelStats>(
         "D" + absl::StrCat(stats.internal_id), timestamp);

@@ -34,6 +34,7 @@
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/timestamp.h"
 #include "call/call.h"
+#include "pc/data_channel_utils.h"
 #include "pc/peer_connection_internal.h"
 #include "pc/rtp_receiver.h"
 #include "pc/rtp_sender.h"
@@ -136,7 +137,7 @@ class RTCStatsCollector {
       const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
       RTCStatsReport* partial_report);
 
-  virtual void ProducePartialResultsOnNetworkThreadImpl(
+  void ProducePartialResultsOnNetworkThreadImpl(
       Timestamp timestamp,
       const std::map<std::string, TransportStats>& transport_stats_by_name,
       const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
@@ -205,8 +206,10 @@ class RTCStatsCollector {
       const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
       RTCStatsReport* report) const;
   // Produces `RTCDataChannelStats`.
-  void ProduceDataChannelStats_n(Timestamp timestamp,
-                                 RTCStatsReport* report) const;
+  void ProduceDataChannelStats_s(
+      Timestamp timestamp,
+      const std::vector<DataChannelStats>& data_channel_stats,
+      RTCStatsReport* report) const;
   // Produces `RTCIceCandidatePairStats` and `RTCIceCandidateStats`.
   void ProduceIceCandidateAndPairStats_n(
       Timestamp timestamp,
@@ -275,9 +278,10 @@ class RTCStatsCollector {
       scoped_refptr<PendingTaskSafetyFlag> signaling_safety,
       Timestamp timestamp,
       std::set<std::string> transport_names,
-      const StatsGatheringResults& results);
+      StatsGatheringResults results);
   // Merges `network_report` into `partial_report_` and completes the request.
-  void OnNetworkReportReady(scoped_refptr<RTCStatsReport> network_report);
+  void OnNetworkReportReady(scoped_refptr<RTCStatsReport> network_report,
+                            std::vector<DataChannelStats> data_channel_stats);
 
   scoped_refptr<RTCStatsReport> CreateReportFilteredBySelector(
       bool filter_by_sender_selector,
