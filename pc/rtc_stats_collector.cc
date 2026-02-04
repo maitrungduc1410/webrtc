@@ -1265,6 +1265,43 @@ void RTCStatsCollector::GetStatsReport(
   GetStatsReportInternal(RequestInfo(std::move(selector), std::move(callback)));
 }
 
+/*
+[Signaling Thread]        [Worker Thread]          [Network Thread]
+       |                         |                        |
+GetStatsReport                   |                        |
+       |                         |                        |
+GetStatsReportInternal           |                        |
+       |                         |                        |
+PrepareTransceiverStatsInfos-    |                        |
+  AndCallStats_s_w               |                        |
+       |                         |                        |
+       |----- (Post Task) ------>|                        |
+       |                         |                        |
+       |                  Call::GetStats                  |
+       |              MediaChannel::GetStats              |
+       |                         |                        |
+       |<---- (Post Task) -------|                        |
+       |                         |                        |
+ProducePartialResultsOnSig       |                        |
+       |                         |                        |
+       |----------------------------- (Post Task) ------->|
+       |                         |                        |
+       |                         |       ProducePartialResultsOnNetworkThread
+       |                         |           GetTransportStatsByNames
+       |                         |           GetDataChannelStats
+       |                         |           PrepareTransportCertStats
+       |                         |                        |
+       |<---------------------------- (Post Task) --------|
+       |                         |                        |
+ProcessResultsFromNetworkThread  |                        |
+ (ProduceCertificateStats_s)     |                        |
+ (ProduceTransportStats_s)       |                        |
+ (ProduceRTPStreamStats_s)       |                        |
+       |                         |                        |
+OnNetworkReportReady             |                        |
+ (Deliver Callback)              |                        |
+       v                         v                        v
+*/
 void RTCStatsCollector::GetStatsReportInternal(
     RTCStatsCollector::RequestInfo request) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
@@ -1407,12 +1444,10 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThread(
     Timestamp timestamp,
     std::set<std::string> transport_names,
     StatsGatheringResults results) {
+  RTC_DCHECK_RUN_ON(network_thread_);
   TRACE_EVENT0("webrtc",
                "RTCStatsCollector::ProducePartialResultsOnNetworkThread");
-  RTC_DCHECK_RUN_ON(network_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
-
-  auto network_report = RTCStatsReport::Create(timestamp);
 
   std::vector<DataChannelStats> data_channel_stats = pc_->GetDataChannelStats();
 
@@ -1421,37 +1456,42 @@ void RTCStatsCollector::ProducePartialResultsOnNetworkThread(
   std::map<std::string, CertificateStatsPair> transport_cert_stats =
       PrepareTransportCertificateStats_n(transport_stats_by_name);
 
-  ProducePartialResultsOnNetworkThreadImpl(
-      timestamp, transport_stats_by_name, transport_cert_stats,
-      results.transceiver_stats_infos, results.call_stats,
-      results.audio_device_stats, network_report.get());
-
-  signaling_thread_->PostTask(
-      SafeTask(std::move(signaling_safety),
-               [this, network_report = std::move(network_report),
-                data_channel_stats = std::move(data_channel_stats)]() mutable {
-                 OnNetworkReportReady(std::move(network_report),
-                                      std::move(data_channel_stats));
-               }));
+  signaling_thread_->PostTask(SafeTask(
+      std::move(signaling_safety),
+      [this, timestamp,
+       transport_stats_by_name = std::move(transport_stats_by_name),
+       transport_cert_stats = std::move(transport_cert_stats),
+       transceiver_stats_infos = std::move(results.transceiver_stats_infos),
+       call_stats = results.call_stats,
+       audio_device_stats = results.audio_device_stats,
+       data_channel_stats = std::move(data_channel_stats)]() mutable {
+        auto network_report = RTCStatsReport::Create(timestamp);
+        ProcessResultsFromNetworkThread(
+            timestamp, std::move(transport_stats_by_name),
+            std::move(transport_cert_stats), std::move(transceiver_stats_infos),
+            call_stats, audio_device_stats, network_report.get());
+        OnNetworkReportReady(std::move(network_report),
+                             std::move(data_channel_stats));
+      }));
 }
 
-void RTCStatsCollector::ProducePartialResultsOnNetworkThreadImpl(
+void RTCStatsCollector::ProcessResultsFromNetworkThread(
     Timestamp timestamp,
-    const std::map<std::string, TransportStats>& transport_stats_by_name,
-    const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
-    const std::vector<RtpTransceiverStatsInfo>& transceiver_stats_infos,
-    const Call::Stats& call_stats,
-    const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
+    std::map<std::string, TransportStats> transport_stats_by_name,
+    std::map<std::string, CertificateStatsPair> transport_cert_stats,
+    std::vector<RtpTransceiverStatsInfo> transceiver_stats_infos,
+    Call::Stats call_stats,
+    std::optional<AudioDeviceModule::Stats> audio_device_stats,
     RTCStatsReport* partial_report) {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
-  ProduceCertificateStats_n(timestamp, transport_cert_stats, partial_report);
-  ProduceIceCandidateAndPairStats_n(timestamp, transport_stats_by_name,
+  ProduceCertificateStats_s(timestamp, transport_cert_stats, partial_report);
+  ProduceIceCandidateAndPairStats_s(timestamp, transport_stats_by_name,
                                     call_stats, partial_report);
-  ProduceTransportStats_n(timestamp, transport_stats_by_name,
+  ProduceTransportStats_s(timestamp, transport_stats_by_name,
                           transport_cert_stats, call_stats, partial_report);
-  ProduceRTPStreamStats_n(timestamp, transceiver_stats_infos, call_stats,
+  ProduceRTPStreamStats_s(timestamp, transceiver_stats_infos, call_stats,
                           audio_device_stats, partial_report);
 }
 
@@ -1510,11 +1550,11 @@ void RTCStatsCollector::DeliverReport(
   }
 }
 
-void RTCStatsCollector::ProduceCertificateStats_n(
+void RTCStatsCollector::ProduceCertificateStats_s(
     Timestamp timestamp,
     const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
   for (const auto& transport_cert_stats_pair : transport_cert_stats) {
@@ -1555,12 +1595,12 @@ void RTCStatsCollector::ProduceDataChannelStats_s(
   }
 }
 
-void RTCStatsCollector::ProduceIceCandidateAndPairStats_n(
+void RTCStatsCollector::ProduceIceCandidateAndPairStats_s(
     Timestamp timestamp,
     const std::map<std::string, TransportStats>& transport_stats_by_name,
     const Call::Stats& call_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
   for (const auto& entry : transport_stats_by_name) {
@@ -1792,13 +1832,13 @@ void RTCStatsCollector::ProduceAudioPlayoutStats_s(
   }
 }
 
-void RTCStatsCollector::ProduceRTPStreamStats_n(
+void RTCStatsCollector::ProduceRTPStreamStats_s(
     Timestamp timestamp,
     const std::vector<RtpTransceiverStatsInfo>& transceiver_stats_infos,
     const Call::Stats& call_stats,
     const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
   for (const RtpTransceiverStatsInfo& stats : transceiver_stats_infos) {
@@ -1807,22 +1847,22 @@ void RTCStatsCollector::ProduceRTPStreamStats_n(
     }
 
     if (stats.media_type == MediaType::AUDIO) {
-      ProduceAudioRTPStreamStats_n(timestamp, stats, call_stats,
+      ProduceAudioRTPStreamStats_s(timestamp, stats, call_stats,
                                    audio_device_stats, report);
     } else {
       RTC_DCHECK_EQ(stats.media_type, MediaType::VIDEO);
-      ProduceVideoRTPStreamStats_n(timestamp, stats, call_stats, report);
+      ProduceVideoRTPStreamStats_s(timestamp, stats, call_stats, report);
     }
   }
 }
 
-void RTCStatsCollector::ProduceAudioRTPStreamStats_n(
+void RTCStatsCollector::ProduceAudioRTPStreamStats_s(
     Timestamp timestamp,
     const RtpTransceiverStatsInfo& stats,
     const Call::Stats& call_stats,
     const std::optional<AudioDeviceModule::Stats>& audio_device_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(stats.mid);
   RTC_DCHECK(stats.transport_name);
   RTC_DCHECK(stats.track_media_info_map);
@@ -1939,12 +1979,12 @@ void RTCStatsCollector::ProduceAudioRTPStreamStats_n(
   }
 }
 
-void RTCStatsCollector::ProduceVideoRTPStreamStats_n(
+void RTCStatsCollector::ProduceVideoRTPStreamStats_s(
     Timestamp timestamp,
     const RtpTransceiverStatsInfo& stats,
     const Call::Stats& call_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(stats.mid);
   RTC_DCHECK(stats.transport_name);
   RTC_DCHECK(stats.track_media_info_map);
@@ -2051,13 +2091,13 @@ void RTCStatsCollector::ProduceVideoRTPStreamStats_n(
   }
 }
 
-void RTCStatsCollector::ProduceTransportStats_n(
+void RTCStatsCollector::ProduceTransportStats_s(
     Timestamp timestamp,
     const std::map<std::string, TransportStats>& transport_stats_by_name,
     const std::map<std::string, CertificateStatsPair>& transport_cert_stats,
     const Call::Stats& call_stats,
     RTCStatsReport* report) const {
-  RTC_DCHECK_RUN_ON(network_thread_);
+  RTC_DCHECK_RUN_ON(signaling_thread_);
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
   for (const auto& entry : transport_stats_by_name) {
