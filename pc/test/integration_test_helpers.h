@@ -509,9 +509,12 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
   scoped_refptr<MockStatsObserver> OldGetStatsForTrack(
       MediaStreamTrackInterface* track) {
     auto observer = make_ref_counted<MockStatsObserver>();
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     EXPECT_TRUE(peer_connection_->GetStats(
         observer.get(), nullptr,
         PeerConnectionInterface::kStatsOutputLevelStandard));
+#pragma clang diagnostic pop
     EXPECT_THAT(
         WaitUntil([&] { return observer->called(); }, ::testing::IsTrue()),
         IsRtcOk());

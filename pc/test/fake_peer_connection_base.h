@@ -158,9 +158,9 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
     return {};
   }
 
-  bool GetStats(StatsObserver* observer,
-                MediaStreamTrackInterface* track,
-                StatsOutputLevel level) override {
+  [[deprecated]] bool GetStats(StatsObserver* observer,
+                               MediaStreamTrackInterface* track,
+                               StatsOutputLevel level) override {
     return false;
   }
 
