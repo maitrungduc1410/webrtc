@@ -28,10 +28,11 @@ jobject NativeToJavaPeerConnectionFactory(
     std::unique_ptr<SocketFactory> socket_factory,
     std::unique_ptr<Thread> network_thread,
     std::unique_ptr<Thread> worker_thread,
-    std::unique_ptr<Thread> signaling_thread) {
+    std::unique_ptr<Thread> signaling_thread,
+    const Environment& env) {
   return jni::NativeToJavaPeerConnectionFactory(
       jni, pcf, std::move(socket_factory), std::move(network_thread),
-      std::move(worker_thread), std::move(signaling_thread));
+      std::move(worker_thread), std::move(signaling_thread), env);
 }
 
 }  // namespace webrtc

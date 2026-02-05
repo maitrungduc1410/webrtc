@@ -13,6 +13,7 @@
 
 #include <jni.h>
 
+#include "api/environment/environment.h"
 #include "rtc_base/thread.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
 
@@ -36,7 +37,8 @@ void* CreateVideoSource(JNIEnv* env,
                         Thread* signaling_thread,
                         Thread* worker_thread,
                         jboolean is_screencast,
-                        jboolean align_timestamps);
+                        jboolean align_timestamps,
+                        const Environment& env_webrtc);
 
 }  // namespace jni
 }  // namespace webrtc
