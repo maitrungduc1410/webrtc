@@ -1770,11 +1770,11 @@ TEST_P(PeerConnectionIntegrationTest, Dtls10CipherStatsAndUmaMetrics) {
   EXPECT_THAT(WaitUntil(
                   [&] {
                     return SSLStreamAdapter::IsAcceptableCipher(
-                        caller()->OldGetStats()->DtlsCipher(), KT_DEFAULT);
+                        caller()->DtlsCipher(), KT_DEFAULT);
                   },
                   IsTrue()),
               IsRtcOk());
-  EXPECT_THAT(WaitUntil([&] { return caller()->OldGetStats()->SrtpCipher(); },
+  EXPECT_THAT(WaitUntil([&] { return caller()->SrtpCipher(); },
                         Eq(SrtpCryptoSuiteToName(kDefaultSrtpCryptoSuite))),
               IsRtcOk());
 }
@@ -1793,11 +1793,11 @@ TEST_P(PeerConnectionIntegrationTest, Dtls12CipherStatsAndUmaMetrics) {
   EXPECT_THAT(WaitUntil(
                   [&] {
                     return SSLStreamAdapter::IsAcceptableCipher(
-                        caller()->OldGetStats()->DtlsCipher(), KT_DEFAULT);
+                        caller()->DtlsCipher(), KT_DEFAULT);
                   },
                   IsTrue()),
               IsRtcOk());
-  EXPECT_THAT(WaitUntil([&] { return caller()->OldGetStats()->SrtpCipher(); },
+  EXPECT_THAT(WaitUntil([&] { return caller()->SrtpCipher(); },
                         Eq(SrtpCryptoSuiteToName(kDefaultSrtpCryptoSuite))),
               IsRtcOk());
 }

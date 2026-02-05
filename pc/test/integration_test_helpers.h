@@ -537,6 +537,26 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
     return callback->report();
   }
 
+  std::string DtlsCipher() {
+    auto report = NewGetStats();
+    if (!report)
+      return "";
+    auto stats = report->GetStatsOfType<RTCTransportStats>();
+    if (stats.empty() || !stats[0]->dtls_cipher.has_value())
+      return "";
+    return *stats[0]->dtls_cipher;
+  }
+
+  std::string SrtpCipher() {
+    auto report = NewGetStats();
+    if (!report)
+      return "";
+    auto stats = report->GetStatsOfType<RTCTransportStats>();
+    if (stats.empty() || !stats[0]->srtp_cipher.has_value())
+      return "";
+    return *stats[0]->srtp_cipher;
+  }
+
   int rendered_width() {
     EXPECT_FALSE(fake_video_renderers_.empty());
     return fake_video_renderers_.empty()
@@ -1873,8 +1893,20 @@ class PeerConnectionIntegrationBaseTest : public ::testing::Test {
     ASSERT_THAT(WaitUntil([&] { return DtlsConnected(); }, ::testing::IsTrue()),
                 IsRtcOk());
     EXPECT_THAT(
-        WaitUntil([&] { return caller()->OldGetStats()->SrtpCipher(); },
-                  ::testing::Eq(SrtpCryptoSuiteToName(expected_cipher_suite))),
+        WaitUntil(
+            [&] {
+              auto report = caller()->NewGetStats();
+              if (!report) {
+                return std::string();
+              }
+              auto transport_stats =
+                  report->GetStatsOfType<RTCTransportStats>();
+              if (transport_stats.empty()) {
+                return std::string();
+              }
+              return *transport_stats[0]->srtp_cipher;
+            },
+            ::testing::Eq(SrtpCryptoSuiteToName(expected_cipher_suite))),
         IsRtcOk());
   }
 
