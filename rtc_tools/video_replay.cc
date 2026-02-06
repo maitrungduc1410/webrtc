@@ -220,7 +220,7 @@ std::string ReadFileToString(const std::string& file_path) {
   }
 
   std::string content(length, '\0');
-  fread(&content[0], 1, length, file);
+  RTC_CHECK_EQ(fread(&content[0], 1, length, file), length);
   fclose(file);
   return content;
 }
