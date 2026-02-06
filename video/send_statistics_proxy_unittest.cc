@@ -2060,6 +2060,50 @@ TEST_F(SendStatisticsProxyTest, VerifyQpHistogramStats_H264) {
       1, metrics::NumEvents("WebRTC.Video.Encoded.Qp.H264.S1", kQpIdx1));
 }
 
+TEST_F(SendStatisticsProxyTest, VerifyQpHistogramStats_Av1) {
+  EncodedImage encoded_image;
+  CodecSpecificInfo codec_info;
+  codec_info.codecType = kVideoCodecAV1;
+
+  for (int i = 0; i < SendStatisticsProxy::kMinRequiredMetricsSamples; ++i) {
+    encoded_image.SetSpatialIndex(0);
+    encoded_image.qp_ = kQpIdx0;
+    statistics_proxy_->OnSendEncodedImage(encoded_image, &codec_info);
+    encoded_image.SetSpatialIndex(1);
+    encoded_image.qp_ = kQpIdx1;
+    statistics_proxy_->OnSendEncodedImage(encoded_image, &codec_info);
+  }
+  statistics_proxy_.reset();
+  EXPECT_METRIC_EQ(1, metrics::NumSamples("WebRTC.Video.Encoded.Qp.Av1.S0"));
+  EXPECT_METRIC_EQ(
+      1, metrics::NumEvents("WebRTC.Video.Encoded.Qp.Av1.S0", kQpIdx0));
+  EXPECT_METRIC_EQ(1, metrics::NumSamples("WebRTC.Video.Encoded.Qp.Av1.S1"));
+  EXPECT_METRIC_EQ(
+      1, metrics::NumEvents("WebRTC.Video.Encoded.Qp.Av1.S1", kQpIdx1));
+}
+
+TEST_F(SendStatisticsProxyTest, VerifyQpHistogramStats_H265) {
+  EncodedImage encoded_image;
+  CodecSpecificInfo codec_info;
+  codec_info.codecType = kVideoCodecH265;
+
+  for (int i = 0; i < SendStatisticsProxy::kMinRequiredMetricsSamples; ++i) {
+    encoded_image.SetSimulcastIndex(0);
+    encoded_image.qp_ = kQpIdx0;
+    statistics_proxy_->OnSendEncodedImage(encoded_image, &codec_info);
+    encoded_image.SetSimulcastIndex(1);
+    encoded_image.qp_ = kQpIdx1;
+    statistics_proxy_->OnSendEncodedImage(encoded_image, &codec_info);
+  }
+  statistics_proxy_.reset();
+  EXPECT_METRIC_EQ(1, metrics::NumSamples("WebRTC.Video.Encoded.Qp.H265.S0"));
+  EXPECT_METRIC_EQ(
+      1, metrics::NumEvents("WebRTC.Video.Encoded.Qp.H265.S0", kQpIdx0));
+  EXPECT_METRIC_EQ(1, metrics::NumSamples("WebRTC.Video.Encoded.Qp.H265.S1"));
+  EXPECT_METRIC_EQ(
+      1, metrics::NumEvents("WebRTC.Video.Encoded.Qp.H265.S1", kQpIdx1));
+}
+
 TEST_F(SendStatisticsProxyTest,
        BandwidthLimitedHistogramsNotUpdatedForOneStream) {
   // Configure one stream.
