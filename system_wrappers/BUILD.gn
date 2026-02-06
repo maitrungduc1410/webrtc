@@ -34,7 +34,6 @@ rtc_library("system_wrappers") {
     "../rtc_base:timeutils",
     "../rtc_base/synchronization:mutex",
     "../rtc_base/system:rtc_export",
-    "//third_party/abseil-cpp/absl/base:nullability",
   ]
   if (is_win) {
     libs += [ "winmm.lib" ]

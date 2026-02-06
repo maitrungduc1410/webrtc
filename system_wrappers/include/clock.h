@@ -14,7 +14,6 @@
 #include <atomic>
 #include <cstdint>
 
-#include "absl/base/nullability.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/numerics/divide_round.h"
@@ -67,7 +66,7 @@ class RTC_EXPORT Clock {
   }
 
   // Returns an instance of the real-time system clock implementation.
-  static Clock* absl_nonnull GetRealTimeClock();
+  static Clock* GetRealTimeClock();
 };
 
 class SimulatedClock : public Clock {

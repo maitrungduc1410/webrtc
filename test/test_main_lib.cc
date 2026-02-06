@@ -23,7 +23,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/strings/string_view.h"
-#include "api/environment/environment.h"
 #include "api/test/metrics/chrome_perf_dashboard_metrics_exporter.h"
 #include "api/test/metrics/global_metrics_logger_and_exporter.h"
 #include "api/test/metrics/metric.h"
@@ -35,7 +34,6 @@
 #include "rtc_base/ssl_adapter.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "system_wrappers/include/metrics.h"
-#include "test/create_test_environment.h"
 #include "test/gtest.h"
 #include "test/test_flags.h"
 #include "test/testsupport/file_utils.h"
@@ -297,8 +295,7 @@ class TestMainImpl : public TestMain {
         << trace_output_file << "\"";
     tracing_session_->StartBlocking();
 #else
-    Environment env = CreateTestEnvironment();
-    tracing::SetupInternalTracer(env);
+    tracing::SetupInternalTracer();
     tracing::StartInternalCapture(trace_output_file);
 #endif
   }
