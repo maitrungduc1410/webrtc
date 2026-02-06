@@ -155,6 +155,9 @@ scoped_refptr<Video> OpenY4mFile(const std::string& file_name) {
   std::vector<std::string> fields;
   tokenize(header_line, ' ', &fields);
   for (const std::string& field : fields) {
+    if (field.empty()) {
+      continue;
+    }
     const char prefix = field.front();
     const std::string suffix = field.substr(1);
     switch (prefix) {
