@@ -237,6 +237,10 @@ scoped_refptr<Video> OpenY4mFile(const std::string& file_name) {
 scoped_refptr<Video> OpenYuvFile(const std::string& file_name,
                                  int width,
                                  int height) {
+  if (width <= 0 || height <= 0) {
+    RTC_LOG(LS_ERROR) << "Video dimensions must be positive";
+    return nullptr;
+  }
   FILE* file = fopen(file_name.c_str(), "rb");
   if (file == nullptr) {
     RTC_LOG(LS_ERROR) << "Could not open input file for reading: " << file_name;
@@ -247,6 +251,7 @@ scoped_refptr<Video> OpenYuvFile(const std::string& file_name,
     RTC_LOG(LS_ERROR)
         << "Only supports even width/height so that chroma size is a "
            "whole number.";
+    fclose(file);
     return nullptr;
   }
 
