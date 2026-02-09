@@ -614,8 +614,6 @@
 -rtc_base/checks.cc
 -rtc_base/containers/flat_tree.h
 -rtc_base/containers/flat_tree_unittest.cc
--rtc_base/copy_on_write_buffer.cc
--rtc_base/copy_on_write_buffer.h
 -rtc_base/copy_on_write_buffer_unittest.cc
 -rtc_base/cpu_info.cc
 -rtc_base/crc32.cc
