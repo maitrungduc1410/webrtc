@@ -49,7 +49,7 @@ class RenderingSimulator {
 
     // Whether or not to reset the stream state on newly logged streams with the
     // same SSRC.
-    bool reuse_streams = true;
+    bool reuse_streams = false;
   };
 
   // Metadata about a single rendered frame.
