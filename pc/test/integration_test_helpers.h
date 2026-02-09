@@ -78,6 +78,7 @@
 #include "pc/test/fake_rtc_certificate_generator.h"
 #include "pc/test/fake_video_track_renderer.h"
 #include "pc/test/mock_peer_connection_observers.h"
+#include "pc/test/rtc_stats_obtainer.h"
 #include "pc/video_track_source.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/crypto_random.h"
@@ -528,6 +529,7 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
 
   // Synchronously gets stats and returns them. If it times out, fails the test
   // and returns null.
+  // TODO(tommi) - Remove this method in favor of the one that supports RunLoop.
   scoped_refptr<const RTCStatsReport> NewGetStats() {
     auto callback = make_ref_counted<MockRTCStatsCollectorCallback>();
     peer_connection_->GetStats(callback.get());
@@ -535,6 +537,15 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
         WaitUntil([&] { return callback->called(); }, ::testing::IsTrue()),
         IsRtcOk());
     return callback->report();
+  }
+
+  scoped_refptr<const RTCStatsReport> NewGetStats(test::RunLoop& run_loop) {
+    scoped_refptr<const RTCStatsReport> report;
+    auto callback = RTCStatsObtainer::Create(&report, run_loop.QuitClosure());
+    peer_connection_->GetStats(callback.get());
+    run_loop.Run();
+    EXPECT_TRUE(report);
+    return report;
   }
 
   std::string DtlsCipher() {
@@ -1895,7 +1906,7 @@ class PeerConnectionIntegrationBaseTest : public ::testing::Test {
     EXPECT_THAT(
         WaitUntil(
             [&] {
-              auto report = caller()->NewGetStats();
+              auto report = caller()->NewGetStats(run_loop());
               if (!report) {
                 return std::string();
               }
