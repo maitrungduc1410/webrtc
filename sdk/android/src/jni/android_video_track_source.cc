@@ -57,10 +57,8 @@ std::optional<std::pair<int, int>> OptionalAspectRatio(jint j_width,
 AndroidVideoTrackSource::AndroidVideoTrackSource(Thread* signaling_thread,
                                                  JNIEnv* jni,
                                                  bool is_screencast,
-                                                 bool align_timestamps,
-                                                 const Environment& env)
+                                                 bool align_timestamps)
     : AdaptedVideoTrackSource(kRequiredResolutionAlignment),
-      env_(env),
       signaling_thread_(signaling_thread),
       is_screencast_(is_screencast),
       align_timestamps_(align_timestamps),
@@ -113,9 +111,8 @@ ScopedJavaLocalRef<jobject> AndroidVideoTrackSource::AdaptFrame(
   const int64_t camera_time_us = j_timestamp_ns / kNumNanosecsPerMicrosec;
   const int64_t aligned_timestamp_ns =
       align_timestamps_
-          ? kNumNanosecsPerMicrosec *
-                timestamp_aligner_.TranslateTimestamp(
-                    camera_time_us, env_.clock().TimeInMicroseconds())
+          ? kNumNanosecsPerMicrosec * timestamp_aligner_.TranslateTimestamp(
+                                          camera_time_us, TimeMicros())
           : j_timestamp_ns;
 
   int adapted_width = 0;

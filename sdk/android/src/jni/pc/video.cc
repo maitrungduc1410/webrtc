@@ -45,10 +45,9 @@ void* CreateVideoSource(JNIEnv* env,
                         Thread* signaling_thread,
                         Thread* worker_thread,
                         jboolean is_screencast,
-                        jboolean align_timestamps,
-                        const Environment& env_webrtc) {
+                        jboolean align_timestamps) {
   auto source = make_ref_counted<AndroidVideoTrackSource>(
-      signaling_thread, env, is_screencast, align_timestamps, env_webrtc);
+      signaling_thread, env, is_screencast, align_timestamps);
   return source.release();
 }
 

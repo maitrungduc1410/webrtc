@@ -16,7 +16,6 @@
 #include <atomic>
 #include <optional>
 
-#include "api/environment/environment.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "media/base/adapted_video_track_source.h"
@@ -37,8 +36,7 @@ class AndroidVideoTrackSource : public AdaptedVideoTrackSource {
   AndroidVideoTrackSource(Thread* signaling_thread,
                           JNIEnv* jni,
                           bool is_screencast,
-                          bool align_timestamps,
-                          const Environment& env);
+                          bool align_timestamps);
   ~AndroidVideoTrackSource() override;
 
   bool is_screencast() const override;
@@ -89,7 +87,6 @@ class AndroidVideoTrackSource : public AdaptedVideoTrackSource {
   void SetIsScreencast(JNIEnv* env, jboolean j_is_screencast);
 
  private:
-  const Environment env_;
   Thread* signaling_thread_;
   std::atomic<SourceState> state_;
   std::atomic<bool> is_screencast_;
