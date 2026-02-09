@@ -716,7 +716,15 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
   std::unique_ptr<SessionDescriptionInterface> CreateOfferAndWait() {
     auto observer = make_ref_counted<MockCreateSessionDescriptionObserver>();
     pc()->CreateOffer(observer.get(), offer_answer_options_);
-    return WaitForDescriptionFromObserver(observer.get());
+    EXPECT_TRUE(WaitUntil([&] { return observer->called(); }));
+    if (!observer->result()) {
+      return nullptr;
+    }
+    auto description = observer->MoveDescription();
+    if (generated_sdp_munger_) {
+      generated_sdp_munger_(description);
+    }
+    return description;
   }
   bool Rollback() {
     return SetRemoteDescription(CreateRollbackSessionDescription());
@@ -840,8 +848,11 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
  private:
   // Constructor used by friend class PeerConnectionIntegrationBaseTest.
   explicit PeerConnectionIntegrationWrapper(const std::string& debug_name,
-                                            Environment env)
-      : debug_name_(debug_name), env_(env) {}
+                                            Environment env,
+                                            test::RunLoop& run_loop)
+      : run_loop_(run_loop), debug_name_(debug_name), env_(env) {}
+
+  test::RunLoop& run_loop() const { return run_loop_; }
 
   bool Init(const PeerConnectionFactory::Options* options,
             const PeerConnectionInterface::RTCConfiguration* config,
@@ -944,11 +955,6 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
   std::unique_ptr<SessionDescriptionInterface> CreateAnswer() {
     auto observer = make_ref_counted<MockCreateSessionDescriptionObserver>();
     pc()->CreateAnswer(observer.get(), offer_answer_options_);
-    return WaitForDescriptionFromObserver(observer.get());
-  }
-
-  std::unique_ptr<SessionDescriptionInterface> WaitForDescriptionFromObserver(
-      MockCreateSessionDescriptionObserver* observer) {
     EXPECT_THAT(
         WaitUntil([&] { return observer->called(); }, ::testing::IsTrue()),
         IsRtcOk());
@@ -1189,6 +1195,7 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
     return false;
   }
 
+  test::RunLoop& run_loop_;
   std::string debug_name_;
   const Environment env_;
 
@@ -1496,7 +1503,8 @@ class PeerConnectionIntegrationBaseTest : public ::testing::Test {
     env.Set(CreateTestFieldTrialsPtr(field_trials));
 
     std::unique_ptr<PeerConnectionIntegrationWrapper> client(
-        new PeerConnectionIntegrationWrapper(debug_name, env.Create()));
+        new PeerConnectionIntegrationWrapper(debug_name, env.Create(),
+                                             run_loop()));
 
     if (!client->Init(options, &modified_config, std::move(dependencies),
                       fss_.get(), network_thread_.get(), worker_thread_.get(),
