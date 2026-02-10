@@ -2349,6 +2349,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   std::vector<scoped_refptr<RtpTransceiverInterface>> remove_list;
   std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
+  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
   flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
       GetDtlsTransports(*transceivers(), context_->network_thread(),
                         transport_controller_s());
@@ -2445,11 +2446,23 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
       if (!media_desc->streams().empty() &&
           media_desc->streams()[0].has_ssrcs()) {
         uint32_t ssrc = media_desc->streams()[0].first_ssrc();
-        transceiver->receiver_internal()->SetupMediaChannel(ssrc);
+        worker_tasks.push_back(
+            transceiver->receiver_internal()->GetSetupForMediaChannel(ssrc));
       } else {
-        transceiver->receiver_internal()->SetupUnsignaledMediaChannel();
+        worker_tasks.push_back(transceiver->receiver_internal()
+                                   ->GetSetupForUnsignaledMediaChannel());
       }
     }
+  }
+
+  if (!worker_tasks.empty()) {
+    context_->worker_thread()->BlockingCall([&worker_tasks] {
+      for (auto& task : worker_tasks) {
+        if (task) {
+          std::move(task)();
+        }
+      }
+    });
   }
   // Once all processing has finished, fire off callbacks.
   pc_->RunWithObserver([&](auto observer) {

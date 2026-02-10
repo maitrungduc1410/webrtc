@@ -1808,6 +1808,7 @@ rtc_library("rtp_receiver") {
     "../api:scoped_refptr",
     "../media:media_channel",
     "../rtc_base:threading",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
 
@@ -1839,6 +1840,7 @@ rtc_library("audio_rtp_receiver") {
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -1873,6 +1875,7 @@ rtc_library("video_rtp_receiver") {
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
