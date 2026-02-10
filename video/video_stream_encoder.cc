@@ -2443,7 +2443,17 @@ void VideoStreamEncoder::OnDroppedFrame(DropReason reason) {
   sink_->OnDroppedFrame(reason);
   encoder_queue_->PostTask([this, reason] {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    stream_resource_manager_.OnFrameDropped(reason);
+    switch (reason) {
+      case webrtc::EncodedImageCallback::DropReason::kDroppedByEncoder:
+        stream_resource_manager_.OnFrameDropped(
+            VideoStreamEncoderObserver::DropReason::kEncoder);
+        break;
+      case webrtc::EncodedImageCallback::DropReason::
+          kDroppedByMediaOptimizations:
+        stream_resource_manager_.OnFrameDropped(
+            VideoStreamEncoderObserver::DropReason::kMediaOptimization);
+        break;
+    }
   });
 }
 
