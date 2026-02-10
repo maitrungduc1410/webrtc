@@ -16,9 +16,11 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <type_traits>
 #include <utility>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
@@ -66,7 +68,8 @@ class BufferT {
 
  public:
   using value_type = T;
-  using const_iterator = const T*;
+  using iterator = std::span<T>::iterator;
+  using const_iterator = std::span<const T>::iterator;
 
   // An empty BufferT.
   BufferT() : size_(0), capacity_(0), data_(nullptr) {
@@ -120,6 +123,12 @@ class BufferT {
             typename std::enable_if<
                 internal::BufferCompat<T, U>::value>::type* = nullptr>
   BufferT(U (&array)[N]) : BufferT(array, N) {}
+
+  // Construct a buffer from any type with a data() and size() member.
+  template <typename W,
+            typename std::enable_if<
+                HasDataAndSize<const W, const T>::value>::type* = nullptr>
+  explicit BufferT(const W& w) : BufferT(w.data(), w.size()) {}
 
   ~BufferT() { MaybeZeroCompleteBuffer(); }
 
@@ -205,20 +214,20 @@ class BufferT {
 
   T& operator[](size_t index) {
     RTC_DCHECK_LT(index, size_);
-    return data()[index];
+    return ArrayView<T>(*this)[index];
   }
 
   T operator[](size_t index) const {
     RTC_DCHECK_LT(index, size_);
-    return data()[index];
+    return ArrayView<const T>(*this)[index];
   }
 
-  T* begin() { return data(); }
-  T* end() { return data() + size(); }
-  const T* begin() const { return data(); }
-  const T* end() const { return data() + size(); }
-  const T* cbegin() const { return data(); }
-  const T* cend() const { return data() + size(); }
+  iterator begin() { return std::span(*this).begin(); }
+  iterator end() { return std::span(*this).end(); }
+  const_iterator begin() const { return std::span(*this).begin(); }
+  const_iterator end() const { return std::span(*this).end(); }
+  const_iterator cbegin() const { return begin(); }
+  const_iterator cend() const { return end(); }
 
   // The SetData functions replace the contents of the buffer. They accept the
   // same input types as the constructors.
@@ -288,7 +297,10 @@ class BufferT {
     const size_t new_size = size_ + size;
     EnsureCapacityWithHeadroom(new_size, true);
     static_assert(sizeof(T) == sizeof(U), "");
-    std::memcpy(data_.get() + size_, data, size * sizeof(U));
+    ArrayView<const U> source(data, size);
+    ArrayView<T> destination =
+        ArrayView<T>(data_.get(), capacity_).subview(size_, size);
+    absl::c_copy(source, destination.begin());
     size_ = new_size;
     RTC_DCHECK(IsConsistent());
   }
@@ -332,8 +344,8 @@ class BufferT {
     RTC_DCHECK(IsConsistent());
     const size_t old_size = size_;
     SetSize(old_size + max_elements);
-    U* base_ptr = data<U>() + old_size;
-    size_t written_elements = setter(ArrayView<U>(base_ptr, max_elements));
+    size_t written_elements =
+        setter(ArrayView<U>(data<U>(), size()).subspan(old_size));
 
     RTC_CHECK_LE(written_elements, max_elements);
     size_ = old_size + written_elements;
@@ -410,7 +422,7 @@ class BufferT {
       // It would be sufficient to only zero "size_" elements, as all other
       // methods already ensure that the unused capacity contains no sensitive
       // data---but better safe than sorry.
-      ExplicitZeroMemory(data_.get(), capacity_ * sizeof(T));
+      ExplicitZeroMemory(ArrayView<T>(data_.get(), capacity_));
     }
   }
 
@@ -418,7 +430,7 @@ class BufferT {
   void ZeroTrailingData(size_t count) {
     RTC_DCHECK(IsConsistent());
     RTC_DCHECK_LE(count, capacity_ - size_);
-    ExplicitZeroMemory(data_.get() + size_, count * sizeof(T));
+    ExplicitZeroMemory(MakeArrayView(data(), capacity_).subview(size_));
   }
 
   // Precondition for all methods except Clear, operator= and the destructor.
