@@ -11,9 +11,11 @@
 #include "video/timing/simulator/rendering_simulator.h"
 
 #include <memory>
+#include <optional>
 
 #include "absl/algorithm/container.h"
 #include "absl/strings/string_view.h"
+#include "api/numerics/samples_stats_counter.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -29,8 +31,10 @@ namespace {
 using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::Field;
+using ::testing::IsEmpty;
 using ::testing::Matcher;
 using ::testing::Ne;
+using ::testing::Optional;
 using ::testing::SizeIs;
 
 using Frame = RenderingSimulator::Frame;
@@ -46,20 +50,22 @@ TEST(RenderingSimulatorFrameTest, BufferDurationsAndMarginsForInTimeFrame) {
       .rendered_timestamp = Timestamp::Millis(10)};
 
   // Buffer durations.
-  EXPECT_EQ(frame.PacketBufferDuration(), TimeDelta::Millis(1));
-  EXPECT_EQ(frame.FrameBufferDuration(), TimeDelta::Millis(8));
-  EXPECT_EQ(frame.RenderBufferDuration(), TimeDelta::Millis(1));
-  EXPECT_EQ(frame.TotalBufferDuration(), TimeDelta::Millis(10));
+  EXPECT_THAT(frame.PacketBufferDuration(), Eq(TimeDelta::Millis(1)));
+  EXPECT_THAT(frame.FrameBufferDuration(), Eq(TimeDelta::Millis(8)));
+  EXPECT_THAT(frame.RenderBufferDuration(), Eq(TimeDelta::Millis(1)));
+  EXPECT_THAT(frame.TotalBufferDuration(), Eq(TimeDelta::Millis(10)));
 
   // Margins.
-  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Millis(9));
-  EXPECT_TRUE(frame.AssembledInTime());
-  EXPECT_TRUE(frame.AssembledMarginExcess().has_value());
-  EXPECT_FALSE(frame.AssembledMarginDeficit().has_value());
-  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Zero());
-  EXPECT_TRUE(frame.RenderedInTime());
-  EXPECT_TRUE(frame.RenderedMarginExcess().has_value());
-  EXPECT_FALSE(frame.RenderedMarginDeficit().has_value());
+  EXPECT_THAT(frame.AssembledMargin(), Eq(TimeDelta::Millis(9)));
+  EXPECT_THAT(frame.AssembledInTime(), Optional(true));
+  EXPECT_THAT(frame.AssembledLate(), Optional(false));
+  EXPECT_THAT(frame.AssembledMarginExcess(), Optional(TimeDelta::Millis(9)));
+  EXPECT_THAT(frame.AssembledMarginDeficit(), Eq(std::nullopt));
+  EXPECT_THAT(frame.RenderedMargin(), Eq(TimeDelta::Zero()));
+  EXPECT_THAT(frame.RenderedInTime(), Optional(true));
+  EXPECT_THAT(frame.RenderedLate(), Optional(false));
+  EXPECT_THAT(frame.RenderedMarginExcess(), Optional(TimeDelta::Zero()));
+  EXPECT_THAT(frame.RenderedMarginDeficit(), Eq(std::nullopt));
 }
 
 TEST(RenderingSimulatorFrameTest, BufferDurationsAndMarginsForDelayedFrame) {
@@ -72,20 +78,22 @@ TEST(RenderingSimulatorFrameTest, BufferDurationsAndMarginsForDelayedFrame) {
       .rendered_timestamp = Timestamp::Millis(12)};
 
   // Buffer durations.
-  EXPECT_EQ(frame.PacketBufferDuration(), TimeDelta::Zero());
-  EXPECT_EQ(frame.FrameBufferDuration(), TimeDelta::Zero());
-  EXPECT_EQ(frame.RenderBufferDuration(), TimeDelta::Zero());
-  EXPECT_EQ(frame.TotalBufferDuration(), TimeDelta::Zero());
+  EXPECT_THAT(frame.PacketBufferDuration(), Eq(TimeDelta::Zero()));
+  EXPECT_THAT(frame.FrameBufferDuration(), Eq(TimeDelta::Zero()));
+  EXPECT_THAT(frame.RenderBufferDuration(), Eq(TimeDelta::Zero()));
+  EXPECT_THAT(frame.TotalBufferDuration(), Eq(TimeDelta::Zero()));
 
   // Margins.
-  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Millis(-2));
-  EXPECT_FALSE(frame.AssembledInTime());
-  EXPECT_FALSE(frame.AssembledMarginExcess().has_value());
-  EXPECT_TRUE(frame.AssembledMarginDeficit().has_value());
-  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Millis(-2));
-  EXPECT_FALSE(frame.RenderedInTime());
-  EXPECT_FALSE(frame.RenderedMarginExcess().has_value());
-  EXPECT_TRUE(frame.RenderedMarginDeficit().has_value());
+  EXPECT_THAT(frame.AssembledMargin(), Eq(TimeDelta::Millis(-2)));
+  EXPECT_THAT(frame.AssembledInTime(), Optional(false));
+  EXPECT_THAT(frame.AssembledLate(), Optional(true));
+  EXPECT_THAT(frame.AssembledMarginExcess(), Eq(std::nullopt));
+  EXPECT_THAT(frame.AssembledMarginDeficit(), Optional(TimeDelta::Millis(-2)));
+  EXPECT_THAT(frame.RenderedMargin(), Eq(TimeDelta::Millis(-2)));
+  EXPECT_THAT(frame.AssembledInTime(), Optional(false));
+  EXPECT_THAT(frame.AssembledLate(), Optional(true));
+  EXPECT_THAT(frame.RenderedMarginExcess(), Eq(std::nullopt));
+  EXPECT_THAT(frame.RenderedMarginDeficit(), Optional(TimeDelta::Millis(-2)));
 }
 
 TEST(RenderingSimulatorFrameTest,
@@ -124,6 +132,109 @@ TEST(RenderingSimulatorFrameTest,
   EXPECT_TRUE(frame.AssembledInTime());
   EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Micros(500));
   EXPECT_TRUE(frame.RenderedInTime());
+}
+
+TEST(RenderingSimulatorStreamTest, NumAssembledInTimeAndLateFrames) {
+  RenderingSimulator::Stream stream{
+      .frames = {{.assembled_timestamp = Timestamp::Millis(0)},
+                 {.assembled_timestamp = Timestamp::Millis(10),
+                  .render_timestamp =
+                      Timestamp::Millis(10) + RenderingSimulator::kRenderDelay},
+                 {.assembled_timestamp = Timestamp::Millis(30),
+                  .render_timestamp = Timestamp::Millis(20) +
+                                      RenderingSimulator::kRenderDelay}}};
+
+  EXPECT_EQ(stream.NumAssembledFrames(), 3);
+  EXPECT_EQ(stream.NumAssembledInTimeFrames(), 1);
+  EXPECT_EQ(stream.NumAssembledLateFrames(), 1);
+}
+
+TEST(RenderingSimulatorStreamTest, NumDecodedFrames) {
+  RenderingSimulator::Stream stream{
+      .frames = {{}, {.decoded_timestamp = Timestamp::Millis(10)}}};
+
+  EXPECT_EQ(stream.NumDecodedFrames(), 1);
+}
+
+TEST(RenderingSimulatorStreamTest, NumRenderedInTimeAndLateFrames) {
+  RenderingSimulator::Stream stream{
+      .frames = {{},
+                 {.render_timestamp =
+                      Timestamp::Millis(10) + RenderingSimulator::kRenderDelay,
+                  .rendered_timestamp = Timestamp::Millis(10)},
+                 {.render_timestamp =
+                      Timestamp::Millis(20) + RenderingSimulator::kRenderDelay,
+                  .rendered_timestamp = Timestamp::Millis(30)}}};
+
+  EXPECT_EQ(stream.NumRenderedFrames(), 2);
+  EXPECT_EQ(stream.NumRenderedInTimeFrames(), 1);
+  EXPECT_EQ(stream.NumRenderedLateFrames(), 1);
+}
+
+TEST(RenderingSimulatorStreamTest, NumDecoderDroppedFrames) {
+  RenderingSimulator::Stream stream{
+      .frames = {{.frames_dropped = 1}, {.frames_dropped = 2}}};
+
+  EXPECT_EQ(stream.NumDecoderDroppedFrames(), 3);
+}
+
+TEST(RenderingSimulatorStreamTest, WebrtcStatsSamples) {
+  RenderingSimulator::Stream stream{
+      .frames = {{.rendered_timestamp = Timestamp::Zero(),
+                  .jitter_buffer_minimum_delay = TimeDelta::Millis(20),
+                  .jitter_buffer_delay = TimeDelta::Millis(30)}}};
+
+  EXPECT_THAT(
+      stream.JitterBufferMinimumDelayMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(20))));
+  EXPECT_THAT(
+      stream.JitterBufferDelayMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(30))));
+}
+
+TEST(RenderingSimulatorStreamTest, BufferDurations) {
+  RenderingSimulator::Stream stream{
+      .frames = {{.first_packet_arrival_timestamp = Timestamp::Millis(1),
+                  .assembled_timestamp = Timestamp::Millis(3),
+                  .decoded_timestamp = Timestamp::Millis(7),
+                  .rendered_timestamp = Timestamp::Millis(14)}}};
+
+  EXPECT_THAT(
+      stream.PacketBufferDurationMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(2))));
+  EXPECT_THAT(
+      stream.FrameBufferDurationMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(4))));
+  EXPECT_THAT(
+      stream.RenderBufferDurationMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(7))));
+  EXPECT_THAT(
+      stream.TotalBufferDurationMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(13))));
+}
+
+TEST(RenderingSimulatorStreamTest, Margins) {
+  RenderingSimulator::Stream stream{
+      .frames = {{.assembled_timestamp = Timestamp::Millis(0),
+                  .render_timestamp =
+                      Timestamp::Millis(10) + RenderingSimulator::kRenderDelay,
+                  .rendered_timestamp = Timestamp::Millis(15)}}};
+
+  EXPECT_THAT(
+      stream.AssembledMarginMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(10))));
+  EXPECT_THAT(
+      stream.AssembledMarginExcessMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(10))));
+  EXPECT_THAT(stream.AssembledMarginDeficitMs().GetTimedSamples(), IsEmpty());
+
+  EXPECT_THAT(
+      stream.RenderedMarginMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(-5))));
+  EXPECT_THAT(stream.RenderedMarginExcessMs().GetTimedSamples(), IsEmpty());
+  EXPECT_THAT(
+      stream.RenderedMarginDeficitMs().GetTimedSamples(),
+      ElementsAre(Field(&SamplesStatsCounter::StatsSample::value, Eq(-5))));
 }
 
 Matcher<const Frame&> EqualsFrame(const Frame& expected) {

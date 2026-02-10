@@ -22,6 +22,7 @@
 #include "absl/algorithm/container.h"
 #include "api/array_view.h"
 #include "api/environment/environment.h"
+#include "api/numerics/samples_stats_counter.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -62,13 +63,13 @@ class RenderingSimulator {
   struct Frame : public FrameBase<Frame> {
     // -- Values --
     // Frame information.
-    int num_packets = -1;
-    DataSize size = DataSize::Zero();
+    int num_packets = -1;              // Required.
+    DataSize size = DataSize::Zero();  // Required.
 
     // RTP header information.
     int payload_type = -1;
     uint32_t rtp_timestamp = 0;
-    int64_t unwrapped_rtp_timestamp = -1;
+    int64_t unwrapped_rtp_timestamp = -1;  // Required.
 
     // Dependency descriptor information.
     int64_t frame_id = -1;
@@ -76,28 +77,28 @@ class RenderingSimulator {
     int temporal_id = -1;
     int num_references = -1;
 
-    // Packet timestamps.
+    // Packet timestamps. Both are required.
     Timestamp first_packet_arrival_timestamp = Timestamp::PlusInfinity();
     Timestamp last_packet_arrival_timestamp = Timestamp::MinusInfinity();
 
     // Frame timestamps.
-    Timestamp assembled_timestamp = Timestamp::PlusInfinity();
+    Timestamp assembled_timestamp = Timestamp::PlusInfinity();  // Required.
     Timestamp render_timestamp = Timestamp::PlusInfinity();
     Timestamp decoded_timestamp = Timestamp::PlusInfinity();
     Timestamp rendered_timestamp = Timestamp::PlusInfinity();
 
     // Jitter buffer state at the time of this frame.
-    int frames_dropped = -1;
+    int frames_dropped = 0;
     // TODO: b/423646186 - Add `current_delay_ms`.
     // The `jitter_buffer_*` metrics below are recorded by the production code,
     // and should be compatible with the `webrtc-stats` definitions. One major
     // difference is that they are _not_ cumulative.
     // https://www.w3.org/TR/webrtc-stats/#dom-rtcinboundrtpstreamstats-jitterbufferminimumdelay
-    TimeDelta jitter_buffer_minimum_delay = TimeDelta::MinusInfinity();
+    TimeDelta jitter_buffer_minimum_delay = TimeDelta::PlusInfinity();
     // https://www.w3.org/TR/webrtc-stats/#dom-rtcinboundrtpstreamstats-jitterbuffertargetdelay
-    TimeDelta jitter_buffer_target_delay = TimeDelta::MinusInfinity();
+    TimeDelta jitter_buffer_target_delay = TimeDelta::PlusInfinity();
     // https://www.w3.org/TR/webrtc-stats/#dom-rtcinboundrtpstreamstats-jitterbufferdelay
-    TimeDelta jitter_buffer_delay = TimeDelta::MinusInfinity();
+    TimeDelta jitter_buffer_delay = TimeDelta::PlusInfinity();
 
     // -- Populated values --
     // One-way delay relative some baseline.
@@ -109,6 +110,8 @@ class RenderingSimulator {
     // -- Per-frame metrics --
     // Time spent being assembled (waiting for all packets to arrive).
     TimeDelta PacketBufferDuration() const {
+      RTC_DCHECK(assembled_timestamp.IsFinite());
+      RTC_DCHECK(first_packet_arrival_timestamp.IsFinite());
       return assembled_timestamp - first_packet_arrival_timestamp;
     }
 
@@ -118,11 +121,19 @@ class RenderingSimulator {
     // production code; and, 2) is anchored on `first_packet_arrival_timestamp`
     // rather than `assembled_timestamp`.
     TimeDelta FrameBufferDuration() const {
+      RTC_DCHECK(assembled_timestamp.IsFinite());
       return decoded_timestamp - assembled_timestamp;
     }
 
     // Time spent waiting to be rendered, after decode.
     TimeDelta RenderBufferDuration() const {
+      if (!decoded_timestamp.IsFinite()) {
+        RTC_DCHECK(!rendered_timestamp.IsFinite());
+        return TimeDelta::PlusInfinity();
+      }
+      if (!rendered_timestamp.IsFinite()) {
+        return TimeDelta::PlusInfinity();
+      }
       return rendered_timestamp - decoded_timestamp;
     }
 
@@ -150,12 +161,27 @@ class RenderingSimulator {
     // negative margin.
     // TODO: b/423646186 - Change this to be `DecodabilityMargin`.
     TimeDelta AssembledMargin() const {
+      if (!render_timestamp.IsFinite()) {
+        return TimeDelta::PlusInfinity();
+      }
+      RTC_DCHECK(assembled_timestamp.IsFinite());
       // Subtract `kRenderDelay`, since that is what `VCMTiming` and
       // `VideoRenderFrames` also do.
       return (render_timestamp - kRenderDelay) - assembled_timestamp;
     }
-    bool AssembledInTime() const {
-      return AssembledMargin() > kInTimeMarginThreshold;
+    std::optional<bool> AssembledInTime() const {
+      TimeDelta assembled_margin = AssembledMargin();
+      if (!assembled_margin.IsFinite()) {
+        return std::nullopt;
+      }
+      return assembled_margin > kInTimeMarginThreshold;
+    }
+    std::optional<bool> AssembledLate() const {
+      std::optional<bool> assembled_in_time = AssembledInTime();
+      if (!assembled_in_time.has_value()) {
+        return std::nullopt;
+      }
+      return !assembled_in_time.value();
     }
 
     // Split the assembled margin along zero: "excess margin" for positive
@@ -164,13 +190,22 @@ class RenderingSimulator {
     // (delayed frames/buffer underruns => video freezes), while also minimizing
     // the stream-level min/p10 of the excess margin (early frames spending a
     // long time in the buffer => high latency).
+    // Frames with `render_timestamp` unset are excluded from both.
     std::optional<TimeDelta> AssembledMarginExcess() const {
-      return AssembledInTime() ? std::optional<TimeDelta>(AssembledMargin())
-                               : std::nullopt;
+      std::optional<bool> assembled_in_time = AssembledInTime();
+      if (!assembled_in_time.has_value()) {
+        return std::nullopt;
+      }
+      return *assembled_in_time ? std::optional<TimeDelta>(AssembledMargin())
+                                : std::nullopt;
     }
     std::optional<TimeDelta> AssembledMarginDeficit() const {
-      return !AssembledInTime() ? std::optional<TimeDelta>(AssembledMargin())
-                                : std::nullopt;
+      std::optional<bool> assembled_late = AssembledLate();
+      if (!assembled_late.has_value()) {
+        return std::nullopt;
+      }
+      return *assembled_late ? std::optional<TimeDelta>(AssembledMargin())
+                             : std::nullopt;
     }
 
     // Post-buffer margin between render timestamp (target) and
@@ -178,30 +213,137 @@ class RenderingSimulator {
     //   * Frames should not be rendered early, if the timing works well.
     //   * A frame that is rendered on time w.r.t. the target has zero margin.
     //   * A frame that is rendered late w.r.t. the target has negative margin.
+    // Frames with `render_timestamp` or `rendered_timestamp` unset are excluded
+    // from all.
     TimeDelta RenderedMargin() const {
+      if (!render_timestamp.IsFinite()) {
+        RTC_DCHECK(!rendered_timestamp.IsFinite());
+        return TimeDelta::PlusInfinity();
+      }
+      if (!rendered_timestamp.IsFinite()) {
+        return TimeDelta::PlusInfinity();
+      }
       return (render_timestamp - kRenderDelay) - rendered_timestamp;
     }
-    bool RenderedInTime() const {
-      return RenderedMargin() > kInTimeMarginThreshold;
+    std::optional<bool> RenderedInTime() const {
+      TimeDelta rendered_margin = RenderedMargin();
+      if (!rendered_margin.IsFinite()) {
+        return std::nullopt;
+      }
+      return rendered_margin > kInTimeMarginThreshold;
+    }
+    std::optional<bool> RenderedLate() const {
+      std::optional<bool> rendered_in_time = RenderedInTime();
+      if (!rendered_in_time.has_value()) {
+        return std::nullopt;
+      }
+      return !rendered_in_time.value();
     }
 
     // A well-functioning jitter buffer would have very few (or non) frames with
     // a render margin excess. Render margin deficits can happen though.
+    // Frames with `render_timestamp` or `rendered_timestamp` unset are excluded
+    // from both.
     std::optional<TimeDelta> RenderedMarginExcess() const {
-      return RenderedInTime() ? std::optional<TimeDelta>(RenderedMargin())
-                              : std::nullopt;
+      std::optional<bool> rendered_in_time = RenderedInTime();
+      if (!rendered_in_time.has_value()) {
+        return std::nullopt;
+      }
+      return *rendered_in_time ? std::optional<TimeDelta>(RenderedMargin())
+                               : std::nullopt;
     }
     std::optional<TimeDelta> RenderedMarginDeficit() const {
-      return !RenderedInTime() ? std::optional<TimeDelta>(RenderedMargin())
-                               : std::nullopt;
+      std::optional<bool> rendered_late = RenderedLate();
+      if (!rendered_late.has_value()) {
+        return std::nullopt;
+      }
+      return *rendered_late ? std::optional<TimeDelta>(RenderedMargin())
+                            : std::nullopt;
     }
   };
 
   // All frames in one stream.
-  struct Stream : public StreamBase<Stream> {
+  struct Stream : public StreamBase<Stream, Frame> {
     Timestamp creation_timestamp = Timestamp::PlusInfinity();
     uint32_t ssrc = 0;
     std::vector<Frame> frames;
+
+    // -- Per-stream metrics --
+
+    // Total number of frames that were assembled in time or late.
+    int NumAssembledInTimeFrames() const {
+      return CountSetAndTrue(&Frame::AssembledInTime);
+    }
+    int NumAssembledLateFrames() const {
+      return CountSetAndTrue(&Frame::AssembledLate);
+    }
+
+    // Total number of decoded frames.
+    int NumDecodedFrames() const {
+      return CountFiniteTimestamps(&Frame::decoded_timestamp);
+    }
+
+    // Total number of rendered frames.
+    int NumRenderedFrames() const {
+      return CountFiniteTimestamps(&Frame::rendered_timestamp);
+    }
+
+    // Total number of frames that were rendered in time or late.
+    int NumRenderedInTimeFrames() const {
+      return CountSetAndTrue(&Frame::RenderedInTime);
+    }
+    int NumRenderedLateFrames() const {
+      return CountSetAndTrue(&Frame::RenderedLate);
+    }
+
+    // Total number of dropped frames in the decoder.
+    int NumDecoderDroppedFrames() const {
+      return SumNonNegativeIntField(&Frame::frames_dropped);
+    }
+
+    // Samples of webrtc-stats values in ms.
+    SamplesStatsCounter JitterBufferMinimumDelayMs() const {
+      return BuildSamplesMs(&Frame::jitter_buffer_minimum_delay);
+    }
+    SamplesStatsCounter JitterBufferDelayMs() const {
+      return BuildSamplesMs(&Frame::jitter_buffer_delay);
+    }
+
+    // Samples of buffer durations in ms.
+    SamplesStatsCounter PacketBufferDurationMs() const {
+      return BuildSamplesMs(&Frame::PacketBufferDuration);
+    }
+    SamplesStatsCounter FrameBufferDurationMs() const {
+      return BuildSamplesMs(&Frame::FrameBufferDuration);
+    }
+    SamplesStatsCounter RenderBufferDurationMs() const {
+      return BuildSamplesMs(&Frame::RenderBufferDuration);
+    }
+    SamplesStatsCounter TotalBufferDurationMs() const {
+      return BuildSamplesMs(&Frame::TotalBufferDuration);
+    }
+
+    // Samples of assembled margin in ms.
+    SamplesStatsCounter AssembledMarginMs() const {
+      return BuildSamplesMs(&Frame::AssembledMargin);
+    }
+    SamplesStatsCounter AssembledMarginExcessMs() const {
+      return BuildSamplesMs(&Frame::AssembledMarginExcess);
+    }
+    SamplesStatsCounter AssembledMarginDeficitMs() const {
+      return BuildSamplesMs(&Frame::AssembledMarginDeficit);
+    }
+
+    // Samples of render margin in ms.
+    SamplesStatsCounter RenderedMarginMs() const {
+      return BuildSamplesMs(&Frame::RenderedMargin);
+    }
+    SamplesStatsCounter RenderedMarginExcessMs() const {
+      return BuildSamplesMs(&Frame::RenderedMarginExcess);
+    }
+    SamplesStatsCounter RenderedMarginDeficitMs() const {
+      return BuildSamplesMs(&Frame::RenderedMarginDeficit);
+    }
   };
 
   // All streams.

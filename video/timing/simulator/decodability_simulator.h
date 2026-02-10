@@ -17,10 +17,12 @@
 
 #include "absl/algorithm/container.h"
 #include "api/array_view.h"
+#include "api/numerics/samples_stats_counter.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/rtc_event_log_parser.h"
+#include "rtc_base/checks.h"
 #include "video/timing/simulator/frame_base.h"
 #include "video/timing/simulator/results_base.h"
 #include "video/timing/simulator/stream_base.h"
@@ -46,14 +48,14 @@ class DecodabilitySimulator {
   struct Frame : public FrameBase<Frame> {
     // -- Values --
     // Frame information.
-    int num_packets = -1;
-    DataSize size = DataSize::Zero();
+    int num_packets = -1;              // Required.
+    DataSize size = DataSize::Zero();  // Required.
 
     // RTP header information.
-    int64_t unwrapped_rtp_timestamp = -1;
+    int64_t unwrapped_rtp_timestamp = -1;  // Required.
 
     // Frame timestamps.
-    Timestamp assembled_timestamp = Timestamp::PlusInfinity();
+    Timestamp assembled_timestamp = Timestamp::PlusInfinity();  // Required.
     Timestamp decodable_timestamp = Timestamp::PlusInfinity();
 
     // -- Populated values --
@@ -66,15 +68,28 @@ class DecodabilitySimulator {
     // -- Per-frame metrics --
     // Time spent waiting for reference frames to arrive.
     TimeDelta UndecodableDuration() const {
+      RTC_DCHECK(assembled_timestamp.IsFinite());
       return decodable_timestamp - assembled_timestamp;
     }
   };
 
   // All frames in one stream.
-  struct Stream : public StreamBase<Stream> {
+  struct Stream : public StreamBase<Stream, Frame> {
     Timestamp creation_timestamp = Timestamp::PlusInfinity();
     uint32_t ssrc = 0;
     std::vector<Frame> frames;
+
+    // -- Per-stream metrics --
+
+    // Total number of decodable frames.
+    int NumDecodableFrames() const {
+      return CountFiniteTimestamps(&Frame::decodable_timestamp);
+    }
+
+    // Samples of undecodable durations in ms.
+    SamplesStatsCounter UndecodableDurationMs() const {
+      return BuildSamplesMs(&Frame::UndecodableDuration);
+    }
   };
 
   // All streams.
