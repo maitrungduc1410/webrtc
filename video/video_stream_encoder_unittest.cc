@@ -1148,6 +1148,7 @@ class VideoStreamEncoderTest : public ::testing::Test {
       info.apply_alignment_to_all_simulcast_layers =
           apply_alignment_to_all_simulcast_layers_;
       info.preferred_pixel_formats = preferred_pixel_formats_;
+      info.enable_cpu_overuse_detection = enable_cpu_overuse_detection_;
       if (is_qp_trusted_.has_value()) {
         info.is_qp_trusted = is_qp_trusted_;
       }
@@ -1192,6 +1193,11 @@ class VideoStreamEncoderTest : public ::testing::Test {
     void SetIsHardwareAccelerated(bool is_hardware_accelerated) {
       MutexLock lock(&local_mutex_);
       is_hardware_accelerated_ = is_hardware_accelerated;
+    }
+
+    void SetEnableCpuOveruseDetection(bool enable) {
+      MutexLock lock(&local_mutex_);
+      enable_cpu_overuse_detection_ = enable;
     }
 
     void SetTemporalLayersSupported(size_t spatial_idx, bool supported) {
@@ -1440,6 +1446,7 @@ class VideoStreamEncoderTest : public ::testing::Test {
     bool apply_alignment_to_all_simulcast_layers_ RTC_GUARDED_BY(local_mutex_) =
         false;
     bool is_hardware_accelerated_ RTC_GUARDED_BY(local_mutex_) = false;
+    bool enable_cpu_overuse_detection_ RTC_GUARDED_BY(local_mutex_) = true;
     scoped_refptr<EncodedImageBufferInterface> encoded_image_data_
         RTC_GUARDED_BY(local_mutex_);
     std::unique_ptr<Vp8FrameBufferController> frame_buffer_controller_
@@ -5883,6 +5890,115 @@ TEST_F(VideoStreamEncoderTest, VerifyBitrateAllocationForTwoStreams) {
   expected_bitrate.SetBitrate(/*si*/ 1, /*ti*/ 0, kS1Bps);
 
   VerifyAllocatedBitrate(expected_bitrate);
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       EncodeUsageResourceDisabledWhenCpuOveruseDetectionDisabled) {
+  const int kFrameWidth = 1280;
+  const int kFrameHeight = 720;
+
+  fake_encoder_.SetEnableCpuOveruseDetection(false);
+
+  VideoEncoderConfig video_encoder_config;
+  test::FillEncoderConfiguration(kVideoCodecVP8, 1, &video_encoder_config);
+  video_encoder_config.max_bitrate_bps = kTargetBitrate.bps();
+  ConfigureEncoder(std::move(video_encoder_config));
+
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  EXPECT_EQ(
+      video_stream_encoder_->overuse_detector_proxy_->GetLastTargetFramerate(),
+      -1);
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       EncodeUsageResourceStoppedWhenCpuOveruseDetectionDisabled) {
+  const int kFrameWidth = 1280;
+  const int kFrameHeight = 720;
+
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  const int last_framerate =
+      video_stream_encoder_->overuse_detector_proxy_->GetLastTargetFramerate();
+  EXPECT_NE(last_framerate, -1);
+
+  fake_encoder_.SetEnableCpuOveruseDetection(false);
+  VideoEncoderConfig video_encoder_config = video_encoder_config_.Copy();
+  video_stream_encoder_->ConfigureEncoder(std::move(video_encoder_config),
+                                          kMaxPayloadLength);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+      ->Reset();
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(2, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  EXPECT_FALSE(
+      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+          ->Wait(TimeDelta::Millis(10)));
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       EncodeUsageResourceRestartsWhenCpuOveruseDetectionReEnabled) {
+  const int kFrameWidth = 1280;
+  const int kFrameHeight = 720;
+
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  EXPECT_NE(
+      video_stream_encoder_->overuse_detector_proxy_->GetLastTargetFramerate(),
+      -1);
+
+  fake_encoder_.SetEnableCpuOveruseDetection(false);
+  VideoEncoderConfig video_encoder_config = video_encoder_config_.Copy();
+  video_stream_encoder_->ConfigureEncoder(std::move(video_encoder_config),
+                                          kMaxPayloadLength);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+      ->Reset();
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(2, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  EXPECT_FALSE(
+      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+          ->Wait(TimeDelta::Millis(10)));
+
+  fake_encoder_.SetEnableCpuOveruseDetection(true);
+  video_encoder_config = video_encoder_config_.Copy();
+  video_stream_encoder_->ConfigureEncoder(std::move(video_encoder_config),
+                                          kMaxPayloadLength);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+      ->Reset();
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(3, kFrameWidth, kFrameHeight));
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+
+  EXPECT_TRUE(
+      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
+          ->Wait(TimeDelta::Millis(10)));
+
   video_stream_encoder_->Stop();
 }
 

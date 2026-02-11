@@ -1142,6 +1142,10 @@ VideoEncoder::EncoderInfo SimulcastEncoderAdapter::GetEncoderInfo() const {
     return encoder_info;
   }
 
+  // Default is to not enable CPU overuse detection. Aggregate across
+  // sub-encoders so we enable it if any encoder opts in.
+  encoder_info.enable_cpu_overuse_detection = false;
+
   encoder_info.scaling_settings = VideoEncoder::ScalingSettings::kOff;
   std::vector<std::string> encoder_names;
 
@@ -1191,6 +1195,9 @@ VideoEncoder::EncoderInfo SimulcastEncoderAdapter::GetEncoderInfo() const {
           encoder_info.is_qp_trusted.value_or(true) &&
           encoder_impl_info.is_qp_trusted.value_or(true);
     }
+    // If any encoder wants CPU overuse detection, enable it for all of them
+    encoder_info.enable_cpu_overuse_detection |=
+        encoder_impl_info.enable_cpu_overuse_detection;
     encoder_info.fps_allocation[i] = encoder_impl_info.fps_allocation[0];
     encoder_info.requested_resolution_alignment =
         std::lcm(encoder_info.requested_resolution_alignment,
