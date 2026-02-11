@@ -2047,6 +2047,7 @@ if (rtc_include_tests) {
         "../test:create_test_environment",
         "../test:fileutils",
         "../test:near_matcher",
+        "../test:run_loop",
         "../test:test_support",
         "../test:wait_until",
         "system:file_wrapper",
