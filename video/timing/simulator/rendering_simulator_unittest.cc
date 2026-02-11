@@ -36,6 +36,96 @@ using ::testing::SizeIs;
 using Frame = RenderingSimulator::Frame;
 using Stream = RenderingSimulator::Stream;
 
+TEST(RenderingSimulatorFrameTest, BufferDurationsAndMarginsForInTimeFrame) {
+  RenderingSimulator::Frame frame{
+      .first_packet_arrival_timestamp = Timestamp::Zero(),
+      .assembled_timestamp = Timestamp::Millis(1),
+      .render_timestamp =
+          Timestamp::Millis(10) + RenderingSimulator::kRenderDelay,
+      .decoded_timestamp = Timestamp::Millis(9),
+      .rendered_timestamp = Timestamp::Millis(10)};
+
+  // Buffer durations.
+  EXPECT_EQ(frame.PacketBufferDuration(), TimeDelta::Millis(1));
+  EXPECT_EQ(frame.FrameBufferDuration(), TimeDelta::Millis(8));
+  EXPECT_EQ(frame.RenderBufferDuration(), TimeDelta::Millis(1));
+  EXPECT_EQ(frame.TotalBufferDuration(), TimeDelta::Millis(10));
+
+  // Margins.
+  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Millis(9));
+  EXPECT_TRUE(frame.AssembledInTime());
+  EXPECT_TRUE(frame.AssembledMarginExcess().has_value());
+  EXPECT_FALSE(frame.AssembledMarginDeficit().has_value());
+  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Zero());
+  EXPECT_TRUE(frame.RenderedInTime());
+  EXPECT_TRUE(frame.RenderedMarginExcess().has_value());
+  EXPECT_FALSE(frame.RenderedMarginDeficit().has_value());
+}
+
+TEST(RenderingSimulatorFrameTest, BufferDurationsAndMarginsForDelayedFrame) {
+  RenderingSimulator::Frame frame{
+      .first_packet_arrival_timestamp = Timestamp::Millis(12),
+      .assembled_timestamp = Timestamp::Millis(12),
+      .render_timestamp =
+          Timestamp::Millis(10) + RenderingSimulator::kRenderDelay,
+      .decoded_timestamp = Timestamp::Millis(12),
+      .rendered_timestamp = Timestamp::Millis(12)};
+
+  // Buffer durations.
+  EXPECT_EQ(frame.PacketBufferDuration(), TimeDelta::Zero());
+  EXPECT_EQ(frame.FrameBufferDuration(), TimeDelta::Zero());
+  EXPECT_EQ(frame.RenderBufferDuration(), TimeDelta::Zero());
+  EXPECT_EQ(frame.TotalBufferDuration(), TimeDelta::Zero());
+
+  // Margins.
+  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Millis(-2));
+  EXPECT_FALSE(frame.AssembledInTime());
+  EXPECT_FALSE(frame.AssembledMarginExcess().has_value());
+  EXPECT_TRUE(frame.AssembledMarginDeficit().has_value());
+  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Millis(-2));
+  EXPECT_FALSE(frame.RenderedInTime());
+  EXPECT_FALSE(frame.RenderedMarginExcess().has_value());
+  EXPECT_TRUE(frame.RenderedMarginDeficit().has_value());
+}
+
+TEST(RenderingSimulatorFrameTest,
+     InTimeHelpersReturnTrueWhenRenderTimestampRoundedDownToMsPrecision) {
+  Timestamp processing_timestamp = Timestamp::Micros(10499);
+
+  RenderingSimulator::Frame frame{.assembled_timestamp = processing_timestamp,
+                                  .rendered_timestamp = processing_timestamp};
+  // Simulate the rounding down in `SetRenderTime(render_time.ms());`
+  frame.render_timestamp = Timestamp::Millis(processing_timestamp.ms()) +
+                           RenderingSimulator::kRenderDelay;
+  EXPECT_EQ(frame.render_timestamp,
+            Timestamp::Millis(10) + RenderingSimulator::kRenderDelay);
+
+  // Margins.
+  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Micros(-499));
+  EXPECT_TRUE(frame.AssembledInTime());
+  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Micros(-499));
+  EXPECT_TRUE(frame.RenderedInTime());
+}
+
+TEST(RenderingSimulatorFrameTest,
+     InTimeHelpersReturnTrueWhenRenderTimestampRoundedUpToMsPrecision) {
+  Timestamp processing_timestamp = Timestamp::Micros(10500);
+
+  RenderingSimulator::Frame frame{.assembled_timestamp = processing_timestamp,
+                                  .rendered_timestamp = processing_timestamp};
+  // Simulate the rounding up in `SetRenderTime(render_time.ms());`
+  frame.render_timestamp = Timestamp::Millis(processing_timestamp.ms()) +
+                           RenderingSimulator::kRenderDelay;
+  EXPECT_EQ(frame.render_timestamp,
+            Timestamp::Millis(11) + RenderingSimulator::kRenderDelay);
+
+  // Margins.
+  EXPECT_EQ(frame.AssembledMargin(), TimeDelta::Micros(500));
+  EXPECT_TRUE(frame.AssembledInTime());
+  EXPECT_EQ(frame.RenderedMargin(), TimeDelta::Micros(500));
+  EXPECT_TRUE(frame.RenderedInTime());
+}
+
 Matcher<const Frame&> EqualsFrame(const Frame& expected) {
   return AllOf(
       Field("num_packets", &Frame::num_packets, Eq(expected.num_packets)),

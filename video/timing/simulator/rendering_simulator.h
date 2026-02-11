@@ -26,6 +26,7 @@
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/rtc_event_log_parser.h"
 #include "modules/video_coding/timing/timing.h"
+#include "rtc_base/checks.h"
 #include "video/timing/simulator/frame_base.h"
 #include "video/timing/simulator/results_base.h"
 #include "video/timing/simulator/stream_base.h"
@@ -105,6 +106,7 @@ class RenderingSimulator {
     TimeDelta PacketBufferDuration() const {
       return assembled_timestamp - first_packet_arrival_timestamp;
     }
+
     // Time spent waiting to be decoded, after assembly. (This includes a,
     // currently, zero decode duration.) Note that this is similar to
     // `jitter_buffer_delay`, except that the latter is 1) recorded by the
@@ -113,14 +115,25 @@ class RenderingSimulator {
     TimeDelta FrameBufferDuration() const {
       return decoded_timestamp - assembled_timestamp;
     }
+
     // Time spent waiting to be rendered, after decode.
     TimeDelta RenderBufferDuration() const {
       return rendered_timestamp - decoded_timestamp;
     }
-    // Margin between render timestamp (target) and
-    // assembled timestamp (actual):
+
+    // Total duration in all three buffers: from first packet to rendered.
+    TimeDelta TotalBufferDuration() const {
+      TimeDelta total_duration = PacketBufferDuration() +
+                                 FrameBufferDuration() + RenderBufferDuration();
+      RTC_DCHECK_EQ(total_duration,
+                    rendered_timestamp - first_packet_arrival_timestamp);
+      return total_duration;
+    }
+
+    // Pre-buffer margin between render timestamp (target) and
+    // assembled timestamp (actual arrival):
     //   * A frame that is assembled early w.r.t. the target (<=> arriving
-    //     on time from the network) has a positive margin.
+    //     in time from the network) has a positive margin.
     //   * A frame that is assembled on time w.r.t. the target (<=> arriving
     //     slightly late from the network) has zero margin.
     //   * A frame that is assembled late w.r.t. the target (<=> arriving
@@ -130,28 +143,52 @@ class RenderingSimulator {
     // delay. In terms of margin, that means low positive margin values, a
     // couple of frames with zero margin, and very few frames with
     // negative margin.
-    TimeDelta RenderMargin() const {
-      return render_timestamp - assembled_timestamp;
+    // TODO: b/423646186 - Change this to be `DecodabilityMargin`.
+    TimeDelta AssembledMargin() const {
+      // Subtract `kRenderDelay`, since that is what `VCMTiming` and
+      // `VideoRenderFrames` also do.
+      return (render_timestamp - kRenderDelay) - assembled_timestamp;
     }
-    // Split the margin along zero: "excess margin" for positive margins and
-    // "deficit margin" for negative margins.
-    // A jitter buffer would generally want to minimize the number of frames
-    // with a deficit margin (delayed frames/buffer underruns => video freezes),
-    // while also minimizing the stream-level min/p10 of the excess margin
-    // (early frames spending a long time in the buffer => high latency).
-    std::optional<TimeDelta> RenderExcessMargin() const {
-      TimeDelta margin = RenderMargin();
-      if (margin < TimeDelta::Zero()) {
-        return std::nullopt;
-      }
-      return margin;
+    bool AssembledInTime() const {
+      return AssembledMargin() > kInTimeMarginThreshold;
     }
-    std::optional<TimeDelta> RenderDeficitMargin() const {
-      TimeDelta margin = RenderMargin();
-      if (margin > TimeDelta::Zero()) {
-        return std::nullopt;
-      }
-      return margin;
+
+    // Split the assembled margin along zero: "excess margin" for positive
+    // margins and "deficit margin" for negative margins. A jitter buffer would
+    // generally want to minimize the number of frames with a deficit margin
+    // (delayed frames/buffer underruns => video freezes), while also minimizing
+    // the stream-level min/p10 of the excess margin (early frames spending a
+    // long time in the buffer => high latency).
+    std::optional<TimeDelta> AssembledMarginExcess() const {
+      return AssembledInTime() ? std::optional<TimeDelta>(AssembledMargin())
+                               : std::nullopt;
+    }
+    std::optional<TimeDelta> AssembledMarginDeficit() const {
+      return !AssembledInTime() ? std::optional<TimeDelta>(AssembledMargin())
+                                : std::nullopt;
+    }
+
+    // Post-buffer margin between render timestamp (target) and
+    // rendered timestamp (actual render):
+    //   * Frames should not be rendered early, if the timing works well.
+    //   * A frame that is rendered on time w.r.t. the target has zero margin.
+    //   * A frame that is rendered late w.r.t. the target has negative margin.
+    TimeDelta RenderedMargin() const {
+      return (render_timestamp - kRenderDelay) - rendered_timestamp;
+    }
+    bool RenderedInTime() const {
+      return RenderedMargin() > kInTimeMarginThreshold;
+    }
+
+    // A well-functioning jitter buffer would have very few (or non) frames with
+    // a render margin excess. Render margin deficits can happen though.
+    std::optional<TimeDelta> RenderedMarginExcess() const {
+      return RenderedInTime() ? std::optional<TimeDelta>(RenderedMargin())
+                              : std::nullopt;
+    }
+    std::optional<TimeDelta> RenderedMarginDeficit() const {
+      return !RenderedInTime() ? std::optional<TimeDelta>(RenderedMargin())
+                               : std::nullopt;
     }
   };
 
@@ -169,7 +206,18 @@ class RenderingSimulator {
   };
 
   // Static configuration.
+
+  // The "render delay" that is passed through the timing component and
+  // render buffer. It is added and subtracted through the pipeline, so it is
+  // important to have it set.
   static constexpr TimeDelta kRenderDelay = TimeDelta::Millis(10);
+  // The threshold used for "in time" calculations of assembled and rendered
+  // margins. A threshold of `TimeDelta::Zero()` wouldn't work well, because
+  // the recorded render timestamp of the frames have a loss of precision:
+  // the scheduling is done on a microsecond level, but the
+  // `EncodedFrame::RenderTimestamp()` returns values on a millisecond level.
+  // See https://g-issues.webrtc.org/issues/483303559.
+  static constexpr TimeDelta kInTimeMarginThreshold = TimeDelta::Micros(-500);
 
   explicit RenderingSimulator(Config config);
   ~RenderingSimulator();
