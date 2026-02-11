@@ -12,6 +12,7 @@
 #define VIDEO_TIMING_SIMULATOR_DECODABILITY_SIMULATOR_H_
 
 #include <cstdint>
+#include <set>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -35,6 +36,10 @@ class DecodabilitySimulator {
     // same SSRC. This can be useful for simulation, but likely not for data
     // analysis.
     bool reuse_streams = false;
+
+    // If non-empty, will only simulate video streams whose main SSRCs is
+    // contained in the set.
+    std::set<uint32_t> ssrc_filter = {};
   };
 
   // Metadata about a single decodable frame.

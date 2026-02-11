@@ -15,6 +15,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -51,6 +52,10 @@ class RenderingSimulator {
     // Whether or not to reset the stream state on newly logged streams with the
     // same SSRC.
     bool reuse_streams = false;
+
+    // If non-empty, will only simulate video streams whose main SSRCs is
+    // contained in the set.
+    std::set<uint32_t> ssrc_filter = {};
   };
 
   // Metadata about a single rendered frame.
