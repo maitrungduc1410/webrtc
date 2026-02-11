@@ -41,6 +41,7 @@
 #include "rtc_tools/rtc_event_log_visualizer/conversational_speech_en.h"
 #include "rtc_tools/rtc_event_log_visualizer/plot_base.h"
 #include "rtc_tools/rtc_event_log_visualizer/proto/chart.pb.h"
+#include "test/testsupport/file_utils.h"
 
 ABSL_FLAG(std::string,
           plot,
@@ -215,10 +216,11 @@ int main(int argc, char* argv[]) {
   if (!absl::GetFlag(FLAGS_wav_filename).empty()) {
     wav_path = absl::GetFlag(FLAGS_wav_filename);
   } else {
-    // TODO(bugs.webrtc.org/14248): Remove the need to generate a file
-    // and read the file directly from memory.
-    wav_path = std::tmpnam(nullptr);
-    std::ofstream out_wav_file(wav_path);
+    // TODO(bugs.webrtc.org/14248): Remove the need to generate a file.
+    wav_path = webrtc::test::TempFilename(webrtc::test::OutputPath(),
+                                          "temp_speech.wav");
+
+    std::ofstream out_wav_file(wav_path, std::ios::binary);
     out_wav_file.write(
         reinterpret_cast<char*>(&webrtc::conversational_speech_en_wav[0]),
         webrtc::conversational_speech_en_wav_len);
