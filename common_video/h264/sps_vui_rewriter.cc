@@ -228,8 +228,8 @@ Buffer SpsVuiRewriter::ParseOutgoingBitstreamAndRewrite(
   std::vector<H264::NaluIndex> nalus = H264::FindNaluIndices(buffer);
 
   // Allocate some extra space for potentially adding a missing VUI.
-  Buffer output_buffer(/*size=*/0, /*capacity=*/buffer.size() +
-                                       nalus.size() * kMaxVuiSpsIncrease);
+  Buffer output_buffer = Buffer::CreateWithCapacity(
+      buffer.size() + nalus.size() * kMaxVuiSpsIncrease);
 
   for (const H264::NaluIndex& nalu_index : nalus) {
     // Copy NAL unit start code.

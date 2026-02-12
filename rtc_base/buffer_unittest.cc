@@ -51,9 +51,7 @@ TEST(BufferTest, TestConstructEmpty) {
   TestBuf(Buffer(Buffer()), 0, 0);
   TestBuf(Buffer::CreateUninitializedWithSize(0), 0, 0);
 
-  // We can't use a literal 0 for the first argument, because C++ will allow
-  // that to be considered a null pointer, which makes the call ambiguous.
-  TestBuf(Buffer(0 + 0, 10), 0, 10);
+  TestBuf(Buffer::CreateWithCapacity(10), 0, 10);
 
   TestBuf(Buffer(kTestData.data(), 0), 0, 0);
   TestBuf(Buffer(kTestData.data(), 0, 20), 0, 20);

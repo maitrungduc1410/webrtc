@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/algorithm/container.h"
-#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
 #include "rtc_base/checks.h"
@@ -71,6 +70,14 @@ class BufferT {
   using iterator = std::span<T>::iterator;
   using const_iterator = std::span<const T>::iterator;
 
+  // Static methods to construct a buffer with size and/or capacity.
+  static BufferT CreateWithCapacity(size_t capacity) {
+    return BufferT(InternalTag{}, 0, capacity);
+  }
+  static BufferT CreateUninitializedWithSize(size_t size) {
+    return BufferT(InternalTag{}, size, size);
+  }
+
   // An empty BufferT.
   BufferT() : size_(0), capacity_(0), data_(nullptr) {
     RTC_DCHECK(IsConsistent());
@@ -90,15 +97,15 @@ class BufferT {
   }
 
   // Construct a buffer with the specified number of uninitialized elements.
-  ABSL_DEPRECATED("Use CreateUninitializedWithSize()")
-  explicit BufferT(size_t size) : BufferT(size, size) {}
+  [[deprecated("Use CreateUninitializedWithSize()")]]
+  explicit BufferT(size_t size)
+      : BufferT(size, size) {}
 
+  // Construct a buffer with the specified number of uninitialized elements,
+  // and a possibly non-zero size()
+  [[deprecated("Use CreateWithCapacity() or CreateUninitializedWithSize()")]]
   BufferT(size_t size, size_t capacity)
-      : size_(size),
-        capacity_(std::max(size, capacity)),
-        data_(capacity_ > 0 ? new T[capacity_] : nullptr) {
-    RTC_DCHECK(IsConsistent());
-  }
+      : BufferT(InternalTag{}, size, capacity) {}
 
   // Construct a buffer and copy the specified number of elements into it.
   template <typename U,
@@ -109,10 +116,12 @@ class BufferT {
   template <typename U,
             typename std::enable_if<
                 internal::BufferCompat<T, U>::value>::type* = nullptr>
-  BufferT(U* data, size_t size, size_t capacity) : BufferT(size, capacity) {
+  BufferT(U* data, size_t size, size_t capacity)
+      : BufferT(InternalTag{}, size, capacity) {
     static_assert(sizeof(T) == sizeof(U), "");
     if (size > 0) {
       RTC_DCHECK(data);
+      RTC_DCHECK_LE(size, capacity);
       std::memcpy(data_.get(), data, size * sizeof(U));
     }
   }
@@ -137,14 +146,6 @@ class BufferT {
   operator typename std::enable_if<internal::BufferCompat<U, char>::value,
                                    absl::string_view>::type() const {
     return absl::string_view(data<char>(), size());
-  }
-
-  // Static methods to construct a buffer with size and/or capacity.
-  static BufferT CreateWithCapacity(size_t capacity) {
-    return BufferT(0, capacity);
-  }
-  static BufferT CreateUninitializedWithSize(size_t size) {
-    return BufferT(size, size);
   }
 
   // Get a pointer to the data. Just .data() will give you a (const) T*, but if
@@ -392,6 +393,17 @@ class BufferT {
   }
 
  private:
+  // Internal constructor that allows uninitialized memory to be created.
+  // Used by CreateUninitialized* functions and by the deprecated constructors
+  // that are replaced by CreateUninitialized functions.
+  struct InternalTag {};
+  BufferT(InternalTag tag, size_t size, size_t capacity)
+      : size_(size),
+        capacity_(std::max(size, capacity)),
+        data_(capacity_ > 0 ? new T[capacity_] : nullptr) {
+    RTC_DCHECK(IsConsistent());
+  }
+
   void EnsureCapacityWithHeadroom(size_t capacity, bool extra_headroom) {
     RTC_DCHECK(IsConsistent());
     if (capacity <= capacity_)
