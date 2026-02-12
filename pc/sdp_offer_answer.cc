@@ -126,6 +126,39 @@ namespace webrtc {
 
 namespace {
 
+class ScopedOperationsBatcher {
+ public:
+  explicit ScopedOperationsBatcher(Thread* worker_thread)
+      : worker_thread_(worker_thread) {
+    RTC_DCHECK(worker_thread_);
+  }
+
+  ~ScopedOperationsBatcher() { Run(); }
+
+  void Run() {
+    if (!tasks_.empty()) {
+      worker_thread_->BlockingCall([tasks = std::move(tasks_)]() mutable {
+        for (auto& task : tasks) {
+          std::move(task)();
+        }
+      });
+      RTC_DCHECK(tasks_.empty());
+    }
+  }
+
+  // Queues non-nullptr tasks to be executed on the worker when the
+  // ScopedOperationsBatcher goes out of scope.
+  void push_back(absl::AnyInvocable<void() &&> task) {
+    if (task) {
+      tasks_.push_back(std::move(task));
+    }
+  }
+
+ private:
+  Thread* const worker_thread_;
+  std::vector<absl::AnyInvocable<void() &&>> tasks_;
+};
+
 struct DtlsTransportAndName {
   scoped_refptr<DtlsTransport> transport;
   std::optional<std::string> transport_name;
@@ -2349,7 +2382,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   std::vector<scoped_refptr<RtpTransceiverInterface>> remove_list;
   std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
-  std::vector<absl::AnyInvocable<void() &&>> worker_tasks;
+  ScopedOperationsBatcher worker_tasks(context_->worker_thread());
   flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
       GetDtlsTransports(*transceivers(), context_->network_thread(),
                         transport_controller_s());
@@ -2440,7 +2473,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     if (content->rejected && !transceiver->stopped()) {
       RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                        << " since the media section was rejected.";
-      transceiver->StopTransceiverProcedure();
+      worker_tasks.push_back(transceiver->GetStopTransceiverProcedure());
     }
     if (!content->rejected && RtpTransceiverDirectionHasRecv(local_direction)) {
       if (!media_desc->streams().empty() &&
@@ -2455,15 +2488,8 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     }
   }
 
-  if (!worker_tasks.empty()) {
-    context_->worker_thread()->BlockingCall([&worker_tasks] {
-      for (auto& task : worker_tasks) {
-        if (task) {
-          std::move(task)();
-        }
-      }
-    });
-  }
+  worker_tasks.Run();
+
   // Once all processing has finished, fire off callbacks.
   pc_->RunWithObserver([&](auto observer) {
     for (const auto& transceiver : now_receiving_transceivers) {
@@ -3457,6 +3483,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   std::vector<scoped_refptr<MediaStreamInterface>> all_added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> all_removed_streams;
   std::vector<scoped_refptr<RtpReceiverInterface>> removed_receivers;
+  ScopedOperationsBatcher worker_tasks(context_->worker_thread());
 
   for (auto&& transceivers_stable_state_pair : transceivers()->StableStates()) {
     auto transceiver = transceivers_stable_state_pair.first;
@@ -3518,7 +3545,8 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       if (transceiver->internal()->reused_for_addtrack()) {
         transceiver->internal()->set_created_by_addtrack(true);
       } else {
-        transceiver->internal()->StopTransceiverProcedure();
+        worker_tasks.push_back(
+            transceiver->internal()->GetStopTransceiverProcedure());
         transceivers()->Remove(transceiver);
       }
     }
@@ -4067,6 +4095,7 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
+  ScopedOperationsBatcher worker_tasks(context_->worker_thread());
   const ContentInfos& new_contents = new_session.description()->contents();
   for (size_t i = 0; i < new_contents.size(); ++i) {
     const ContentInfo& new_content = new_contents[i];
@@ -4128,7 +4157,8 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
           // is not already stopped, SDP munging has happened and we need to
           // ensure the transceiver is stopped.
           if (!transceiver->internal()->stopped()) {
-            transceiver->internal()->StopTransceiverProcedure();
+            worker_tasks.push_back(
+                transceiver->internal()->GetStopTransceiverProcedure());
           }
           RTC_DCHECK(transceiver->internal()->stopped());
         }
@@ -5716,8 +5746,9 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
       if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
         network_tasks.push_back(std::move(task));
       if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask(
-              /*stop_senders=*/true))
+              /*stop_senders=*/true)) {
         worker_tasks.push_back(std::move(task));
+      }
     }
   }
   for (const auto& transceiver : list) {
