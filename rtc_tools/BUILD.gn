@@ -390,9 +390,9 @@ if (!build_with_chromium) {
       deps = [
         ":chart_proto",
         ":event_log_visualizer_bindings",
-        "../test:fileutils",
         "//rtc_base:protobuf_utils",
         "//rtc_base/system:file_wrapper",
+        "//test:fileutils",
         "//test:test_support",
         "//third_party/abseil-cpp/absl/strings:string_view",
       ]
@@ -444,8 +444,9 @@ if (rtc_include_tests) {
   if (!build_with_chromium) {
     if (rtc_enable_protobuf) {
       rtc_executable("event_log_visualizer") {
-        testonly = true
-
+        # TODO(bugs.webrtc.org/14248): Remove once usage of std::tmpnam
+        # is removed (in favor of in memory InputAudioFile.
+        cflags_cc = [ "-Wno-deprecated-declarations" ]
         sources = [
           "rtc_event_log_visualizer/conversational_speech_en.h",
           "rtc_event_log_visualizer/main.cc",
@@ -465,7 +466,6 @@ if (rtc_include_tests) {
           "../rtc_base:checks",
           "../rtc_base:logging",
           "../rtc_base:protobuf_utils",
-          "../test:fileutils",
           "//third_party/abseil-cpp/absl/algorithm:container",
           "//third_party/abseil-cpp/absl/flags:config",
           "//third_party/abseil-cpp/absl/flags:flag",
