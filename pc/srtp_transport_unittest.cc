@@ -142,7 +142,7 @@ class SrtpTransportTest : public ::testing::Test {
     memcpy(rtp_packet_data, kPcmuFrame, rtp_len);
     // In order to be able to run this test function multiple times we can not
     // use the same sequence number twice. Increase the sequence number by one.
-    SetBE16(ArrayView<uint8_t>(rtp_packet_buffer).subspan(2).data(),
+    SetBE16(ArrayView<uint8_t>(rtp_packet_buffer).subspan(2),
             ++sequence_number_);
     CopyOnWriteBuffer rtp_packet1to2(rtp_packet_data, rtp_len, packet_size);
     CopyOnWriteBuffer rtp_packet2to1(rtp_packet_data, rtp_len, packet_size);
@@ -264,7 +264,7 @@ class SrtpTransportTest : public ::testing::Test {
     memcpy(rtp_packet_data, kPcmuFrameWithExtensions, rtp_len);
     // In order to be able to run this test function multiple times we can not
     // use the same sequence number twice. Increase the sequence number by one.
-    SetBE16(ArrayView<uint8_t>(rtp_packet_buffer).subspan(2).data(),
+    SetBE16(ArrayView<uint8_t>(rtp_packet_buffer).subspan(2),
             ++sequence_number_);
     CopyOnWriteBuffer rtp_packet1to2(rtp_packet_data, rtp_len, packet_size);
     CopyOnWriteBuffer rtp_packet2to1(rtp_packet_data, rtp_len, packet_size);

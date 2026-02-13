@@ -160,7 +160,7 @@ AudioEncoder::EncodedInfo AudioEncoderCopyRed::EncodeImpl(
     const uint32_t timestamp_delta =
         info.encoded_timestamp - it->first.encoded_timestamp;
     encoded->data()[header_offset] = it->first.payload_type | 0x80;
-    SetBE16(static_cast<uint8_t*>(encoded->data()) + header_offset + 1,
+    SetBE16(ArrayView<uint8_t>(*encoded).subspan(header_offset + 1, 2),
             (timestamp_delta << 2) | (it->first.encoded_bytes >> 8));
     encoded->data()[header_offset + 3] = it->first.encoded_bytes & 0xff;
     header_offset += kRedHeaderLength;
