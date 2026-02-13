@@ -61,7 +61,7 @@ class RtpReceiverInternal;
 // If a BaseChannel is not available (e.g., if signaling has not started),
 // then `mid` and `transport_name` will be null.
 struct RtpTransceiverStatsInfo {
-  const scoped_refptr<RtpTransceiver> transceiver;
+  scoped_refptr<RtpTransceiver> transceiver;
   const MediaType media_type;
   const std::optional<std::string> mid;
   std::optional<std::string> transport_name;
