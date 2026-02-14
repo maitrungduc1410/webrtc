@@ -298,17 +298,15 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
     return ArrayView<T>(this->data() + offset, count);
   }
 
-  // Prefer to use `subspan` instead of `subview` in new code.
-  // TODO: bugs.webrtc.org/439801349 - make deprecated when all usages in
-  // WebRTC and chromium are migrated to subspan.
+  [[deprecated("Use subspan")]]
   ArrayView<T> subview(size_t offset, size_t size) const {
-    return offset < this->size()
-               ? ArrayView<T>(this->data() + offset,
-                              std::min(size, this->size() - offset))
+    return offset <= this->size()
+               ? subspan(offset, std::min(size, this->size() - offset))
                : ArrayView<T>();
   }
+  [[deprecated("Use subspan")]]
   ArrayView<T> subview(size_t offset) const {
-    return subview(offset, this->size());
+    return offset <= this->size() ? subspan(offset) : ArrayView<T>();
   }
 };
 

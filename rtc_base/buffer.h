@@ -300,7 +300,7 @@ class BufferT {
     static_assert(sizeof(T) == sizeof(U), "");
     ArrayView<const U> source(data, size);
     ArrayView<T> destination =
-        ArrayView<T>(data_.get(), capacity_).subview(size_, size);
+        ArrayView<T>(data_.get(), capacity_).subspan(size_, size);
     absl::c_copy(source, destination.begin());
     size_ = new_size;
     RTC_DCHECK(IsConsistent());
@@ -442,7 +442,7 @@ class BufferT {
   void ZeroTrailingData(size_t count) {
     RTC_DCHECK(IsConsistent());
     RTC_DCHECK_LE(count, capacity_ - size_);
-    ExplicitZeroMemory(MakeArrayView(data(), capacity_).subview(size_));
+    ExplicitZeroMemory(MakeArrayView(data(), capacity_).subspan(size_));
   }
 
   // Precondition for all methods except Clear, operator= and the destructor.

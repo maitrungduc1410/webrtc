@@ -587,7 +587,7 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
 
       Frame superframe = subframes.back();
       for (const Frame& frame :
-           ArrayView<Frame>(subframes).subview(0, subframes.size() - 1)) {
+           ArrayView<Frame>(subframes).subspan(0, subframes.size() - 1)) {
         superframe.decoded |= frame.decoded;
         superframe.encoded |= frame.encoded;
         superframe.frame_size += frame.frame_size;

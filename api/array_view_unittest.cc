@@ -575,6 +575,8 @@ TEST(ArrayViewTest, TestCompare) {
   EXPECT_NE((ArrayView<int, 3>(a)), (ArrayView<int, 2>(a, 2)));
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 TEST(ArrayViewTest, TestSubViewVariable) {
   int a[] = {1, 2, 3};
   ArrayView<int> av(a);
@@ -591,6 +593,7 @@ TEST(ArrayViewTest, TestSubViewVariable) {
   EXPECT_THAT(av.subview(1, 2), ElementsAre(2, 3));
   EXPECT_THAT(av.subview(1, 3), ElementsAre(2, 3));
 }
+#pragma clang diagnostic pop
 
 TEST(ArrayViewTest, TestSubSpanVariable) {
   int a[] = {1, 2, 3};
@@ -613,6 +616,8 @@ TEST(ArrayViewTest, TestSubSpanWithInvalidInput) {
   EXPECT_DEATH_IF_SUPPORTED(av.subspan(1, 3), "");
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 TEST(ArrayViewTest, TestSubViewFixed) {
   int a[] = {1, 2, 3};
   ArrayView<int, 3> av(a);
@@ -629,6 +634,7 @@ TEST(ArrayViewTest, TestSubViewFixed) {
   EXPECT_THAT(av.subview(1, 2), ElementsAre(2, 3));
   EXPECT_THAT(av.subview(1, 3), ElementsAre(2, 3));
 }
+#pragma clang diagnostic pop
 
 TEST(ArrayViewTest, TestReinterpretCastFixedSize) {
   uint8_t bytes[] = {1, 2, 3};
