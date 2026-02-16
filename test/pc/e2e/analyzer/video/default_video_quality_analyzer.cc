@@ -33,6 +33,7 @@
 #include "api/units/timestamp.h"
 #include "api/video/encoded_image.h"
 #include "api/video/video_frame.h"
+#include "api/video_codecs/video_encoder.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
@@ -384,7 +385,9 @@ void DefaultVideoQualityAnalyzer::OnFrameEncoded(
   }
 }
 
-void DefaultVideoQualityAnalyzer::OnFrameDropped(absl::string_view peer_name) {
+void DefaultVideoQualityAnalyzer::OnFrameDropped(
+    absl::string_view peer_name,
+    EncodedImageCallback::DropReason reason) {
   // Here we do nothing, because we will see this drop on renderer side.
 }
 

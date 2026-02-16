@@ -21,6 +21,7 @@
 #include "api/test/video_quality_analyzer_interface.h"
 #include "api/video/encoded_image.h"
 #include "api/video/video_frame.h"
+#include "api/video_codecs/video_encoder.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -48,7 +49,8 @@ class ExampleVideoQualityAnalyzer : public VideoQualityAnalyzerInterface {
                       const EncodedImage& encoded_image,
                       const EncoderStats& stats,
                       bool discarded) override;
-  void OnFrameDropped(absl::string_view peer_name) override;
+  void OnFrameDropped(absl::string_view peer_name,
+                      EncodedImageCallback::DropReason reason) override;
   void OnFramePreDecode(absl::string_view peer_name,
                         uint16_t frame_id,
                         const EncodedImage& encoded_image) override;
