@@ -112,14 +112,18 @@ class InterleavedView {
   }
 
   T& operator[](size_t idx) const { return data_[idx]; }
-  T* begin() const { return data_.begin(); }
-  T* end() const { return data_.end(); }
-  const T* cbegin() const { return data_.cbegin(); }
-  const T* cend() const { return data_.cend(); }
-  std::reverse_iterator<T*> rbegin() const { return data_.rbegin(); }
-  std::reverse_iterator<T*> rend() const { return data_.rend(); }
-  std::reverse_iterator<const T*> crbegin() const { return data_.crbegin(); }
-  std::reverse_iterator<const T*> crend() const { return data_.crend(); }
+  using iterator = typename ArrayView<T>::iterator;
+  using const_iterator = typename ArrayView<T>::const_iterator;
+  iterator begin() const { return data_.begin(); }
+  iterator end() const { return data_.end(); }
+  const_iterator cbegin() const { return data_.cbegin(); }
+  const_iterator cend() const { return data_.cend(); }
+  std::reverse_iterator<iterator> rbegin() const { return data_.rbegin(); }
+  std::reverse_iterator<iterator> rend() const { return data_.rend(); }
+  std::reverse_iterator<const_iterator> crbegin() const {
+    return data_.crbegin();
+  }
+  std::reverse_iterator<const_iterator> crend() const { return data_.crend(); }
 
  private:
   // TODO(tommi): Consider having these both be stored as uint16_t to

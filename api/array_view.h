@@ -156,7 +156,8 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   using const_reference = const value_type&;
   using pointer = value_type*;
   using const_pointer = const value_type*;
-  using const_iterator = const T*;
+  using iterator = typename std::span<T>::iterator;
+  using const_iterator = typename std::span<const T>::iterator;
 
   // Construct an ArrayView from a pointer and a length.
   template <typename U>
@@ -274,20 +275,28 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
     RTC_HARDENING_ASSERT(this->data());
     return this->data()[idx];
   }
-  T* begin() const { return this->data(); }
-  T* end() const { return this->data() + this->size(); }
-  const T* cbegin() const { return this->data(); }
-  const T* cend() const { return this->data() + this->size(); }
-  std::reverse_iterator<T*> rbegin() const {
+  iterator begin() const {
+    return std::span<T>(this->data(), this->size()).begin();
+  }
+  iterator end() const {
+    return std::span<T>(this->data(), this->size()).end();
+  }
+  const_iterator cbegin() const {
+    return std::span<const T>(this->data(), this->size()).begin();
+  }
+  const_iterator cend() const {
+    return std::span<const T>(this->data(), this->size()).end();
+  }
+  std::reverse_iterator<iterator> rbegin() const {
     return std::make_reverse_iterator(end());
   }
-  std::reverse_iterator<T*> rend() const {
+  std::reverse_iterator<iterator> rend() const {
     return std::make_reverse_iterator(begin());
   }
-  std::reverse_iterator<const T*> crbegin() const {
+  std::reverse_iterator<const_iterator> crbegin() const {
     return std::make_reverse_iterator(cend());
   }
-  std::reverse_iterator<const T*> crend() const {
+  std::reverse_iterator<const_iterator> crend() const {
     return std::make_reverse_iterator(cbegin());
   }
 

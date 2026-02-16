@@ -126,7 +126,7 @@ void AudioFrame::CopyFrom(const AudioFrame& src) {
 }
 
 const int16_t* AudioFrame::data() const {
-  return muted_ ? zeroed_data().begin() : data_.data();
+  return muted_ ? zeroed_data().data() : data_.data();
 }
 
 InterleavedView<const int16_t> AudioFrame::data_view() const {

@@ -495,12 +495,12 @@ TEST(ArrayViewTest, TestReverseIterationVariable) {
   EXPECT_EQ('A', *(av.rend() - 1));
   EXPECT_EQ('A', *(av.crend() - 1));
 
-  const char* cit = av.cend() - 1;
+  auto cit = av.cend() - 1;
   for (auto crit = av.crbegin(); crit != av.crend(); ++crit, --cit) {
     EXPECT_EQ(*cit, *crit);
   }
 
-  char* it = av.end() - 1;
+  auto it = av.end() - 1;
   for (auto rit = av.rbegin(); rit != av.rend(); ++rit, --it) {
     EXPECT_EQ(*it, *rit);
   }
@@ -535,12 +535,12 @@ TEST(ArrayViewTest, TestReverseIterationFixed) {
   EXPECT_EQ('A', *(av.rend() - 1));
   EXPECT_EQ('A', *(av.crend() - 1));
 
-  const char* cit = av.cend() - 1;
+  auto cit = av.cend() - 1;
   for (auto crit = av.crbegin(); crit != av.crend(); ++crit, --cit) {
     EXPECT_EQ(*cit, *crit);
   }
 
-  char* it = av.end() - 1;
+  auto it = av.end() - 1;
   for (auto rit = av.rbegin(); rit != av.rend(); ++rit, --it) {
     EXPECT_EQ(*it, *rit);
   }
