@@ -301,6 +301,12 @@ class RenderingSimulator {
       return SumNonNegativeIntField(&Frame::frames_dropped);
     }
 
+    // Samples of per-frame delay variation metrics. Not `const` because they
+    // sort `frames`. Defined in `.cc` for circular include order reasons.
+    SamplesStatsCounter InterRenderTimeMs();
+    SamplesStatsCounter InterDecodedTimeMs();
+    SamplesStatsCounter InterRenderedTimeMs();
+
     // Samples of webrtc-stats values in ms.
     SamplesStatsCounter JitterBufferMinimumDelayMs() const {
       return BuildSamplesMs(&Frame::jitter_buffer_minimum_delay);

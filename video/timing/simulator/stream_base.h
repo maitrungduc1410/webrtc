@@ -223,14 +223,21 @@ struct StreamBase {
   SamplesStatsCounter FrameDelayVariationMs() const {
     return BuildSamplesMs(&FrameT::frame_delay_variation);
   }
-  SamplesStatsCounter InterDepartureTimeMs() const {
+  SamplesStatsCounter InterDepartureTimeMs() {
+    SortByDepartureOrder(self().frames);
     return BuildSamplesMs(&InterDepartureTime<FrameT>);
   }
-  SamplesStatsCounter InterArrivalTimeMs() const {
+  SamplesStatsCounter InterArrivalTimeMs() {
+    SortByArrivalOrder(self().frames);
     return BuildSamplesMs(&InterArrivalTime<FrameT>);
   }
-  SamplesStatsCounter InterFrameDelayVariationMs() const {
+  SamplesStatsCounter InterFrameDelayVariationMs() {
+    SortByArrivalOrder(self().frames);
     return BuildSamplesMs(&InterFrameDelayVariation<FrameT>);
+  }
+  SamplesStatsCounter InterAssembledTimeMs() {
+    SortByAssembledOrder(self().frames);
+    return BuildSamplesMs(&InterAssembledTime<FrameT>);
   }
 };
 
