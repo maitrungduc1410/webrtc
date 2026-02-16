@@ -171,6 +171,7 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   // Construct an empty ArrayView. Note that fixed-size ArrayViews of size > 0
   // cannot be empty.
   ArrayView() : ArrayView(nullptr, 0) {}
+  ABSL_DEPRECATE_AND_INLINE()
   ArrayView(std::nullptr_t)  // NOLINT
       : ArrayView() {}
   ArrayView(std::nullptr_t, size_t size)

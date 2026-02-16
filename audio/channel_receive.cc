@@ -736,8 +736,8 @@ void ChannelReceive::ReceivePacket(const uint8_t* packet,
     const FrameDecryptorInterface::Result decrypt_result =
         frame_decryptor_->Decrypt(
             MediaType::AUDIO, csrcs,
-            /*additional_data=*/
-            nullptr, ArrayView<const uint8_t>(payload, payload_data_length),
+            /*additional_data=*/{},
+            ArrayView<const uint8_t>(payload, payload_data_length),
             decrypted_audio_payload);
 
     if (decrypt_result.IsOk()) {
