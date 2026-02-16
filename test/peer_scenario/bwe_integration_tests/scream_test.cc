@@ -17,6 +17,7 @@
 
 #include "api/array_view.h"
 #include "api/audio_options.h"
+#include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/stats/rtc_stats_report.h"
 #include "api/test/network_emulation/dual_pi2_network_queue.h"
@@ -42,6 +43,7 @@ namespace webrtc {
 namespace {
 
 using test::GetAvailableSendBitrate;
+using test::GetCurrentRoundTripTime;
 using test::GetFirstReportAtOrAfter;
 using test::GetPacketsLost;
 using test::GetPacketsReceived;
@@ -71,6 +73,18 @@ MATCHER_P2(AvailableSendBitrateIsBetween, low, high, "") {
   *result_listener << "the available send bitrate is " << available_bwe.kbps()
                    << "kbps, which is not between " << low.kbps() << "kbps and "
                    << high.kbps() << " kbps";
+
+  return false;
+}
+
+MATCHER_P2(CurrentRoundTripTimeIsBetween, low, high, "") {
+  TimeDelta rtt = GetCurrentRoundTripTime(arg);
+  if (rtt > low && rtt < high) {
+    return true;
+  }
+  *result_listener << "the current round trip time is " << rtt.ms()
+                   << "ms, which is not between " << low.ms() << "ms and "
+                   << high.ms() << " ms";
 
   return false;
 }
@@ -118,19 +132,17 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPathWithPauseBetween3sAnd6s(
 std::vector<EmulatedNetworkNode*> CreateNetworkPathWithRepeatedPause(
     PeerScenario& s,
     DataRate link_capacity,
-    TimeDelta pause_duration) {
+    TimeDelta pause_duration,
+    TimeDelta repeat_pause_interval) {
   network_behaviour::NetworkConfigSchedule schedule;
   auto initial_config = schedule.add_item();
   initial_config->set_link_capacity_kbps(link_capacity.kbps());
   initial_config->set_queue_delay_ms(10);
   auto updated_capacity = schedule.add_item();
-  updated_capacity->set_time_since_first_sent_packet_ms(1000);
+  updated_capacity->set_time_since_first_sent_packet_ms(
+      repeat_pause_interval.ms());
   updated_capacity->set_link_capacity_kbps(0);
-  updated_capacity = schedule.add_item();
-  updated_capacity->set_time_since_first_sent_packet_ms(1000 +
-                                                        pause_duration.ms());
-  updated_capacity->set_link_capacity_kbps(link_capacity.kbps());
-  schedule.set_repeat_schedule_after_last_ms(4000 + pause_duration.ms());
+  schedule.set_repeat_schedule_after_last_ms(pause_duration.ms());
   SchedulableNetworkNodeBuilder schedulable_builder(*s.net(),
                                                     std::move(schedule));
   return {schedulable_builder.Build()};
@@ -189,7 +201,15 @@ struct SendMediaTestParams {
       {"WebRTC-RFC8888CongestionControlFeedback", "Enabled,offer:true"},
       {"WebRTC-Bwe-ScreamV2", "Enabled"}};
 
+  // Audio is negotiated and sent.
   bool send_audio = true;
+  // Video capturer is producing frames.
+  bool video_capture_enabled = true;
+
+  // Configure and set the max video encoding bitrate. If not set, the max
+  // default per codec and resolution is used.
+  std::optional<DataRate> max_video_bitrate;
+
   PeerScenarioClient::VideoSendTrackConfig caller_video_conf = {
       .generator = {.squares_video =
                         test::FrameGeneratorCapturerConfig::SquaresVideo{
@@ -199,6 +219,7 @@ struct SendMediaTestParams {
                         }}};
 
   TimeDelta test_duration = TimeDelta::Seconds(10);
+  TimeDelta stats_interval = TimeDelta::Seconds(1);
 };
 
 // Sends audio and video from a caller to a callee with symmetric
@@ -215,7 +236,18 @@ SendMediaTestResult SendMediaInOneDirection(SendMediaTestParams params,
   if (params.send_audio) {
     caller->CreateAudio("AUDIO_1", {});
   }
-  caller->CreateVideo("VIDEO_1", params.caller_video_conf);
+  test::PeerScenarioClient::VideoSendTrack video_track =
+      caller->CreateVideo("VIDEO_1", params.caller_video_conf);
+  if (!params.video_capture_enabled) {
+    // Stop the capturer.
+    video_track.source->Stop();
+  }
+  if (params.max_video_bitrate.has_value()) {
+    RtpParameters rtp_parameters = video_track.sender->GetParameters();
+    rtp_parameters.encodings[0].max_bitrate_bps =
+        params.max_video_bitrate->bps();
+    video_track.sender->SetParameters(rtp_parameters);
+  }
 
   s.SimpleConnection(caller, callee, std::move(params.caller_to_callee_path),
                      std::move(params.callee_to_caller_path));
@@ -223,7 +255,7 @@ SendMediaTestResult SendMediaInOneDirection(SendMediaTestParams params,
 
   Timestamp end_time = s.net()->Now() + params.test_duration;
   while (s.net()->Now() < end_time) {
-    s.ProcessMessages(TimeDelta::Seconds(1));
+    s.ProcessMessages(params.stats_interval);
     result.caller_stats.push_back(GetStatsAndProcess(s, caller));
     result.callee_stats.push_back(GetStatsAndProcess(s, callee));
   }
@@ -282,6 +314,36 @@ TEST(ScreamTest,
   EXPECT_THAT(result.caller().subspan(9), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(1200),
                                               DataRate::KilobitsPerSec(5000))));
+}
+
+TEST(ScreamTest,
+     MaybeTest(
+         LinkCapacityIncreaseFrom80KbitTo5MbpsAfter5sVideoCaptureStopedNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.video_capture_enabled = false;
+  params.max_video_bitrate = DataRate::KilobitsPerSec(3000);
+  params.caller_to_callee_path = CreateNetworkPathWithChangedCapacityAfter5s(
+      s, DataRate::KilobitsPerSec(80), DataRate::KilobitsPerSec(5000));
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(3000), TimeDelta::Millis(25));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+  // Stats 2-5s
+  EXPECT_THAT(
+      result.caller().subspan(1, 3),
+      Each(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(10),
+                                         DataRate::KilobitsPerSec(100))));
+  // TODO: bugs.webrtc.org/447037083 - Improve Scream at low bitrates. Consider
+  // lowering min ref window.
+  EXPECT_THAT(result.caller()[3],
+              CurrentRoundTripTimeIsBetween(TimeDelta::Millis(40),
+                                            TimeDelta::Millis(500)));
+  // Stats after 9s
+  // TODO: bugs.webrtc.org/447037083 - Ensure BWE does ramp up.
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(200),
+                                            DataRate::KilobitsPerSec(5000)));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt20msNoEcn)) {
@@ -568,7 +630,8 @@ TEST(ScreamTest, MaybeTest(ScreencastSlideChangeRepeatedDelaySpikes)) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params{.test_duration = TimeDelta::Seconds(20)};
   params.caller_to_callee_path = CreateNetworkPathWithRepeatedPause(
-      s, DataRate::KilobitsPerSec(4000), TimeDelta::Millis(500));
+      s, DataRate::KilobitsPerSec(4000), TimeDelta::Millis(500),
+      TimeDelta::Seconds(4));
   params.callee_to_caller_path =
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(2000), TimeDelta::Millis(25));
@@ -584,6 +647,60 @@ TEST(ScreamTest, MaybeTest(ScreencastSlideChangeRepeatedDelaySpikes)) {
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(100),
                                               DataRate::KilobitsPerSec(4000))));
+}
+
+TEST(ScreamTest, MaybeTest(LinkCapacity5MbitRepeatedDelaySpikesNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{.test_duration = TimeDelta::Seconds(20)};
+  params.caller_to_callee_path = CreateNetworkPathWithRepeatedPause(
+      s, DataRate::KilobitsPerSec(5000), TimeDelta::Millis(100),
+      TimeDelta::Millis(200));
+  params.callee_to_caller_path = CreateNetworkPathWithRepeatedPause(
+      s, DataRate::KilobitsPerSec(5000), TimeDelta::Millis(100),
+      TimeDelta::Millis(200));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // TODO: bugs.webrtc.org/447037083 - consider improving resilience by limiting
+  // queue delay from one feedback.
+  EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
+                                              DataRate::KilobitsPerSec(500),
+                                              DataRate::KilobitsPerSec(5000))));
+}
+
+TEST(ScreamTest, MaybeTest(RampupFastOnLinkCapacity50Mbit20MsRttNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params{.test_duration = TimeDelta::Millis(300),
+                             .stats_interval = TimeDelta::Millis(100)};
+  params.caller_to_callee_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(50000), TimeDelta::Millis(10));
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(50000), TimeDelta::Millis(10));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // TODO: bugs.webrtc.org/447037083 - On a good network, we should be able to
+  // let the bitrate increase by 50% every RTT.
+  EXPECT_THAT(result.caller_stats.back(),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(500),
+                                            DataRate::KilobitsPerSec(5000)));
+}
+
+TEST(ScreamTest, MaybeTest(LinkCapacity100Kbit50msRttNoEcn)) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.caller_to_callee_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(100), TimeDelta::Millis(25));
+  params.callee_to_caller_path =
+      CreateNetworkPath(s, /*use_dual_pi= */ false,
+                        DataRate::KilobitsPerSec(100), TimeDelta::Millis(25));
+  SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
+
+  // TODO: bugs.webrtc.org/447037083 - Investigate how the delay can be reduced.
+  EXPECT_THAT(result.caller(), Each(AvailableSendBitrateIsBetween(
+                                   DataRate::KilobitsPerSec(10),
+                                   DataRate::KilobitsPerSec(150))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity1MbitRtt50msWithShortQueuesNoEcn)) {
