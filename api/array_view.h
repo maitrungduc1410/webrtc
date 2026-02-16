@@ -266,8 +266,11 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   // const, because the ArrayView doesn't own the array. (To prevent mutation,
   // use a const element type.)
   T& operator[](size_t idx) const {
-    RTC_DCHECK_LT(idx, this->size());
-    RTC_DCHECK(this->data());
+    // RTC_HARDENING_ASSERT is used because this is tunable at compile time
+    // to be on or off in production, depending on the choices of the
+    // embedder.
+    RTC_HARDENING_ASSERT(idx < this->size());
+    RTC_HARDENING_ASSERT(this->data());
     return this->data()[idx];
   }
   T* begin() const { return this->data(); }
