@@ -107,10 +107,11 @@ class DtlsStunPiggybackControllerTest : public ::testing::Test {
  protected:
   DtlsStunPiggybackControllerTest()
       : client_(
-            [this](ArrayView<const uint8_t> data) { ClientPacketSink(data); }),
-        server_([this](ArrayView<const uint8_t> data) {
-          ServerPacketSink(data);
-        }) {}
+            [this](ArrayView<const uint8_t> data) { ClientPacketSink(data); },
+            [this]() { ClientCompleteCallback(); }),
+        server_(
+            [this](ArrayView<const uint8_t> data) { ServerPacketSink(data); },
+            [this]() { ServerCompleteCallback(); }) {}
 
   // Send from client to server embedded in STUN.
   void SendClientToServerEmbedded(const std::vector<uint8_t>& packet,
@@ -193,6 +194,9 @@ class DtlsStunPiggybackControllerTest : public ::testing::Test {
   MOCK_METHOD(void, ClientPacketSink, (ArrayView<const uint8_t>));
   MOCK_METHOD(void, ServerPacketSink, (ArrayView<const uint8_t>));
 
+  MOCK_METHOD(void, ClientCompleteCallback, ());
+  MOCK_METHOD(void, ServerCompleteCallback, ());
+
  private:
   void MaybeSetHandshakeComplete(std::vector<uint8_t> packet) {
     // Note: this assumes DTLS 1.2
@@ -220,7 +224,9 @@ TEST_F(DtlsStunPiggybackControllerTest, BasicHandshake) {
   EXPECT_EQ(client_.state(), State::PENDING);
 
   // Post-handshake ACK
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);
@@ -242,11 +248,13 @@ TEST_F(DtlsStunPiggybackControllerTest, FirstClientPacketLost) {
 
   // Flight 4
   SendServerToClientEmbedded(dtls_flight4, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::PENDING);
 
   // Post-handshake ACK
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_REQUEST);
   EXPECT_EQ(client_.state(), State::COMPLETE);
 }
@@ -297,7 +305,9 @@ TEST_F(DtlsStunPiggybackControllerTest, SomeRequestsDoNotGoThrough) {
   EXPECT_EQ(client_.state(), State::PENDING);
 
   // Post-handshake ACK
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);
@@ -317,7 +327,9 @@ TEST_F(DtlsStunPiggybackControllerTest, LossOnPostHandshakeAck) {
   EXPECT_EQ(client_.state(), State::PENDING);
 
   // Post-handshake ACK. Client to server gets lost
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);
@@ -364,7 +376,9 @@ TEST_F(DtlsStunPiggybackControllerTest, BasicHandshakeAckData) {
               }));
 
   // Post-handshake ACK
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);
@@ -401,7 +415,9 @@ TEST_F(DtlsStunPiggybackControllerTest, UnwrappedHandshakeAckData) {
               }));
 
   // Post-handshake ACK
+  EXPECT_CALL(*this, ClientCompleteCallback);
   SendServerToClientEmbedded(empty, STUN_BINDING_REQUEST);
+  EXPECT_CALL(*this, ServerCompleteCallback);
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);

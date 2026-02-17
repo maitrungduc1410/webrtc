@@ -36,7 +36,9 @@ class DtlsStunPiggybackController {
   // dtls_data_callback will be called with any DTLS packets received
   // piggybacked.
   DtlsStunPiggybackController(
-      absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback);
+      absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback,
+      absl::AnyInvocable<void()> complete_callback);
+
   ~DtlsStunPiggybackController();
 
   enum class State {
@@ -60,8 +62,10 @@ class DtlsStunPiggybackController {
     return state_;
   }
 
-  // Called by DtlsTransport when the handshake is complete.
+  // Called by DtlsTransport when the handshake is complete per our local DTLS
+  // agent.
   void SetDtlsHandshakeComplete(bool is_dtls_client, bool is_dtls13);
+
   // Called by DtlsTransport when DTLS failed.
   void SetDtlsFailed();
 
@@ -98,13 +102,15 @@ class DtlsStunPiggybackController {
   bool writing_packets_ RTC_GUARDED_BY(sequence_checker_) = false;
   PacketStash pending_packets_ RTC_GUARDED_BY(sequence_checker_);
   absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback_;
-  absl::AnyInvocable<void()> disable_piggybacking_callback_;
+  absl::AnyInvocable<void()> complete_callback_;
 
   std::vector<uint32_t> handshake_messages_received_
       RTC_GUARDED_BY(sequence_checker_);
 
   // Count of embedded data attributes received.
   int data_recv_count_ = 0;
+
+  void CallCompleteCallback();
 
   // In practice this will be the network thread.
   RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;

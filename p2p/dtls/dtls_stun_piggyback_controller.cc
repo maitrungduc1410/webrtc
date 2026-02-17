@@ -30,10 +30,16 @@
 namespace webrtc {
 
 DtlsStunPiggybackController::DtlsStunPiggybackController(
-    absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback)
-    : dtls_data_callback_(std::move(dtls_data_callback)) {}
+    absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback,
+    absl::AnyInvocable<void()> complete_callback)
+    : dtls_data_callback_(std::move(dtls_data_callback)),
+      complete_callback_(std::move(complete_callback)) {}
 
-DtlsStunPiggybackController::~DtlsStunPiggybackController() {}
+DtlsStunPiggybackController::~DtlsStunPiggybackController() {
+  complete_callback_ = [&]() {
+    RTC_DCHECK(false) << "Calling CompleteCallback after destructor!";
+  };
+}
 
 void DtlsStunPiggybackController::SetDtlsHandshakeComplete(bool is_dtls_client,
                                                            bool is_dtls13) {
@@ -66,6 +72,7 @@ void DtlsStunPiggybackController::SetDtlsFailed() {
         << "DTLS-STUN piggybacking DTLS failed during negotiation.";
   }
   state_ = State::OFF;
+  CallCompleteCallback();
 }
 
 void DtlsStunPiggybackController::CapturePacket(ArrayView<const uint8_t> data) {
@@ -158,6 +165,9 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
   if (state_ == State::TENTATIVE && !data.has_value() && !acks.has_value()) {
     RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking not supported by peer.";
     state_ = State::OFF;
+    // TODO jonaso, webrtc:367395350: We should call CallCompleteCallback here
+    // but this causes a slew of failed tests. Investigate why!
+    // CallCompleteCallback();
     return;
   }
 
@@ -168,6 +178,7 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
     state_ = State::COMPLETE;
     pending_packets_.clear();
     handshake_messages_received_.clear();
+    CallCompleteCallback();
     return;
   }
 
@@ -206,6 +217,7 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
     state_ = State::COMPLETE;
     pending_packets_.clear();
     handshake_messages_received_.clear();
+    CallCompleteCallback();
     return;
   }
 
@@ -248,6 +260,13 @@ void DtlsStunPiggybackController::ReportDtlsPacket(
     }
     handshake_messages_received_.push_back(hash);
   }
+}
+
+void DtlsStunPiggybackController::CallCompleteCallback() {
+  complete_callback_();
+  complete_callback_ = [&]() {
+    RTC_DCHECK(false) << "CompleteCallback called twice!";
+  };
 }
 
 }  // namespace webrtc

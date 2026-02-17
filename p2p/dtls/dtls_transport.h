@@ -302,6 +302,8 @@ class DtlsTransportInternalImpl : public DtlsTransportInternal {
   void set_writable(bool writable);
   // Sets the DTLS state, signaling if necessary.
   void set_dtls_state(DtlsTransportState state);
+
+  void CompleteDtlsInStun();
   void SetPiggybackDtlsDataCallback(
       absl::AnyInvocable<void(PacketTransportInternal* transport,
                               const ReceivedIpPacket& packet)> callback);
