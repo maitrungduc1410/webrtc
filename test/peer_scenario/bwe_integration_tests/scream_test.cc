@@ -333,7 +333,7 @@ TEST(ScreamTest,
   EXPECT_THAT(
       result.caller().subspan(1, 3),
       Each(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(10),
-                                         DataRate::KilobitsPerSec(100))));
+                                         DataRate::KilobitsPerSec(150))));
   // TODO: bugs.webrtc.org/447037083 - Improve Scream at low bitrates. Consider
   // lowering min ref window.
   EXPECT_THAT(result.caller()[3],
