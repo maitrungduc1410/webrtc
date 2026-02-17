@@ -317,12 +317,9 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
 // Comparing two ArrayViews compares their (pointer,size) pairs; it does *not*
 // dereference the pointers.
 template <typename T, std::ptrdiff_t Size1, std::ptrdiff_t Size2>
+[[deprecated("issues.webrtc.org/439801349")]]
 bool operator==(const ArrayView<T, Size1>& a, const ArrayView<T, Size2>& b) {
   return a.data() == b.data() && a.size() == b.size();
-}
-template <typename T, std::ptrdiff_t Size1, std::ptrdiff_t Size2>
-bool operator!=(const ArrayView<T, Size1>& a, const ArrayView<T, Size2>& b) {
-  return !(a == b);
 }
 
 // Variable-size ArrayViews are the size of two pointers; fixed-size ArrayViews

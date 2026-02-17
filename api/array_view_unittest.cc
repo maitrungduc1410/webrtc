@@ -555,34 +555,13 @@ TEST(ArrayViewTest, TestEmpty) {
   static_assert(!ArrayView<int, 3>::empty(), "");
 }
 
-TEST(ArrayViewTest, TestCompare) {
-  int a[] = {1, 2, 3};
-  int b[] = {1, 2, 3};
-
-  EXPECT_EQ(ArrayView<int>(a), ArrayView<int>(a));
-  EXPECT_EQ((ArrayView<int, 3>(a)), (ArrayView<int, 3>(a)));
-  EXPECT_EQ(ArrayView<int>(a), (ArrayView<int, 3>(a)));
-  EXPECT_EQ(ArrayView<int>(), ArrayView<int>());
-  EXPECT_EQ(ArrayView<int>(), ArrayView<int>(a, 0));
-  EXPECT_EQ(ArrayView<int>(a, 0), ArrayView<int>(b, 0));
-  EXPECT_EQ((ArrayView<int, 0>(a, 0)), ArrayView<int>());
-
-  EXPECT_NE(ArrayView<int>(a), ArrayView<int>(b));
-  EXPECT_NE((ArrayView<int, 3>(a)), (ArrayView<int, 3>(b)));
-  EXPECT_NE((ArrayView<int, 3>(a)), ArrayView<int>(b));
-  EXPECT_NE(ArrayView<int>(a), ArrayView<int>());
-  EXPECT_NE(ArrayView<int>(a), ArrayView<int>(a, 2));
-  EXPECT_NE((ArrayView<int, 3>(a)), (ArrayView<int, 2>(a, 2)));
-}
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 TEST(ArrayViewTest, TestSubViewVariable) {
   int a[] = {1, 2, 3};
   ArrayView<int> av(a);
 
-  EXPECT_EQ(av.subview(0), av);
-
+  EXPECT_THAT(av.subview(0), ElementsAre(1, 2, 3));
   EXPECT_THAT(av.subview(1), ElementsAre(2, 3));
   EXPECT_THAT(av.subview(2), ElementsAre(3));
   EXPECT_THAT(av.subview(3), IsEmpty());
@@ -622,8 +601,7 @@ TEST(ArrayViewTest, TestSubViewFixed) {
   int a[] = {1, 2, 3};
   ArrayView<int, 3> av(a);
 
-  EXPECT_EQ(av.subview(0), av);
-
+  EXPECT_THAT(av.subview(0), ElementsAre(1, 2, 3));
   EXPECT_THAT(av.subview(1), ElementsAre(2, 3));
   EXPECT_THAT(av.subview(2), ElementsAre(3));
   EXPECT_THAT(av.subview(3), IsEmpty());
