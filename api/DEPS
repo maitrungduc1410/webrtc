@@ -264,6 +264,10 @@ specific_include_rules = {
     "+rtc_base/numerics",
   ],
 
+  "video_quality_test_fixture\\.h": [
+    "+video/config/video_encoder_config.h",
+  ],
+
   "simple_encoder_wrapper\\.h": [
     "+common_video",
     "+modules",
