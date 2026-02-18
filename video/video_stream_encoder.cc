@@ -2461,6 +2461,17 @@ void VideoStreamEncoder::OnDroppedFrame(DropReason reason) {
   });
 }
 
+void VideoStreamEncoder::OnFrameDropped(uint32_t rtp_timestamp,
+                                        int spatial_id,
+                                        bool is_end_of_temporal_unit) {
+  sink_->OnFrameDropped(rtp_timestamp, spatial_id, is_end_of_temporal_unit);
+  encoder_queue_->PostTask([this] {
+    RTC_DCHECK_RUN_ON(encoder_queue_.get());
+    stream_resource_manager_.OnFrameDropped(
+        VideoStreamEncoderObserver::DropReason::kEncoder);
+  });
+}
+
 DataRate VideoStreamEncoder::UpdateTargetBitrate(DataRate target_bitrate,
                                                  double cwnd_reduce_ratio) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
