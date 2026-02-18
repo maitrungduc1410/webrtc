@@ -86,7 +86,7 @@ class FuzzDataHelper {
 
   ArrayView<const uint8_t> ReadByteArray(size_t bytes) {
     if (!CanReadBytes(bytes)) {
-      return ArrayView<const uint8_t>(nullptr, 0);
+      return {};
     }
     const size_t index_to_return = data_ix_;
     data_ix_ += bytes;
