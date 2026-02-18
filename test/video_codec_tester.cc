@@ -1086,6 +1086,10 @@ class Encoder : public EncodedImageCallback {
     ScalabilityMode scalability_mode;
   };
 
+  void OnFrameDropped(uint32_t /*rtp_timestamp*/,
+                      int /*spatial_id*/,
+                      bool /*is_end_of_temporal_unit*/) override {}
+
   Result OnEncodedImage(const EncodedImage& encoded_frame,
                         const CodecSpecificInfo* codec_specific_info) override {
     analyzer_->FinishEncode(encoded_frame);
