@@ -59,6 +59,8 @@ template <typename T>
 class InterleavedView {
  public:
   using value_type = T;
+  using iterator = typename ArrayView<T>::iterator;
+  using const_iterator = typename ArrayView<const T>::iterator;
 
   InterleavedView() = default;
 
@@ -112,18 +114,16 @@ class InterleavedView {
   }
 
   T& operator[](size_t idx) const { return data_[idx]; }
-  using iterator = typename ArrayView<T>::iterator;
-  using const_iterator = typename ArrayView<T>::const_iterator;
   iterator begin() const { return data_.begin(); }
   iterator end() const { return data_.end(); }
-  const_iterator cbegin() const { return data_.cbegin(); }
-  const_iterator cend() const { return data_.cend(); }
+  const_iterator cbegin() const { return data_.begin(); }
+  const_iterator cend() const { return data_.end(); }
   std::reverse_iterator<iterator> rbegin() const { return data_.rbegin(); }
   std::reverse_iterator<iterator> rend() const { return data_.rend(); }
   std::reverse_iterator<const_iterator> crbegin() const {
-    return data_.crbegin();
+    return data_.rbegin();
   }
-  std::reverse_iterator<const_iterator> crend() const { return data_.crend(); }
+  std::reverse_iterator<const_iterator> crend() const { return data_.rend(); }
 
  private:
   // TODO(tommi): Consider having these both be stored as uint16_t to

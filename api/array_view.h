@@ -281,24 +281,18 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   iterator end() const {
     return std::span<T>(this->data(), this->size()).end();
   }
-  const_iterator cbegin() const {
-    return std::span<const T>(this->data(), this->size()).begin();
-  }
-  const_iterator cend() const {
-    return std::span<const T>(this->data(), this->size()).end();
-  }
+  ABSL_DEPRECATE_AND_INLINE() const_iterator cbegin() const { return begin(); }
+  ABSL_DEPRECATE_AND_INLINE() const_iterator cend() const { return end(); }
   std::reverse_iterator<iterator> rbegin() const {
     return std::make_reverse_iterator(end());
   }
   std::reverse_iterator<iterator> rend() const {
     return std::make_reverse_iterator(begin());
   }
-  std::reverse_iterator<const_iterator> crbegin() const {
-    return std::make_reverse_iterator(cend());
-  }
-  std::reverse_iterator<const_iterator> crend() const {
-    return std::make_reverse_iterator(cbegin());
-  }
+  ABSL_DEPRECATE_AND_INLINE()
+  std::reverse_iterator<const_iterator> crbegin() const { return rbegin(); }
+  ABSL_DEPRECATE_AND_INLINE()
+  std::reverse_iterator<const_iterator> crend() const { return rend(); }
 
   constexpr ArrayView<T> subspan(size_t offset,
                                  size_t count = std::dynamic_extent) const {
