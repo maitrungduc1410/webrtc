@@ -25,6 +25,7 @@
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/environment/environment.h"
+#include "api/field_trials_view.h"
 #include "api/function_view.h"
 #include "api/make_ref_counted.h"
 #include "api/neteq/neteq.h"
@@ -246,7 +247,7 @@ std::unique_ptr<test::NetEqStatsGetter> CreateNetEqTestAndRun(
     uint32_t ssrc,
     absl::string_view replacement_file_name,
     int file_sample_rate_hz,
-    absl::string_view field_trials) {
+    const FieldTrialsView* field_trials) {
   std::unique_ptr<test::NetEqInput> input =
       test::CreateNetEqEventLogInput(parsed_log, ssrc);
   if (!input) {
@@ -291,7 +292,7 @@ NetEqStatsGetterMap SimulateNetEq(const ParsedRtcEventLog& parsed_log,
                                   const AnalyzerConfig& config,
                                   absl::string_view replacement_file_name,
                                   int file_sample_rate_hz,
-                                  absl::string_view field_trials) {
+                                  const FieldTrialsView* field_trials) {
   NetEqStatsGetterMap neteq_stats;
   for (uint32_t ssrc : parsed_log.incoming_audio_ssrcs()) {
     std::unique_ptr<test::NetEqStatsGetter> stats =

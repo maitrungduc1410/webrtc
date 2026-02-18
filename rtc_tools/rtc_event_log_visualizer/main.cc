@@ -340,7 +340,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqNetworkStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -353,7 +353,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqNetworkStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -367,7 +367,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqNetworkStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -381,7 +381,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqNetworkStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -395,7 +395,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqLifetimeStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -409,7 +409,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     webrtc::CreateNetEqNetworkStatsGraph(
         parsed_log, config, *neteq_stats,
@@ -429,7 +429,7 @@ int main(int argc, char* argv[]) {
       plot_names.end()) {
     if (!neteq_stats) {
       neteq_stats = webrtc::SimulateNetEq(parsed_log, config, wav_path, 48000,
-                                          field_trials);
+                                          &env.field_trials());
     }
     for (auto it = neteq_stats->cbegin(); it != neteq_stats->cend(); ++it) {
       webrtc::CreateAudioJitterBufferGraph(
