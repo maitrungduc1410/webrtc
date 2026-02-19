@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -591,6 +592,62 @@ TEST(ArrayViewTest, TestSubViewFixed) {
   EXPECT_THAT(av.subview(1, 3), ElementsAre(2, 3));
 }
 #pragma clang diagnostic pop
+
+TEST(ArrayViewTest, SubspanFixed) {
+  std::array<int, 3> a = {1, 2, 3};
+  ArrayView<int, 3> av(a);
+
+  EXPECT_THAT(av.subspan<0>(), ElementsAre(1, 2, 3));
+  EXPECT_THAT(av.subspan<1>(), ElementsAre(2, 3));
+  EXPECT_THAT(av.subspan<2>(), ElementsAre(3));
+  EXPECT_THAT(av.subspan<3>(), IsEmpty());
+
+  EXPECT_THAT((av.subspan<1, 0>()), IsEmpty());
+  EXPECT_THAT((av.subspan<1, 1>()), ElementsAre(2));
+  EXPECT_THAT((av.subspan<1, 2>()), ElementsAre(2, 3));
+
+  EXPECT_EQ(av.subspan<1>().extent, 2u);
+  EXPECT_EQ((av.subspan<1, 1>().extent), 1u);
+
+  ArrayView<int> dynamic_av(a);
+  EXPECT_THAT(dynamic_av.subspan<0>(), ElementsAre(1, 2, 3));
+  EXPECT_THAT(dynamic_av.subspan<1>(), ElementsAre(2, 3));
+  EXPECT_THAT(dynamic_av.subspan<2>(), ElementsAre(3));
+  EXPECT_THAT(dynamic_av.subspan<3>(), IsEmpty());
+
+  EXPECT_THAT((dynamic_av.subspan<1, 0>()), IsEmpty());
+  EXPECT_THAT((dynamic_av.subspan<1, 1>()), ElementsAre(2));
+  EXPECT_THAT((dynamic_av.subspan<1, 2>()), ElementsAre(2, 3));
+
+  EXPECT_EQ(dynamic_av.subspan<1>().extent, std::dynamic_extent);
+  EXPECT_EQ((dynamic_av.subspan<1, 1>()).extent, 1u);
+}
+
+TEST(ArrayViewTest, FirstFixed) {
+  std::array<int, 3> a = {1, 2, 3};
+  ArrayView<int> av(a);
+
+  EXPECT_THAT(av.first<0>(), IsEmpty());
+  EXPECT_THAT(av.first<1>(), ElementsAre(1));
+  EXPECT_THAT(av.first<2>(), ElementsAre(1, 2));
+  EXPECT_THAT(av.first<3>(), ElementsAre(1, 2, 3));
+
+  EXPECT_EQ((av.first<0>()).extent, 0u);
+  EXPECT_EQ((av.first<2>()).extent, 2u);
+}
+
+TEST(ArrayViewTest, LastFixed) {
+  std::array<int, 3> a = {1, 2, 3};
+  ArrayView<int> av(a);
+
+  EXPECT_THAT(av.last<0>(), IsEmpty());
+  EXPECT_THAT(av.last<1>(), ElementsAre(3));
+  EXPECT_THAT(av.last<2>(), ElementsAre(2, 3));
+  EXPECT_THAT(av.last<3>(), ElementsAre(1, 2, 3));
+
+  EXPECT_EQ((av.last<0>()).extent, 0u);
+  EXPECT_EQ((av.last<2>()).extent, 2u);
+}
 
 TEST(ArrayViewTest, TestReinterpretCastFixedSize) {
   uint8_t bytes[] = {1, 2, 3};

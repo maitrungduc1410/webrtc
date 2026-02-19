@@ -159,6 +159,11 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   using iterator = typename std::span<T>::iterator;
   using const_iterator = typename std::span<const T>::iterator;
 
+  static constexpr size_t extent =
+      Size == array_view_internal::kArrayViewVarSize
+          ? std::dynamic_extent
+          : static_cast<size_t>(Size);
+
   // Construct an ArrayView from a pointer and a length.
   template <typename U>
   ArrayView(U* data, size_t size)
@@ -293,6 +298,34 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
   std::reverse_iterator<const_iterator> crbegin() const { return rbegin(); }
   ABSL_DEPRECATE_AND_INLINE()
   std::reverse_iterator<const_iterator> crend() const { return rend(); }
+
+  template <size_t count>
+  constexpr ArrayView<T, count> first() const {
+    RTC_HARDENING_ASSERT(count <= this->size());
+    return ArrayView<T, count>(this->data(), count);
+  }
+
+  template <size_t count>
+  constexpr ArrayView<T, count> last() const {
+    RTC_HARDENING_ASSERT(count <= this->size());
+    return ArrayView<T, count>(this->data() + this->size() - count, count);
+  }
+
+  template <size_t offset, size_t count = std::dynamic_extent>
+  constexpr auto subspan() const {
+    RTC_HARDENING_ASSERT(offset <= this->size());
+    if constexpr (count == std::dynamic_extent) {
+      constexpr ptrdiff_t final_extent =
+          Size != array_view_internal::kArrayViewVarSize
+              ? Size - offset
+              : array_view_internal::kArrayViewVarSize;
+      return ArrayView<T, final_extent>(this->data() + offset,
+                                        this->size() - offset);
+    } else {
+      RTC_HARDENING_ASSERT(count <= this->size() - offset);
+      return ArrayView<T, count>(this->data() + offset, count);
+    }
+  }
 
   constexpr ArrayView<T> subspan(size_t offset,
                                  size_t count = std::dynamic_extent) const {
