@@ -68,8 +68,8 @@ class EventLogAnalyzer {
   };
 
  public:
-  // The EventLogAnalyzer keeps a reference to the ParsedRtcEventLogNew for the
-  // duration of its lifetime. The ParsedRtcEventLogNew must not be destroyed or
+  // The EventLogAnalyzer keeps a reference to the ParsedRtcEventLog for the
+  // duration of its lifetime. The ParsedRtcEventLog must not be destroyed or
   // modified while the EventLogAnalyzer is being used.
   EventLogAnalyzer(const ParsedRtcEventLog& log, bool normalize_time);
   EventLogAnalyzer(const ParsedRtcEventLog& log, const AnalyzerConfig& config);
