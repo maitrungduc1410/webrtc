@@ -513,4 +513,24 @@ void CreateAudioLevelGraph(const ParsedRtcEventLog& parsed_log,
   plot->SetTitle(GetDirectionAsString(direction) + " audio level");
 }
 
+LazyNetEqSimulator::LazyNetEqSimulator(const ParsedRtcEventLog& parsed_log,
+                                       const AnalyzerConfig& config)
+    : parsed_log_(parsed_log), config_(config) {}
+
+void LazyNetEqSimulator::SetReplacementAudioFile(
+    absl::string_view replacement_file_name,
+    int file_sample_rate_hz) {
+  replacement_file_name_ = std::string(replacement_file_name);
+  file_sample_rate_hz_ = file_sample_rate_hz;
+}
+
+const NetEqStatsGetterMap& LazyNetEqSimulator::GetStats() const {
+  if (!neteq_stats_) {
+    neteq_stats_ =
+        SimulateNetEq(parsed_log_, config_, replacement_file_name_,
+                      file_sample_rate_hz_, &config_.env_.field_trials());
+  }
+  return *neteq_stats_;
+}
+
 }  // namespace webrtc
