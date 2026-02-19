@@ -16,6 +16,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "api/array_view.h"
 #include "rtc_base/checks.h"
 
@@ -211,7 +212,7 @@ class DeinterleavedView {
   void Clear() {
     for (size_t i = 0u; i < num_channels_; ++i) {
       MonoView<T> view = (*this)[i];
-      ClearSamples(view);
+      absl::c_fill(view, 0);
     }
   }
 
@@ -306,22 +307,6 @@ void CopySamples(D& destination, const S& source) {
   RTC_DCHECK_GE(destination.size(), source.size());
   memcpy(&destination[0], &source[0],
          source.size() * sizeof(typename S::value_type));
-}
-
-// Sets all the samples in a view to 0. This template function is a simple
-// wrapper around `memset()` but adds the benefit of automatically calculating
-// the byte size from the number of samples and sample type.
-template <typename T>
-void ClearSamples(T& view) {
-  memset(&view[0], 0, view.size() * sizeof(typename T::value_type));
-}
-
-// Same as `ClearSamples()` above but allows for clearing only the first
-// `sample_count` number of samples.
-template <typename T>
-void ClearSamples(T& view, size_t sample_count) {
-  RTC_DCHECK_LE(sample_count, view.size());
-  memset(&view[0], 0, sample_count * sizeof(typename T::value_type));
 }
 
 }  // namespace webrtc

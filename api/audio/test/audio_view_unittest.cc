@@ -165,36 +165,6 @@ TEST(AudioViewTest, CopySamples) {
   }
 }
 
-TEST(AudioViewTest, ClearSamples) {
-  std::array<int16_t, 100u> samples = {};
-  FillBuffer(ArrayView<int16_t>(samples));
-  ASSERT_NE(samples[0], 0);
-  ClearSamples(samples);
-  for (const auto s : samples) {
-    ASSERT_EQ(s, 0);
-  }
-
-  std::array<float, 100u> samples_f = {};
-  FillBuffer(ArrayView<float>(samples_f));
-  ASSERT_NE(samples_f[0], 0.0);
-  ClearSamples(samples_f);
-  for (const auto s : samples_f) {
-    ASSERT_EQ(s, 0.0);
-  }
-
-  // Clear only half of the buffer
-  FillBuffer(ArrayView<int16_t>(samples));
-  const auto half_way = samples.size() / 2;
-  ClearSamples(samples, half_way);
-  for (size_t i = 0u; i < samples.size(); ++i) {
-    if (i < half_way) {
-      ASSERT_EQ(samples[i], 0);
-    } else {
-      ASSERT_NE(samples[i], 0);
-    }
-  }
-}
-
 TEST(AudioViewTest, DeinterleavedViewPointerArray) {
   // Create vectors of varying sizes to guarantee that they don't end up
   // aligned in memory.
