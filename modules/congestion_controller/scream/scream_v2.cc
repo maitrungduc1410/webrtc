@@ -168,8 +168,6 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
       // per RTT
       backoff /= std::max(
           1.0, delay_based_congestion_control_.rtt() / params_.virtual_rtt);
-      //  Increase stability for very small ref_wnd
-      backoff *= std::max(0.5, 1.0 - ref_window_mss_ratio());
 
       if (!delay_based_congestion_control_.IsQueueDelayDetected()) {
         // Scale down backoff if close to the last known max reference window
@@ -208,11 +206,6 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
       ref_window_ = delay_based_congestion_control_.UpdateReferenceWindow(
           ref_window_, ref_window_mss_ratio());
     }
-
-    if (allow_ref_window_i_update_) {
-      ref_window_i_ = ref_window_;
-      allow_ref_window_i_update_ = false;
-    }
   }
 
   // Increase ref_window.
@@ -239,10 +232,6 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
     increase_scale_factor =
         increase_scale_factor *
         std::max(0.25, ref_window_scale_factor_close_to_ref_window_i());
-
-    // Limit increase when the reference window close to max segment size.
-    increase_scale_factor =
-        increase_scale_factor * std::max(0.5, 1.0 - ref_window_mss_ratio());
 
     // Limit increase if L4S not enabled and queue delay is increased.
     if (l4s_alpha_ < 0.0001) {
@@ -295,6 +284,10 @@ void ScreamV2::UpdateRefWindow(const TransportPacketsFeedback& msg) {
   }
   if (previous_ref_window > ref_window_) {
     last_ref_window_decrease_time_ = msg.feedback_time;
+    if (allow_ref_window_i_update_) {
+      ref_window_i_ = previous_ref_window;
+      allow_ref_window_i_update_ = false;
+    }
   }
 
   RTC_LOG_IF(LS_VERBOSE, previous_ref_window != ref_window_)

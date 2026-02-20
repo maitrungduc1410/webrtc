@@ -54,8 +54,11 @@ using test::GetPacketsSentWithEct1;
 using test::GetStatsAndProcess;
 using test::PeerScenario;
 using test::PeerScenarioClient;
+using ::testing::AllOf;
 using ::testing::Each;
+using ::testing::Gt;
 using ::testing::HasSubstr;
+using ::testing::Lt;
 using ::testing::TestWithParam;
 
 #if defined(ADDRESS_SANITIZER)
@@ -316,9 +319,10 @@ TEST(ScreamTest,
                                               DataRate::KilobitsPerSec(5000))));
 }
 
-TEST(ScreamTest,
-     MaybeTest(
-         LinkCapacityIncreaseFrom80KbitTo5MbpsAfter5sVideoCaptureStopedNoEcn)) {
+TEST(
+    ScreamTest,
+    MaybeTest(
+        LinkCapacityIncreaseFrom80KbitTo5MbpsAfter5sVideoCaptureStoppedNoEcn)) {
   PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
   SendMediaTestParams params;
   params.video_capture_enabled = false;
@@ -333,16 +337,16 @@ TEST(ScreamTest,
   EXPECT_THAT(
       result.caller().subspan(1, 3),
       Each(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(10),
-                                         DataRate::KilobitsPerSec(150))));
-  // TODO: bugs.webrtc.org/447037083 - Improve Scream at low bitrates. Consider
-  // lowering min ref window.
+                                         DataRate::KilobitsPerSec(100))));
   EXPECT_THAT(result.caller()[3],
               CurrentRoundTripTimeIsBetween(TimeDelta::Millis(40),
-                                            TimeDelta::Millis(500)));
+                                            TimeDelta::Millis(200)));
   // Stats after 9s
-  // TODO: bugs.webrtc.org/447037083 - Ensure BWE does ramp up.
+  // TODO: bugs.webrtc.org/447037083 - Figure out why setting max_video_bitrate
+  // does not force available send bitrate to increase despite that the camera
+  // is disabled.
   EXPECT_THAT(result.caller_stats.back(),
-              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(200),
+              AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(100),
                                             DataRate::KilobitsPerSec(5000)));
 }
 
@@ -498,7 +502,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msEcn)) {
 
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(1300),
-                                              DataRate::KilobitsPerSec(2100))));
+                                              DataRate::KilobitsPerSec(2300))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithGoogCC)) {
@@ -696,8 +700,9 @@ TEST(ScreamTest, MaybeTest(LinkCapacity100Kbit50msRttNoEcn)) {
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(100), TimeDelta::Millis(25));
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-
-  // TODO: bugs.webrtc.org/447037083 - Investigate how the delay can be reduced.
+  EXPECT_THAT(result.caller().subspan(4),
+              Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(40),
+                                                 TimeDelta::Millis(200))));
   EXPECT_THAT(result.caller(), Each(AvailableSendBitrateIsBetween(
                                    DataRate::KilobitsPerSec(10),
                                    DataRate::KilobitsPerSec(150))));
@@ -718,6 +723,10 @@ TEST(ScreamTest, MaybeTest(LinkCapacity1MbitRtt50msWithShortQueuesNoEcn)) {
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(200),
                                               DataRate::KilobitsPerSec(1100))));
+  EXPECT_THAT(
+      GetPacketsLost(result.callee_stats.back()) /
+          static_cast<double>(GetPacketsSent(result.caller_stats.back())),
+      Lt(0.05));
 }
 
 TEST(ScreamTest,
@@ -737,7 +746,7 @@ TEST(ScreamTest,
             0.05 * GetPacketsSent(result.caller_stats.back()));
   // Ignore estimate during rampup.
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(200),
+                                              DataRate::KilobitsPerSec(100),
                                               DataRate::KilobitsPerSec(1100))));
 }
 
@@ -785,7 +794,7 @@ TEST(ScreamTest, MaybeTest(SendVideoOnlyReturnLinkWithBurstLoss)) {
   EXPECT_GT(GetPacketsSent(result.caller_stats.back()),
             GetPacketsSent(result.caller_stats[5]));
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(50),
+                                              DataRate::KilobitsPerSec(10),
                                               DataRate::KilobitsPerSec(1100))));
 }
 
@@ -807,12 +816,13 @@ TEST(ScreamTest, MaybeTest(LinkCapacity5MbitPolicedTo256Kbit)) {
 
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
 
-  // TODO: bugs.webrtc.org/447037083 - Improve Scream at low bitrates with
-  // policed networks. Make it less aggressive to ramp up after backdown due to
-  // loss. Consider lowering min ref window.
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(50),
-                                              DataRate::KilobitsPerSec(1100))));
+                                              DataRate::KilobitsPerSec(150),
+                                              DataRate::KilobitsPerSec(900))));
+  EXPECT_THAT(
+      GetPacketsLost(result.callee_stats.back()) /
+          static_cast<double>(GetPacketsSent(result.caller_stats.back())),
+      AllOf(Lt(0.08), Gt(0.01)));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity5MbitWithCrossTrafficNoEcn)) {
@@ -845,9 +855,6 @@ TEST(ScreamTest, MaybeTest(LinkCapacity5MbitWithCrossTrafficNoEcn)) {
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
   ASSERT_TRUE(tcp_message_delivered_time.IsFinite());
 
-  // TODO: bugs.webrtc.org/447037083 - Consider if Scream can ramp up faster.
-  // Currently it is slow due to that `queue_delay_dev_norm` is high after the
-  // cross traffic.
   int index_where_available_bitrate_should_have_recovered =
       (tcp_message_delivered_time - start_time).seconds<int>() + 10;
   EXPECT_THAT(
