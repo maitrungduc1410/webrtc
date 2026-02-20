@@ -1994,7 +1994,7 @@ rtc_library("cpu_info") {
 
 if (rtc_include_tests) {
   if (rtc_enable_google_benchmarks) {
-    rtc_library("base64_benchmark_temp") {
+    rtc_library("base64_benchmark") {
       testonly = true
       sources = [ "base64_benchmark.cc" ]
       deps = [
