@@ -16,8 +16,10 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "api/array_view.h"
@@ -62,13 +64,17 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
       const Environment& env,
       const RtpRtcpInterface::Configuration& configuration) {
     RTC_DCHECK(!configuration.receiver_only);
-    return absl::WrapUnique(new ModuleRtpRtcpImpl2(env, configuration));
+    return absl::WrapUnique(
+        new ModuleRtpRtcpImpl2(env, configuration, nullptr));
   }
   static std::unique_ptr<ModuleRtpRtcpImpl2> CreateReceiveModule(
       const Environment& env,
-      const RtpRtcpInterface::Configuration& configuration) {
+      const RtpRtcpInterface::Configuration& configuration,
+      absl::AnyInvocable<uint32_t() const> recv_ssrc_callback) {
     RTC_DCHECK(configuration.receiver_only);
-    return absl::WrapUnique(new ModuleRtpRtcpImpl2(env, configuration));
+    RTC_DCHECK(recv_ssrc_callback);
+    return absl::WrapUnique(new ModuleRtpRtcpImpl2(
+        env, configuration, std::move(recv_ssrc_callback)));
   }
   ~ModuleRtpRtcpImpl2() override;
 
@@ -286,7 +292,8 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
 
   // Private constructor, to enforce sender/receiver separation.
   ModuleRtpRtcpImpl2(const Environment& env,
-                     const RtpRtcpInterface::Configuration& configuration);
+                     const RtpRtcpInterface::Configuration& configuration,
+                     absl::AnyInvocable<uint32_t() const> recv_ssrc_callback);
 
   void set_rtt_ms(int64_t rtt_ms);
   int64_t rtt_ms() const;
@@ -317,9 +324,19 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
   void ScheduleMaybeSendRtcpAtOrAfterTimestamp(Timestamp execution_time,
                                                TimeDelta duration);
 
+  // This function is called by the RtcpSender when the module is configured
+  // for not sending RTP to query for the local SSRC, which may change over
+  // time. As a side effect, it informs the RtcpReceiver of the currently
+  // used SSRC.
+  uint32_t RtcpSenderSourceSsrc();
+
   const Environment env_;
   TaskQueueBase* const worker_queue_;
   RTC_NO_UNIQUE_ADDRESS SequenceChecker rtcp_thread_checker_;
+
+  // The function for getting the right SSRC for sending RTCP reports
+  // Must outlive rtcp_sender_, so placed before it.
+  absl::AnyInvocable<uint32_t() const> recv_ssrc_callback_;
 
   std::unique_ptr<RtpSenderContext> rtp_sender_;
   RTCPSender rtcp_sender_;

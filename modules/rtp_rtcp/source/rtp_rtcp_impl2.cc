@@ -76,14 +76,22 @@ ModuleRtpRtcpImpl2::RtpSenderContext::RtpSenderContext(
           &packet_history,
           config.paced_sender ? config.paced_sender : &non_paced_sender) {}
 
-ModuleRtpRtcpImpl2::ModuleRtpRtcpImpl2(const Environment& env,
-                                       const Configuration& configuration)
+ModuleRtpRtcpImpl2::ModuleRtpRtcpImpl2(
+    const Environment& env,
+    const Configuration& configuration,
+    absl::AnyInvocable<uint32_t(void) const> recv_ssrc_callback)
     : env_(env),
       worker_queue_(TaskQueueBase::Current()),
+      recv_ssrc_callback_(std::move(recv_ssrc_callback)),
       rtcp_sender_(
           env_,
           {.audio = configuration.audio,
            .local_media_ssrc = configuration.local_media_ssrc,
+           .recv_ssrc_callback =
+               (recv_ssrc_callback_ != nullptr)
+                   ? absl::AnyInvocable<uint32_t() const>(
+                         [this] { return RtcpSenderSourceSsrc(); })
+                   : nullptr,
            .outgoing_transport = configuration.outgoing_transport,
            .non_sender_rtt_measurement =
                configuration.non_sender_rtt_measurement,
@@ -830,6 +838,13 @@ void ModuleRtpRtcpImpl2::ScheduleMaybeSendRtcpAtOrAfterTimestamp(
                  MaybeSendRtcpAtOrAfterTimestamp(execution_time);
                }),
       duration.RoundUpTo(TimeDelta::Millis(1)));
+}
+
+uint32_t ModuleRtpRtcpImpl2::RtcpSenderSourceSsrc() {
+  uint32_t ssrc = recv_ssrc_callback_();
+  // Inform the RtcpReceiver that this is now the SSRC to listen for
+  rtcp_receiver_.set_local_media_ssrc(ssrc);
+  return ssrc;
 }
 
 }  // namespace webrtc

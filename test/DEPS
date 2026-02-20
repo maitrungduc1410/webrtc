@@ -85,6 +85,9 @@ specific_include_rules = {
      "+p2p/test/turn_server.h",
      "+p2p/base/port_interface.h",
   ],
+  "video_test_constants\\.h": [
+     "+modules/rtp_rtcp/include/rtp_rtcp_defines.h",
+  ],
   "wait_until\\.cc": [
     "+absl/functional/overload.h",
   ],
