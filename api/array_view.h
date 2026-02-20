@@ -166,7 +166,8 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
 
   // Construct an ArrayView from a pointer and a length.
   template <typename U>
-  ArrayView(U* data, size_t size)
+  explicit(Size != array_view_internal::kArrayViewVarSize)  //
+      ArrayView(U* data, size_t size)
       : array_view_internal::ArrayViewBase<T, Size>::ArrayViewBase(data, size) {
     RTC_DCHECK_EQ(size == 0 ? nullptr : data, this->data());
     RTC_DCHECK_EQ(size, this->size());
