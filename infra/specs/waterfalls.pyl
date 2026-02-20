@@ -160,7 +160,6 @@
           'isolated_scripts': 'desktop_tests',
         },
       },
-      'Mac64 Builder': {},
       'Mac64 Debug': {
         'os_type': 'mac',
         'mixins': ['mac_15_x64', 'cores-12', 'resultdb-json-format'],
@@ -272,17 +271,6 @@
         'linux',
         'mixins': [
           'linux-jammy', 'perf-pool', 'timeout-3h', 'resultdb-gtest-json-format'
-        ],
-        'test_suites': {
-          'isolated_scripts': 'perf_tests_save_worst_frame',
-        },
-      },
-      'Perf Mac 11': {
-        'os_type':
-        'mac',
-        'mixins': [
-          'mac11', 'x86-64', 'perf-pool', 'timeout-3h',
-          'resultdb-gtest-json-format'
         ],
         'test_suites': {
           'isolated_scripts': 'perf_tests_save_worst_frame',

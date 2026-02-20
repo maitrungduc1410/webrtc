@@ -125,13 +125,6 @@
       }
     }
   },
-  'mac11': {
-    'swarming': {
-      'dimensions': {
-        'os': 'Mac-11'
-      }
-    }
-  },
   'perf-output': {
     'args': [
       '--isolated-script-test-perf-output=${ISOLATED_OUTDIR}/perftest-output.pb',

@@ -122,13 +122,6 @@
       }
     }
   },
-  'mac11': {
-    'swarming': {
-      'dimensions': {
-        'os': 'Mac-11'
-      }
-    }
-  },
   'mac_12_arm64': {
     'swarming': {
       'dimensions': {

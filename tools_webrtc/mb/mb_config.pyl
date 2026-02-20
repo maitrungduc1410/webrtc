@@ -84,7 +84,6 @@
 
       # Mac
       'Mac Asan': 'mac_asan_clang_release_bot_x64',
-      'Mac64 Builder': 'pure_release_bot_x64',
       'Mac64 Debug': 'debug_bot_x64',
       'Mac64 Release': 'release_bot_x64',
       'MacARM64 M1 Release': 'release_bot_arm64',
@@ -132,7 +131,6 @@
       'Perf Android64 (R Pixel5)': 'release_bot_x64',
       'Perf Fuchsia': 'release_bot_x64_fuchsia',
       'Perf Linux': 'release_bot_x64',
-      'Perf Mac 11': 'release_bot_x64',
       'Perf Mac M1 Arm64 12': 'release_bot_x64',
       'Perf Win 10': 'release_bot_x64',
     },
