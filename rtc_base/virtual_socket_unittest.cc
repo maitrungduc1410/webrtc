@@ -17,11 +17,9 @@
 #include <cstring>
 #include <ctime>
 #include <memory>
-#include <span>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
 #include "api/array_view.h"
 #include "api/environment/environment.h"
@@ -30,6 +28,7 @@
 #include "api/units/timestamp.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/async_udp_socket.h"
+#include "rtc_base/byte_order.h"
 #include "rtc_base/ip_address.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/net_helpers.h"
@@ -79,9 +78,8 @@ struct Sender {
       uint32_t size =
           std::clamp<uint32_t>(rate * delay / 1000, sizeof(uint32_t), 4096);
       count += size;
-      auto cur_time_bytes = std::as_bytes(std::span{&cur_time, 1});
-      absl::c_transform(cur_time_bytes, dummy.begin(),
-                        [](std::byte b) { return static_cast<char>(b); });
+
+      SetLE64(dummy, static_cast<uint64_t>(cur_time));
       socket->Send(dummy.data(), size, options);
 
       last_send = cur_time;
@@ -102,7 +100,7 @@ struct Sender {
   uint32_t rate;  // bytes per second
   uint32_t count;
   int64_t last_send;
-  std::array<char, 4096> dummy;
+  std::array<uint8_t, 4096> dummy;
 };
 
 struct Receiver {
@@ -144,9 +142,9 @@ struct Receiver {
     count += packet.payload().size();
     sec_count += packet.payload().size();
 
-    uint32_t send_time =
-        *reinterpret_cast<const uint32_t*>(packet.payload().data());
-    uint32_t recv_time = env.clock().TimeInMilliseconds();
+    uint32_t send_time = GetLE32(packet.payload());
+    uint32_t recv_time =
+        static_cast<uint32_t>(env.clock().TimeInMilliseconds());
     uint32_t delay = recv_time - send_time;
     sum += delay;
     sum_sq += delay * delay;
