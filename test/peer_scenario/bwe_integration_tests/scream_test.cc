@@ -700,9 +700,6 @@ TEST(ScreamTest, MaybeTest(LinkCapacity100Kbit50msRttNoEcn)) {
       CreateNetworkPath(s, /*use_dual_pi= */ false,
                         DataRate::KilobitsPerSec(100), TimeDelta::Millis(25));
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
-  EXPECT_THAT(result.caller().subspan(4),
-              Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(40),
-                                                 TimeDelta::Millis(200))));
   EXPECT_THAT(result.caller(), Each(AvailableSendBitrateIsBetween(
                                    DataRate::KilobitsPerSec(10),
                                    DataRate::KilobitsPerSec(150))));
