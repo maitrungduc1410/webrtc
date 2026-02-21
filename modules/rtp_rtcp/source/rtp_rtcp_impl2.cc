@@ -83,6 +83,11 @@ ModuleRtpRtcpImpl2::ModuleRtpRtcpImpl2(
     : env_(env),
       worker_queue_(TaskQueueBase::Current()),
       recv_ssrc_callback_(std::move(recv_ssrc_callback)),
+      rtp_sender_(configuration.receiver_only
+                      ? nullptr
+                      : std::make_unique<RtpSenderContext>(env_,
+                                                           *worker_queue_,
+                                                           configuration)),
       rtcp_sender_(
           env_,
           {.audio = configuration.audio,
@@ -116,8 +121,6 @@ ModuleRtpRtcpImpl2::ModuleRtpRtcpImpl2(
   RTC_DCHECK(worker_queue_);
   rtcp_thread_checker_.Detach();
   if (!configuration.receiver_only) {
-    rtp_sender_ =
-        std::make_unique<RtpSenderContext>(env_, *worker_queue_, configuration);
     rtp_sender_->sequencing_checker.Detach();
     // Make sure rtcp sender use same timestamp offset as rtp sender.
     rtcp_sender_.SetTimestampOffset(

@@ -57,6 +57,22 @@ namespace webrtc {
 struct PacedPacketInfo;
 struct RTPVideoHeader;
 
+// This class and its members handles sending and receiving of RTP and RTCP
+// on behalf of a single media stream (incoming or outgoing).
+//
+// Threading and locking model:
+// Instances of ModuleRtpRtcpImpl2 are created and destroyed on the worker
+// queue.
+// The RTP sender lives on the RTP packet producing thread,
+// identified by rtp_sender_->sequencing_checker; calls that are forwarded
+// to the rtp_sender_ need to be called on this thread.
+// The RTCPSender allows multithread access using its `mutex_rtcp_sender_`.
+// The RTCPReceiver does the same using `mutex_receiver_lock_`.
+// These three objects are therefore not marked with guarding in this class.
+// Incoming RTCP packets are processed on the thread bound to
+// `rtcp_thread_checker_`.
+// `mutex_rtt_` allows multi-thread access to the "rtt" member.
+
 class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
                                  public RTCPReceiver::ModuleRtpRtcp {
  public:
@@ -338,7 +354,7 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
   // Must outlive rtcp_sender_, so placed before it.
   absl::AnyInvocable<uint32_t() const> recv_ssrc_callback_;
 
-  std::unique_ptr<RtpSenderContext> rtp_sender_;
+  const std::unique_ptr<RtpSenderContext> rtp_sender_;
   RTCPSender rtcp_sender_;
   RTCPReceiver rtcp_receiver_;
 
