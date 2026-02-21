@@ -15,6 +15,7 @@
 #include <array>
 #include <cstddef>
 #include <iterator>
+#include <ranges>
 #include <span>
 #include <type_traits>
 
@@ -259,6 +260,7 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
                 !std::is_same_v<ArrayView, std::remove_reference_t<U>> &&
                 Size == array_view_internal::kArrayViewVarSize &&
                 HasDataAndSize<U, T>::value>* = nullptr>
+    requires(std::ranges::contiguous_range<U> && std::ranges::sized_range<U>)
   ArrayView(U& u)  // NOLINT
       : ArrayView(u.data(), u.size()) {}
 
@@ -267,6 +269,7 @@ class ArrayView final : public array_view_internal::ArrayViewBase<T, Size> {
                 !std::is_same_v<ArrayView, std::remove_reference_t<U>> &&
                 Size == array_view_internal::kArrayViewVarSize &&
                 HasDataAndSize<U, T>::value>* = nullptr>
+    requires(std::ranges::contiguous_range<U> && std::ranges::sized_range<U>)
   ArrayView(const U& u)  // NOLINT(runtime/explicit)
       : ArrayView(u.data(), u.size()) {}
 
