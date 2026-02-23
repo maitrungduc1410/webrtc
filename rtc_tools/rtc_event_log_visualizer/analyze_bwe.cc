@@ -893,7 +893,7 @@ void CreateSendSideBweSimulationGraph(const ParsedRtcEventLog& parsed_log,
                                PointStyle::kHighlight);
   TimeSeries robust_time_series("Robust throughput estimate", LineStyle::kLine,
                                 PointStyle::kHighlight);
-  TimeSeries acked_estimate_time_series("Ackednowledged bitrate estimate",
+  TimeSeries acked_estimate_time_series("Acknowledged bitrate estimate",
                                         LineStyle::kLine,
                                         PointStyle::kHighlight);
 
@@ -1191,7 +1191,7 @@ void CreatePacerDelayGraph(const ParsedRtcEventLog& parsed_log,
 
     if (packets.size() < 2) {
       RTC_LOG(LS_WARNING)
-          << "Can't estimate a the RTP clock frequency or the "
+          << "Can't estimate the RTP clock frequency or the "
              "pacer delay with less than 2 packets in the stream";
       continue;
     }

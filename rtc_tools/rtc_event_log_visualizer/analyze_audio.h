@@ -18,6 +18,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "api/field_trials_view.h"
 #include "api/function_view.h"
 #include "api/neteq/neteq.h"
 #include "logging/rtc_event_log/rtc_event_log_parser.h"
@@ -83,7 +84,8 @@ class LazyNetEqSimulator {
 NetEqStatsGetterMap SimulateNetEq(const ParsedRtcEventLog& parsed_log,
                                   const AnalyzerConfig& config,
                                   absl::string_view replacement_file_name,
-                                  int file_sample_rate_hz);
+                                  int file_sample_rate_hz,
+                                  const FieldTrialsView* field_trials);
 
 void CreateAudioJitterBufferGraph(const ParsedRtcEventLog& parsed_log,
                                   const AnalyzerConfig& config,
