@@ -348,23 +348,29 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
 
   const Environment env_;
   TaskQueueBase* const worker_queue_;
+  // Thread checker used for guarding the IncomingRtcpPacket call.
   RTC_NO_UNIQUE_ADDRESS SequenceChecker rtcp_thread_checker_;
+  // Thread checker used for guarding member variables in this class.
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker rtcp_module_checker_;
+  // TODO: issues.webrtc.org/48665180 - figure out why these are different.
 
   // The function for getting the right SSRC for sending RTCP reports
   // Must outlive rtcp_sender_, so placed before it.
-  absl::AnyInvocable<uint32_t() const> recv_ssrc_callback_;
+  absl::AnyInvocable<uint32_t() const> recv_ssrc_callback_
+      RTC_GUARDED_BY(rtcp_module_checker_);
 
+  // These three classes contain their own thread checking.
   const std::unique_ptr<RtpSenderContext> rtp_sender_;
   RTCPSender rtcp_sender_;
   RTCPReceiver rtcp_receiver_;
 
-  uint16_t packet_overhead_;
+  uint16_t packet_overhead_ RTC_GUARDED_BY(rtcp_module_checker_);
 
   // Send side
-  int64_t nack_last_time_sent_full_ms_;
-  uint16_t nack_last_seq_number_sent_;
+  int64_t nack_last_time_sent_full_ms_ RTC_GUARDED_BY(rtcp_module_checker_);
+  uint16_t nack_last_seq_number_sent_ RTC_GUARDED_BY(rtcp_module_checker_);
 
-  RtcpRttStats* const rtt_stats_;
+  RtcpRttStats* const rtt_stats_ RTC_PT_GUARDED_BY(worker_queue_);
   RepeatingTaskHandle rtt_update_task_ RTC_GUARDED_BY(worker_queue_);
 
   // The processed RTT from RtcpRttStats.

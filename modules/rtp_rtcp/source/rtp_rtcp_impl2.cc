@@ -479,6 +479,7 @@ size_t ModuleRtpRtcpImpl2::MaxRtpPacketSize() const {
 }
 
 void ModuleRtpRtcpImpl2::SetMaxRtpPacketSize(size_t rtp_packet_size) {
+  RTC_DCHECK_RUN_ON(&rtcp_module_checker_);
   RTC_DCHECK_LE(rtp_packet_size, IP_PACKET_SIZE)
       << "rtp packet size too large: " << rtp_packet_size;
   RTC_DCHECK_GT(rtp_packet_size, packet_overhead_)
@@ -595,6 +596,7 @@ void ModuleRtpRtcpImpl2::SetTmmbn(std::vector<rtcp::TmmbItem> bounding_set) {
 // Send a Negative acknowledgment packet.
 int32_t ModuleRtpRtcpImpl2::SendNACK(const uint16_t* nack_list,
                                      const uint16_t size) {
+  RTC_DCHECK_RUN_ON(&rtcp_module_checker_);
   uint16_t nack_length = size;
   uint16_t start_id = 0;
   int64_t now_ms = env_.clock().TimeInMilliseconds();
@@ -634,6 +636,7 @@ void ModuleRtpRtcpImpl2::SendNack(
 }
 
 bool ModuleRtpRtcpImpl2::TimeToSendFullNackList(int64_t now) const {
+  RTC_DCHECK_RUN_ON(&rtcp_module_checker_);
   // Use RTT from RtcpRttStats class if provided.
   int64_t rtt = rtt_ms();
   if (rtt == 0) {
@@ -844,6 +847,7 @@ void ModuleRtpRtcpImpl2::ScheduleMaybeSendRtcpAtOrAfterTimestamp(
 }
 
 uint32_t ModuleRtpRtcpImpl2::RtcpSenderSourceSsrc() {
+  RTC_DCHECK_RUN_ON(&rtcp_module_checker_);
   uint32_t ssrc = recv_ssrc_callback_();
   // Inform the RtcpReceiver that this is now the SSRC to listen for
   rtcp_receiver_.set_local_media_ssrc(ssrc);
