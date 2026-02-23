@@ -288,24 +288,17 @@ DtlsTransportInternalImpl::DtlsTransportInternalImpl(
           ssl_stream_factory) {}
 
 DtlsTransportInternalImpl::~DtlsTransportInternalImpl() {
-  if (downward_) {
-    downward_->SetDtlsStunPiggybackController(nullptr);
-  }
-  auto ice_transport = this->ice_transport();
-  if (ice_transport) {
-    ice_transport->ResetDtlsStunPiggybackCallbacks();
-    ice_transport->DeregisterReceivedPacketCallback(this);
-  }
+  CompleteDtlsInStun();
 }
 
 void DtlsTransportInternalImpl::CompleteDtlsInStun() {
+  dtls_in_stun_complete_ = true;
   if (downward_) {
     downward_->SetDtlsStunPiggybackController(nullptr);
   }
-  auto ice_transport = this->ice_transport();
-  if (ice_transport) {
-    ice_transport->ResetDtlsStunPiggybackCallbacks();
-  }
+  ice_transport()->ResetDtlsStunPiggybackCallbacks();
+
+  DeregisterReceivedPacketCallback(&dtls_stun_piggyback_controller_);
 }
 
 DtlsTransportState DtlsTransportInternalImpl::dtls_state() const {
@@ -525,9 +518,16 @@ bool DtlsTransportInternalImpl::SetupDtls() {
     auto downward = std::make_unique<StreamInterfaceChannel>(ice_transport());
     StreamInterfaceChannel* downward_ptr = downward.get();
 
-    if (dtls_in_stun_) {
+    if (dtls_in_stun_ && !dtls_in_stun_complete_) {
       downward_ptr->SetDtlsStunPiggybackController(
           &dtls_stun_piggyback_controller_);
+
+      RegisterReceivedPacketCallback(
+          &dtls_stun_piggyback_controller_,
+          [this](webrtc::PacketTransportInternal* transport,
+                 const ReceivedIpPacket& packet) {
+            dtls_stun_piggyback_controller_.DecryptedPacketReceived(packet);
+          });
     }
     if (ssl_stream_factory_) {
       dtls_ = ssl_stream_factory_(

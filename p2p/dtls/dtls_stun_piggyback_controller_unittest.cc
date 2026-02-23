@@ -22,6 +22,8 @@
 #include "p2p/dtls/dtls_utils.h"
 #include "rtc_base/byte_buffer.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/network/received_packet.h"
+#include "rtc_base/socket_address.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -56,6 +58,8 @@ const std::vector<uint8_t> dtls_flight4 = {
     0x00, 0x00, 0x00, 0x00, 0x00};
 
 const std::vector<uint8_t> empty = {};
+
+const std::vector<uint8_t> kPayload = {0x1, 0x2, 0x3};
 
 std::vector<uint32_t> FromAckAttribute(webrtc::ArrayView<uint8_t> attr) {
   webrtc::ByteBufferReader ack_reader(attr);
@@ -111,7 +115,8 @@ class DtlsStunPiggybackControllerTest : public ::testing::Test {
             [this]() { ClientCompleteCallback(); }),
         server_(
             [this](ArrayView<const uint8_t> data) { ServerPacketSink(data); },
-            [this]() { ServerCompleteCallback(); }) {}
+            [this]() { ServerCompleteCallback(); }),
+        packet_(kPayload, SocketAddress(), std::nullopt) {}
 
   // Send from client to server embedded in STUN.
   void SendClientToServerEmbedded(const std::vector<uint8_t>& packet,
@@ -197,6 +202,8 @@ class DtlsStunPiggybackControllerTest : public ::testing::Test {
   MOCK_METHOD(void, ClientCompleteCallback, ());
   MOCK_METHOD(void, ServerCompleteCallback, ());
 
+  ReceivedIpPacket packet_;
+
  private:
   void MaybeSetHandshakeComplete(std::vector<uint8_t> packet) {
     // Note: this assumes DTLS 1.2
@@ -230,6 +237,32 @@ TEST_F(DtlsStunPiggybackControllerTest, BasicHandshake) {
   SendClientToServerEmbedded(empty, STUN_BINDING_RESPONSE);
   EXPECT_EQ(server_.state(), State::COMPLETE);
   EXPECT_EQ(client_.state(), State::COMPLETE);
+}
+
+TEST_F(DtlsStunPiggybackControllerTest,
+       BasicHandshakeCompleteWithDecryptedPacket) {
+  // Flight 1+2
+  SendClientToServerEmbedded(dtls_flight1, STUN_BINDING_REQUEST);
+  EXPECT_EQ(server_.state(), State::CONFIRMED);
+  SendServerToClientEmbedded(dtls_flight2, STUN_BINDING_RESPONSE);
+  EXPECT_EQ(client_.state(), State::CONFIRMED);
+
+  // Flight 3+4
+  SendClientToServerEmbedded(dtls_flight3, STUN_BINDING_REQUEST);
+  SendServerToClientEmbedded(dtls_flight4, STUN_BINDING_RESPONSE);
+  EXPECT_EQ(server_.state(), State::PENDING);
+  EXPECT_EQ(client_.state(), State::PENDING);
+
+  // Post-handshake ACK
+  EXPECT_CALL(*this, ClientCompleteCallback);
+  client_.DecryptedPacketReceived(
+      packet_.CopyAndSet(ReceivedIpPacket::kDtlsDecrypted));
+  EXPECT_EQ(client_.state(), State::COMPLETE);
+
+  EXPECT_CALL(*this, ServerCompleteCallback);
+  server_.DecryptedPacketReceived(
+      packet_.CopyAndSet(ReceivedIpPacket::kSrtpEncrypted));
+  EXPECT_EQ(server_.state(), State::COMPLETE);
 }
 
 TEST_F(DtlsStunPiggybackControllerTest, FirstClientPacketLost) {
