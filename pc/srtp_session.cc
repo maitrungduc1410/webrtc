@@ -12,7 +12,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <iomanip>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -27,8 +26,8 @@
 #include "rtc_base/ip_address.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/ssl_stream_adapter.h"
-#include "rtc_base/string_encode.h"
 #include "rtc_base/synchronization/mutex.h"
+#include "rtc_base/text2pcap.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/time_utils.h"
 #include "system_wrappers/include/metrics.h"
@@ -542,20 +541,10 @@ void SrtpSession::HandleEventThunk(srtp_event_data_t* ev) {
 // The resulting file can be replayed using the WebRTC video_replay tool and
 // be inspected in Wireshark using the RTP, VP8 and H264 dissectors.
 void SrtpSession::DumpPacket(const CopyOnWriteBuffer& buffer, bool outbound) {
-  int64_t time_of_day = TimeUTCMillis() % (24 * 3600 * 1000);
-  int64_t hours = time_of_day / (3600 * 1000);
-  int64_t minutes = (time_of_day / (60 * 1000)) % 60;
-  int64_t seconds = (time_of_day / 1000) % 60;
-  int64_t millis = time_of_day % 1000;
-  RTC_LOG(LS_VERBOSE)
-      << "\n"
-      << (outbound ? "O" : "I") << " " << std::setfill('0') << std::setw(2)
-      << hours << ":" << std::setfill('0') << std::setw(2) << minutes << ":"
-      << std::setfill('0') << std::setw(2) << seconds << "."
-      << std::setfill('0') << std::setw(3) << millis << " " << "000000 "
-      << hex_encode_with_delimiter(
-             absl::string_view(buffer.data<char>(), buffer.size()), ' ')
-      << " # RTP_DUMP";
+  RTC_LOG(LS_VERBOSE) << "\n"
+                      << Text2Pcap::DumpPacket(outbound, buffer,
+                                               TimeUTCMillis())
+                      << " # RTP_DUMP";
 }
 
 }  // namespace webrtc
