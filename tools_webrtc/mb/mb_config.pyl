@@ -134,11 +134,6 @@
       'Perf Mac M1 Arm64 12': 'release_bot_x64',
       'Perf Win 10': 'release_bot_x64',
     },
-    'internal.client.webrtc': {
-      'iOS64 Debug': 'ios_internal_debug_bot_arm64',
-      'iOS64 Perf': 'ios_internal_pure_release_bot_arm64',
-      'iOS64 Release': 'ios_internal_release_bot_arm64',
-    },
     'tryserver.webrtc': {
       # Android
       'android_arm64_dbg': 'android_release_bot_arm64',
@@ -353,31 +348,6 @@
       'arm64',
       'xctest',
     ],
-    'ios_internal_debug_bot_arm64': [
-      'ios',
-      'ios_device',
-      'debug_bot',
-      'arm64',
-      'ios_code_signing_identity_description',
-      'xctest',
-    ],
-    'ios_internal_pure_release_bot_arm64': [
-      'ios',
-      'ios_device',
-      'pure_release_bot',
-      'arm64',
-      'ios_code_signing_identity_description',
-      'xctest',
-      'rtc_objc_test_prefix',
-    ],
-    'ios_internal_release_bot_arm64': [
-      'ios',
-      'ios_device',
-      'release_bot',
-      'arm64',
-      'ios_code_signing_identity_description',
-      'xctest',
-    ],
     'ios_release_bot_arm64': [
       'ios',
       'ios_simulator',
@@ -568,12 +538,6 @@
     },
     'ios': {
       'gn_args': 'target_os="ios"',
-    },
-    'ios_code_signing_identity_description': {
-      'gn_args': 'ios_code_signing_identity_description="Apple Development"',
-    },
-    'ios_device': {
-      'gn_args': 'target_environment="device"'
     },
     'ios_simulator': {
       'gn_args': 'target_environment="simulator"'
