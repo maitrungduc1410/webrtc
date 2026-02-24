@@ -686,12 +686,10 @@ void ChannelReceive::OnRtpPacket(const RtpPacketReceived& packet) {
   packet_copy.set_payload_type_frequency(it->second);
   if (nack_tracker_) {
     nack_tracker_->UpdateSampleRate(it->second);
-    TimeDelta round_trip_time =
-        rtp_rtcp_->LastRtt().value_or(TimeDelta::Zero());
     nack_tracker_->UpdateLastReceivedPacket(packet.SequenceNumber(),
                                             packet.Timestamp());
     std::vector<uint16_t> nack_list =
-        nack_tracker_->GetNackList(round_trip_time.ms());
+        nack_tracker_->GetNackList(rtp_rtcp_->LastRtt());
     if (!nack_list.empty()) {
       rtp_rtcp_->SendNACK(nack_list.data(), nack_list.size());
     }
