@@ -1825,6 +1825,48 @@ TEST_F(VideoStreamEncoderTest,
 }
 
 TEST_F(VideoStreamEncoderTest,
+       FrameInstrumentationGeneratorFrameReleasedOnFrameDropped) {
+  NiceMock<MockVideoEncoder> video_encoder;
+  test::VideoEncoderProxyFactory encoder_factory(&video_encoder);
+  video_send_config_.encoder_settings.encoder_factory = &encoder_factory;
+  video_send_config_.encoder_settings.enable_frame_instrumentation_generator =
+      true;
+
+  EncodedImageCallback* callback = nullptr;
+  ON_CALL(video_encoder, RegisterEncodeCompleteCallback)
+      .WillByDefault([&](EncodedImageCallback* cb) {
+        callback = cb;
+        return WEBRTC_VIDEO_CODEC_OK;
+      });
+
+  ON_CALL(video_encoder, Encode)
+      .WillByDefault(
+          [&](const VideoFrame& frame, const std::vector<VideoFrameType>*) {
+            EXPECT_TRUE(callback != nullptr);
+            if (callback) {
+              callback->OnFrameDropped(frame.rtp_timestamp(), /*spatial_id=*/0,
+                                       /*is_end_of_temporal_unit=*/true);
+            }
+            return WEBRTC_VIDEO_CODEC_OK;
+          });
+
+  ConfigureEncoder(video_encoder_config_.Copy());
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  Event frame_destroyed_event;
+  video_source_.IncomingCapturedFrame(CreateFrame(1, &frame_destroyed_event));
+
+  // Wait for the encoder queue to process the drop.
+  AdvanceTime(TimeDelta::Millis(1));
+
+  // Verify that the frame was released (destruction event triggered).
+  EXPECT_TRUE(frame_destroyed_event.Wait(kDefaultTimeout));
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
        FrameInstrumentationGeneratorHandlesQueuedFrames) {
   video_send_config_.encoder_settings.enable_frame_instrumentation_generator =
       true;
