@@ -40,6 +40,7 @@ on a monolithic Abseil build target that will generate a shared library.
 * The macros in `absl/base/attributes.h`, `absl/base/config.h` and
   `absl/base/macros.h`.
 * `absl/numeric/bits.h`
+* `absl/crc`
 * Single argument `absl::StrCat`
 
 * ABSL_FLAG is allowed in tests and tools, but disallowed in in non-test code.

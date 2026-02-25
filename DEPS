@@ -1352,6 +1352,7 @@ include_rules = [
   "+absl/cleanup/cleanup.h",
   "+absl/container",
   "-absl/container/fixed_array.h",
+  "+absl/crc",
   "+absl/functional/any_invocable.h",
   "+absl/functional/bind_front.h",
   "+absl/memory/memory.h",
