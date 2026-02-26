@@ -68,10 +68,10 @@ class DtlsStunPiggybackController {
   // that peer can decode them).
   void SetDtlsHandshakeComplete(bool is_dtls_client, bool is_dtls13);
 
-  // Called by DtlsTransport when a packet has been received and decoded.
-  // This means that dtls is writable for the peer and that we have enough
-  // information to decode their packets.
-  void DecryptedPacketReceived(const ReceivedIpPacket& packet);
+  // Called by DtlsTransport when a packet has been received and passed
+  // to layers above us. This means that dtls is writable for the peer,
+  // and maybe we are complete.
+  void ApplicationPacketReceived(const ReceivedIpPacket& packet);
 
   // Called by DtlsTransport when DTLS failed.
   void SetDtlsFailed();

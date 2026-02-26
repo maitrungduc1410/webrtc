@@ -51,7 +51,7 @@ void DtlsStunPiggybackController::SetDtlsHandshakeComplete(bool is_dtls_client,
   state_ = State::PENDING;
 }
 
-void DtlsStunPiggybackController::DecryptedPacketReceived(
+void DtlsStunPiggybackController::ApplicationPacketReceived(
     const ReceivedIpPacket& packet) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
 
@@ -62,8 +62,17 @@ void DtlsStunPiggybackController::DecryptedPacketReceived(
   RTC_DCHECK(packet.decryption_info() == ReceivedIpPacket::kDtlsDecrypted ||
              packet.decryption_info() == ReceivedIpPacket::kSrtpEncrypted);
 
-  // We should be writable before this to happen.
-  RTC_DCHECK(state_ == State::PENDING);
+  if (packet.decryption_info() == ReceivedIpPacket::kDtlsDecrypted) {
+    // We should be writable before this to happen.
+    RTC_DCHECK(state_ == State::PENDING);
+  } else if (packet.decryption_info() == ReceivedIpPacket::kSrtpEncrypted) {
+    // Peer sending encrypted srtp mean that it must be writable,
+    // but we don't necessarily know that it's decodable. However, if
+    // we are also dtls-writable (PENDING) this means that we are complete.
+    if (state_ != State::PENDING) {
+      return;
+    }
+  }
   state_ = State::COMPLETE;
   CallCompleteCallback();
 }

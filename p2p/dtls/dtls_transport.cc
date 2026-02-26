@@ -526,7 +526,7 @@ bool DtlsTransportInternalImpl::SetupDtls() {
           &dtls_stun_piggyback_controller_,
           [this](webrtc::PacketTransportInternal* transport,
                  const ReceivedIpPacket& packet) {
-            dtls_stun_piggyback_controller_.DecryptedPacketReceived(packet);
+            dtls_stun_piggyback_controller_.ApplicationPacketReceived(packet);
           });
     }
     if (ssl_stream_factory_) {
