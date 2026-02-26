@@ -71,9 +71,6 @@ class SrtpSession {
   bool UnprotectRtp(CopyOnWriteBuffer& buffer);
   bool UnprotectRtcp(CopyOnWriteBuffer& buffer);
 
-  // Helper method to get authentication params.
-  bool GetRtpAuthParams(uint8_t** key, int* key_len, int* tag_len);
-
   int GetSrtpOverhead() const;
 
   // If external auth is enabled, SRTP will write a dummy auth tag that then
@@ -83,7 +80,8 @@ class SrtpSession {
   // have been set.
   void EnableExternalAuth();
   bool IsExternalAuthEnabled() const;
-
+  // Helper method to get authentication params.
+  bool GetRtpAuthParams(uint8_t** key, int* key_len, int* tag_len);
   // A SRTP session supports external creation of the auth tag if a non-GCM
   // cipher is used. This method is only valid after the RTP params have
   // been set.

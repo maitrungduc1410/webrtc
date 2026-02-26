@@ -323,6 +323,23 @@ bool SrtpSession::UnprotectRtcp(CopyOnWriteBuffer& buffer) {
   return true;
 }
 
+int SrtpSession::GetSrtpOverhead() const {
+  return rtp_auth_tag_len_;
+}
+
+void SrtpSession::EnableExternalAuth() {
+  RTC_DCHECK(!session_);
+  external_auth_enabled_ = true;
+}
+
+bool SrtpSession::IsExternalAuthEnabled() const {
+  return external_auth_enabled_;
+}
+
+bool SrtpSession::IsExternalAuthActive() const {
+  return external_auth_active_;
+}
+
 bool SrtpSession::GetRtpAuthParams(uint8_t** key, int* key_len, int* tag_len) {
   RTC_DCHECK(thread_checker_.IsCurrent());
   RTC_DCHECK(IsExternalAuthActive());
@@ -351,22 +368,6 @@ bool SrtpSession::GetRtpAuthParams(uint8_t** key, int* key_len, int* tag_len) {
   return true;
 }
 
-int SrtpSession::GetSrtpOverhead() const {
-  return rtp_auth_tag_len_;
-}
-
-void SrtpSession::EnableExternalAuth() {
-  RTC_DCHECK(!session_);
-  external_auth_enabled_ = true;
-}
-
-bool SrtpSession::IsExternalAuthEnabled() const {
-  return external_auth_enabled_;
-}
-
-bool SrtpSession::IsExternalAuthActive() const {
-  return external_auth_active_;
-}
 
 bool SrtpSession::RemoveSsrcFromSession(uint32_t ssrc) {
   RTC_DCHECK(session_);
