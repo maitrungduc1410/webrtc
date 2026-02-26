@@ -58,6 +58,7 @@
 #include "system_wrappers/include/metrics.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/run_loop.h"
 #include "test/wait_until.h"
 
 // This file contains tests for RTP Media API-related behavior of
@@ -137,6 +138,7 @@ class PeerConnectionRtpBaseTest : public ::testing::Test {
 
  protected:
   const SdpSemantics sdp_semantics_;
+  test::RunLoop run_loop_;
   scoped_refptr<PeerConnectionFactoryInterface> pc_factory_;
 
  private:
@@ -152,8 +154,6 @@ class PeerConnectionRtpBaseTest : public ::testing::Test {
     return std::make_unique<PeerConnectionWrapper>(
         pc_factory_, result.MoveValue(), std::move(observer));
   }
-
-  AutoThread main_thread_;
 };
 
 class PeerConnectionRtpTest
@@ -953,7 +953,7 @@ TEST_P(PeerConnectionRtpTest,
       caller->CreateOfferAndSetAsLocal();
   callee->pc()->SetRemoteDescription(observer.get(), offer.release());
   callee = nullptr;
-  Thread::Current()->ProcessMessages(0);
+  run_loop_.Flush();
   EXPECT_FALSE(observer->called());
 }
 
