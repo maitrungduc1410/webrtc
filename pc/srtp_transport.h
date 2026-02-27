@@ -80,12 +80,6 @@ class SrtpTransport : public RtpTransport {
   // Returns srtp overhead for rtp packets.
   bool GetSrtpOverhead(int* srtp_overhead) const;
 
-  // Cache RTP Absoulute SendTime extension header ID. This is only used when
-  // external authentication is enabled.
-  void CacheRtpAbsSendTimeHeaderExtension(int rtp_abs_sendtime_extn_id) {
-    rtp_abs_sendtime_extn_id_ = rtp_abs_sendtime_extn_id;
-  }
-
   // In addition to unregistering the sink, the SRTP transport
   // disassociates all SSRCs of the sink from libSRTP.
   bool UnregisterRtpDemuxerSink(RtpPacketSinkInterface* sink) override;
@@ -129,8 +123,6 @@ class SrtpTransport : public RtpTransport {
   ZeroOnFreeBuffer<uint8_t> recv_key_;
 
   bool writable_ = false;
-
-  int rtp_abs_sendtime_extn_id_ = -1;
 
   int decryption_failure_count_ = 0;
 

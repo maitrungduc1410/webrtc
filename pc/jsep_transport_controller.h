@@ -316,16 +316,13 @@ class JsepTransportController final {
   JsepTransportDescription CreateJsepTransportDescription(
       const ContentInfo& content_info,
       const TransportInfo& transport_info,
-      const std::vector<int>& encrypted_extension_ids,
-      int rtp_abs_sendtime_extn_id);
+      const std::vector<int>& encrypted_extension_ids);
 
   std::map<const ContentGroup*, std::vector<int>>
   MergeEncryptedHeaderExtensionIdsForBundles(
       const SessionDescription* description);
   std::vector<int> GetEncryptedHeaderExtensionIds(
       const ContentInfo& content_info);
-
-  int GetRtpAbsSendTimeHeaderExtensionId(const ContentInfo& content_info);
 
   // This method takes the BUNDLE group into account. If the JsepTransport is
   // destroyed because of BUNDLE, it would return the transport which other
