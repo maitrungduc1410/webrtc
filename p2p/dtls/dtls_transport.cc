@@ -268,7 +268,7 @@ DtlsTransportInternalImpl::DtlsTransportInternalImpl(
                 this,
                 ReceivedIpPacket(piggybacked_dtls_packet, SocketAddress()));
           },
-          [this]() { CompleteDtlsInStun(); }) {
+          [this](bool success) { CompleteDtlsInStun(success); }) {
   RTC_DCHECK(ice_transport_);
   ConnectToIceTransport();
   dtls_in_stun_ = env_.field_trials().IsEnabled("WebRTC-IceHandshakeDtls");
@@ -288,10 +288,14 @@ DtlsTransportInternalImpl::DtlsTransportInternalImpl(
           ssl_stream_factory) {}
 
 DtlsTransportInternalImpl::~DtlsTransportInternalImpl() {
-  CompleteDtlsInStun();
+  if (dtls_in_stun_) {
+    CompleteDtlsInStun(/*success=*/false);
+  }
 }
 
-void DtlsTransportInternalImpl::CompleteDtlsInStun() {
+void DtlsTransportInternalImpl::CompleteDtlsInStun(bool success) {
+  RTC_LOG(LS_INFO) << "DTLS-STUN piggyback complete with success=" << success;
+
   dtls_in_stun_complete_ = true;
   if (downward_) {
     downward_->SetDtlsStunPiggybackController(nullptr);
@@ -1022,7 +1026,7 @@ void DtlsTransportInternalImpl::OnDtlsEvent(int sig, int err) {
         set_writable(false);
         set_dtls_state(DtlsTransportState::kClosed);
         NotifyOnClose();
-        CompleteDtlsInStun();
+        CompleteDtlsInStun(/*success=*/false);
       } else if (ret == SR_ERROR) {
         // Remote peer shut down the association with an error.
         RTC_LOG(LS_INFO)
@@ -1032,7 +1036,7 @@ void DtlsTransportInternalImpl::OnDtlsEvent(int sig, int err) {
         set_writable(false);
         set_dtls_state(DtlsTransportState::kFailed);
         NotifyOnClose();
-        CompleteDtlsInStun();
+        CompleteDtlsInStun(/*success=*/false);
       }
     } while (ret == SR_SUCCESS);
   }

@@ -461,8 +461,6 @@ TEST_P(DtlsIceIntegrationPerformanceTest, ConnectTime) {
     }
   }
 
-  RTC_LOG(LS_INFO) << "START: " << GetParam();
-
   int iter = 50;
   // Use a fixed seed to get consistent behavior.
   Random rand(/* seed= */ 77);

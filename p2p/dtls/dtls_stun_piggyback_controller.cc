@@ -32,11 +32,14 @@ namespace webrtc {
 
 DtlsStunPiggybackController::DtlsStunPiggybackController(
     absl::AnyInvocable<void(ArrayView<const uint8_t>)> dtls_data_callback,
-    absl::AnyInvocable<void()> complete_callback)
+    // NOLINTNEXTLINE(readability/casting) - not a cast; false positive!
+    absl::AnyInvocable<void(bool) &&> piggyback_complete_callback)
     : dtls_data_callback_(std::move(dtls_data_callback)),
-      complete_callback_(std::move(complete_callback)) {}
+      piggyback_complete_callback_(std::move(piggyback_complete_callback)) {}
 
 DtlsStunPiggybackController::~DtlsStunPiggybackController() {
+  RTC_DCHECK(dtls_data_callback_);
+  RTC_DCHECK(piggyback_complete_callback_);
 }
 
 void DtlsStunPiggybackController::SetDtlsHandshakeComplete(bool is_dtls_client,
@@ -74,7 +77,7 @@ void DtlsStunPiggybackController::ApplicationPacketReceived(
     }
   }
   state_ = State::COMPLETE;
-  CallCompleteCallback();
+  CallCompleteCallback(/*success=*/true);
 }
 
 void DtlsStunPiggybackController::SetDtlsFailed() {
@@ -86,7 +89,7 @@ void DtlsStunPiggybackController::SetDtlsFailed() {
         << "DTLS-STUN piggybacking DTLS failed during negotiation.";
   }
   state_ = State::OFF;
-  CallCompleteCallback();
+  CallCompleteCallback(/*success=*/false);
 }
 
 void DtlsStunPiggybackController::CapturePacket(ArrayView<const uint8_t> data) {
@@ -181,7 +184,7 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
     state_ = State::OFF;
     // TODO: bugs.webrtc.org/367395350 - We should call CallCompleteCallback
     // here but this causes a slew of failed tests. Investigate why!
-    // CallCompleteCallback();
+    // CallCompleteCallback(/*success=*/false);
     return;
   }
 
@@ -190,7 +193,7 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
   if (state_ == State::PENDING && !data.has_value() && !acks.has_value()) {
     RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking complete.";
     state_ = State::COMPLETE;
-    CallCompleteCallback();
+    CallCompleteCallback(/*success=*/true);
     return;
   }
 
@@ -227,7 +230,7 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
   if (!data.has_value() && acks.has_value() && state_ == State::PENDING) {
     RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking complete.";
     state_ = State::COMPLETE;
-    CallCompleteCallback();
+    CallCompleteCallback(/*success=*/true);
     return;
   }
 
@@ -272,15 +275,15 @@ void DtlsStunPiggybackController::ReportDtlsPacket(
   }
 }
 
-void DtlsStunPiggybackController::CallCompleteCallback() {
+void DtlsStunPiggybackController::CallCompleteCallback(bool success) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   pending_packets_.clear();
   handshake_messages_received_.clear();
-  if (!complete_callback_) {
+  if (!piggyback_complete_callback_) {
     RTC_DCHECK_NOTREACHED() << "CompleteCallback called twice!";
     return;
   }
-  std::move(complete_callback_)();
+  std::move(piggyback_complete_callback_)(success);
 }
 
 }  // namespace webrtc
