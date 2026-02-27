@@ -554,9 +554,6 @@ JsepTransportController::CreateDtlsSrtpTransport(
   RTC_DCHECK_RUN_ON(network_thread_);
   auto dtls_srtp_transport = std::make_unique<DtlsSrtpTransport>(
       rtcp_dtls_transport == nullptr, env_.field_trials());
-  if (config_.enable_external_auth) {
-    dtls_srtp_transport->EnableExternalAuth();
-  }
 
   dtls_srtp_transport->SetDtlsTransportsOwned(std::move(rtp_dtls_transport),
                                               std::move(rtcp_dtls_transport));
@@ -1072,10 +1069,6 @@ JsepTransportController::MergeEncryptedHeaderExtensionIdsForBundles(
 
 int JsepTransportController::GetRtpAbsSendTimeHeaderExtensionId(
     const ContentInfo& content_info) {
-  if (!config_.enable_external_auth) {
-    return -1;
-  }
-
   const MediaContentDescription* content_desc =
       content_info.media_description();
 

@@ -170,22 +170,6 @@ rtc_library("dtls_transport") {
   ]
 }
 
-rtc_library("external_hmac") {
-  visibility = [ ":*" ]
-  sources = [
-    "external_hmac.cc",
-    "external_hmac.h",
-  ]
-  deps = [
-    "../api:array_view",
-    "../rtc_base:logging",
-    "../rtc_base:zero_memory",
-  ]
-  if (rtc_build_libsrtp) {
-    deps += [ "//third_party/libsrtp" ]
-  }
-}
-
 rtc_library("ice_transport") {
   visibility = [ ":*" ]
   sources = [
@@ -696,7 +680,6 @@ rtc_library("srtp_session") {
     "srtp_session.h",
   ]
   deps = [
-    ":external_hmac",
     "../api:array_view",
     "../api:field_trials_view",
     "../api:sequence_checker",

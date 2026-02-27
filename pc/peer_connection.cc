@@ -744,9 +744,6 @@ JsepTransportController* PeerConnection::InitializeNetworkThread(
   config.transport_observer = this;
   config.rtcp_handler = InitializeRtcpCallback();
   config.un_demuxable_packet_handler = InitializeUnDemuxablePacketHandler();
-#if defined(ENABLE_EXTERNAL_AUTH)
-  config.enable_external_auth = true;
-#endif
 
   // DTLS has to be enabled to use SCTP.
   if (dtls_enabled_) {
