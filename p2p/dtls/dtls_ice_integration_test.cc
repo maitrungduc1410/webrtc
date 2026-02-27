@@ -31,6 +31,7 @@
 #include "rtc_base/logging.h"
 #include "rtc_base/random.h"
 #include "rtc_base/socket_address.h"
+#include "rtc_base/ssl_stream_adapter.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/wait_until.h"
@@ -86,24 +87,29 @@ class DtlsIceIntegrationTest : public dtls_ice_integration_fixture::Base,
   }
 
   void CheckRetransmissions() {
-    if (client_.config.dtls_in_stun != server_.config.dtls_in_stun) {
-      // If peers does not have same setting for DTLS in STUN
-      // the current implementation does sometimes introduce a DTLS
-      // retransmit.
-      //
-      // TODO: bugs.webrtc.org/367395350 - It would be nice to remove these!
-      EXPECT_LE(client_.dtls->GetRetransmissionCount(), 1);
-      EXPECT_LE(server_.dtls->GetRetransmissionCount(), 1);
+    if (!server_.config.ice_lite) {
+      EXPECT_EQ(client_.dtls->GetRetransmissionCount(), 0);
+      EXPECT_EQ(server_.dtls->GetRetransmissionCount(), 0);
+      return;
+    }
+    if (client_.config.ssl_role == SSL_CLIENT) {
+      EXPECT_EQ(client_.dtls->GetRetransmissionCount(), 0);
+      EXPECT_EQ(server_.dtls->GetRetransmissionCount(), 0);
       return;
     }
 
-    EXPECT_EQ(client_.dtls->GetRetransmissionCount(), 0);
-    if (!server_.config.ice_lite) {
-      // TODO: bugs.webrtc.org/367395350 - We allow retransmissions
-      // from the fake ice-lite agent, but it would be great if
-      // we can remove them.
-      EXPECT_EQ(server_.dtls->GetRetransmissionCount(), 0);
+    // TODO: bugs.webrtc.org/367395350 - Investigate retransmissions
+    // from in fake ice lite scenarios. Very few remaining!
+    // - server is (fake) ICE lite but SSL_CLIENT
+    if (client_.config.dtls_in_stun == server_.config.dtls_in_stun) {
+      const bool pqc = client_.config.pqc && server_.config.pqc;
+      EXPECT_EQ(client_.dtls->GetRetransmissionCount(), 0);
+      EXPECT_LE(server_.dtls->GetRetransmissionCount(), !pqc ? 0 : 1);
+      return;
     }
+
+    EXPECT_LE(client_.dtls->GetRetransmissionCount(), 1);
+    EXPECT_LE(server_.dtls->GetRetransmissionCount(), 1);
   }
 };
 
