@@ -587,6 +587,26 @@ TEST_F(DtlsStunPiggybackControllerTest, LimitAckSize) {
               }));
 }
 
+TEST_F(DtlsStunPiggybackControllerTest, EmptyDataDoesNotClearAck) {
+  std::vector<uint8_t> dtls_flight5 = FakeDtlsPacket(0x5487);
+
+  server_.ReportDataPiggybacked(
+      WrapInStun(STUN_ATTR_META_DTLS_IN_STUN, dtls_flight1)->array_view(),
+      std::nullopt);
+  EXPECT_EQ(server_.GetAckToPiggyback(STUN_BINDING_REQUEST)->size(), 1u);
+
+  // The fact that we don't get any data does not mean that
+  // we can clear the ack list.
+  // a) packets can be arbitrary reordered.
+  // b) the peer might be needing 2 packets (ie. pqc) to produce
+  // a return packet and only one of them has arrived.
+  server_.ReportDataPiggybacked(
+      std::nullopt,
+      std::vector<uint32_t>({ComputeDtlsPacketHash(dtls_flight1)}));
+
+  EXPECT_EQ(server_.GetAckToPiggyback(STUN_BINDING_REQUEST)->size(), 1u);
+}
+
 TEST_F(DtlsStunPiggybackControllerTest, MultiPacketRoundRobin) {
   // Let's pretend that a flight is 3 packets...
   server_.CapturePacket(dtls_flight1);

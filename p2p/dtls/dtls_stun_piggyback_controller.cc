@@ -176,29 +176,20 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
     return;
   }
 
-  // We sent dtls piggybacked but got nothing in return or
-  // we received a stun request with neither attribute set
-  // => peer does not support.
-  if (state_ == State::TENTATIVE && !data.has_value() && !acks.has_value()) {
-    RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking not supported by peer.";
-    state_ = State::OFF;
-    // TODO: bugs.webrtc.org/367395350 - We should call CallCompleteCallback
-    // here but this causes a slew of failed tests. Investigate why!
-    // CallCompleteCallback(/*success=*/false);
-    return;
-  }
-
-  // In PENDING state the peer may have stopped sending the ack
-  // when it moved to the COMPLETE state. Move to the same state.
-  if (state_ == State::PENDING && !data.has_value() && !acks.has_value()) {
-    RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking complete.";
-    state_ = State::COMPLETE;
-    CallCompleteCallback(/*success=*/true);
-    return;
-  }
-
-  // We sent dtls piggybacked and got something in return => peer does support.
   if (state_ == State::TENTATIVE) {
+    if (!data.has_value() && !acks.has_value()) {
+      // We sent dtls piggybacked but got nothing in return or
+      // we received a stun request with neither attribute set
+      // => peer does not support.
+      RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking not supported by peer.";
+      state_ = State::OFF;
+      // TODO: bugs.webrtc.org/367395350 - We should call CallCompleteCallback
+      // here but this causes a slew of failed tests. Investigate why!
+      // CallCompleteCallback(/*success=*/false);
+      return;
+    }
+    // We sent dtls piggybacked and got something in return => peer does
+    // support.
     state_ = State::CONFIRMED;
   }
 
@@ -217,38 +208,29 @@ void DtlsStunPiggybackController::ReportDataPiggybacked(
     }
   }
 
-  if (!data.has_value()) {
-    // If we receive msg w/o any data, that means that the peer
-    // is not retransmitting, so we don't need to ACK anything.
-    handshake_messages_received_.clear();
+  if (data.has_value() && !data->empty()) {
+    // Drop non-DTLS packets.
+    if (!IsDtlsPacket(*data)) {
+      RTC_LOG(LS_WARNING) << "Dropping non-DTLS data.";
+      return;
+    }
+    ++data_recv_count_;
+    ReportDtlsPacket(*data);
+
+    // Forwards the data to the DTLS layer. Note that this will call
+    // ProcessDtlsPacket() again which does not change the state.
+    dtls_data_callback_(*data);
   }
 
-  // The response to the final flight of the handshake will not contain
-  // the DTLS data but will contain an ack.
-  // Must not happen on the initial server to client packet which
-  // has no DTLS data yet.
-  if (!data.has_value() && acks.has_value() && state_ == State::PENDING) {
+  if (state_ == State::PENDING && pending_packets_.empty()) {
+    // We are writeable(PENDING) and have no pending packets, i.e.
+    // peer has acked everything we sent, this means that we
+    // are complete.
     RTC_LOG(LS_INFO) << "DTLS-STUN piggybacking complete.";
     state_ = State::COMPLETE;
     CallCompleteCallback(/*success=*/true);
     return;
   }
-
-  if (!data.has_value() || data->empty()) {
-    return;
-  }
-  // Drop non-DTLS packets.
-  if (!IsDtlsPacket(*data)) {
-    RTC_LOG(LS_WARNING) << "Dropping non-DTLS data.";
-    return;
-  }
-  data_recv_count_++;
-
-  ReportDtlsPacket(*data);
-
-  // Forwards the data to the DTLS layer. Note that this will call
-  // ProcessDtlsPacket() again which does not change the state.
-  dtls_data_callback_(*data);
 }
 
 void DtlsStunPiggybackController::ReportDtlsPacket(
