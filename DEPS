@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'faab630875af0fdba81c9ce794f28b87532adfea',
+  'chromium_revision': '460b91592c227585c769c7154f0cb643605d44c2',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@e72cef5d25de4912a4380b6903a1def08d81aacf',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@79bcc4f8dd01e209ee6b9a096275c900b3e8c0be',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@747c2fa02b992061c8b773a3927de086fb2378b9',
+    'https://chromium.googlesource.com/chromium/src/testing@0371d548fc3ec99bf6c6ff889c9afe488c3cde1b',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@64fce8e53a91fdae0d404332980555ca6514cf25',
+    'https://chromium.googlesource.com/chromium/src/third_party@d25c43455e0c50b53b799f5c4bf2a4867f3dbfb7',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -511,7 +511,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@034b6811670e7edf0694bf21f4e2ad44f497b545',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@73b070473d87f8943e67deddd8d3fc4722ed18aa',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -593,7 +593,7 @@ deps = {
   'src/third_party/libFuzzer/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt/lib/fuzzer.git@bea408a6e01f0f7e6c82a43121fe3af4506c932e',
   'src/third_party/fuzztest/src':
-    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@f67a6fe9ca3afc4d71997e75e8d87c571f0c30cb',
+    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@6a217df9edbe5705885457f10968ebe80aec9504',
   'src/third_party/libjpeg_turbo':
     'https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git@d1f5f2393e0d51f840207342ae86e55a86443288',
   'src/third_party/libsrtp':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@a381c6683255f0d7d80d94f4bd72f22199b27ef2',
+    'https://chromium.googlesource.com/chromium/src/tools@88a9f66c07407b3f53761aff51625cdb60b8f2e0',
 
   'src/third_party/espresso': {
       'packages': [
