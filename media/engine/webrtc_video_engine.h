@@ -233,6 +233,12 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     ssrc_list_changed_callback_ = std::move(callback);
   }
 
+  void SetParametersChangedCallback(
+      absl::AnyInvocable<void()> callback) override {
+    RTC_DCHECK_RUN_ON(&thread_checker_);
+    parameters_changed_callback_ = std::move(callback);
+  }
+
   // Implemented for VideoMediaChannelTest.
   bool sending() const {
     RTC_DCHECK_RUN_ON(&thread_checker_);
@@ -501,6 +507,10 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   // Callback invoked whenever the list of SSRCs changes.
   absl::AnyInvocable<void(const std::set<uint32_t>&)>
       ssrc_list_changed_callback_;
+
+  // Callback invoked whenever the sender parameters change.
+  absl::AnyInvocable<void()> parameters_changed_callback_
+      RTC_GUARDED_BY(&thread_checker_);
 };
 
 class WebRtcVideoReceiveChannel : public MediaChannelUtil,

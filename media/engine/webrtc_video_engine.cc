@@ -1257,7 +1257,9 @@ void WebRtcVideoSendChannel::RequestEncoderFallback() {
   params.negotiated_codecs = negotiated_codecs_;
   params.negotiated_codecs->erase(params.negotiated_codecs->begin());
   params.send_codec = params.negotiated_codecs->front();
-  ApplyChangedParams(params);
+  if (ApplyChangedParams(params) && parameters_changed_callback_) {
+    parameters_changed_callback_();
+  }
 }
 
 void WebRtcVideoSendChannel::RequestEncoderSwitch(const SdpVideoFormat& format,
@@ -1287,7 +1289,9 @@ void WebRtcVideoSendChannel::RequestEncoderSwitch(const SdpVideoFormat& format,
 
       ChangedSenderParameters params;
       params.send_codec = new_codec_setting;
-      ApplyChangedParams(params);
+      if (ApplyChangedParams(params) && parameters_changed_callback_) {
+        parameters_changed_callback_();
+      }
       return;
     }
   }
