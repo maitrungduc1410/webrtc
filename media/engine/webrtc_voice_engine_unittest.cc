@@ -1598,6 +1598,7 @@ TEST_P(WebRtcVoiceEngineTestFake, OnPacketReceivedIdentifiesExtensions) {
   parameters.extensions.push_back(
       RtpExtension(RtpExtension::kAudioLevelUri, /*id=*/1));
   ASSERT_TRUE(receive_channel_->SetReceiverParameters(parameters));
+  run_loop_.Flush();
   RtpHeaderExtensionMap extension_map(parameters.extensions);
   RtpPacketReceived reference_packet(&extension_map);
   constexpr uint8_t kAudioLevel = 123;
