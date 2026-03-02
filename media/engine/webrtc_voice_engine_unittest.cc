@@ -73,12 +73,12 @@
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/dscp.h"
 #include "rtc_base/numerics/safe_conversions.h"
-#include "rtc_base/thread.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/mock_audio_decoder_factory.h"
 #include "test/mock_audio_encoder_factory.h"
+#include "test/run_loop.h"
 
 namespace webrtc {
 namespace {
@@ -340,7 +340,7 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
     RtpPacketReceived packet;
     packet.Parse(data);
     receive_channel_->OnPacketReceived(packet);
-    Thread::Current()->ProcessMessages(0);
+    run_loop_.Flush();
   }
 
   const FakeAudioSendStream& GetSendStream(uint32_t ssrc) {
@@ -886,7 +886,7 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
   }
 
  protected:
-  AutoThread main_thread_;
+  test::RunLoop run_loop_;
   const bool use_null_apm_;
   FieldTrials field_trials_;
   const Environment env_;
@@ -1608,7 +1608,7 @@ TEST_P(WebRtcVoiceEngineTestFake, OnPacketReceivedIdentifiesExtensions) {
   ASSERT_TRUE(received_packet.Parse(reference_packet.Buffer()));
 
   receive_channel_->OnPacketReceived(received_packet);
-  Thread::Current()->ProcessMessages(0);
+  run_loop_.Flush();
 
   AudioLevel audio_level;
   EXPECT_TRUE(
@@ -3602,7 +3602,7 @@ TEST_P(WebRtcVoiceEngineTestFake, DeliverAudioPacket_Call) {
   RtpPacketReceived parsed_packet;
   RTC_CHECK(parsed_packet.Parse(kPcmuPacket));
   receive_channel_->OnPacketReceived(parsed_packet);
-  Thread::Current()->ProcessMessages(0);
+  run_loop_.Flush();
 
   EXPECT_EQ(1, s->received_packets());
 }
@@ -3736,7 +3736,7 @@ TEST_P(WebRtcVoiceEngineTestFake, GetSourcesWithNonExistingSsrc) {
 
 // Tests that the library initializes and shuts down properly.
 TEST(WebRtcVoiceEngineTest, StartupShutdown) {
-  AutoThread main_thread;
+  test::RunLoop run_loop;
   for (bool use_null_apm : {false, true}) {
     // If the VoiceEngine wants to gather available codecs early, that's fine
     // but we never want it to create a decoder at this stage.
@@ -3763,7 +3763,7 @@ TEST(WebRtcVoiceEngineTest, StartupShutdown) {
 
 // Tests that reference counting on the external ADM is correct.
 TEST(WebRtcVoiceEngineTest, StartupShutdownWithExternalADM) {
-  AutoThread main_thread;
+  test::RunLoop run_loop;
   for (bool use_null_apm : {false, true}) {
     Environment env = CreateEnvironment();
     auto adm =
@@ -3840,7 +3840,7 @@ TEST(WebRtcVoiceEngineTest, HasCorrectPayloadTypeMapping) {
 
 // Tests that VoE supports at least 32 channels
 TEST(WebRtcVoiceEngineTest, Has32Channels) {
-  AutoThread main_thread;
+  test::RunLoop run_loop;
   for (bool use_null_apm : {false, true}) {
     Environment env = CreateEnvironment();
     scoped_refptr<test::MockAudioDeviceModule> adm =
@@ -3869,7 +3869,7 @@ TEST(WebRtcVoiceEngineTest, Has32Channels) {
 
 // Test that we set our preferred codecs properly.
 TEST(WebRtcVoiceEngineTest, SetRecvCodecs) {
-  AutoThread main_thread;
+  test::RunLoop run_loop;
   for (bool use_null_apm : {false, true}) {
     Environment env = CreateEnvironment();
     // TODO(ossu): I'm not sure of the intent of this test. It's either:
@@ -3898,7 +3898,7 @@ TEST(WebRtcVoiceEngineTest, SetRecvCodecs) {
 }
 
 TEST(WebRtcVoiceEngineTest, SetRtpSendParametersMaxBitrate) {
-  AutoThread main_thread;
+  test::RunLoop run_loop;
   Environment env = CreateEnvironment();
   scoped_refptr<test::MockAudioDeviceModule> adm =
       test::MockAudioDeviceModule::CreateNice();
