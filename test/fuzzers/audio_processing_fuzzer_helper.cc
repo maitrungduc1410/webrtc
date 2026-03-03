@@ -31,7 +31,7 @@ bool ValidForApm(float x) {
   return std::isfinite(x) && -1.0f <= x && x <= 1.0f;
 }
 
-void GenerateFloatFrame(test::FuzzDataHelper* fuzz_data,
+void GenerateFloatFrame(FuzzDataHelper* fuzz_data,
                         int input_rate,
                         int num_channels,
                         float* const* float_frames) {
@@ -56,7 +56,7 @@ void GenerateFloatFrame(test::FuzzDataHelper* fuzz_data,
   }
 }
 
-void GenerateFixedFrame(test::FuzzDataHelper* fuzz_data,
+void GenerateFixedFrame(FuzzDataHelper* fuzz_data,
                         int input_rate,
                         int num_channels,
                         AudioFrame* fixed_frame) {
@@ -75,7 +75,7 @@ void GenerateFixedFrame(test::FuzzDataHelper* fuzz_data,
 }
 }  // namespace
 
-void FuzzAudioProcessing(test::FuzzDataHelper* fuzz_data,
+void FuzzAudioProcessing(FuzzDataHelper* fuzz_data,
                          scoped_refptr<AudioProcessing> apm) {
   AudioFrame fixed_frame;
   // Normal usage is up to 8 channels. Allowing to fuzz one beyond this allows

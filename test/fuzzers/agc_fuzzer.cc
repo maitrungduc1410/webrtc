@@ -25,7 +25,7 @@ namespace webrtc {
 namespace {
 
 void FillAudioBuffer(size_t sample_rate_hz,
-                     test::FuzzDataHelper* fuzz_data,
+                     FuzzDataHelper* fuzz_data,
                      AudioBuffer* buffer) {
   float* const* channels = buffer->channels_f();
   for (size_t i = 0; i < buffer->num_channels(); ++i) {
@@ -42,8 +42,7 @@ void FillAudioBuffer(size_t sample_rate_hz,
 
 // This function calls the GainControl functions that are overriden as private
 // in GainControlInterface.
-void FuzzGainControllerConfig(test::FuzzDataHelper* fuzz_data,
-                              GainControl* gc) {
+void FuzzGainControllerConfig(FuzzDataHelper* fuzz_data, GainControl* gc) {
   GainControl::Mode modes[] = {GainControl::Mode::kAdaptiveAnalog,
                                GainControl::Mode::kAdaptiveDigital,
                                GainControl::Mode::kFixedDigital};
@@ -82,7 +81,7 @@ void FuzzGainControllerConfig(test::FuzzDataHelper* fuzz_data,
   static_cast<void>(gc->is_limiter_enabled());
 }
 
-void FuzzGainController(test::FuzzDataHelper* fuzz_data, GainControlImpl* gci) {
+void FuzzGainController(FuzzDataHelper* fuzz_data, GainControlImpl* gci) {
   using Rate = ::webrtc::AudioProcessing::NativeRate;
   const Rate rate_kinds[] = {Rate::kSampleRate16kHz, Rate::kSampleRate32kHz,
                              Rate::kSampleRate48kHz};
@@ -117,11 +116,10 @@ void FuzzGainController(test::FuzzDataHelper* fuzz_data, GainControlImpl* gci) {
 
 }  // namespace
 
-void FuzzOneInput(const uint8_t* data, size_t size) {
-  if (size > 200000) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
+  if (fuzz_data.size() > 200'000) {
     return;
   }
-  test::FuzzDataHelper fuzz_data(webrtc::ArrayView<const uint8_t>(data, size));
   auto gci = std::make_unique<GainControlImpl>();
   FuzzGainController(&fuzz_data, gci.get());
 }

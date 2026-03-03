@@ -31,6 +31,7 @@
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/checks.h"
+#include "test/fuzzers/fuzz_data_helper.h"
 
 namespace webrtc {
 namespace test {
@@ -171,9 +172,8 @@ class FuzzRtpInput : public NetEqInput {
 };
 }  // namespace
 
-void FuzzOneInputTest(const uint8_t* data, size_t size) {
-  std::unique_ptr<FuzzRtpInput> input(
-      new FuzzRtpInput(webrtc::ArrayView<const uint8_t>(data, size)));
+void FuzzOneInputTest(FuzzDataHelper fuzz_data) {
+  auto input = std::make_unique<FuzzRtpInput>(fuzz_data.ReadRemaining());
   std::unique_ptr<AudioChecksum> output(new AudioChecksum);
   NetEqTest::Callbacks callbacks;
   NetEq::Config config;
@@ -193,11 +193,11 @@ void FuzzOneInputTest(const uint8_t* data, size_t size) {
 
 }  // namespace test
 
-void FuzzOneInput(const uint8_t* data, size_t size) {
-  if (size > 70000) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
+  if (fuzz_data.size() > 70'000) {
     return;
   }
-  test::FuzzOneInputTest(data, size);
+  test::FuzzOneInputTest(fuzz_data);
 }
 
 }  // namespace webrtc

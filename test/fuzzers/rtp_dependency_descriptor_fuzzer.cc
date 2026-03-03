@@ -22,13 +22,12 @@
 
 namespace webrtc {
 
-void FuzzOneInput(const uint8_t* data, size_t size) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
   FrameDependencyStructure structure1;
   // nullptr during 1st while loop, after that should point to structure1.
   const FrameDependencyStructure* structure1_ptr = nullptr;
   std::unique_ptr<const FrameDependencyStructure> structure2;
 
-  test::FuzzDataHelper fuzz_data(webrtc::MakeArrayView(data, size));
   while (fuzz_data.CanReadBytes(1)) {
     // Treat next byte as size of the next extension. That aligns how
     // two-byte rtp header extension sizes are written.

@@ -16,7 +16,6 @@
 #include <string>
 #include <utility>
 
-#include "api/array_view.h"
 #include "api/audio/audio_processing.h"
 #include "api/audio/builtin_audio_processing_builder.h"
 #include "api/environment/environment_factory.h"
@@ -32,7 +31,7 @@ constexpr int kMaxNumChannels = 2;
 constexpr int kMaxSampleRateHz = 400000;
 constexpr int kMaxSamplesPerChannel = kMaxSampleRateHz / 100;
 
-void GenerateFloatFrame(test::FuzzDataHelper& fuzz_data,
+void GenerateFloatFrame(FuzzDataHelper& fuzz_data,
                         int input_rate,
                         int num_channels,
                         float* const* float_frames) {
@@ -47,7 +46,7 @@ void GenerateFloatFrame(test::FuzzDataHelper& fuzz_data,
   }
 }
 
-void GenerateFixedFrame(test::FuzzDataHelper& fuzz_data,
+void GenerateFixedFrame(FuzzDataHelper& fuzz_data,
                         int input_rate,
                         int num_channels,
                         int16_t* fixed_frames) {
@@ -81,11 +80,10 @@ class NoopCustomProcessing : public CustomProcessing {
 // of APM. For example, the sample rate 22050 Hz is processed by APM in frames
 // of floor(22050/100) = 220 samples. This is not exactly 10 ms of audio
 // content, and may break assumptions commonly made on the APM frame size.
-void FuzzOneInput(const uint8_t* data, size_t size) {
-  if (size > 100) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
+  if (fuzz_data.size() > 100) {
     return;
   }
-  test::FuzzDataHelper fuzz_data(webrtc::ArrayView<const uint8_t>(data, size));
 
   std::unique_ptr<CustomProcessing> capture_processor =
       fuzz_data.ReadOrDefaultValue(true)

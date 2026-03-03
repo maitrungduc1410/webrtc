@@ -55,11 +55,11 @@ void FuzzOneInputTest(webrtc::ArrayView<const uint8_t> data) {
 }  // namespace
 }  // namespace test
 
-void FuzzOneInput(const uint8_t* data, size_t size) {
-  if (size > 5000) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
+  if (fuzz_data.size() > 5'000) {
     return;
   }
-  test::FuzzOneInputTest(webrtc::ArrayView<const uint8_t>(data, size));
+  test::FuzzOneInputTest(fuzz_data.ReadRemaining());
 }
 
 }  // namespace webrtc

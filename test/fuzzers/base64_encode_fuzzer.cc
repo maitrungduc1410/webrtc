@@ -16,14 +16,17 @@
 #include "api/array_view.h"
 #include "rtc_base/base64.h"
 #include "rtc_base/checks.h"
+#include "test/fuzzers/fuzz_data_helper.h"
 
 namespace webrtc {
 
-void FuzzOneInput(const uint8_t* data, size_t size) {
+void FuzzOneInput(FuzzDataHelper fuzz_data) {
+  ArrayView<const uint8_t> raw = fuzz_data.ReadRemaining();
   std::optional<std::string> decoded_encoded_data =
-      Base64Decode(Base64Encode(webrtc::MakeArrayView(data, size)));
+      Base64Decode(Base64Encode(raw));
   RTC_CHECK(decoded_encoded_data.has_value());
-  RTC_CHECK_EQ(std::memcmp(data, decoded_encoded_data->data(), size), 0);
+  RTC_CHECK_EQ(
+      std::memcmp(raw.data(), decoded_encoded_data->data(), raw.size()), 0);
 }
 
 }  // namespace webrtc

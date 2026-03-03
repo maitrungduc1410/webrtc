@@ -15,20 +15,20 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <type_traits>
 
-#include "api/array_view.h"
+#include "absl/strings/string_view.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
-namespace test {
 
 // Helper class to take care of the fuzzer input, read from it, and keep track
 // of when the end of the data has been reached.
 class FuzzDataHelper {
  public:
-  explicit FuzzDataHelper(ArrayView<const uint8_t> data);
+  explicit FuzzDataHelper(std::span<const uint8_t> data) : data_(data) {}
 
   // Returns true if n bytes can be read.
   bool CanReadBytes(size_t n) const { return data_ix_ + n <= data_.size(); }
@@ -84,13 +84,27 @@ class FuzzDataHelper {
     return std::move(select_from[index]);
   }
 
-  ArrayView<const uint8_t> ReadByteArray(size_t bytes) {
+  std::span<const uint8_t> ReadByteArray(size_t bytes) {
     if (!CanReadBytes(bytes)) {
       return {};
     }
     const size_t index_to_return = data_ix_;
     data_ix_ += bytes;
     return data_.subspan(index_to_return, bytes);
+  }
+
+  // Returns all unused fuzzing bytes. May return an empty view.
+  std::span<const uint8_t> ReadRemaining() {
+    std::span<const uint8_t> result = data_.subspan(data_ix_);
+    data_ix_ = data_.size();
+    return result;
+  }
+
+  // Returns all unused fuzzing bytes as a string.
+  absl::string_view ReadString() {
+    std::span<const uint8_t> raw = ReadRemaining();
+    return absl::string_view(reinterpret_cast<const char*>(raw.data()),
+                             raw.size());
   }
 
   // If sizeof(T) > BytesLeft then the remaining bytes will be used and the rest
@@ -108,12 +122,13 @@ class FuzzDataHelper {
 
   size_t BytesLeft() const { return data_.size() - data_ix_; }
 
+  size_t size() const { return data_.size(); }
+
  private:
-  ArrayView<const uint8_t> data_;
+  std::span<const uint8_t> data_;
   size_t data_ix_ = 0;
 };
 
-}  // namespace test
 }  // namespace webrtc
 
 #endif  // TEST_FUZZERS_FUZZ_DATA_HELPER_H_

@@ -14,6 +14,8 @@ rtc_library("webrtc_fuzzer_main") {
   sources = [ "webrtc_fuzzer_main.cc" ]
   testonly = true
   deps = [
+    ":fuzz_data_helper",
+    "../../api:array_view",
     "../../rtc_base:logging",
     "//testing/libfuzzer:fuzzing_engine_main",
   ]
@@ -30,14 +32,11 @@ rtc_library("webrtc_fuzzer_main") {
 
 rtc_library("fuzz_data_helper") {
   testonly = true
-  sources = [
-    "fuzz_data_helper.cc",
-    "fuzz_data_helper.h",
-  ]
+  sources = [ "fuzz_data_helper.h" ]
   deps = [
-    "../../api:array_view",
     "../../modules/rtp_rtcp:rtp_rtcp_format",
     "../../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 
   # Only fuzzer targets can depend on this.
@@ -113,6 +112,7 @@ webrtc_fuzzer_test("vp9_depacketizer_fuzzer") {
 webrtc_fuzzer_test("vp8_qp_parser_fuzzer") {
   sources = [ "vp8_qp_parser_fuzzer.cc" ]
   deps = [
+    "../../api:array_view",
     "../../modules/video_coding:video_coding_utility",
     "../../modules/video_coding/",
   ]
@@ -170,6 +170,7 @@ webrtc_fuzzer_test("forward_error_correction_fuzzer") {
 webrtc_fuzzer_test("flexfec_header_reader_fuzzer") {
   sources = [ "flexfec_header_reader_fuzzer.cc" ]
   deps = [
+    "../../api:array_view",
     "../../api:scoped_refptr",
     "../../modules/rtp_rtcp",
     "../../modules/rtp_rtcp:rtp_rtcp_format",
@@ -192,6 +193,7 @@ webrtc_fuzzer_test("flexfec_sender_fuzzer") {
 webrtc_fuzzer_test("ulpfec_header_reader_fuzzer") {
   sources = [ "ulpfec_header_reader_fuzzer.cc" ]
   deps = [
+    "../../api:array_view",
     "../../api:scoped_refptr",
     "../../modules/rtp_rtcp",
     "../../modules/rtp_rtcp:fec_test_helper",
@@ -343,6 +345,8 @@ rtc_library("audio_decoder_fuzzer") {
     "audio_decoder_fuzzer.h",
   ]
   deps = [
+    ":fuzz_data_helper",
+    "../../api:array_view",
     "../../api/audio_codecs:audio_codecs_api",
     "../../modules/rtp_rtcp:rtp_rtcp_format",
     "../../rtc_base:checks",
@@ -422,6 +426,7 @@ webrtc_fuzzer_test("audio_encoder_opus_fuzzer") {
   sources = [ "audio_encoder_opus_fuzzer.cc" ]
   deps = [
     ":audio_encoder_fuzzer",
+    ":fuzz_data_helper",
     "../../api/audio_codecs/opus:audio_encoder_opus",
     "../../api/environment",
     "../../api/environment:environment_factory",
@@ -432,6 +437,7 @@ webrtc_fuzzer_test("audio_encoder_opus_fuzzer") {
 webrtc_fuzzer_test("turn_unwrap_fuzzer") {
   sources = [ "turn_unwrap_fuzzer.cc" ]
   deps = [
+    "../../api:array_view",
     "../../media",
     "../../media:turn_utils",
   ]
@@ -531,7 +537,10 @@ webrtc_fuzzer_test("stun_parser_fuzzer") {
 
 webrtc_fuzzer_test("stun_validator_fuzzer") {
   sources = [ "stun_validator_fuzzer.cc" ]
-  deps = [ "../../api/transport:stun_types" ]
+  deps = [
+    "../../api/transport:stun_types",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
   seed_corpus = "corpora/stun-corpus"
   dict = "corpora/stun.tokens"
 }
@@ -615,6 +624,7 @@ webrtc_fuzzer_test("aec3_config_json_fuzzer") {
     ":fuzz_data_helper",
     "../../api/audio:aec3_config",
     "../../modules/audio_processing:aec3_config_json",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
   dict = "//testing/libfuzzer/fuzzers/dicts/json.dict"
   seed_corpus = "corpora/aec3-config-json-corpus"
@@ -725,7 +735,10 @@ webrtc_fuzzer_test("field_trial_fuzzer") {
 
 webrtc_fuzzer_test("string_to_number_fuzzer") {
   sources = [ "string_to_number_fuzzer.cc" ]
-  deps = [ "../../rtc_base:stringutils" ]
+  deps = [
+    "../../rtc_base:stringutils",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
   seed_corpus = "corpora/string_to_number-corpus"
 }
 
@@ -798,7 +811,6 @@ if (rtc_build_libvpx) {
       "//third_party/abseil-cpp/absl/algorithm:container",
       "//third_party/abseil-cpp/absl/container:inlined_vector",
       "//third_party/abseil-cpp/absl/strings:string_view",
-      rtc_libvpx_dir,
     ]
     seed_corpus = "corpora/vp9-encoder-references-corpus"
     defines = [ "RTC_ENABLE_VP9" ]
@@ -808,6 +820,7 @@ if (rtc_build_libvpx) {
 webrtc_fuzzer_test("vp9_replay_fuzzer") {
   sources = [ "vp9_replay_fuzzer.cc" ]
   deps = [
+    "../../api:array_view",
     "../../api/video_codecs:video_codecs_api",
     "../../call:video_receive_stream_api",
     "utils:rtp_replayer",
