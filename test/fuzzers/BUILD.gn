@@ -33,16 +33,21 @@ rtc_library("webrtc_fuzzer_main") {
 rtc_library("fuzz_data_helper") {
   testonly = true
   sources = [ "fuzz_data_helper.h" ]
-  deps = [
-    "../../modules/rtp_rtcp:rtp_rtcp_format",
-    "../../rtc_base:checks",
-    "//third_party/abseil-cpp/absl/strings:string_view",
-  ]
+  deps = [ "//third_party/abseil-cpp/absl/strings:string_view" ]
 
   # Only fuzzer targets can depend on this.
   visibility = [
     ":*",
     "utils:*",
+  ]
+}
+
+rtc_library("fuzz_data_helper_unittest") {
+  testonly = true
+  sources = [ "fuzz_data_helper_unittest.cc" ]
+  deps = [
+    ":fuzz_data_helper",
+    "..:test_support",
   ]
 }
 

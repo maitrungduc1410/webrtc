@@ -19,8 +19,6 @@
 #include <type_traits>
 
 #include "absl/strings/string_view.h"
-#include "modules/rtp_rtcp/source/byte_io.h"
-#include "rtc_base/checks.h"
 
 namespace webrtc {
 
@@ -35,16 +33,13 @@ class FuzzDataHelper {
 
   // Reads and returns data of type T.
   template <typename T>
-  T Read() {
-    RTC_CHECK(CanReadBytes(sizeof(T)));
-    T x = ByteReader<T>::ReadLittleEndian(&data_[data_ix_]);
-    data_ix_ += sizeof(T);
-    return x;
-  }
+    requires(std::is_trivial_v<T>)
+  T Read();
 
   // Reads and returns data of type T. Returns default_value if not enough
   // fuzzer input remains to read a T.
   template <typename T>
+    requires(std::is_trivial_v<T>)
   T ReadOrDefaultValue(T default_value) {
     if (!CanReadBytes(sizeof(T))) {
       return default_value;
@@ -54,8 +49,8 @@ class FuzzDataHelper {
 
   // Like ReadOrDefaultValue, but replaces the value 0 with default_value.
   template <typename T>
+    requires(std::is_integral_v<T>)
   T ReadOrDefaultValueNotZero(T default_value) {
-    static_assert(std::is_integral<T>::value, "");
     T x = ReadOrDefaultValue(default_value);
     return x == 0 ? default_value : x;
   }
@@ -110,11 +105,15 @@ class FuzzDataHelper {
   // If sizeof(T) > BytesLeft then the remaining bytes will be used and the rest
   // of the object will be zero initialized.
   template <typename T>
-  void CopyTo(T* object) {
-    memset(object, 0, sizeof(T));
+    requires(std::is_trivial_v<T>)
+  void CopyTo(T& object) {
+    std::span<uint8_t, sizeof(T)> object_memory(
+        reinterpret_cast<uint8_t*>(&object), sizeof(T));
 
     size_t bytes_to_copy = std::min(BytesLeft(), sizeof(T));
-    memcpy(object, data_.data() + data_ix_, bytes_to_copy);
+    std::ranges::copy(data_.subspan(data_ix_, bytes_to_copy),
+                      object_memory.begin());
+    std::ranges::fill(object_memory.subspan(bytes_to_copy), uint8_t{0});
     data_ix_ += bytes_to_copy;
   }
 
@@ -128,6 +127,28 @@ class FuzzDataHelper {
   std::span<const uint8_t> data_;
   size_t data_ix_ = 0;
 };
+
+template <typename T>
+  requires(std::is_trivial_v<T>)
+T FuzzDataHelper::Read() {
+  if constexpr (sizeof(T) == 1) {
+    if (BytesLeft() == 0) {
+      return {};
+    } else {
+      return static_cast<T>(data_[data_ix_++]);
+    }
+  }
+
+  T value;
+  CopyTo(value);
+  return value;
+}
+
+template <>
+inline bool FuzzDataHelper::Read<bool>() {
+  // Return `true' or 'false' with 50% chance each.
+  return (Read<uint8_t>() & 0b1) != 0;
+}
 
 }  // namespace webrtc
 

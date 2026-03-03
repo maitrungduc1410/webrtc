@@ -38,19 +38,14 @@ class DataReader {
   DataReader(FuzzDataHelper fuzz_data) : data_(fuzz_data) {}
 
   template <typename T>
-  void CopyTo(T* object) {
+  void CopyTo(T& object) {
     return data_.CopyTo(object);
   }
 
   template <typename T>
   T GetNum() {
-    T t = {};
-    if (data_.BytesLeft() >= sizeof(T)) {
-      CopyTo(&t);
-    }
-    return t;
+    return data_.Read<T>();
   }
-
   bool MoreToRead() { return data_.BytesLeft() > 0; }
 
  private:
@@ -63,7 +58,7 @@ RTPVideoHeaderH264 GenerateRTPVideoHeaderH264(DataReader* reader) {
   result.packetization_type = reader->GetNum<H264PacketizationTypes>();
   int nalus_length = reader->GetNum<uint8_t>();
   for (int i = 0; i < nalus_length; ++i) {
-    reader->CopyTo(&result.nalus.emplace_back());
+    reader->CopyTo(result.nalus.emplace_back());
   }
   result.packetization_mode = reader->GetNum<H264PacketizationMode>();
   return result;
@@ -123,11 +118,11 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
     switch (codec) {
       case kVideoCodecVP8:
         reader.CopyTo(
-            &video_header.video_type_header.emplace<RTPVideoHeaderVP8>());
+            video_header.video_type_header.emplace<RTPVideoHeaderVP8>());
         break;
       case kVideoCodecVP9:
         reader.CopyTo(
-            &video_header.video_type_header.emplace<RTPVideoHeaderVP9>());
+            video_header.video_type_header.emplace<RTPVideoHeaderVP9>());
         break;
       case kVideoCodecH264:
         video_header.video_type_header = GenerateRTPVideoHeaderH264(&reader);

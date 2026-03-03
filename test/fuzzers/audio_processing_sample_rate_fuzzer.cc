@@ -39,8 +39,7 @@ void GenerateFloatFrame(FuzzDataHelper& fuzz_data,
       AudioProcessing::GetFrameSize(input_rate);
   RTC_DCHECK_LE(samples_per_input_channel, kMaxSamplesPerChannel);
   for (int i = 0; i < num_channels; ++i) {
-    float channel_value;
-    fuzz_data.CopyTo<float>(&channel_value);
+    float channel_value = fuzz_data.Read<float>();
     std::fill(float_frames[i], float_frames[i] + samples_per_input_channel,
               channel_value);
   }
