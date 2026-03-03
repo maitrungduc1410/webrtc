@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -89,7 +90,6 @@ class ScopedAutoReleasePool {
 #endif
 
 namespace webrtc {
-
 
 ThreadManager* ThreadManager::Instance() {
   static ThreadManager* const thread_manager = new ThreadManager();
@@ -389,7 +389,8 @@ void Thread::DoDestroy() {
   ThreadManager::Remove(this);
   // Clear.
   CurrentTaskQueueSetter set_current(this);
-  messages_ = {};
+  high_priority_messages_.clear();
+  messages_.clear();
   delayed_messages_ = {};
 }
 
@@ -436,13 +437,20 @@ absl::AnyInvocable<void() &&> Thread::Get(int cmsWait) {
               TimeDiff(delayed_messages_.top().run_time_ms, msCurrent);
           break;
         }
-        messages_.push(std::move(delayed_messages_.top().functor));
+        messages_.push_back(std::move(delayed_messages_.top().functor));
         delayed_messages_.pop();
+      }
+      // Pull a high priority message off the queue, if available.
+      if (!high_priority_messages_.empty()) {
+        absl::AnyInvocable<void() &&> task =
+            std::move(high_priority_messages_.front());
+        high_priority_messages_.pop_front();
+        return task;
       }
       // Pull a message off the message queue, if available.
       if (!messages_.empty()) {
         absl::AnyInvocable<void() &&> task = std::move(messages_.front());
-        messages_.pop();
+        messages_.pop_front();
         return task;
       }
     }
@@ -484,6 +492,15 @@ absl::AnyInvocable<void() &&> Thread::Get(int cmsWait) {
 void Thread::PostTaskImpl(absl::AnyInvocable<void() &&> task,
                           const PostTaskTraits& /* traits */,
                           const Location& /* location */) {
+  PostTaskInternal(std::move(task), /*high_priority=*/false);
+}
+
+void Thread::PostHighPriorityTask(absl::AnyInvocable<void() &&> task) {
+  PostTaskInternal(std::move(task), /*high_priority=*/true);
+}
+
+void Thread::PostTaskInternal(absl::AnyInvocable<void() &&> task,
+                              bool high_priority) {
   if (IsQuitting()) {
     return;
   }
@@ -494,7 +511,11 @@ void Thread::PostTaskImpl(absl::AnyInvocable<void() &&> task,
 
   {
     MutexLock lock(&mutex_);
-    messages_.push(std::move(task));
+    if (high_priority) {
+      high_priority_messages_.push_back(std::move(task));
+    } else {
+      messages_.push_back(std::move(task));
+    }
     WakeUpSocketServer();
   }
 }
@@ -531,7 +552,7 @@ void Thread::PostDelayedTaskImpl(absl::AnyInvocable<void() &&> task,
 int Thread::GetDelay() {
   MutexLock lock(&mutex_);
 
-  if (!messages_.empty())
+  if (!high_priority_messages_.empty() || !messages_.empty())
     return 0;
 
   if (!delayed_messages_.empty()) {
@@ -762,8 +783,12 @@ void Thread::BlockingCallImpl(FunctionView<void()> functor,
     RTC_DCHECK(this->IsInvokeToThreadAllowed(this));
     RTC_DCHECK_RUN_ON(this);
     could_be_blocking_call_count_++;
+    ++running_synchronous_blocking_call_count_;
 #endif
     functor();
+#if RTC_DCHECK_IS_ON
+    --running_synchronous_blocking_call_count_;
+#endif
     return;
   }
 
@@ -961,6 +986,17 @@ AutoSocketServerThread::~AutoSocketServerThread() {
   if (old_thread_) {
     ThreadManager::Add(old_thread_);
   }
+}
+
+bool Thread::IsYieldRequested() const {
+  RTC_DCHECK_RUN_ON(this);
+#if RTC_DCHECK_IS_ON
+  // If you've hit this, then there's a cooperative task running from inside a
+  // blocking call.
+  RTC_DCHECK_EQ(running_synchronous_blocking_call_count_, 0);
+#endif
+  MutexLock lock(&mutex_);
+  return !high_priority_messages_.empty();
 }
 
 }  // namespace webrtc
