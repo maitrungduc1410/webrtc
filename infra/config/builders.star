@@ -332,9 +332,7 @@ ci_builder("Android32 Builder x86", "Android|x86|rel")
 try_builder("android_compile_x86_rel")
 ci_builder("Android32 (more configs)", "Android|arm|more")
 try_builder("android_arm_more_configs")
-
-# TODO(jleconte): re-enable when the issue is fixed in Chromium.
-chromium_try_builder("android_chromium_compile", cq = None)
+chromium_try_builder("android_chromium_compile")
 
 ios_builder("iOS64 Debug", "iOS|arm64|dbg")
 ios_try_job("ios_compile_arm64_dbg")
