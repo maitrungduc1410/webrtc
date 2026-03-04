@@ -85,6 +85,7 @@
 #include "modules/async_audio_processing/async_audio_processing.h"
 #include "modules/audio_mixer/audio_mixer_impl.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
+#include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/dscp.h"
@@ -2620,7 +2621,36 @@ void WebRtcVoiceReceiveChannel::OnPacketReceived(RtpPacketReceived packet) {
   // it instead at the stream level initialized by the Transport. RTP packets
   // consumed by media channels would thus have header extensions distinguished
   // by C++ class rather than negotiated header extension ID.
+#if RTC_DCHECK_IS_ON
+  RtpPacketReceived original_packet = packet;
+#endif
   packet.IdentifyExtensions(recv_rtp_extension_map_);
+#if RTC_DCHECK_IS_ON
+  for (int i = kRtpExtensionNone + 1; i < kRtpExtensionNumberOfExtensions;
+       ++i) {
+    RTPExtensionType type = static_cast<RTPExtensionType>(i);
+    if (recv_rtp_extension_map_.IsRegistered(type)) {
+      // We only verify equality when the IDs match. This check is
+      // intentionally weak because the transport map (from `original_packet`)
+      // contains the merged extensions for all MIDs in a BUNDLE group,
+      // while the local map only contains extensions for this specific MID.
+      // Therefore, the transport map might contain extensions not present
+      // in the local map, but if both maps agree on an ID for a specific
+      // extension type, they must both parse it consistently.
+      if (original_packet.extension_manager().GetId(type) ==
+          recv_rtp_extension_map_.GetId(type)) {
+        bool transport_has = original_packet.HasExtension(type);
+        bool local_has = packet.HasExtension(type);
+        RTC_DCHECK_EQ(transport_has, local_has)
+            << "Extension mapping mismatch for type " << type << ". "
+            << "Transport map has: " << transport_has << " (ID from transport: "
+            << static_cast<int>(original_packet.extension_manager().GetId(type))
+            << "). Local map has: " << local_has << " (ID from local: "
+            << static_cast<int>(recv_rtp_extension_map_.GetId(type)) << ").";
+      }
+    }
+  }
+#endif
   if (!packet.arrival_time().IsFinite()) {
     packet.set_arrival_time(env_.clock().CurrentTime());
   }

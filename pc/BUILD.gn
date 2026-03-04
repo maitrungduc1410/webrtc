@@ -585,6 +585,7 @@ rtc_library("rtp_transport") {
     ":session_description",
     "../api:array_view",
     "../api:field_trials_view",
+    "../api:sequence_checker",
     "../api/task_queue",
     "../api/task_queue:pending_task_safety_flag",
     "../api/transport:ecn_marking",
@@ -599,11 +600,15 @@ rtc_library("rtp_transport") {
     "../rtc_base:copy_on_write_buffer",
     "../rtc_base:event_tracer",
     "../rtc_base:logging",
+    "../rtc_base:macromagic",
     "../rtc_base:network_route",
     "../rtc_base:socket",
+    "../rtc_base/containers:flat_map",
     "../rtc_base/containers:flat_set",
     "../rtc_base/network:received_packet",
     "../rtc_base/network:sent_packet",
+    "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -626,6 +631,7 @@ rtc_source_set("rtp_transport_internal") {
     "../rtc_base:socket",
     "../rtc_base/network:sent_packet",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 

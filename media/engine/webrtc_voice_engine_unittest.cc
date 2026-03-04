@@ -1605,7 +1605,7 @@ TEST_P(WebRtcVoiceEngineTestFake, OnPacketReceivedIdentifiesExtensions) {
   reference_packet.SetExtension<AudioLevelExtension>(
       AudioLevel(/*voice_activity=*/true, kAudioLevel));
   //  Create a packet without the extension map but with the same content.
-  RtpPacketReceived received_packet;
+  RtpPacketReceived received_packet(&extension_map);
   ASSERT_TRUE(received_packet.Parse(reference_packet.Buffer()));
 
   receive_channel_->OnPacketReceived(received_packet);

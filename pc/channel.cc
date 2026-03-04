@@ -576,11 +576,9 @@ bool BaseChannel::MaybeUpdateDemuxerAndRtpExtensions_w(
       return false;
     }
 
-    // NOTE: This doesn't take the BUNDLE case in account meaning the RTP header
-    // extension maps are not merged when BUNDLE is enabled. This is fine
-    // because the ID for MID should be consistent among all the RTP transports.
-    if (extensions)
-      rtp_transport_->UpdateRtpHeaderExtensionMap(*extensions);
+    if (extensions) {
+      rtp_transport_->RegisterRtpHeaderExtensionMap(mid(), *extensions);
+    }
 
     if (!update_demuxer)
       return true;
@@ -1034,7 +1032,7 @@ bool VoiceChannel::SetLocalContent_w(const MediaContentDescription* content,
   bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
       criteria_modified,
       update_header_extensions
-          ? std::optional<RtpHeaderExtensions>(std::move(header_extensions))
+          ? std::optional<RtpHeaderExtensions>(recv_params.extensions)
           : std::nullopt,
       error_desc);
 
@@ -1089,7 +1087,21 @@ bool VoiceChannel::SetRemoteContent_w(const MediaContentDescription* content,
       media_send_channel()->SenderNonSenderRttEnabled());
   last_send_params_ = send_params;
 
-  return UpdateRemoteStreams_w(content, type, error_desc);
+  if (!UpdateRemoteStreams_w(content, type, error_desc)) {
+    return false;
+  }
+
+  if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
+    bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
+        /*update_demuxer=*/false,
+        std::optional<RtpHeaderExtensions>(last_recv_params_.extensions),
+        error_desc);
+    if (!success) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 VideoChannel::VideoChannel(
@@ -1209,7 +1221,7 @@ bool VideoChannel::SetLocalContent_w(const MediaContentDescription* content,
   bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
       criteria_modified,
       update_header_extensions
-          ? std::optional<RtpHeaderExtensions>(std::move(header_extensions))
+          ? std::optional<RtpHeaderExtensions>(recv_params.extensions)
           : std::nullopt,
       error_desc);
 
@@ -1265,7 +1277,21 @@ bool VideoChannel::SetRemoteContent_w(const MediaContentDescription* content,
   }
   last_send_params_ = send_params;
 
-  return UpdateRemoteStreams_w(content, type, error_desc);
+  if (!UpdateRemoteStreams_w(content, type, error_desc)) {
+    return false;
+  }
+
+  if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
+    bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
+        /*update_demuxer=*/false,
+        std::optional<RtpHeaderExtensions>(last_recv_params_.extensions),
+        error_desc);
+    if (!success) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace webrtc
