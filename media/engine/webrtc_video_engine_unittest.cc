@@ -5669,6 +5669,54 @@ TEST_F(WebRtcVideoChannelTest, ReceiveStreamReceivingByDefault) {
   EXPECT_TRUE(AddRecvStream()->IsReceiving());
 }
 
+TEST_F(WebRtcVideoChannelTest,
+       SetSendParametersRecreatesStreamAndClearsAdaptationStats) {
+  FakeVideoSendStream* stream = AddSendStream();
+  webrtc::VideoSendStream::Stats stats;
+  // Set cumulative stats that should be retained.
+  stats.number_of_cpu_adapt_changes = 2;
+  stats.number_of_quality_adapt_changes = 3;
+  stats.quality_limitation_durations_ms[webrtc::QualityLimitationReason::kCpu] =
+      100;
+
+  // Set ephemeral flags that should be cleared by RecreateWebRtcStream.
+  stats.bw_limited_resolution = true;
+  stats.bw_limited_framerate = true;
+  stats.cpu_limited_resolution = true;
+  stats.cpu_limited_framerate = true;
+  stats.quality_limitation_reason = webrtc::QualityLimitationReason::kBandwidth;
+
+  stream->SetStats(stats);
+
+  // Trigger stream recreation by changing construction-time parameters.
+  EXPECT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+  VideoSenderParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  parameters.extmap_allow_mixed = true;  // This forces recreation.
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+  EXPECT_EQ(2, fake_call_->GetNumCreatedSendStreams());
+
+  ASSERT_EQ(1U, fake_call_->GetVideoSendStreams().size());
+  FakeVideoSendStream* new_stream = fake_call_->GetVideoSendStreams()[0];
+
+  webrtc::VideoSendStream::Stats new_stats =
+      static_cast<webrtc::VideoSendStream*>(new_stream)->GetStats();
+
+  // Check that ephemeral flags were cleared.
+  EXPECT_FALSE(new_stats.bw_limited_resolution);
+  EXPECT_FALSE(new_stats.bw_limited_framerate);
+  EXPECT_FALSE(new_stats.cpu_limited_resolution);
+  EXPECT_FALSE(new_stats.cpu_limited_framerate);
+  EXPECT_EQ(webrtc::QualityLimitationReason::kNone,
+            new_stats.quality_limitation_reason);
+
+  // Check that cumulative stats were retained.
+  EXPECT_EQ(2, new_stats.number_of_cpu_adapt_changes);
+  EXPECT_EQ(3, new_stats.number_of_quality_adapt_changes);
+  EXPECT_EQ(100, new_stats.quality_limitation_durations_ms
+                     [webrtc::QualityLimitationReason::kCpu]);
+}
+
 TEST_F(WebRtcVideoChannelTest, SetSend) {
   FakeVideoSendStream* stream = AddSendStream();
   EXPECT_FALSE(stream->IsSending());

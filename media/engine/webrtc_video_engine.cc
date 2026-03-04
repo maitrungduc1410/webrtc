@@ -73,6 +73,7 @@
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
 #include "common_video/frame_counts.h"
+#include "common_video/include/quality_limitation_reason.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
 #include "media/base/media_channel.h"
@@ -2731,6 +2732,15 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::RecreateWebRtcStream() {
     call_->DestroyVideoSendStream(stream_);
     stream_ = call_->CreateVideoSendStream(std::move(config),
                                            parameters_.encoder_config.Copy());
+
+    // A new stream is created without any scaling or limitations, so these
+    // flags don't apply until the new stream experiences an adaptation event.
+    stats.bw_limited_resolution = false;
+    stats.bw_limited_framerate = false;
+    stats.cpu_limited_resolution = false;
+    stats.cpu_limited_framerate = false;
+    stats.quality_limitation_reason = QualityLimitationReason::kNone;
+
     stream_->SetStats(stats);
   } else {
     stream_ = call_->CreateVideoSendStream(std::move(config),
