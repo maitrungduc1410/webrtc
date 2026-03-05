@@ -707,7 +707,6 @@ if (current_os == "linux" || is_android) {
       ":internal_jni",
       ":native_api_jni",
       ":videoframe_jni",
-      "../../api:array_view",
       "../../api:libjingle_peerconnection_api",
       "../../api:make_ref_counted",
       "../../api:media_stream_interface",
@@ -1045,7 +1044,6 @@ if (current_os == "linux" || is_android) {
       ":generated_external_classes_jni",
       ":generated_native_api_jni",
       ":internal_jni",
-      "../../api:array_view",
       "../../api:sequence_checker",
       "../../rtc_base:checks",
       "//third_party/abseil-cpp/absl/strings:string_view",
@@ -1346,7 +1344,6 @@ if (current_os == "linux" || is_android) {
       deps = [
         ":audio_device_module_base",
         ":base_jni",
-        "../../api:array_view",
         "../../api:sequence_checker",
         "../../api/task_queue",
         "../../modules/audio_device",
@@ -1375,7 +1372,6 @@ if (current_os == "linux" || is_android) {
     deps = [
       ":audio_device_module_base",
       ":base_jni",
-      "../../api:array_view",
       "../../api:refcountedbase",
       "../../api:scoped_refptr",
       "../../api:sequence_checker",
