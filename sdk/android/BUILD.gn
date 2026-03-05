@@ -272,7 +272,6 @@ if (is_android) {
 
     deps = [
       ":base_java",
-      ":environment_java",
       ":generated_video_egl_jni_java",
       ":generated_video_jni_java",
       ":video_api_java",
