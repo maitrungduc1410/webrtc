@@ -109,21 +109,7 @@
 #include "rtc_base/weak_ptr.h"
 #include "system_wrappers/include/metrics.h"
 
-using ::webrtc::ContentInfo;
-using ::webrtc::ContentInfos;
-using webrtc::MediaContentDescription;
-using ::webrtc::MediaProtocolType;
-using ::webrtc::RidDescription;
-using ::webrtc::RidDirection;
-using ::webrtc::SessionDescription;
-using ::webrtc::SimulcastDescription;
-using ::webrtc::SimulcastLayer;
-using ::webrtc::SimulcastLayerList;
-using ::webrtc::StreamParams;
-using ::webrtc::TransportInfo;
-
 namespace webrtc {
-
 namespace {
 
 class ScopedOperationsBatcher {
