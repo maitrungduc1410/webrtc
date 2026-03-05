@@ -15,7 +15,6 @@ rtc_library("corruption_classifier") {
   ]
   deps = [
     ":halton_frame_sampler",
-    "../../api:array_view",
     "../../rtc_base:checks",
     "../../rtc_base:logging",
   ]
@@ -196,7 +195,6 @@ if (rtc_include_tests) {
     deps = [
       ":halton_frame_sampler",
       ":video_frame_sampler",
-      "../../api:array_view",
       "../../api:scoped_refptr",
       "../../api/video:video_frame",
       "../../test:test_support",
