@@ -13,6 +13,7 @@
 
 #include <stddef.h>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -404,8 +405,9 @@ class RtpTransceiver : public RtpTransceiverInterface {
   CodecVendor& codec_vendor() {
     return *codec_lookup_helper_->GetCodecVendor();
   }
-  void OnFirstPacketReceived();
-  void OnPacketReceived(scoped_refptr<PendingTaskSafetyFlag> safety)
+  void OnFirstPacketReceived(uint32_t ssrc);
+  void OnPacketReceived(uint32_t ssrc,
+                        scoped_refptr<PendingTaskSafetyFlag> safety)
       RTC_RUN_ON(context()->network_thread());
   void OnFirstPacketSent();
   // Stops the receivers synchronously and returns a task that stops the

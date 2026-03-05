@@ -148,12 +148,13 @@ class BaseChannel : public ChannelInterface,
   }
 
   // Used for latency measurements.
-  void SetFirstPacketReceivedCallback(
-      absl::AnyInvocable<void() &&> callback) override;
-  void SetFirstPacketSentCallback(
+  void SetFirstPacketReceivedCallback_n(
+      absl::AnyInvocable<void(const RtpPacketReceived&) &&> callback) override;
+  void SetFirstPacketSentCallback_n(
       absl::AnyInvocable<void() &&> callback) override;
 
-  void SetPacketReceivedCallback_n(absl::AnyInvocable<void()> callback) override
+  void SetPacketReceivedCallback_n(
+      absl::AnyInvocable<void(const RtpPacketReceived&)> callback) override
       RTC_RUN_ON(network_thread());
 
   // From RtpTransport - public for testing only
@@ -322,13 +323,13 @@ class BaseChannel : public ChannelInterface,
   scoped_refptr<PendingTaskSafetyFlag> alive_;
 
   // The functions are deleted after they have been called.
-  absl::AnyInvocable<void() &&> on_first_packet_received_
-      RTC_GUARDED_BY(network_thread());
+  absl::AnyInvocable<void(const RtpPacketReceived&) &&>
+      on_first_packet_received_ RTC_GUARDED_BY(network_thread());
   absl::AnyInvocable<void() &&> on_first_packet_sent_
       RTC_GUARDED_BY(network_thread());
 
   // Used to unmute.
-  absl::AnyInvocable<void()> on_packet_received_n_
+  absl::AnyInvocable<void(const RtpPacketReceived&)> on_packet_received_n_
       RTC_GUARDED_BY(network_thread());
 
   RtpTransportInternal* rtp_transport_ RTC_GUARDED_BY(network_thread()) =

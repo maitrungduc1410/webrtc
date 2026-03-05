@@ -538,20 +538,24 @@ RTCError RtpTransceiver::SetChannel(
         if (transport) {
           transport_name = transport->transport_name();
         }
-        channel->SetFirstPacketReceivedCallback([thread = thread_, flag = flag,
-                                                 this]() mutable {
-          thread->PostTask(
-              SafeTask(std::move(flag), [this]() { OnFirstPacketReceived(); }));
-        });
-        channel->SetFirstPacketSentCallback([thread = thread_, flag = flag,
-                                             this]() mutable {
-          thread->PostTask(
-              SafeTask(std::move(flag), [this]() { OnFirstPacketSent(); }));
-        });
-        channel->SetPacketReceivedCallback_n([this, flag = flag]() {
-          RTC_DCHECK_RUN_ON(context()->network_thread());
-          OnPacketReceived(flag);
-        });
+        channel->SetFirstPacketReceivedCallback_n(
+            [thread = thread_, flag = flag,
+             this](const RtpPacketReceived& packet) mutable {
+              thread->PostTask(
+                  SafeTask(std::move(flag), [this, ssrc = packet.Ssrc()]() {
+                    OnFirstPacketReceived(ssrc);
+                  }));
+            });
+        channel->SetFirstPacketSentCallback_n(
+            [thread = thread_, flag = flag, this]() mutable {
+              thread->PostTask(
+                  SafeTask(std::move(flag), [this]() { OnFirstPacketSent(); }));
+            });
+        channel->SetPacketReceivedCallback_n(
+            [this, flag = flag](const RtpPacketReceived& packet) {
+              RTC_DCHECK_RUN_ON(context()->network_thread());
+              OnPacketReceived(packet.Ssrc(), flag);
+            });
         return RTCError::OK();
       });
 
@@ -584,8 +588,8 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   ChannelInterface* channel = channel_.get();
   return [channel, flag = network_thread_safety_] {
     flag->SetNotAlive();
-    channel->SetFirstPacketReceivedCallback(nullptr);
-    channel->SetFirstPacketSentCallback(nullptr);
+    channel->SetFirstPacketReceivedCallback_n(nullptr);
+    channel->SetFirstPacketSentCallback_n(nullptr);
     channel->SetPacketReceivedCallback_n(nullptr);
     channel->SetRtpTransport(nullptr);
   };
@@ -779,14 +783,15 @@ MediaEngineInterface* RtpTransceiver::media_engine() {
   return media_engine_ref_->media_engine();
 }
 
-void RtpTransceiver::OnFirstPacketReceived() {
+void RtpTransceiver::OnFirstPacketReceived(uint32_t ssrc) {
   for (const auto& receiver : receivers_) {
-    receiver->internal()->NotifyFirstPacketReceived();
+    receiver->internal()->NotifyFirstPacketReceived(ssrc);
   }
 }
 
 // RTC_RUN_ON(context()->network_thread())
 void RtpTransceiver::OnPacketReceived(
+    uint32_t ssrc,
     scoped_refptr<PendingTaskSafetyFlag> safety) {
   if (!receptive_n_) {
     return;
@@ -795,13 +800,13 @@ void RtpTransceiver::OnPacketReceived(
     return;
   }
   packet_notified_after_receptive_ = true;
-  thread_->PostTask(SafeTask(safety, [this]() {
+  thread_->PostTask(SafeTask(safety, [this, ssrc]() {
     RTC_DCHECK_RUN_ON(thread_);
     if (stopping() || stopped() || !receptive_) {
       return;
     }
     for (const auto& receiver : receivers_) {
-      receiver->internal()->NotifyFirstPacketReceivedAfterReceptiveChange();
+      receiver->internal()->NotifyFirstPacketReceivedAfterReceptiveChange(ssrc);
     }
   }));
 }
