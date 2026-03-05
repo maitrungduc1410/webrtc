@@ -10,15 +10,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "modules/rtp_rtcp/source/video_rtp_depacketizer_av1.h"
 #include "test/fuzzers/fuzz_data_helper.h"
 
 namespace webrtc {
 void FuzzOneInput(FuzzDataHelper fuzz_data) {
-  std::vector<webrtc::ArrayView<const uint8_t>> rtp_payloads;
+  std::vector<std::span<const uint8_t>> rtp_payloads;
 
   // Convert plain array of bytes into array of array bytes.
   while (fuzz_data.CanReadBytes(sizeof(uint16_t))) {

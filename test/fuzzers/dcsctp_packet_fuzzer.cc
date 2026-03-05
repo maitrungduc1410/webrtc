@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <optional>
 
-#include "api/array_view.h"
 #include "net/dcsctp/packet/chunk/chunk.h"
 #include "net/dcsctp/packet/sctp_packet.h"
 #include "test/fuzzers/fuzz_data_helper.h"

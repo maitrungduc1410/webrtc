@@ -16,10 +16,10 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
@@ -50,12 +50,12 @@ class SineAndNoiseGenerator : public EncodeNetEqInput::Generator {
         noise_generator_(fuzz_data_.ReadOrDefaultValueNotZero<uint64_t>(1)) {}
 
   // Generates num_samples of the sine-gaussian mixture.
-  webrtc::ArrayView<const int16_t> Generate(size_t num_samples) override {
+  std::span<const int16_t> Generate(size_t num_samples) override {
     if (samples_.size() < num_samples) {
       samples_.resize(num_samples);
     }
 
-    webrtc::ArrayView<int16_t> output(samples_.data(), num_samples);
+    std::span<int16_t> output(samples_.data(), num_samples);
     // Randomize an amplitude between 0 and 32768; use 65000/2 if we are out of
     // fuzzer data.
     const float amplitude = fuzz_data_.ReadOrDefaultValue<uint16_t>(65000) / 2;

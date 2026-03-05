@@ -16,8 +16,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/audio/audio_frame.h"
 #include "api/audio/audio_processing.h"
 #include "api/scoped_refptr.h"
@@ -42,7 +42,7 @@ void GenerateFloatFrame(FuzzDataHelper* fuzz_data,
     std::fill(float_frames[i], float_frames[i] + samples_per_input_channel, 0);
     const size_t read_bytes = sizeof(float) * samples_per_input_channel;
     if (fuzz_data->CanReadBytes(read_bytes)) {
-      ArrayView<const uint8_t> byte_array =
+      std::span<const uint8_t> byte_array =
           fuzz_data->ReadByteArray(read_bytes);
       memmove(float_frames[i], byte_array.data(), read_bytes);
     }

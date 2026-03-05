@@ -12,9 +12,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <utility>
 
-#include "api/array_view.h"
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "modules/rtp_rtcp/source/rtp_dependency_descriptor_extension.h"
 #include "rtc_base/checks.h"
@@ -57,7 +57,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
     uint8_t some_memory[256];
     // That should be true because value_size <= next_size < 256
     RTC_CHECK_LT(value_size, 256);
-    webrtc::ArrayView<uint8_t> write_buffer(some_memory, value_size);
+    std::span<uint8_t> write_buffer(some_memory, value_size);
     RTC_CHECK(RtpDependencyDescriptorExtension::Write(write_buffer, structure1,
                                                       descriptor1));
 

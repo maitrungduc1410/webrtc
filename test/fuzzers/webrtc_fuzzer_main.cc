@@ -13,8 +13,8 @@
 // fuzzing efficiency.
 
 #include <cstddef>
+#include <span>
 
-#include "api/array_view.h"
 #include "rtc_base/logging.h"
 #include "test/fuzzers/fuzz_data_helper.h"
 
@@ -40,7 +40,7 @@ extern void FuzzOneInput(FuzzDataHelper fuzz_data);
 
 extern "C" int LLVMFuzzerTestOneInput(const unsigned char* data, size_t size) {
   InitializeWebRtcFuzzDefaults();
-  webrtc::FuzzDataHelper fuzz_data(webrtc::MakeArrayView(data, size));
+  webrtc::FuzzDataHelper fuzz_data(std::span(data, size));
   webrtc::FuzzOneInput(fuzz_data);
   return 0;
 }

@@ -9,15 +9,15 @@
  */
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
-#include "api/array_view.h"
 #include "modules/video_coding/utility/vp8_header_parser.h"
 #include "test/fuzzers/fuzz_data_helper.h"
 
 namespace webrtc {
 void FuzzOneInput(FuzzDataHelper fuzz_data) {
   int qp;
-  ArrayView<const uint8_t> raw = fuzz_data.ReadRemaining();
+  std::span<const uint8_t> raw = fuzz_data.ReadRemaining();
   vp8::GetQp(raw.data(), raw.size(), &qp);
 }
 }  // namespace webrtc

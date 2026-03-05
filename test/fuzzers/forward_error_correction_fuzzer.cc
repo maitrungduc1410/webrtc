@@ -12,8 +12,8 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/scoped_refptr.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
@@ -83,7 +83,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
   uint8_t packet_loss;
   while (true) {
     if (!fuzz_buffer.ReadBytes(
-            webrtc::ArrayView<uint8_t>(packet_buffer, kPacketSize))) {
+            std::span<uint8_t>(packet_buffer, kPacketSize))) {
       return;
     }
     if (!fuzz_buffer.ReadUInt8(&reordering))

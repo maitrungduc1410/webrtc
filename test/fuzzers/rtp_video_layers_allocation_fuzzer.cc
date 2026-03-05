@@ -11,8 +11,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/video/video_layers_allocation.h"
 #include "modules/rtp_rtcp/source/rtp_video_layers_allocation_extension.h"
 #include "rtc_base/checks.h"
@@ -29,7 +29,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
   if (fuzz_data.size() > kMaxSize) {
     return;
   }
-  ArrayView<const uint8_t> raw = fuzz_data.ReadRemaining();
+  std::span<const uint8_t> raw = fuzz_data.ReadRemaining();
 
   VideoLayersAllocation allocation1;
   if (!RtpVideoLayersAllocationExtension::Parse(raw, &allocation1)) {
@@ -44,7 +44,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
   RTC_CHECK_LE(value_size, raw.size());
   uint8_t some_memory[kMaxSize];
   RTC_CHECK_LE(value_size, kMaxSize);
-  webrtc::ArrayView<uint8_t> write_buffer(some_memory, value_size);
+  std::span<uint8_t> write_buffer(some_memory, value_size);
   RTC_CHECK(
       RtpVideoLayersAllocationExtension::Write(write_buffer, allocation1));
 

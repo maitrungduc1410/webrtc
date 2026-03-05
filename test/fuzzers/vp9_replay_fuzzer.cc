@@ -12,10 +12,10 @@
 #include <stdint.h>
 
 #include <memory>
+#include <span>
 #include <utility>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/video_codecs/sdp_video_format.h"
 #include "call/video_receive_stream.h"
 #include "test/fuzzers/fuzz_data_helper.h"
@@ -39,7 +39,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
   std::vector<VideoReceiveStreamInterface::Config> replay_configs;
   replay_configs.push_back(std::move(vp9_config));
 
-  ArrayView<const uint8_t> raw = fuzz_data.ReadRemaining();
+  std::span<const uint8_t> raw = fuzz_data.ReadRemaining();
   test::RtpReplayer::Replay(std::move(stream_state), std::move(replay_configs),
                             raw.data(), raw.size());
 }

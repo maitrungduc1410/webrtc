@@ -14,7 +14,6 @@
 #include <cstring>
 #include <memory>
 
-#include "api/array_view.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"

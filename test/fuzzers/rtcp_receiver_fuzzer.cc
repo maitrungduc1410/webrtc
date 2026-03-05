@@ -10,9 +10,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/environment/environment_factory.h"
 #include "api/field_trials.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
@@ -37,7 +37,7 @@ class NullModuleRtpRtcp : public RTCPReceiver::ModuleRtpRtcp {
   void OnRequestSendReport() override {}
   void OnReceivedNack(const std::vector<uint16_t>&) override {}
   void OnReceivedRtcpReportBlocks(
-      webrtc::ArrayView<const ReportBlockData> report_blocks) override {}
+      std::span<const ReportBlockData> report_blocks) override {}
 };
 
 }  // namespace

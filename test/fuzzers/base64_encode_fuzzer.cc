@@ -11,9 +11,9 @@
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <span>
 #include <string>
 
-#include "api/array_view.h"
 #include "rtc_base/base64.h"
 #include "rtc_base/checks.h"
 #include "test/fuzzers/fuzz_data_helper.h"
@@ -21,7 +21,7 @@
 namespace webrtc {
 
 void FuzzOneInput(FuzzDataHelper fuzz_data) {
-  ArrayView<const uint8_t> raw = fuzz_data.ReadRemaining();
+  std::span<const uint8_t> raw = fuzz_data.ReadRemaining();
   std::optional<std::string> decoded_encoded_data =
       Base64Decode(Base64Encode(raw));
   RTC_CHECK(decoded_encoded_data.has_value());

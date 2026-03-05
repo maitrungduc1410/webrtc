@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "api/array_view.h"
 #include "modules/rtp_rtcp/include/recovered_packet_receiver.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"

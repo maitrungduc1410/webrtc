@@ -12,8 +12,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/scoped_refptr.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/flexfec_header_reader_writer.h"
@@ -30,7 +30,7 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
   packet.pkt = webrtc::scoped_refptr<Packet>(new Packet());
   const size_t packet_size =
       std::min(fuzz_data.size(), static_cast<size_t>(IP_PACKET_SIZE));
-  ArrayView<const uint8_t> raw = fuzz_data.ReadByteArray(packet_size);
+  std::span<const uint8_t> raw = fuzz_data.ReadByteArray(packet_size);
   packet.pkt->data.EnsureCapacity(IP_PACKET_SIZE);
   packet.pkt->data.SetData(raw.data(), raw.size());
 

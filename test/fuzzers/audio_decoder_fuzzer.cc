@@ -13,8 +13,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/audio_codecs/audio_decoder.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "test/fuzzers/fuzz_data_helper.h"
@@ -49,7 +49,7 @@ void FuzzAudioDecoder(DecoderFunctionType decode_type,
                       int sample_rate_hz,
                       size_t max_decoded_bytes,
                       int16_t* decoded) {
-  ArrayView<const uint8_t> data = fuzz_data.ReadRemaining();
+  std::span<const uint8_t> data = fuzz_data.ReadRemaining();
   const uint8_t* data_ptr = data.data();
   size_t remaining_size = data.size();
   size_t packet_len;
