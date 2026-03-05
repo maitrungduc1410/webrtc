@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '9d278b833580deddd27a32636a6f56ccf5c17611',
+  'chromium_revision': '44cac2a0af0b07a8b5a0ea81b9af2f69964f443f',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@2b015a25fa7e9b762b5863e8616fad4b0b92f093',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@add05663e6258b17026b5fa488ba9d96d961c788',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@7d23eff99a735cea4f99711d0ddde40e714af6df',
+    'https://chromium.googlesource.com/chromium/src/testing@6a91250a4bfd191c04b3f42357f76f59ed78447f',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@aa674c67b9b66dc8c48d86d609f681140bbe11d7',
+    'https://chromium.googlesource.com/chromium/src/third_party@db2dce87eca65ce0b769a2440e2292cb2c57be27',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@745d3ebf4064a4ea7c0a115ecbba5affa2609bcd',
+    'https://boringssl.googlesource.com/boringssl.git@2127bd31b60ecc072559f5fa4cca027eec3a3530',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@8be0e3114685fcc1589561067282edf75ea1259a',
   'src/third_party/catapult':
@@ -609,7 +609,7 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'f6077f1db9bc56d81cdd1874e2310ff21438060c',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '02364664bb5dfa6c04d4b274aa818f089aa8e42e',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@1ddf8dac421f5a8acdb162781e21723e597692fd',
+    'https://chromium.googlesource.com/chromium/src/tools@aca79bce63b7bcc68f33310f7c48c6caa6f1af9a',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': '4fkujxcHswgZM_Abba388nGkoYd7fgfTF_0jCmWzodMC',
+          'version': '1-25o844ZqTB3NxqGHhgpHC_CG6J-Yod2Jj7VsVYTDQC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
@@ -864,7 +864,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + '7364b490b5f78d58efe23ea76e74210fd6c3c76f',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + 'eea4d31f58572591bdaa3b654227e48efb495b96',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '265496e862d809be98b002dea70acf1a266aa1a0',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '3d2de1816307bac63c16a297e8c4dc501b4076df',
