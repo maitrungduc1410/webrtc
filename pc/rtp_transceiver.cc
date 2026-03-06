@@ -15,6 +15,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,7 +24,6 @@
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
-#include "api/array_view.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
@@ -1020,7 +1020,7 @@ RtpTransceiver::GetStopTransceiverProcedure() {
 }
 
 RTCError RtpTransceiver::SetCodecPreferences(
-    ArrayView<RtpCodecCapability> codec_capabilities) {
+    std::span<RtpCodecCapability> codec_capabilities) {
   RTC_DCHECK(unified_plan_);
   // 3. If codecs is an empty list, set transceiver's [[PreferredCodecs]] slot
   // to codecs and abort these steps.
@@ -1182,7 +1182,7 @@ bool IsMandatoryHeaderExtension(absl::string_view uri) {
 }
 
 RTCError RtpTransceiver::SetHeaderExtensionsToNegotiate(
-    ArrayView<const RtpHeaderExtensionCapability> header_extensions) {
+    std::span<const RtpHeaderExtensionCapability> header_extensions) {
   RTC_DCHECK_RUN_ON(thread_);
   // https://w3c.github.io/webrtc-extensions/#dom-rtcrtptransceiver-setheaderextensionstonegotiate
   if (header_extensions.size() != header_extensions_to_negotiate_.size()) {

@@ -20,6 +20,7 @@
 #include <optional>
 #include <queue>
 #include <set>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,7 +32,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "api/array_view.h"
 #include "api/candidate.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
@@ -285,7 +285,7 @@ std::string GetSetDescriptionErrorMessage(ContentSource source,
   return oss.Release();
 }
 
-std::string GetStreamIdsString(ArrayView<const std::string> stream_ids) {
+std::string GetStreamIdsString(std::span<const std::string> stream_ids) {
   std::string output = "streams=[";
   const char* separator = "";
   for (const auto& stream_id : stream_ids) {

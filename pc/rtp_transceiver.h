@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,7 +24,6 @@
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
-#include "api/array_view.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
@@ -343,7 +343,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   bool receptive() const override;
   RTCError StopStandard() override;
   void StopInternal() override;
-  RTCError SetCodecPreferences(ArrayView<RtpCodecCapability> codecs) override;
+  RTCError SetCodecPreferences(std::span<RtpCodecCapability> codecs) override;
   // TODO(https://crbug.com/webrtc/391275081): Delete codec_preferences() in
   // favor of filtered_codec_preferences() because it's not used anywhere.
   std::vector<RtpCodecCapability> codec_preferences() const override;
@@ -357,7 +357,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
       const override;
 
   RTCError SetHeaderExtensionsToNegotiate(
-      ArrayView<const RtpHeaderExtensionCapability> header_extensions) override;
+      std::span<const RtpHeaderExtensionCapability> header_extensions) override;
 
   // Called on the signaling thread when the local or remote content description
   // is updated. Used to update the negotiated header extensions.
@@ -508,7 +508,7 @@ PROXY_CONSTMETHOD0(std::optional<RtpTransceiverDirection>, fired_direction)
 PROXY_CONSTMETHOD0(bool, receptive)
 PROXY_METHOD0(RTCError, StopStandard)
 PROXY_METHOD0(void, StopInternal)
-PROXY_METHOD1(RTCError, SetCodecPreferences, ArrayView<RtpCodecCapability>)
+PROXY_METHOD1(RTCError, SetCodecPreferences, std::span<RtpCodecCapability>)
 PROXY_CONSTMETHOD0(std::vector<RtpCodecCapability>, codec_preferences)
 PROXY_CONSTMETHOD0(std::vector<RtpHeaderExtensionCapability>,
                    GetHeaderExtensionsToNegotiate)
@@ -516,7 +516,7 @@ PROXY_CONSTMETHOD0(std::vector<RtpHeaderExtensionCapability>,
                    GetNegotiatedHeaderExtensions)
 PROXY_METHOD1(RTCError,
               SetHeaderExtensionsToNegotiate,
-              ArrayView<const RtpHeaderExtensionCapability>)
+              std::span<const RtpHeaderExtensionCapability>)
 END_PROXY_MAP(RtpTransceiver)
 
 }  // namespace webrtc
