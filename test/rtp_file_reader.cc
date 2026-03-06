@@ -27,6 +27,9 @@
 #include "rtc_base/logging.h"
 #include "rtc_base/time_utils.h"
 
+namespace webrtc {
+namespace test {
+
 namespace {
 constexpr size_t kRtpDumpFirstLineLength = 80;
 constexpr uint16_t kRtpDumpPacketHeaderSize = 8;
@@ -108,9 +111,6 @@ bool ReadUint16(uint16_t* out, FILE* file) {
 }
 
 }  // namespace
-
-namespace webrtc {
-namespace test {
 
 class RtpFileReaderImpl : public RtpFileReader {
  public:

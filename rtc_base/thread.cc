@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004 The WebRTC Project Authors. All rights reserved.
+ *  Copyright 2004 The WebRTC Project Authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -77,6 +77,7 @@ void* objc_autoreleasePoolPush(void);
 void objc_autoreleasePoolPop(void* pool);
 }
 
+namespace webrtc {
 namespace {
 class ScopedAutoReleasePool {
  public:
@@ -87,6 +88,7 @@ class ScopedAutoReleasePool {
   void* const pool_;
 };
 }  // namespace
+}  // namespace webrtc
 #endif
 
 namespace webrtc {

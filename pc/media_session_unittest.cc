@@ -87,7 +87,6 @@ using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
 using ::testing::Values;
 using ::testing::ValuesIn;
-using ::webrtc::UniqueRandomIdGenerator;
 
 using Candidates = std::vector<Candidate>;
 
