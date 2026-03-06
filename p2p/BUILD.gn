@@ -1223,6 +1223,7 @@ if (rtc_include_tests) {
       "../system_wrappers:metrics",
       "../test:create_test_environment",
       "../test:create_test_field_trials",
+      "../test:run_loop",
       "../test:test_support",
       "../test:wait_until",
       "../test/time_controller",
