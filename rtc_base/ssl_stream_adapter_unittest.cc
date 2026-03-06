@@ -25,6 +25,7 @@
 #include <ctime>
 #include <memory>
 #include <set>
+#include <span>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -32,7 +33,6 @@
 
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
-#include "api/array_view.h"
 #include "api/crypto/crypto_options.h"
 #include "api/field_trials.h"
 #include "api/sequence_checker.h"
@@ -237,13 +237,13 @@ class StreamWrapper : public StreamInterface {
   }
   size_t GetFlushCountForTesting() { return flush_count_; }
 
-  StreamResult Read(ArrayView<uint8_t> buffer,
+  StreamResult Read(std::span<uint8_t> buffer,
                     size_t& read,
                     int& error) override {
     return stream_->Read(buffer, read, error);
   }
 
-  StreamResult Write(ArrayView<const uint8_t> data,
+  StreamResult Write(std::span<const uint8_t> data,
                      size_t& written,
                      int& error) override {
     return stream_->Write(data, written, error);
@@ -277,7 +277,7 @@ class SSLDummyStream final : public StreamInterface {
 
   StreamState GetState() const override { return SS_OPEN; }
 
-  StreamResult Read(ArrayView<uint8_t> buffer,
+  StreamResult Read(std::span<uint8_t> buffer,
                     size_t& read,
                     int& error) override {
     StreamResult r;
@@ -318,13 +318,13 @@ class SSLDummyStream final : public StreamInterface {
   }
 
   // Write to the outgoing FifoBuffer
-  StreamResult WriteData(ArrayView<const uint8_t> data,
+  StreamResult WriteData(std::span<const uint8_t> data,
                          size_t& written,
                          int& error) {
     return out_->Write(data, written, error);
   }
 
-  StreamResult Write(ArrayView<const uint8_t> data,
+  StreamResult Write(std::span<const uint8_t> data,
                      size_t& written,
                      int& error) override;
 
@@ -362,7 +362,7 @@ class BufferQueueStream : public StreamInterface {
   StreamState GetState() const override { return SS_OPEN; }
 
   // Reading a buffer queue stream will either succeed or block.
-  StreamResult Read(ArrayView<uint8_t> buffer,
+  StreamResult Read(std::span<uint8_t> buffer,
                     size_t& read,
                     int& error) override {
     const bool was_writable = buffer_.is_writable();
@@ -376,7 +376,7 @@ class BufferQueueStream : public StreamInterface {
   }
 
   // Writing to a buffer queue stream will either succeed or block.
-  StreamResult Write(ArrayView<const uint8_t> data,
+  StreamResult Write(std::span<const uint8_t> data,
                      size_t& written,
                      int& error) override {
     const bool was_readable = buffer_.is_readable();
@@ -762,12 +762,12 @@ class SSLStreamAdapterTestBase : public ::testing::Test {
       RTC_LOG(LS_VERBOSE) << "Damaging packet";
       memcpy(&buf[0], data, data_len);
       buf[data_len - 1]++;
-      return from->WriteData(MakeArrayView(&buf[0], data_len), written, error);
+      return from->WriteData(std::span(&buf[0], data_len), written, error);
     }
 
     return from->WriteData(
-        MakeArrayView(reinterpret_cast<const uint8_t*>(data), data_len),
-        written, error);
+        std::span(reinterpret_cast<const uint8_t*>(data), data_len), written,
+        error);
   }
 
   void SetDelay(int delay) { delay_ = delay; }
@@ -926,7 +926,7 @@ class SSLStreamAdapterTestDTLSBase : public SSLStreamAdapterTestBase {
       size_t sent;
       int error;
       StreamResult rv =
-          client_ssl_->Write(MakeArrayView(packet, packet_size_), sent, error);
+          client_ssl_->Write(std::span(packet, packet_size_), sent, error);
       if (rv == SR_SUCCESS) {
         RTC_LOG(LS_VERBOSE) << "Sent: " << sent_;
         sent_++;
@@ -1016,7 +1016,7 @@ class SSLStreamAdapterTestDTLSBase : public SSLStreamAdapterTestBase {
   std::set<int> received_;
 };
 
-webrtc::StreamResult SSLDummyStream::Write(ArrayView<const uint8_t> data,
+webrtc::StreamResult SSLDummyStream::Write(std::span<const uint8_t> data,
                                            size_t& written,
                                            int& error) {
   RTC_LOG(LS_VERBOSE) << "Writing to loopback " << data.size();
