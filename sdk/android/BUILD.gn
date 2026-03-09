@@ -272,6 +272,7 @@ if (is_android) {
 
     deps = [
       ":base_java",
+      ":environment_java",
       ":generated_video_egl_jni_java",
       ":generated_video_jni_java",
       ":video_api_java",
@@ -701,8 +702,10 @@ if (current_os == "linux" || is_android) {
       "src/jni/yuv_helper.cc",
     ]
 
+    allow_poison = [ "environment_construction" ]
     deps = [
       ":base_jni",
+      ":environment_jni",
       ":generated_video_jni",
       ":internal_jni",
       ":native_api_jni",
@@ -932,7 +935,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("default_video_codec_factory_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     deps = [
       ":swcodecs_jni",
       ":video_jni",
@@ -941,7 +947,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("libvpx_vp8_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     sources = [ "src/jni/vp8_codec.cc" ]
     deps = [
       ":base_jni",
@@ -955,7 +964,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("libvpx_vp9_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     sources = [ "src/jni/vp9_codec.cc" ]
     deps = [
       ":base_jni",
@@ -969,7 +981,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("libaom_av1_encoder_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     sources = [ "src/jni/libaom_av1_encoder.cc" ]
     deps = [
       ":base_jni",
@@ -983,7 +998,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("dav1d_av1_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     sources = [ "src/jni/dav1d_codec.cc" ]
     deps = [
       ":base_jni",
@@ -995,7 +1013,10 @@ if (current_os == "linux" || is_android) {
 
   rtc_library("swcodecs_jni") {
     visibility = [ "*" ]
-    allow_poison = [ "software_video_codecs" ]
+    allow_poison = [
+      "software_video_codecs",
+      "environment_construction",
+    ]
     sources = [
       "src/jni/software_video_decoder_factory.cc",
       "src/jni/software_video_encoder_factory.cc",
@@ -1102,7 +1123,10 @@ if (current_os == "linux" || is_android) {
   # objects.
   rtc_library("native_api_codecs") {
     visibility = [ "*" ]
-    allow_poison = [ "audio_codecs" ]  # TODO(bugs.webrtc.org/8396): Remove.
+    allow_poison = [
+      "audio_codecs",  # TODO(bugs.webrtc.org/8396): Remove.
+      "environment_construction",
+    ]
     sources = [
       "native_api/codecs/wrapper.cc",
       "native_api/codecs/wrapper.h",
@@ -1175,7 +1199,10 @@ if (current_os == "linux" || is_android) {
   # video interfaces from their Java equivalents.
   rtc_library("native_api_video") {
     visibility = [ "*" ]
-    allow_poison = [ "audio_codecs" ]  # TODO(bugs.webrtc.org/8396): Remove.
+    allow_poison = [
+      "audio_codecs",  # TODO(bugs.webrtc.org/8396): Remove.
+      "environment_construction",
+    ]
     sources = [
       "native_api/video/video_source.cc",
       "native_api/video/video_source.h",
