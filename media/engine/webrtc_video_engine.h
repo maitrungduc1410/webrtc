@@ -432,17 +432,12 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     const bool disable_automatic_resize_;
   };
 
-  void Construct(Call* call, WebRtcVideoEngine* engine);
-
   // Get all codecs that are compatible with the receiver.
   std::vector<VideoCodecSettings> SelectSendVideoCodecs(
       const std::vector<VideoCodecSettings>& remote_mapped_codecs) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(thread_checker_);
 
   void FillSenderStats(VideoMediaSendInfo* info, bool log_stats)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(thread_checker_);
-  void FillBandwidthEstimationStats(const Call::Stats& stats,
-                                    VideoMediaInfo* info)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(thread_checker_);
   void FillSendCodecStats(VideoMediaSendInfo* video_media_info)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(thread_checker_);
@@ -471,8 +466,6 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   // Using primary-ssrc (first ssrc) as key.
   std::map<uint32_t, WebRtcVideoSendStream*> send_streams_
       RTC_GUARDED_BY(thread_checker_);
-  std::optional<int64_t> last_unsignalled_ssrc_creation_time_ms_
-      RTC_GUARDED_BY(thread_checker_);
   std::set<uint32_t> send_ssrcs_ RTC_GUARDED_BY(thread_checker_);
 
   std::optional<VideoCodecSettings> send_codec_ RTC_GUARDED_BY(thread_checker_);
@@ -489,19 +482,12 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   // See reason for keeping track of the FlexFEC payload type separately in
   // comment in WebRtcVideoChannel::ChangedReceiverParameters.
   BitrateConstraints bitrate_config_ RTC_GUARDED_BY(thread_checker_);
-  // TODO(deadbeef): Don't duplicate information between
-  // send_params/recv_params, rtp_extensions, options, etc.
   VideoSenderParameters send_params_ RTC_GUARDED_BY(thread_checker_);
   VideoOptions default_send_options_ RTC_GUARDED_BY(thread_checker_);
   int64_t last_send_stats_log_ms_ RTC_GUARDED_BY(thread_checker_);
   // Per peer connection crypto options that last for the lifetime of the peer
   // connection.
   const CryptoOptions crypto_options_ RTC_GUARDED_BY(thread_checker_);
-
-  // RTP parameters that need to be set when creating a video receive stream.
-  // Only used in Receiver mode - in Both mode, it reads those things from the
-  // codec.
-  VideoReceiveStreamInterface::Config::Rtp rtp_config_;
 
   // Callback invoked whenever the list of SSRCs changes.
   absl::AnyInvocable<void(const std::set<uint32_t>&)>
@@ -784,11 +770,6 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   // Optional frame transformer set on unsignaled streams.
   scoped_refptr<FrameTransformerInterface> unsignaled_frame_transformer_
       RTC_GUARDED_BY(thread_checker_);
-
-  // RTP parameters that need to be set when creating a video receive stream.
-  // Only used in Receiver mode - in Both mode, it reads those things from the
-  // codec.
-  VideoReceiveStreamInterface::Config::Rtp rtp_config_;
 
   const int receive_buffer_size_;
 };

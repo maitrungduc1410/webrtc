@@ -3076,10 +3076,6 @@ void WebRtcVideoReceiveChannel::ConfigureReceiverRtp(
 
   config->rtp.remote_ssrc = ssrc;
 
-  // The mode and rtx time is determined by a call to the configuration
-  // function.
-  config->rtp.rtcp_mode = rtp_config_.rtcp_mode;
-
   sp.GetFidSsrc(ssrc, &config->rtp.rtx_ssrc);
 
   // TODO(brandtr): Generalize when we add support for multistream protection.
