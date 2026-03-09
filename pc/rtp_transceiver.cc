@@ -389,7 +389,7 @@ RtpTransceiver::RtpTransceiver(
   // This should be possible without a blocking call to the worker, perhaps done
   // asynchronously. At the moment this is complicated by the fact that
   // construction of the channels actually changes the settings of the engine.
-  context_->worker_thread()->BlockingCall([&]() mutable {
+  context_->worker_thread()->BlockingCall([&]() {
     RTC_DCHECK_RUN_ON(this->context()->worker_thread());
     auto channels = CreateMediaContentChannels(
         media_type_, env_, media_engine(), call, media_config, audio_options,

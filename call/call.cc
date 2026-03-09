@@ -43,6 +43,7 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "api/video/video_stream_encoder_settings.h"
 #include "audio/audio_receive_stream.h"
 #include "audio/audio_send_stream.h"
 #include "audio/audio_state.h"
@@ -225,10 +226,13 @@ class Call final : public webrtc::Call,
 
   webrtc::VideoSendStream* CreateVideoSendStream(
       webrtc::VideoSendStream::Config config,
-      VideoEncoderConfig encoder_config) override;
+      VideoEncoderConfig encoder_config,
+      EncoderSwitchRequestCallback encoder_switch_request_callback =
+          nullptr) override;
   webrtc::VideoSendStream* CreateVideoSendStream(
       webrtc::VideoSendStream::Config config,
       VideoEncoderConfig encoder_config,
+      EncoderSwitchRequestCallback encoder_switch_request_callback,
       std::unique_ptr<FecController> fec_controller) override;
   void DestroyVideoSendStream(webrtc::VideoSendStream* send_stream) override;
 
@@ -499,6 +503,7 @@ std::unique_ptr<Call> Call::Create(CallConfig config) {
 VideoSendStream* Call::CreateVideoSendStream(
     VideoSendStream::Config /* config */,
     VideoEncoderConfig /* encoder_config */,
+    EncoderSwitchRequestCallback /* encoder_switch_request_callback */,
     std::unique_ptr<FecController> /* fec_controller */) {
   return nullptr;
 }
@@ -879,6 +884,7 @@ void Call::DestroyAudioReceiveStream(
 webrtc::VideoSendStream* Call::CreateVideoSendStream(
     webrtc::VideoSendStream::Config config,
     VideoEncoderConfig encoder_config,
+    EncoderSwitchRequestCallback encoder_switch_request_callback,
     std::unique_ptr<FecController> fec_controller) {
   TRACE_EVENT0("webrtc", "Call::CreateVideoSendStream");
   RTC_DCHECK_RUN_ON(worker_thread_);
@@ -902,7 +908,8 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
       transport_send_.get(), config_.encode_metronome, bitrate_allocator_.get(),
       video_send_delay_stats_.get(), std::move(config),
       std::move(encoder_config), suspended_video_send_ssrcs_,
-      suspended_video_payload_states_, std::move(fec_controller));
+      suspended_video_payload_states_, std::move(fec_controller),
+      std::move(encoder_switch_request_callback));
 
   for (uint32_t ssrc : ssrcs) {
     RTC_DCHECK(video_send_ssrcs_.find(ssrc) == video_send_ssrcs_.end());
@@ -923,7 +930,8 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
 
 webrtc::VideoSendStream* Call::CreateVideoSendStream(
     webrtc::VideoSendStream::Config config,
-    VideoEncoderConfig encoder_config) {
+    VideoEncoderConfig encoder_config,
+    EncoderSwitchRequestCallback encoder_switch_request_callback) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   if (config_.fec_controller_factory) {
     RTC_LOG(LS_INFO) << "External FEC Controller will be used.";
@@ -933,6 +941,7 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
           ? config_.fec_controller_factory->CreateFecController(env_)
           : std::make_unique<FecControllerDefault>(env_);
   return CreateVideoSendStream(std::move(config), std::move(encoder_config),
+                               std::move(encoder_switch_request_callback),
                                std::move(fec_controller));
 }
 

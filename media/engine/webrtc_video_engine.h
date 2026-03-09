@@ -47,7 +47,6 @@
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
 #include "api/video/video_source_interface.h"
-#include "api/video/video_stream_encoder_settings.h"
 #include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_encoder_factory.h"
 #include "call/call.h"
@@ -159,8 +158,7 @@ struct VideoCodecSettings {
 };
 
 class WebRtcVideoSendChannel : public MediaChannelUtil,
-                               public VideoMediaSendChannelInterface,
-                               public EncoderSwitchRequestCallback {
+                               public VideoMediaSendChannelInterface {
  public:
   WebRtcVideoSendChannel(
       const Environment& env,
@@ -253,10 +251,10 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     ADAPTREASON_BANDWIDTH = 2,
   };
 
-  // Implements EncoderSwitchRequestCallback.
-  void RequestEncoderFallback() override;
-  void RequestEncoderSwitch(const SdpVideoFormat& format,
-                            bool allow_default_fallback) override;
+  // Called to request an encoder switch or fallback.
+  // See also EncoderSwitchRequestCallback.
+  void RequestEncoderSwitch(std::optional<SdpVideoFormat> format,
+                            bool allow_default_fallback);
 
   void GenerateSendKeyFrame(uint32_t ssrc,
                             const std::vector<std::string>& rids) override;
@@ -318,6 +316,7 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   class WebRtcVideoSendStream {
    public:
     WebRtcVideoSendStream(
+        WebRtcVideoSendChannel* send_channel,
         const Environment& env,
         Call* call,
         const StreamParams& sp,
@@ -402,6 +401,7 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     DegradationPreference GetDegradationPreference() const
         RTC_EXCLUSIVE_LOCKS_REQUIRED(&thread_checker_);
 
+    WebRtcVideoSendChannel* const send_channel_;
     const Environment env_;
     RTC_NO_UNIQUE_ADDRESS SequenceChecker thread_checker_;
     TaskQueueBase* const worker_thread_;
