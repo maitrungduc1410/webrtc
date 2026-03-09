@@ -25,13 +25,13 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/adaptation/resource.h"
-#include "api/array_view.h"
 #include "api/audio/audio_frame.h"
 #include "api/audio/audio_mixer.h"
 #include "api/audio_codecs/audio_format.h"
@@ -125,10 +125,10 @@ class FakeAudioReceiveStream final : public AudioReceiveStreamInterface {
   const AudioReceiveStreamInterface::Config& GetConfig() const;
   void SetStats(const AudioReceiveStreamInterface::Stats& stats);
   int received_packets() const { return received_packets_; }
-  bool VerifyLastPacket(ArrayView<const uint8_t> data) const;
+  bool VerifyLastPacket(std::span<const uint8_t> data) const;
   const AudioSinkInterface* sink() const { return sink_; }
   float gain() const { return gain_; }
-  bool DeliverRtp(ArrayView<const uint8_t> packet, int64_t packet_time_us);
+  bool DeliverRtp(std::span<const uint8_t> packet, int64_t packet_time_us);
   bool started() const { return started_; }
   int base_mininum_playout_delay_ms() const {
     return base_mininum_playout_delay_ms_;
@@ -206,7 +206,7 @@ class FakeVideoSendStream final : public VideoSendStream,
   int GetLastHeight() const;
   int64_t GetLastTimestamp() const;
   void SetStats(const VideoSendStream::Stats& stats) override;
-  void SetCsrcs(ArrayView<const uint32_t> csrcs) override;
+  void SetCsrcs(std::span<const uint32_t> csrcs) override;
   int num_encoder_reconfigurations() const {
     return num_encoder_reconfigurations_;
   }

@@ -14,9 +14,9 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/audio/audio_device.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_encoder_factory.h"
@@ -43,13 +43,13 @@ class Call;
 // Checks that the scalability_mode value of each encoding is supported by at
 // least one video codec of the list. If the list is empty, no check is done.
 RTCError CheckScalabilityModeValues(const RtpParameters& new_parameters,
-                                    ArrayView<const Codec> send_codecs,
+                                    std::span<const Codec> send_codecs,
                                     std::optional<Codec> send_codec);
 
 // Checks the parameters have valid and supported values, and checks parameters
 // with CheckScalabilityModeValues().
 RTCError CheckRtpParametersValues(const RtpParameters& new_parameters,
-                                  ArrayView<const Codec> send_codecs,
+                                  std::span<const Codec> send_codecs,
                                   std::optional<Codec> send_codec,
                                   const FieldTrialsView& field_trials);
 
@@ -58,7 +58,7 @@ RTCError CheckRtpParametersValues(const RtpParameters& new_parameters,
 RTCError CheckRtpParametersInvalidModificationAndValues(
     const RtpParameters& old_parameters,
     const RtpParameters& new_parameters,
-    ArrayView<const Codec> send_codecs,
+    std::span<const Codec> send_codecs,
     std::optional<Codec> send_codec,
     const FieldTrialsView& field_trials);
 

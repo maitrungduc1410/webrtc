@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -29,7 +30,6 @@
 #include "absl/functional/bind_front.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
-#include "api/array_view.h"
 #include "api/crypto/crypto_options.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
@@ -734,7 +734,7 @@ std::string CodecSettingsVectorToString(
 }
 
 void ExtractCodecInformation(
-    ArrayView<const VideoCodecSettings> recv_codecs,
+    std::span<const VideoCodecSettings> recv_codecs,
     std::map<int, int>& rtx_associated_payload_types,
     std::set<int>& raw_payload_types,
     std::vector<VideoReceiveStreamInterface::Decoder>& decoders) {

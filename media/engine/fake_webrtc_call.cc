@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,7 +21,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/strings/string_view.h"
 #include "api/adaptation/resource.h"
-#include "api/array_view.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/call/audio_sink.h"
 #include "api/crypto/frame_decryptor_interface.h"
@@ -124,11 +124,11 @@ void FakeAudioReceiveStream::SetStats(
 }
 
 bool FakeAudioReceiveStream::VerifyLastPacket(
-    ArrayView<const uint8_t> data) const {
+    std::span<const uint8_t> data) const {
   return last_packet_ == Buffer(data.data(), data.size());
 }
 
-bool FakeAudioReceiveStream::DeliverRtp(ArrayView<const uint8_t> packet,
+bool FakeAudioReceiveStream::DeliverRtp(std::span<const uint8_t> packet,
                                         int64_t /* packet_time_us */) {
   ++received_packets_;
   last_packet_.SetData(packet);
@@ -295,7 +295,7 @@ VideoSendStream::Stats FakeVideoSendStream::GetStats() {
   return stats_;
 }
 
-void FakeVideoSendStream::SetCsrcs(ArrayView<const uint32_t> csrcs) {}
+void FakeVideoSendStream::SetCsrcs(std::span<const uint32_t> csrcs) {}
 
 void FakeVideoSendStream::ReconfigureVideoEncoder(VideoEncoderConfig config) {
   ReconfigureVideoEncoder(std::move(config), nullptr);
