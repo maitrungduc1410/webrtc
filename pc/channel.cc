@@ -11,6 +11,7 @@
 #include "pc/channel.h"
 
 #include <algorithm>
+#include <bitset>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -549,17 +550,30 @@ void BaseChannel::OnRtpPacket(const RtpPacketReceived& parsed_packet) {
 
 bool BaseChannel::MaybeUpdateDemuxerAndRtpExtensions_w(
     bool update_demuxer,
-    std::optional<RtpHeaderExtensions> extensions,
+    const RtpHeaderExtensions& extensions,
     std::string& error_desc) {
-  if (extensions) {
-    if (rtp_header_extensions_ == extensions) {
-      extensions.reset();  // No need to update header extensions.
-    } else {
-      rtp_header_extensions_ = *extensions;
+  bool update_extensions = true;
+  if (rtp_header_extensions_ == extensions) {
+    update_extensions = false;  // No need to update header extensions.
+  } else {
+    if (!CheckRtpExtensionValidity(extensions, error_desc)) {
+      return false;
+    }
+    rtp_header_extensions_ = extensions;
+
+    for (const auto& extension : extensions) {
+      if (extension.id == 0)
+        continue;
+      if (absl::c_find_if(historical_rtp_header_extensions_,
+                          [&](const RtpExtension& ext) {
+                            return ext.id == extension.id;
+                          }) == historical_rtp_header_extensions_.end()) {
+        historical_rtp_header_extensions_.push_back(extension);
+      }
     }
   }
 
-  if (!update_demuxer && !extensions)
+  if (!update_demuxer && !update_extensions)
     return true;  // No update needed.
 
   // TODO(bugs.webrtc.org/13536): See if we can do this asynchronously.
@@ -576,8 +590,8 @@ bool BaseChannel::MaybeUpdateDemuxerAndRtpExtensions_w(
       return false;
     }
 
-    if (extensions) {
-      rtp_transport_->RegisterRtpHeaderExtensionMap(mid(), *extensions);
+    if (update_extensions) {
+      rtp_transport_->RegisterRtpHeaderExtensionMap(mid(), extensions);
     }
 
     if (!update_demuxer)
@@ -917,6 +931,48 @@ bool BaseChannel::ClearHandledPayloadTypes() {
   return !was_empty;
 }
 
+bool BaseChannel::CheckRtpExtensionValidity(
+    const RtpHeaderExtensions& extensions,
+    std::string& error_desc) const {
+  std::bitset<1 + RtpExtension::kMaxId> id_used;
+  for (const auto& extension : extensions) {
+    if (extension.id == 0)
+      continue;
+    if (extension.id < RtpExtension::kMinId ||
+        extension.id > RtpExtension::kMaxId) {
+      error_desc = StringFormat("Bad RTP extension ID: %s",
+                                extension.ToString().c_str());
+      return false;
+    }
+    if (id_used[extension.id]) {
+      error_desc = StringFormat("Duplicate RTP extension ID: %s",
+                                extension.ToString().c_str());
+      return false;
+    }
+    id_used[extension.id] = true;
+  }
+
+  for (const auto& new_extension : extensions) {
+    if (new_extension.id == 0)
+      continue;
+    auto it = absl::c_find_if(
+        historical_rtp_header_extensions_,
+        [&](const RtpExtension& ext) { return ext.id == new_extension.id; });
+    if (it != historical_rtp_header_extensions_.end() &&
+        it->uri != new_extension.uri) {
+      error_desc = StringFormat(
+          "Failed to update RTP header extensions for m-section with "
+          "mid='%s'. RTP extension ID reassignment from %s to %s for ID "
+          "%d.",
+          mid().c_str(), it->uri.c_str(), new_extension.uri.c_str(),
+          new_extension.id);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void BaseChannel::SignalSentPacket_n(const SentPacketInfo& sent_packet) {
   RTC_DCHECK_RUN_ON(network_thread());
   RTC_DCHECK(network_initialized());
@@ -975,7 +1031,11 @@ bool VoiceChannel::SetLocalContent_w(const MediaContentDescription* content,
 
   RtpHeaderExtensions header_extensions =
       GetDeduplicatedRtpHeaderExtensions(content->rtp_header_extensions());
-  bool update_header_extensions = true;
+
+  if (!CheckRtpExtensionValidity(header_extensions, error_desc)) {
+    return false;
+  }
+
   // TODO: issues.webrtc.org/383078466 - remove if pushdown on answer is enough.
   media_send_channel()->SetExtmapAllowMixed(content->extmap_allow_mixed());
 
@@ -1030,11 +1090,7 @@ bool VoiceChannel::SetLocalContent_w(const MediaContentDescription* content,
   // RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(0);
 
   bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
-      criteria_modified,
-      update_header_extensions
-          ? std::optional<RtpHeaderExtensions>(recv_params.extensions)
-          : std::nullopt,
-      error_desc);
+      criteria_modified, recv_params.extensions, error_desc);
 
   // RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 
@@ -1051,6 +1107,10 @@ bool VoiceChannel::SetRemoteContent_w(const MediaContentDescription* content,
   RtpSendParametersFromMediaDescription(content, extensions_filter(),
                                         &send_params);
   send_params.mid = mid();
+
+  if (!CheckRtpExtensionValidity(send_params.extensions, error_desc)) {
+    return false;
+  }
 
   bool parameters_applied =
       media_send_channel()->SetSenderParameters(send_params);
@@ -1091,17 +1151,13 @@ bool VoiceChannel::SetRemoteContent_w(const MediaContentDescription* content,
     return false;
   }
 
+  bool success = true;
   if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
-    bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
-        /*update_demuxer=*/false,
-        std::optional<RtpHeaderExtensions>(last_recv_params_.extensions),
-        error_desc);
-    if (!success) {
-      return false;
-    }
+    success = MaybeUpdateDemuxerAndRtpExtensions_w(
+        /*update_demuxer=*/false, last_recv_params_.extensions, error_desc);
   }
 
-  return true;
+  return success;
 }
 
 VideoChannel::VideoChannel(
@@ -1153,12 +1209,15 @@ bool VideoChannel::SetLocalContent_w(const MediaContentDescription* content,
 
   RtpHeaderExtensions header_extensions =
       GetDeduplicatedRtpHeaderExtensions(content->rtp_header_extensions());
-  bool update_header_extensions = true;
+
+  if (!CheckRtpExtensionValidity(header_extensions, error_desc)) {
+    return false;
+  }
+
   // TODO: issues.webrtc.org/383078466 - remove if pushdown on answer is enough.
   media_send_channel()->SetExtmapAllowMixed(content->extmap_allow_mixed());
 
   VideoReceiverParameters recv_params = last_recv_params_;
-
   MediaChannelParametersFromMediaDescription(
       content, header_extensions,
       RtpTransceiverDirectionHasRecv(content->direction()), &recv_params);
@@ -1219,11 +1278,7 @@ bool VideoChannel::SetLocalContent_w(const MediaContentDescription* content,
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(0);
 
   bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
-      criteria_modified,
-      update_header_extensions
-          ? std::optional<RtpHeaderExtensions>(recv_params.extensions)
-          : std::nullopt,
-      error_desc);
+      criteria_modified, recv_params.extensions, error_desc);
 
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 
@@ -1241,6 +1296,10 @@ bool VideoChannel::SetRemoteContent_w(const MediaContentDescription* content,
                                         &send_params);
   send_params.mid = mid();
   send_params.conference_mode = content->conference_mode();
+
+  if (!CheckRtpExtensionValidity(send_params.extensions, error_desc)) {
+    return false;
+  }
 
   VideoReceiverParameters recv_params = last_recv_params_;
 
@@ -1283,9 +1342,7 @@ bool VideoChannel::SetRemoteContent_w(const MediaContentDescription* content,
 
   if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
     bool success = MaybeUpdateDemuxerAndRtpExtensions_w(
-        /*update_demuxer=*/false,
-        std::optional<RtpHeaderExtensions>(last_recv_params_.extensions),
-        error_desc);
+        /*update_demuxer=*/false, last_recv_params_.extensions, error_desc);
     if (!success) {
       return false;
     }

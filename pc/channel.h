@@ -290,17 +290,20 @@ class BaseChannel : public ChannelInterface,
   // clearing.
   bool ClearHandledPayloadTypes() RTC_RUN_ON(worker_thread());
 
-  // Hops to the network thread to update the transport if an update is
-  // requested. If `update_demuxer` is false and `extensions` is not set, the
-  // function simply returns. If either of these is set, the function updates
-  // the transport with either or both of the demuxer criteria and the supplied
-  // rtp header extensions.
+  // Checks that the provided RTP header extensions are valid.
+  // This verifies that all extension IDs are within the valid range,
+  // that there are no duplicate IDs, and that no existing extension ID
+  // has been reassigned to a different URI.
+  bool CheckRtpExtensionValidity(const RtpHeaderExtensions& extensions,
+                                 std::string& error_desc) const
+      RTC_RUN_ON(worker_thread());
+
   // Returns `true` if either an update wasn't needed or one was successfully
   // applied. If the return value is `false`, then updating the demuxer criteria
   // failed, which needs to be treated as an error.
   bool MaybeUpdateDemuxerAndRtpExtensions_w(
       bool update_demuxer,
-      std::optional<RtpHeaderExtensions> extensions,
+      const RtpHeaderExtensions& extensions,
       std::string& error_desc) RTC_RUN_ON(worker_thread());
 
   bool RegisterRtpDemuxerSink_w() RTC_RUN_ON(worker_thread());
@@ -365,6 +368,12 @@ class BaseChannel : public ChannelInterface,
   flat_set<uint8_t> payload_types_ RTC_GUARDED_BY(worker_thread());
   // A stored copy of the rtp header extensions as applied to the transport.
   RtpHeaderExtensions rtp_header_extensions_ RTC_GUARDED_BY(worker_thread());
+
+  // Set of all historic RTP header extensions mapped, keyed by URI,
+  // to ensure no ID-URI reassignment occurs per RFC 8285.
+  RtpHeaderExtensions historical_rtp_header_extensions_
+      RTC_GUARDED_BY(worker_thread());
+
   // TODO(bugs.webrtc.org/12239): Modified on worker thread, accessed
   // on network thread in RegisterRtpDemuxerSink_n (called from Init_w)
   RtpDemuxerCriteria demuxer_criteria_;

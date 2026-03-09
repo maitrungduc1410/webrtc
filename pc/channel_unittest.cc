@@ -704,6 +704,80 @@ class ChannelTest : public ::testing::Test {
                                         RtpExtension::kVideoRotationUri))));
   }
 
+  void TestDuplicateRtpHeaderExtensionIds() {
+    typename T::Content local;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
+    local.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
+        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+    });
+
+    CreateChannels(0, 0);
+    std::string err;
+    EXPECT_FALSE(channel1_->SetLocalContent(&local, SdpType::kOffer, err));
+    EXPECT_THAT(err, ::testing::HasSubstr("Duplicate RTP extension ID"));
+  }
+
+  void TestInvalidRtpHeaderExtensionIds() {
+    typename T::Content local;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
+    local.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 256),
+    });
+
+    CreateChannels(0, 0);
+    std::string err;
+    EXPECT_FALSE(channel1_->SetLocalContent(&local, SdpType::kOffer, err));
+    EXPECT_THAT(err, ::testing::HasSubstr("Bad RTP extension ID"));
+  }
+
+  void TestRtpHeaderExtensionIdReassignment() {
+    typename T::Content local;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
+    local.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
+    });
+
+    CreateChannels(0, 0);
+    std::string err;
+    ASSERT_TRUE(channel1_->SetLocalContent(&local, SdpType::kOffer, err));
+
+    typename T::Content local_updated;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local_updated);
+    local_updated.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+    });
+    EXPECT_FALSE(
+        channel1_->SetLocalContent(&local_updated, SdpType::kOffer, err));
+    EXPECT_THAT(err, ::testing::HasSubstr("RTP extension ID reassignment"));
+  }
+
+  void TestRtpHeaderExtensionIdHistoryReassignment() {
+    typename T::Content local;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
+    local.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
+    });
+
+    CreateChannels(0, 0);
+    std::string err;
+    ASSERT_TRUE(channel1_->SetLocalContent(&local, SdpType::kOffer, err));
+
+    typename T::Content local_empty;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local_empty);
+    local_empty.set_rtp_header_extensions({});
+    ASSERT_TRUE(channel1_->SetLocalContent(&local_empty, SdpType::kOffer, err));
+
+    typename T::Content local_updated;
+    CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local_updated);
+    local_updated.set_rtp_header_extensions({
+        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+    });
+    EXPECT_FALSE(
+        channel1_->SetLocalContent(&local_updated, SdpType::kOffer, err));
+    EXPECT_THAT(err, ::testing::HasSubstr("RTP extension ID reassignment"));
+  }
+
   // Test that SetLocalContent and SetRemoteContent properly configure
   // extmap-allow-mixed.
   void TestSetContentsExtmapAllowMixedCaller(bool offer, bool answer) {
@@ -1942,6 +2016,23 @@ TEST_F(VoiceChannelSingleThreadTest, RemovesExtensionNotPresentInLocalAnswer) {
   Base::TestRemovesExtensionNotPresentInLocalAnswer();
 }
 
+TEST_F(VoiceChannelSingleThreadTest, DuplicateRtpHeaderExtensionIds) {
+  Base::TestDuplicateRtpHeaderExtensionIds();
+}
+
+TEST_F(VoiceChannelSingleThreadTest, InvalidRtpHeaderExtensionIds) {
+  Base::TestInvalidRtpHeaderExtensionIds();
+}
+
+TEST_F(VoiceChannelSingleThreadTest, RtpHeaderExtensionIdReassignment) {
+  Base::TestRtpHeaderExtensionIdReassignment();
+}
+
+TEST_F(VoiceChannelSingleThreadTest,
+       TestRtpHeaderExtensionIdHistoryReassignment) {
+  Base::TestRtpHeaderExtensionIdHistoryReassignment();
+}
+
 // VoiceChannelDoubleThreadTest
 TEST_F(VoiceChannelDoubleThreadTest, TestInit) {
   Base::TestInit();
@@ -2228,6 +2319,23 @@ TEST_F(VideoChannelSingleThreadTest, RemovesExtensionNotPresentInRemoteAnswer) {
 
 TEST_F(VideoChannelSingleThreadTest, RemovesExtensionNotPresentInLocalAnswer) {
   Base::TestRemovesExtensionNotPresentInLocalAnswer();
+}
+
+TEST_F(VideoChannelSingleThreadTest, DuplicateRtpHeaderExtensionIds) {
+  Base::TestDuplicateRtpHeaderExtensionIds();
+}
+
+TEST_F(VideoChannelSingleThreadTest, InvalidRtpHeaderExtensionIds) {
+  Base::TestInvalidRtpHeaderExtensionIds();
+}
+
+TEST_F(VideoChannelSingleThreadTest, RtpHeaderExtensionIdReassignment) {
+  Base::TestRtpHeaderExtensionIdReassignment();
+}
+
+TEST_F(VideoChannelSingleThreadTest,
+       TestRtpHeaderExtensionIdHistoryReassignment) {
+  Base::TestRtpHeaderExtensionIdHistoryReassignment();
 }
 
 TEST_F(VideoChannelSingleThreadTest, TestSetLocalOfferWithPacketization) {
