@@ -1538,12 +1538,15 @@ void PeerConnection::CreateAnswer(CreateSessionDescriptionObserver* observer,
 void PeerConnection::SetLocalDescription(
     SetSessionDescriptionObserver* observer,
     SessionDescriptionInterface* desc) {
-  if (!CheckValidSetDescription(observer, desc, signaling_thread()))
+  auto desc_ptr = std::unique_ptr<SessionDescriptionInterface>(desc);
+  if (!CheckValidSetDescription(observer, desc_ptr, signaling_thread()))
     return;
 
-  RunOnSignalingThread([this, desc, observer]() mutable {
+  RunOnSignalingThread([this, desc = std::move(desc_ptr),
+                        observer = scoped_refptr<SetSessionDescriptionObserver>(
+                            observer)]() mutable {
     RTC_DCHECK_RUN_ON(signaling_thread());
-    sdp_handler_->SetLocalDescription(observer, desc);
+    sdp_handler_->SetLocalDescription(std::move(observer), std::move(desc));
   });
 }
 
@@ -1564,7 +1567,8 @@ void PeerConnection::SetLocalDescription(
 void PeerConnection::SetLocalDescription(
     SetSessionDescriptionObserver* observer) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  sdp_handler_->SetLocalDescription(observer);
+  sdp_handler_->SetLocalDescription(
+      scoped_refptr<SetSessionDescriptionObserver>(observer));
 }
 
 void PeerConnection::SetLocalDescription(
@@ -1576,12 +1580,15 @@ void PeerConnection::SetLocalDescription(
 void PeerConnection::SetRemoteDescription(
     SetSessionDescriptionObserver* observer,
     SessionDescriptionInterface* desc) {
-  if (!CheckValidSetDescription(observer, desc, signaling_thread()))
+  auto desc_ptr = std::unique_ptr<SessionDescriptionInterface>(desc);
+  if (!CheckValidSetDescription(observer, desc_ptr, signaling_thread()))
     return;
 
-  RunOnSignalingThread([this, desc, observer]() mutable {
+  RunOnSignalingThread([this, desc = std::move(desc_ptr),
+                        observer = scoped_refptr<SetSessionDescriptionObserver>(
+                            observer)]() mutable {
     RTC_DCHECK_RUN_ON(signaling_thread());
-    sdp_handler_->SetRemoteDescription(observer, desc);
+    sdp_handler_->SetRemoteDescription(std::move(observer), std::move(desc));
   });
 }
 
@@ -3196,12 +3203,8 @@ void PeerConnection::RunOnSignalingThread(absl::AnyInvocable<void() &&> task) {
   if (signaling_thread()->IsCurrent()) {
     std::move(task)();
   } else {
-    // Consider if we can use PostTask instead in some situations:
-    //   signaling_thread()->PostTask(
-    //      SafeTask(signaling_thread_safety_.flag(), std::move(task)));
-    // Currently we use BlockingCall() to be compatible with how the
-    // api proxies work by default.
-    signaling_thread()->BlockingCall([&] { std::move(task)(); });
+    signaling_thread()->PostTask(
+        SafeTask(signaling_thread_safety_.flag(), std::move(task)));
   }
 }
 

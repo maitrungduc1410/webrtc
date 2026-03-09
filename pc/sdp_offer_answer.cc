@@ -1733,19 +1733,18 @@ void SdpOfferAnswerHandler::CreateOffer(
 }
 
 void SdpOfferAnswerHandler::SetLocalDescription(
-    SetSessionDescriptionObserver* observer,
-    SessionDescriptionInterface* desc_ptr) {
+    scoped_refptr<SetSessionDescriptionObserver> observer,
+    std::unique_ptr<SessionDescriptionInterface> desc) {
   RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(desc_ptr);
+  RTC_DCHECK(desc);
   RTC_DCHECK(observer);
   // Chain this operation. If asynchronous operations are pending on the chain,
   // this operation will be queued to be invoked, otherwise the contents of the
   // lambda will execute immediately.
   operations_chain_->ChainOperation(
       [this_weak_ptr = weak_ptr_factory_.GetWeakPtr(),
-       observer_refptr = scoped_refptr<SetSessionDescriptionObserver>(observer),
-       desc = std::unique_ptr<SessionDescriptionInterface>(desc_ptr)](
+       observer_refptr = observer, desc = std::move(desc)](
           std::function<void()> operations_chain_callback) mutable {
         // Abort early if `this_weak_ptr` is no longer valid.
         if (!this_weak_ptr) {
@@ -1801,13 +1800,13 @@ void SdpOfferAnswerHandler::SetLocalDescription(
 }
 
 void SdpOfferAnswerHandler::SetLocalDescription(
-    SetSessionDescriptionObserver* observer) {
+    scoped_refptr<SetSessionDescriptionObserver> observer) {
   RTC_LOG_THREAD_BLOCK_COUNT();
   RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(observer);
-  SetLocalDescription(make_ref_counted<SetSessionDescriptionObserverAdapter>(
-      weak_ptr_factory_.GetWeakPtr(),
-      scoped_refptr<SetSessionDescriptionObserver>(observer)));
+  scoped_refptr<SetLocalDescriptionObserverInterface> adapter =
+      make_ref_counted<SetSessionDescriptionObserverAdapter>(
+          weak_ptr_factory_.GetWeakPtr(), std::move(observer));
+  SetLocalDescription(std::move(adapter));
 }
 
 void SdpOfferAnswerHandler::SetLocalDescription(
@@ -2144,36 +2143,15 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
 }
 
 void SdpOfferAnswerHandler::SetRemoteDescription(
-    SetSessionDescriptionObserver* observer,
-    SessionDescriptionInterface* desc_ptr) {
+    scoped_refptr<SetSessionDescriptionObserver> observer,
+    std::unique_ptr<SessionDescriptionInterface> desc) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(observer);
-  RTC_DCHECK(desc_ptr);
-  // Chain this operation. If asynchronous operations are pending on the chain,
-  // this operation will be queued to be invoked, otherwise the contents of the
-  // lambda will execute immediately.
-  operations_chain_->ChainOperation(
-      [this_weak_ptr = weak_ptr_factory_.GetWeakPtr(),
-       observer_refptr = scoped_refptr<SetSessionDescriptionObserver>(observer),
-       desc = std::unique_ptr<SessionDescriptionInterface>(desc_ptr)](
-          std::function<void()> operations_chain_callback) mutable {
-        // Abort early if `this_weak_ptr` is no longer valid.
-        if (!this_weak_ptr) {
-          // For consistency with SetSessionDescriptionObserverAdapter whose
-          // posted messages doesn't get processed when the PC is destroyed, we
-          // do not inform `observer_refptr` that the operation failed.
-          operations_chain_callback();
-          return;
-        }
-        // SetSessionDescriptionObserverAdapter takes care of making sure the
-        // `observer_refptr` is invoked in a posted message.
-        this_weak_ptr->DoSetRemoteDescription(
-            std::make_unique<RemoteDescriptionOperation>(
-                this_weak_ptr.get(), std::move(desc),
-                make_ref_counted<SetSessionDescriptionObserverAdapter>(
-                    this_weak_ptr, observer_refptr),
-                std::move(operations_chain_callback)));
-      });
+  RTC_DCHECK(desc);
+  SetRemoteDescription(
+      std::move(desc),
+      make_ref_counted<SetSessionDescriptionObserverAdapter>(
+          weak_ptr_factory_.GetWeakPtr(), std::move(observer)));
 }
 
 void SdpOfferAnswerHandler::SetRemoteDescription(
