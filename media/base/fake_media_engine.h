@@ -749,14 +749,11 @@ class FakeVideoMediaSendChannel
 
   void GenerateSendKeyFrame(uint32_t ssrc,
                             const std::vector<std::string>& rids) override;
-  RtcpMode SendCodecRtcpMode() const override { return RtcpMode::kCompound; }
   void SetSsrcListChangedCallback(
       absl::AnyInvocable<void(const std::set<uint32_t>&)> /* callback */)
       override {}
 
-  bool SendCodecHasLntf() const override { return false; }
   bool SendCodecHasNack() const override { return false; }
-  std::optional<int> SendCodecRtxTime() const override { return std::nullopt; }
   bool GetStats(VideoMediaSendInfo* info) override;
   bool SetOptions(const VideoOptions& options) override;
 

@@ -263,32 +263,12 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
       uint32_t ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
   // Information queries to support SetReceiverFeedbackParameters
-  RtcpMode SendCodecRtcpMode() const override {
-    RTC_DCHECK_RUN_ON(&thread_checker_);
-    return send_params_.rtcp.reduced_size ? RtcpMode::kReducedSize
-                                          : RtcpMode::kCompound;
-  }
-
-  bool SendCodecHasLntf() const override {
-    RTC_DCHECK_RUN_ON(&thread_checker_);
-    if (!send_codec()) {
-      return false;
-    }
-    return HasLntf(send_codec()->codec);
-  }
   bool SendCodecHasNack() const override {
     RTC_DCHECK_RUN_ON(&thread_checker_);
     if (!send_codec()) {
       return false;
     }
     return HasNack(send_codec()->codec);
-  }
-  std::optional<int> SendCodecRtxTime() const override {
-    RTC_DCHECK_RUN_ON(&thread_checker_);
-    if (!send_codec()) {
-      return std::nullopt;
-    }
-    return send_codec()->rtx_time;
   }
 
  private:
