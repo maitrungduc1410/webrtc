@@ -407,6 +407,7 @@ rtc_library("codec_vendor") {
     ":typed_codec_vendor",
     ":used_ids",
     "../api:field_trials_view",
+    "../api:payload_type",
     "../api:rtc_error",
     "../api:rtp_parameters",
     "../api:rtp_transceiver_direction",
