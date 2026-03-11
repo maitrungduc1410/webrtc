@@ -3181,16 +3181,14 @@ PeerConnection::InitializeRtcpCallback() {
 absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
 PeerConnection::InitializeUnDemuxablePacketHandler() {
   return [this](const RtpPacketReceived& parsed_packet) {
-    worker_thread()->PostTask(
-        SafeTask(worker_thread_safety_, [this, parsed_packet]() {
-          // Deliver the packet anyway to Call to allow Call to do BWE.
-          // Even if there is no media receiver, the packet has still
-          // been received on the network and has been correcly parsed.
-          call_ptr_->Receiver()->DeliverRtpPacket(
-              MediaType::ANY, parsed_packet,
-              /*undemuxable_packet_handler=*/
-              [](const RtpPacketReceived& packet) { return false; });
-        }));
+    RTC_DCHECK_RUN_ON(network_thread());
+    // Deliver the packet anyway to Call to allow Call to do BWE.
+    // Even if there is no media receiver, the packet has still
+    // been received on the network and has been correctly parsed.
+    call_ptr_->Receiver()->DeliverRtpPacket(
+        MediaType::ANY, parsed_packet,
+        /*undemuxable_packet_handler=*/
+        [](const RtpPacketReceived& packet) { return false; });
   };
 }
 
