@@ -23,7 +23,6 @@
 #include "absl/strings/string_view.h"
 #include "api/field_trials_view.h"
 #include "api/media_types.h"
-#include "api/payload_type.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
@@ -621,8 +620,7 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
   CodecList codecs;
   std::string mid = media_description_options.mid;
   // If current content exists and is not being recycled, use its codecs.
-  if (current_content && current_content->mid() == mid &&
-      IsMediaContentOfType(current_content, media_description_options.type)) {
+  if (current_content && current_content->mid() == mid) {
     RTCErrorOr<CodecList> checked_codec_list =
         CodecList::Create(current_content->media_description()->codecs());
     if (!checked_codec_list.ok()) {
@@ -760,8 +758,7 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
   RTC_LOG_THREAD_BLOCK_COUNT();
   CodecList codecs;
   std::string mid = media_description_options.mid;
-  if (current_content && current_content->mid() == mid &&
-      IsMediaContentOfType(current_content, media_description_options.type)) {
+  if (current_content && current_content->mid() == mid) {
     RTCErrorOr<CodecList> checked_codec_list =
         CodecList::Create(current_content->media_description()->codecs());
     if (!checked_codec_list.ok()) {
