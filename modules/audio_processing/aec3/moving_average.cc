@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <span>
 
-#include "api/array_view.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -33,8 +33,8 @@ MovingAverage::MovingAverage(size_t num_elem, size_t mem_len)
 
 MovingAverage::~MovingAverage() = default;
 
-void MovingAverage::Average(ArrayView<const float> input,
-                            ArrayView<float> output) {
+void MovingAverage::Average(std::span<const float> input,
+                            std::span<float> output) {
   RTC_DCHECK(input.size() == num_elem_);
   RTC_DCHECK(output.size() == num_elem_);
 

@@ -14,9 +14,9 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "rtc_base/checks.h"
 
@@ -36,7 +36,7 @@ namespace aec3 {
 // Computes and stores the echo return loss estimate of the filter, which is the
 // sum of the partition frequency responses.
 void ErlComputer(const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
-                 ArrayView<float> erl) {
+                 std::span<float> erl) {
   std::fill(erl.begin(), erl.end(), 0.f);
   for (auto& H2_j : H2) {
     std::transform(H2_j.begin(), H2_j.end(), erl.begin(), erl.begin(),
@@ -49,7 +49,7 @@ void ErlComputer(const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
 // sum of the partition frequency responses.
 void ErlComputer_NEON(
     const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
-    webrtc::ArrayView<float> erl) {
+    std::span<float> erl) {
   std::fill(erl.begin(), erl.end(), 0.f);
   for (auto& H2_j : H2) {
     for (size_t k = 0; k < kFftLengthBy2; k += 4) {
@@ -68,7 +68,7 @@ void ErlComputer_NEON(
 // sum of the partition frequency responses.
 void ErlComputer_SSE2(
     const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
-    ArrayView<float> erl) {
+    std::span<float> erl) {
   std::fill(erl.begin(), erl.end(), 0.f);
   for (auto& H2_j : H2) {
     for (size_t k = 0; k < kFftLengthBy2; k += 4) {
@@ -86,7 +86,7 @@ void ErlComputer_SSE2(
 
 void ComputeErl(const Aec3Optimization& optimization,
                 const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
-                ArrayView<float> erl) {
+                std::span<float> erl) {
   RTC_DCHECK_EQ(kFftLengthBy2Plus1, erl.size());
   // Update the frequency response and echo return loss for the filter.
   switch (optimization) {

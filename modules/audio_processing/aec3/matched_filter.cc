@@ -25,8 +25,8 @@
 #include <cstddef>
 #include <initializer_list>
 #include <optional>
+#include <span>
 
-#include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/downsampled_render_buffer.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
@@ -43,8 +43,8 @@ namespace {
 constexpr int kAccumulatedErrorSubSampleRate = 4;
 
 void UpdateAccumulatedError(
-    const ArrayView<const float> instantaneous_accumulated_error,
-    const ArrayView<float> accumulated_error,
+    const std::span<const float> instantaneous_accumulated_error,
+    const std::span<float> accumulated_error,
     float one_over_error_sum_anchor) {
   static constexpr float kSmoothConstantIncreases = 0.015f;
   for (size_t k = 0; k < instantaneous_accumulated_error.size(); ++k) {
@@ -59,7 +59,7 @@ void UpdateAccumulatedError(
   }
 }
 
-size_t ComputePreEchoLag(const ArrayView<const float> accumulated_error,
+size_t ComputePreEchoLag(const std::span<const float> accumulated_error,
                          size_t lag,
                          size_t alignment_shift_winner) {
   static constexpr float kPreEchoThreshold = 0.5f;
@@ -93,13 +93,13 @@ void MatchedFilterCoreWithAccumulatedError_NEON(
     size_t x_start_index,
     float x2_sum_threshold,
     float smoothing,
-    ArrayView<const float> x,
-    ArrayView<const float> y,
-    ArrayView<float> h,
+    std::span<const float> x,
+    std::span<const float> y,
+    std::span<float> h,
     bool* filters_updated,
     float* error_sum,
-    ArrayView<float> accumulated_error,
-    ArrayView<float> scratch_memory) {
+    std::span<float> accumulated_error,
+    std::span<float> scratch_memory) {
   const int h_size = static_cast<int>(h.size());
   const int x_size = static_cast<int>(x.size());
   RTC_DCHECK_EQ(0, h_size % 4);
@@ -173,14 +173,14 @@ void MatchedFilterCoreWithAccumulatedError_NEON(
 void MatchedFilterCore_NEON(size_t x_start_index,
                             float x2_sum_threshold,
                             float smoothing,
-                            ArrayView<const float> x,
-                            ArrayView<const float> y,
-                            ArrayView<float> h,
+                            std::span<const float> x,
+                            std::span<const float> y,
+                            std::span<float> h,
                             bool* filters_updated,
                             float* error_sum,
                             bool compute_accumulated_error,
-                            ArrayView<float> accumulated_error,
-                            ArrayView<float> scratch_memory) {
+                            std::span<float> accumulated_error,
+                            std::span<float> scratch_memory) {
   const int h_size = static_cast<int>(h.size());
   const int x_size = static_cast<int>(x.size());
   RTC_DCHECK_EQ(0, h_size % 4);
@@ -290,13 +290,13 @@ void MatchedFilterCore_NEON(size_t x_start_index,
 void MatchedFilterCore_AccumulatedError_SSE2(size_t x_start_index,
                                              float x2_sum_threshold,
                                              float smoothing,
-                                             ArrayView<const float> x,
-                                             ArrayView<const float> y,
-                                             ArrayView<float> h,
+                                             std::span<const float> x,
+                                             std::span<const float> y,
+                                             std::span<float> h,
                                              bool* filters_updated,
                                              float* error_sum,
-                                             ArrayView<float> accumulated_error,
-                                             ArrayView<float> scratch_memory) {
+                                             std::span<float> accumulated_error,
+                                             std::span<float> scratch_memory) {
   const int h_size = static_cast<int>(h.size());
   const int x_size = static_cast<int>(x.size());
   RTC_DCHECK_EQ(0, h_size % 8);
@@ -386,14 +386,14 @@ void MatchedFilterCore_AccumulatedError_SSE2(size_t x_start_index,
 void MatchedFilterCore_SSE2(size_t x_start_index,
                             float x2_sum_threshold,
                             float smoothing,
-                            ArrayView<const float> x,
-                            ArrayView<const float> y,
-                            ArrayView<float> h,
+                            std::span<const float> x,
+                            std::span<const float> y,
+                            std::span<float> h,
                             bool* filters_updated,
                             float* error_sum,
                             bool compute_accumulated_error,
-                            ArrayView<float> accumulated_error,
-                            ArrayView<float> scratch_memory) {
+                            std::span<float> accumulated_error,
+                            std::span<float> scratch_memory) {
   if (compute_accumulated_error) {
     return MatchedFilterCore_AccumulatedError_SSE2(
         x_start_index, x2_sum_threshold, smoothing, x, y, h, filters_updated,
@@ -498,13 +498,13 @@ void MatchedFilterCore_SSE2(size_t x_start_index,
 void MatchedFilterCore(size_t x_start_index,
                        float x2_sum_threshold,
                        float smoothing,
-                       ArrayView<const float> x,
-                       ArrayView<const float> y,
-                       ArrayView<float> h,
+                       std::span<const float> x,
+                       std::span<const float> y,
+                       std::span<float> h,
                        bool* filters_updated,
                        float* error_sum,
                        bool compute_accumulated_error,
-                       ArrayView<float> accumulated_error) {
+                       std::span<float> accumulated_error) {
   if (compute_accumulated_error) {
     std::fill(accumulated_error.begin(), accumulated_error.end(), 0.0f);
   }
@@ -556,7 +556,7 @@ void MatchedFilterCore(size_t x_start_index,
   }
 }
 
-size_t MaxSquarePeakIndex(ArrayView<const float> h) {
+size_t MaxSquarePeakIndex(std::span<const float> h) {
   if (h.size() < 2) {
     return 0;
   }
@@ -656,7 +656,7 @@ void MatchedFilter::Reset(bool full_reset) {
 }
 
 void MatchedFilter::Update(const DownsampledRenderBuffer& render_buffer,
-                           ArrayView<const float> capture,
+                           std::span<const float> capture,
                            bool use_slow_smoothing) {
   RTC_DCHECK_EQ(sub_block_size_, capture.size());
   auto& y = capture;

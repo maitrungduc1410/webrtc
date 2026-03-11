@@ -13,9 +13,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "modules/audio_processing/aec3/adaptive_fir_filter_erl.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 
@@ -27,7 +27,7 @@ namespace aec3 {
 // sum of the partition frequency responses.
 void ErlComputer_AVX2(
     const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
-    ArrayView<float> erl) {
+    std::span<float> erl) {
   std::fill(erl.begin(), erl.end(), 0.f);
   for (auto& H2_j : H2) {
     for (size_t k = 0; k < kFftLengthBy2; k += 8) {

@@ -13,8 +13,8 @@
 #include <array>
 #include <cstddef>
 #include <numeric>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/moving_average.h"
@@ -34,10 +34,10 @@ SubbandNearendDetector::SubbandNearendDetector(
           1.f / (config_.subband2.high - config_.subband2.low + 1)) {}
 
 void SubbandNearendDetector::Update(
-    ArrayView<const std::array<float, kFftLengthBy2Plus1>> nearend_spectrum,
-    ArrayView<const std::array<float, kFftLengthBy2Plus1>>
+    std::span<const std::array<float, kFftLengthBy2Plus1>> nearend_spectrum,
+    std::span<const std::array<float, kFftLengthBy2Plus1>>
     /* residual_echo_spectrum */,
-    ArrayView<const std::array<float, kFftLengthBy2Plus1>>
+    std::span<const std::array<float, kFftLengthBy2Plus1>>
         comfort_noise_spectrum,
     bool /* initial_state */) {
   nearend_state_ = false;

@@ -14,9 +14,9 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/fft_data.h"
 #include "modules/audio_processing/aec3/render_buffer.h"
@@ -134,7 +134,7 @@ void AdaptPartitions(const RenderBuffer& render_buffer,
                      const FftData& G,
                      size_t num_partitions,
                      std::vector<std::vector<FftData>>* H) {
-  ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   size_t index = render_buffer.Position();
   const size_t num_render_channels = render_buffer_data[index].size();
@@ -157,7 +157,7 @@ void AdaptPartitions_Neon(const RenderBuffer& render_buffer,
                           const FftData& G,
                           size_t num_partitions,
                           std::vector<std::vector<FftData>>* H) {
-  webrtc::ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   const size_t num_render_channels = render_buffer_data[0].size();
   const size_t lim1 = std::min(
@@ -223,7 +223,7 @@ void AdaptPartitions_Sse2(const RenderBuffer& render_buffer,
                           const FftData& G,
                           size_t num_partitions,
                           std::vector<std::vector<FftData>>* H) {
-  ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   const size_t num_render_channels = render_buffer_data[0].size();
   const size_t lim1 = std::min(
@@ -294,7 +294,7 @@ void ApplyFilter(const RenderBuffer& render_buffer,
   S->re.fill(0.f);
   S->im.fill(0.f);
 
-  ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   size_t index = render_buffer.Position();
   const size_t num_render_channels = render_buffer_data[index].size();
@@ -319,12 +319,12 @@ void ApplyFilter_Neon(const RenderBuffer& render_buffer,
                       const std::vector<std::vector<FftData>>& H,
                       FftData* S) {
   // const RenderBuffer& render_buffer,
-  //                     webrtc::ArrayView<const FftData> H,
+  //                     std::span<const FftData> H,
   //                     FftData* S) {
   RTC_DCHECK_GE(H.size(), H.size() - 1);
   S->Clear();
 
-  webrtc::ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   const size_t num_render_channels = render_buffer_data[0].size();
   const size_t lim1 = std::min(
@@ -389,13 +389,13 @@ void ApplyFilter_Sse2(const RenderBuffer& render_buffer,
                       const std::vector<std::vector<FftData>>& H,
                       FftData* S) {
   // const RenderBuffer& render_buffer,
-  //                     webrtc::ArrayView<const FftData> H,
+  //                     std::span<const FftData> H,
   //                     FftData* S) {
   RTC_DCHECK_GE(H.size(), H.size() - 1);
   S->re.fill(0.f);
   S->im.fill(0.f);
 
-  ArrayView<const std::vector<FftData>> render_buffer_data =
+  std::span<const std::vector<FftData>> render_buffer_data =
       render_buffer.GetFftBuffer();
   const size_t num_render_channels = render_buffer_data[0].size();
   const size_t lim1 = std::min(

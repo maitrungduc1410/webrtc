@@ -14,9 +14,9 @@
 #include <stddef.h>
 
 #include <array>
+#include <span>
 #include <vector>
 
-#include "api/array_view.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/block.h"
 #include "modules/audio_processing/aec3/block_buffer.h"
@@ -48,7 +48,7 @@ class RenderBuffer {
   }
 
   // Get the spectrum from one of the FFTs in the buffer.
-  ArrayView<const std::array<float, kFftLengthBy2Plus1>> Spectrum(
+  std::span<const std::array<float, kFftLengthBy2Plus1>> Spectrum(
       int buffer_offset_ffts) const {
     int position = spectrum_buffer_->OffsetIndex(spectrum_buffer_->read,
                                                  buffer_offset_ffts);
@@ -56,7 +56,7 @@ class RenderBuffer {
   }
 
   // Returns the circular fft buffer.
-  ArrayView<const std::vector<FftData>> GetFftBuffer() const {
+  std::span<const std::vector<FftData>> GetFftBuffer() const {
     return fft_buffer_->buffer;
   }
 

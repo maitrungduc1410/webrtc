@@ -16,11 +16,11 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <span>
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/audio/echo_canceller3_config.h"
 #include "api/environment/environment_factory.h"
 #include "modules/audio_processing/aec3/adaptive_fir_filter_erl.h"
@@ -546,11 +546,11 @@ TEST_P(AdaptiveFirFilterMultiChannel, FilterAndAdapt) {
         num_render_channels);
     for (size_t ch = 0; ch < num_render_channels; ++ch) {
       x_hp_filter[ch] = std::make_unique<CascadedBiQuadFilter>(
-          ArrayView<const CascadedBiQuadFilter::BiQuadCoefficients>(
+          std::span<const CascadedBiQuadFilter::BiQuadCoefficients>(
               kHighPassFilterCoefficients));
     }
     CascadedBiQuadFilter y_hp_filter(
-        (ArrayView<const CascadedBiQuadFilter::BiQuadCoefficients>(
+        (std::span<const CascadedBiQuadFilter::BiQuadCoefficients>(
             kHighPassFilterCoefficients)));
 
     SCOPED_TRACE(ProduceDebugText(num_render_channels, delay_samples));
