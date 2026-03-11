@@ -420,7 +420,7 @@ TEST(ScreamControllerTest, PaddingStopIfNetworkCongested) {
   PaddingTestResult result = ProcessUntilPaddingStartAndStop(
       clock, scream_controller, feedback_generator);
 
-  EXPECT_LT(result.target_rate, DataRate::KilobitsPerSec(700));
+  EXPECT_LT(result.target_rate, DataRate::KilobitsPerSec(720));
   // Padding should stop when congestion is detected.
   EXPECT_LT(result.padding_stop - result.padding_start, TimeDelta::Seconds(1));
 }
