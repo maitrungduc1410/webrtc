@@ -26,7 +26,6 @@ rtc_library("enable_media") {
   deps = [
     ":peer_connection_interface",
     ":scoped_refptr",
-    "../call",
     "../call:call_interfaces",
     "../media:media_engine",
     "../media:rtc_audio_video",
@@ -76,7 +75,6 @@ rtc_library("create_modular_peer_connection_factory") {
     "../pc:peer_connection_factory_proxy",
     "../rtc_base:threading",
     "../rtc_base/system:rtc_export",
-    "../stats:rtc_stats",
   ]
 }
 
