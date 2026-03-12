@@ -95,7 +95,7 @@ class BaseChannel : public ChannelInterface,
 
   TaskQueueBase* worker_thread() const { return worker_thread_; }
   Thread* network_thread() const { return network_thread_; }
-  const std::string& mid() const override { return demuxer_criteria_.mid(); }
+  const std::string& mid() const override { return mid_; }
   // TODO(deadbeef): This is redundant; remove this.
   absl::string_view transport_name() const override {
     RTC_DCHECK_RUN_ON(network_thread());
@@ -306,6 +306,9 @@ class BaseChannel : public ChannelInterface,
       const RtpHeaderExtensions& extensions,
       std::string& error_desc) RTC_RUN_ON(worker_thread());
 
+  // Registers a demuxer criteria with the transport, on the network thread.
+  // This function will fail if there's no transport of if a sink is already
+  // registered for this channel's demuxer_critera().
   bool RegisterRtpDemuxerSink_w() RTC_RUN_ON(worker_thread());
 
   // Return description of media channel to facilitate logging
@@ -319,6 +322,11 @@ class BaseChannel : public ChannelInterface,
       RTC_RUN_ON(network_thread());
   void DisconnectFromRtpTransport_n() RTC_RUN_ON(network_thread());
   void SignalSentPacket_n(const SentPacketInfo& sent_packet);
+  // Only called on the network thread, so should be marked as
+  // `RTC_RUN_ON(network_thread());` but currently accesses variables
+  // that are associated with the worker thread. Those operations are
+  // done in a synchronous way, so they're safe, but not ideal.
+  RtpDemuxerCriteria demuxer_criteria() const RTC_NO_THREAD_SAFETY_ANALYSIS;
 
   TaskQueueBase* const worker_thread_;
   Thread* const network_thread_;
@@ -374,9 +382,8 @@ class BaseChannel : public ChannelInterface,
   RtpHeaderExtensions historical_rtp_header_extensions_
       RTC_GUARDED_BY(worker_thread());
 
-  // TODO(bugs.webrtc.org/12239): Modified on worker thread, accessed
-  // on network thread in RegisterRtpDemuxerSink_n (called from Init_w)
-  RtpDemuxerCriteria demuxer_criteria_;
+  const std::string mid_;
+  flat_set<uint32_t> ssrcs_ RTC_GUARDED_BY(worker_thread());
   // This generator is used to generate SSRCs for local streams.
   // This is needed in cases where SSRCs are not negotiated or set explicitly
   // like in Simulcast.
