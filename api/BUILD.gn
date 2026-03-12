@@ -366,6 +366,7 @@ rtc_library("jsep") {
 }
 
 rtc_library("data_channel_interface") {
+  visibility = [ "*" ]
   sources = [
     "data_channel_interface.cc",
     "data_channel_interface.h",
@@ -382,6 +383,7 @@ rtc_library("data_channel_interface") {
 }
 
 rtc_library("legacy_stats_types") {
+  visibility = [ "*" ]
   sources = [
     "legacy_stats_types.cc",
     "legacy_stats_types.h",
@@ -400,6 +402,7 @@ rtc_library("legacy_stats_types") {
 }
 
 rtc_library("peer_connection_interface") {
+  visibility = [ "*" ]
   sources = [
     "peer_connection_interface.cc",
     "peer_connection_interface.h",
@@ -474,6 +477,7 @@ rtc_library("peer_connection_interface") {
 }
 
 rtc_library("rtp_receiver_interface") {
+  visibility = [ "*" ]
   sources = [
     "rtp_receiver_interface.cc",
     "rtp_receiver_interface.h",
@@ -492,6 +496,7 @@ rtc_library("rtp_receiver_interface") {
 }
 
 rtc_library("rtp_transceiver_interface") {
+  visibility = [ "*" ]
   sources = [
     "rtp_transceiver_interface.cc",
     "rtp_transceiver_interface.h",
@@ -512,6 +517,7 @@ rtc_library("rtp_transceiver_interface") {
 }
 
 rtc_library("set_local_description_observer_interface") {
+  visibility = [ "*" ]
   sources = [ "set_local_description_observer_interface.h" ]
   deps = [
     ":ref_count",
@@ -520,6 +526,7 @@ rtc_library("set_local_description_observer_interface") {
 }
 
 rtc_library("set_remote_description_observer_interface") {
+  visibility = [ "*" ]
   sources = [ "set_remote_description_observer_interface.h" ]
   deps = [
     ":ref_count",
@@ -528,6 +535,7 @@ rtc_library("set_remote_description_observer_interface") {
 }
 
 rtc_library("uma_metrics") {
+  visibility = [ "*" ]
   sources = [ "uma_metrics.h" ]
   deps = [
     ":ref_count",
@@ -536,6 +544,7 @@ rtc_library("uma_metrics") {
 }
 
 rtc_library("video_track_source_proxy_factory") {
+  visibility = [ "*" ]
   sources = [ "video_track_source_proxy_factory.h" ]
   deps = [
     ":media_stream_interface",
