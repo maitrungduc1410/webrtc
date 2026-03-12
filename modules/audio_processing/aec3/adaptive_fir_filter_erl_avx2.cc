@@ -21,8 +21,6 @@
 
 namespace webrtc {
 
-namespace aec3 {
-
 // Computes and stores the echo return loss estimate of the filter, which is the
 // sum of the partition frequency responses.
 void ErlComputer_AVX2(
@@ -40,5 +38,4 @@ void ErlComputer_AVX2(
   }
 }
 
-}  // namespace aec3
 }  // namespace webrtc

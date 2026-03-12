@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 
 #include <array>
 #include <cstddef>
@@ -17,11 +17,11 @@
 
 namespace webrtc {
 
-TEST(MovingAverage, Average) {
+TEST(MovingAverageSpectrum, Average) {
   constexpr size_t num_elem = 4;
   constexpr size_t mem_len = 3;
   constexpr float e = 1e-6f;
-  aec3::MovingAverage ma(num_elem, mem_len);
+  MovingAverageSpectrum ma(num_elem, mem_len);
   std::array<float, num_elem> data1 = {1, 2, 3, 4};
   std::array<float, num_elem> data2 = {5, 1, 9, 7};
   std::array<float, num_elem> data3 = {3, 3, 5, 6};
@@ -53,11 +53,11 @@ TEST(MovingAverage, Average) {
   EXPECT_NEAR(output[3], (data2[3] + data3[3] + data4[3]) / 3.0f, e);
 }
 
-TEST(MovingAverage, PassThrough) {
+TEST(MovingAverageSpectrum, PassThrough) {
   constexpr size_t num_elem = 4;
   constexpr size_t mem_len = 1;
   constexpr float e = 1e-6f;
-  aec3::MovingAverage ma(num_elem, mem_len);
+  MovingAverageSpectrum ma(num_elem, mem_len);
   std::array<float, num_elem> data1 = {1, 2, 3, 4};
   std::array<float, num_elem> data2 = {5, 1, 9, 7};
   std::array<float, num_elem> data3 = {3, 3, 5, 6};

@@ -29,7 +29,6 @@
 #endif
 
 namespace webrtc {
-namespace aec3 {
 
 // Provides optimizations for mathematical operations based on vectors.
 class VectorMath {
@@ -219,8 +218,6 @@ class VectorMath {
  private:
   Aec3Optimization optimization_;
 };
-
-}  // namespace aec3
 
 }  // namespace webrtc
 

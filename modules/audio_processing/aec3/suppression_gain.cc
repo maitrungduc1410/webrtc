@@ -25,7 +25,7 @@
 #include "modules/audio_processing/aec3/aec_state.h"
 #include "modules/audio_processing/aec3/block.h"
 #include "modules/audio_processing/aec3/dominant_nearend_detector.h"
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 #include "modules/audio_processing/aec3/render_signal_analyzer.h"
 #include "modules/audio_processing/aec3/subband_nearend_detector.h"
 #include "modules/audio_processing/aec3/vector_math.h"
@@ -333,7 +333,7 @@ void SuppressionGain::LowerBandGain(
   std::copy(gain->begin(), gain->end(), last_gain_.begin());
 
   // Transform gains to amplitude domain.
-  aec3::VectorMath(optimization_).Sqrt(*gain);
+  VectorMath(optimization_).Sqrt(*gain);
 }
 
 SuppressionGain::SuppressionGain(const EchoCanceller3Config& config,
@@ -350,8 +350,8 @@ SuppressionGain::SuppressionGain(const EchoCanceller3Config& config,
       last_echo_(num_capture_channels_, {0}),
       nearend_smoothers_(
           num_capture_channels_,
-          aec3::MovingAverage(kFftLengthBy2Plus1,
-                              config.suppressor.nearend_average_blocks)),
+          MovingAverageSpectrum(kFftLengthBy2Plus1,
+                                config.suppressor.nearend_average_blocks)),
       nearend_params_(config_.suppressor.last_lf_band,
                       config_.suppressor.first_hf_band,
                       config_.suppressor.nearend_tuning),

@@ -100,7 +100,7 @@ void SuppressionFilter::ApplyGain(
   for (size_t i = 0; i < kFftLengthBy2Plus1; ++i) {
     noise_gain[i] = 1.f - suppression_gain[i] * suppression_gain[i];
   }
-  aec3::VectorMath(optimization_).Sqrt(noise_gain);
+  VectorMath(optimization_).Sqrt(noise_gain);
 
   const float high_bands_noise_scaling =
       0.4f * std::sqrt(1.f - high_bands_gain * high_bands_gain);

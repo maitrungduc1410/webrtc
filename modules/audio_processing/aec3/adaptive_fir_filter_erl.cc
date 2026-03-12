@@ -31,8 +31,6 @@
 
 namespace webrtc {
 
-namespace aec3 {
-
 // Computes and stores the echo return loss estimate of the filter, which is the
 // sum of the partition frequency responses.
 void ErlComputer(const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
@@ -82,8 +80,6 @@ void ErlComputer_SSE2(
 }
 #endif
 
-}  // namespace aec3
-
 void ComputeErl(const Aec3Optimization& optimization,
                 const std::vector<std::array<float, kFftLengthBy2Plus1>>& H2,
                 std::span<float> erl) {
@@ -92,19 +88,19 @@ void ComputeErl(const Aec3Optimization& optimization,
   switch (optimization) {
 #if defined(WEBRTC_ARCH_X86_FAMILY)
     case Aec3Optimization::kSse2:
-      aec3::ErlComputer_SSE2(H2, erl);
+      ErlComputer_SSE2(H2, erl);
       break;
     case Aec3Optimization::kAvx2:
-      aec3::ErlComputer_AVX2(H2, erl);
+      ErlComputer_AVX2(H2, erl);
       break;
 #endif
 #if defined(WEBRTC_HAS_NEON)
     case Aec3Optimization::kNeon:
-      aec3::ErlComputer_NEON(H2, erl);
+      ErlComputer_NEON(H2, erl);
       break;
 #endif
     default:
-      aec3::ErlComputer(H2, erl);
+      ErlComputer(H2, erl);
   }
 }
 

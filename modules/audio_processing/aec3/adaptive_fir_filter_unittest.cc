@@ -52,7 +52,6 @@
 #endif
 
 namespace webrtc {
-namespace aec3 {
 namespace {
 
 std::string ProduceDebugText(size_t num_render_channels, size_t delay) {
@@ -168,7 +167,7 @@ TEST_P(AdaptiveFirFilterOneTwoFourEightRenderChannels,
       }
     }
 
-    ComputeFrequencyResponse(num_partitions, H, &H2);
+    ComputeFrequencyResponse_C(num_partitions, H, &H2);
     ComputeFrequencyResponse_Neon(num_partitions, H, &H2_Neon);
 
     for (size_t p = 0; p < num_partitions; ++p) {
@@ -348,7 +347,7 @@ TEST_P(AdaptiveFirFilterOneTwoFourEightRenderChannels,
         }
       }
 
-      ComputeFrequencyResponse(num_partitions, H, &H2);
+      ComputeFrequencyResponse_C(num_partitions, H, &H2);
       ComputeFrequencyResponse_Sse2(num_partitions, H, &H2_Sse2);
 
       for (size_t p = 0; p < num_partitions; ++p) {
@@ -383,7 +382,7 @@ TEST_P(AdaptiveFirFilterOneTwoFourEightRenderChannels,
         }
       }
 
-      ComputeFrequencyResponse(num_partitions, H, &H2);
+      ComputeFrequencyResponse_C(num_partitions, H, &H2);
       ComputeFrequencyResponse_Avx2(num_partitions, H, &H2_Avx2);
 
       for (size_t p = 0; p < num_partitions; ++p) {
@@ -620,5 +619,4 @@ TEST_P(AdaptiveFirFilterMultiChannel, FilterAndAdapt) {
   }
 }
 
-}  // namespace aec3
 }  // namespace webrtc

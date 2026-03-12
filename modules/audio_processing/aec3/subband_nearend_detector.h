@@ -18,7 +18,7 @@
 
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 #include "modules/audio_processing/aec3/nearend_detector.h"
 
 namespace webrtc {
@@ -44,7 +44,7 @@ class SubbandNearendDetector : public NearendDetector {
  private:
   const EchoCanceller3Config::Suppressor::SubbandNearendDetection config_;
   const size_t num_capture_channels_;
-  std::vector<aec3::MovingAverage> nearend_smoothers_;
+  std::vector<MovingAverageSpectrum> nearend_smoothers_;
   const float one_over_subband_length1_;
   const float one_over_subband_length2_;
   bool nearend_state_ = false;

@@ -9,7 +9,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -19,9 +19,8 @@
 #include "rtc_base/checks.h"
 
 namespace webrtc {
-namespace aec3 {
 
-MovingAverage::MovingAverage(size_t num_elem, size_t mem_len)
+MovingAverageSpectrum::MovingAverageSpectrum(size_t num_elem, size_t mem_len)
     : num_elem_(num_elem),
       mem_len_(mem_len - 1),
       scaling_(1.0f / static_cast<float>(mem_len)),
@@ -31,10 +30,10 @@ MovingAverage::MovingAverage(size_t num_elem, size_t mem_len)
   RTC_DCHECK(mem_len > 0);
 }
 
-MovingAverage::~MovingAverage() = default;
+MovingAverageSpectrum::~MovingAverageSpectrum() = default;
 
-void MovingAverage::Average(std::span<const float> input,
-                            std::span<float> output) {
+void MovingAverageSpectrum::Average(std::span<const float> input,
+                                    std::span<float> output) {
   RTC_DCHECK(input.size() == num_elem_);
   RTC_DCHECK(output.size() == num_elem_);
 
@@ -58,5 +57,4 @@ void MovingAverage::Average(std::span<const float> input,
   }
 }
 
-}  // namespace aec3
 }  // namespace webrtc

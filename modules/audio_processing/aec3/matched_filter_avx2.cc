@@ -18,7 +18,6 @@
 #include "rtc_base/checks.h"
 
 namespace webrtc {
-namespace aec3 {
 
 // Let ha denote the horizontal of a, and hb the horizontal sum of b
 // returns [ha, hb, ha, hb]
@@ -259,5 +258,4 @@ void MatchedFilterCore_AVX2(size_t x_start_index,
   }
 }
 
-}  // namespace aec3
 }  // namespace webrtc

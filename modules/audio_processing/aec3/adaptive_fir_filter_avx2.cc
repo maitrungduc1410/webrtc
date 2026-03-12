@@ -24,8 +24,6 @@
 
 namespace webrtc {
 
-namespace aec3 {
-
 // Computes and stores the frequency response of the filter.
 void ComputeFrequencyResponse_Avx2(
     size_t num_partitions,
@@ -193,5 +191,4 @@ void ApplyFilter_Avx2(const RenderBuffer& render_buffer,
   } while (p < lim2);
 }
 
-}  // namespace aec3
 }  // namespace webrtc

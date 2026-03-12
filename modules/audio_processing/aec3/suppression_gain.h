@@ -23,7 +23,7 @@
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/aec_state.h"
 #include "modules/audio_processing/aec3/block.h"
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 #include "modules/audio_processing/aec3/nearend_detector.h"
 #include "modules/audio_processing/aec3/render_signal_analyzer.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
@@ -130,7 +130,7 @@ class SuppressionGain {
   LowNoiseRenderDetector low_render_detector_;
   bool initial_state_ = true;
   int initial_state_change_counter_ = 0;
-  std::vector<aec3::MovingAverage> nearend_smoothers_;
+  std::vector<MovingAverageSpectrum> nearend_smoothers_;
   const GainParameters nearend_params_;
   const GainParameters normal_params_;
   // Determines if the dominant nearend detector uses the unbounded residual

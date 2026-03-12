@@ -41,7 +41,6 @@
 #endif
 
 namespace webrtc {
-namespace aec3 {
 namespace {
 
 std::string ProduceDebugText(size_t delay, size_t down_sampling_factor) {
@@ -565,5 +564,4 @@ INSTANTIATE_TEST_SUITE_P(_,
 
 #endif
 
-}  // namespace aec3
 }  // namespace webrtc

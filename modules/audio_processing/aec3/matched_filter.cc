@@ -79,8 +79,6 @@ size_t ComputePreEchoLag(const std::span<const float> accumulated_error,
 
 }  // namespace
 
-namespace aec3 {
-
 #if defined(WEBRTC_HAS_NEON)
 
 inline float SumAllElements(float32x4_t elements) {
@@ -591,8 +589,6 @@ size_t MaxSquarePeakIndex(std::span<const float> h) {
   return lag_estimate1;
 }
 
-}  // namespace aec3
-
 MatchedFilter::MatchedFilter(ApmDataDumper* data_dumper,
                              Aec3Optimization optimization,
                              size_t sub_block_size,
@@ -694,13 +690,13 @@ void MatchedFilter::Update(const DownsampledRenderBuffer& render_buffer,
     switch (optimization_) {
 #if defined(WEBRTC_ARCH_X86_FAMILY)
       case Aec3Optimization::kSse2:
-        aec3::MatchedFilterCore_SSE2(
+        MatchedFilterCore_SSE2(
             x_start_index, x2_sum_threshold, smoothing, render_buffer.buffer, y,
             filters_[n], &filters_updated, &error_sum, compute_pre_echo,
             instantaneous_accumulated_error_, scratch_memory_);
         break;
       case Aec3Optimization::kAvx2:
-        aec3::MatchedFilterCore_AVX2(
+        MatchedFilterCore_AVX2(
             x_start_index, x2_sum_threshold, smoothing, render_buffer.buffer, y,
             filters_[n], &filters_updated, &error_sum, compute_pre_echo,
             instantaneous_accumulated_error_, scratch_memory_);
@@ -708,23 +704,23 @@ void MatchedFilter::Update(const DownsampledRenderBuffer& render_buffer,
 #endif
 #if defined(WEBRTC_HAS_NEON)
       case Aec3Optimization::kNeon:
-        aec3::MatchedFilterCore_NEON(
+        MatchedFilterCore_NEON(
             x_start_index, x2_sum_threshold, smoothing, render_buffer.buffer, y,
             filters_[n], &filters_updated, &error_sum, compute_pre_echo,
             instantaneous_accumulated_error_, scratch_memory_);
         break;
 #endif
       default:
-        aec3::MatchedFilterCore(x_start_index, x2_sum_threshold, smoothing,
-                                render_buffer.buffer, y, filters_[n],
-                                &filters_updated, &error_sum, compute_pre_echo,
-                                instantaneous_accumulated_error_);
+        MatchedFilterCore(x_start_index, x2_sum_threshold, smoothing,
+                          render_buffer.buffer, y, filters_[n],
+                          &filters_updated, &error_sum, compute_pre_echo,
+                          instantaneous_accumulated_error_);
     }
 
     // Estimate the lag in the matched filter as the distance to the portion in
     // the filter that contributes the most to the matched filter output. This
     // is detected as the peak of the matched filter.
-    const size_t lag_estimate = aec3::MaxSquarePeakIndex(filters_[n]);
+    const size_t lag_estimate = MaxSquarePeakIndex(filters_[n]);
     const bool reliable =
         lag_estimate > 2 && lag_estimate < (filters_[n].size() - 10) &&
         error_sum < matching_filter_threshold_ * error_sum_anchor;
@@ -798,7 +794,7 @@ void MatchedFilter::LogFilterProperties(int /* sample_rate_hz */,
 
 void MatchedFilter::Dump() {
   for (size_t n = 0; n < filters_.size(); ++n) {
-    const size_t lag_estimate = aec3::MaxSquarePeakIndex(filters_[n]);
+    const size_t lag_estimate = MaxSquarePeakIndex(filters_[n]);
     std::string dumper_filter = "aec3_correlator_" + std::to_string(n) + "_h";
     data_dumper_->DumpRaw(dumper_filter.c_str(), filters_[n]);
     std::string dumper_lag = "aec3_correlator_lag_" + std::to_string(n);

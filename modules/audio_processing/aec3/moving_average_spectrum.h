@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_H_
-#define MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_H_
+#ifndef MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_SPECTRUM_H_
+#define MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_SPECTRUM_H_
 
 #include <stddef.h>
 
@@ -17,14 +17,13 @@
 #include <vector>
 
 namespace webrtc {
-namespace aec3 {
 
-class MovingAverage {
+class MovingAverageSpectrum {
  public:
-  // Creates an instance of MovingAverage that accepts inputs of length num_elem
-  // and averages over mem_len inputs.
-  MovingAverage(size_t num_elem, size_t mem_len);
-  ~MovingAverage();
+  // Creates an instance of MovingAverageSpectrum that accepts inputs of length
+  // num_elem and averages over mem_len inputs.
+  MovingAverageSpectrum(size_t num_elem, size_t mem_len);
+  ~MovingAverageSpectrum();
 
   // Computes the average of input and mem_len-1 previous inputs and stores the
   // result in output.
@@ -38,7 +37,6 @@ class MovingAverage {
   size_t mem_index_;
 };
 
-}  // namespace aec3
 }  // namespace webrtc
 
-#endif  // MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_H_
+#endif  // MODULES_AUDIO_PROCESSING_AEC3_MOVING_AVERAGE_SPECTRUM_H_

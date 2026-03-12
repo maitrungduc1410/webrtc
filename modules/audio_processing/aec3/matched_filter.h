@@ -25,8 +25,6 @@ namespace webrtc {
 class ApmDataDumper;
 struct DownsampledRenderBuffer;
 
-namespace aec3 {
-
 #if defined(WEBRTC_HAS_NEON)
 
 // Filter core for the matched filter that is optimized for NEON.
@@ -88,8 +86,6 @@ void MatchedFilterCore(size_t x_start_index,
 
 // Find largest peak of squared values in array.
 size_t MaxSquarePeakIndex(std::span<const float> h);
-
-}  // namespace aec3
 
 // Produces recursively updated cross-correlation estimates for several signal
 // shifts where the intra-shift spacing is uniform.

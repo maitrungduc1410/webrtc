@@ -17,7 +17,7 @@
 
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
-#include "modules/audio_processing/aec3/moving_average.h"
+#include "modules/audio_processing/aec3/moving_average_spectrum.h"
 
 namespace webrtc {
 SubbandNearendDetector::SubbandNearendDetector(
@@ -26,8 +26,8 @@ SubbandNearendDetector::SubbandNearendDetector(
     : config_(config),
       num_capture_channels_(num_capture_channels),
       nearend_smoothers_(num_capture_channels_,
-                         aec3::MovingAverage(kFftLengthBy2Plus1,
-                                             config_.nearend_average_blocks)),
+                         MovingAverageSpectrum(kFftLengthBy2Plus1,
+                                               config_.nearend_average_blocks)),
       one_over_subband_length1_(
           1.f / (config_.subband1.high - config_.subband1.low + 1)),
       one_over_subband_length2_(

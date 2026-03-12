@@ -25,7 +25,6 @@
 #include "rtc_base/system/arch.h"
 
 namespace webrtc {
-namespace aec3 {
 #if defined(WEBRTC_ARCH_X86_FAMILY)
 
 void EstimateComfortNoise_SSE2(const std::array<float, kFftLengthBy2Plus1>& N2,
@@ -37,8 +36,6 @@ void EstimateComfortNoise(const std::array<float, kFftLengthBy2Plus1>& N2,
                           uint32_t* seed,
                           FftData* lower_band_noise,
                           FftData* upper_band_noise);
-
-}  // namespace aec3
 
 // Generates the comfort noise.
 class ComfortNoiseGenerator {
