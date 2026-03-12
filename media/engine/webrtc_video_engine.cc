@@ -829,10 +829,13 @@ WebRtcVideoEngine::CreateSendChannel(
     const MediaConfig& config,
     const VideoOptions& options,
     const CryptoOptions& crypto_options,
-    VideoBitrateAllocatorFactory* video_bitrate_allocator_factory) {
+    VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
+    VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+        video_encoder_switch_request_callback) {
   return std::make_unique<WebRtcVideoSendChannel>(
       env, call, config, options, crypto_options, encoder_factory_.get(),
-      video_bitrate_allocator_factory);
+      video_bitrate_allocator_factory,
+      std::move(video_encoder_switch_request_callback));
 }
 std::unique_ptr<VideoMediaReceiveChannelInterface>
 WebRtcVideoEngine::CreateReceiveChannel(const Environment& env,
@@ -920,7 +923,9 @@ WebRtcVideoSendChannel::WebRtcVideoSendChannel(
     const VideoOptions& options,
     const CryptoOptions& crypto_options,
     VideoEncoderFactory* encoder_factory,
-    VideoBitrateAllocatorFactory* bitrate_allocator_factory)
+    VideoBitrateAllocatorFactory* bitrate_allocator_factory,
+    VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+        video_encoder_switch_request_callback)
     : MediaChannelUtil(call->network_thread(), config.enable_dscp),
       env_(env),
       worker_thread_(call->worker_thread()),
@@ -931,7 +936,9 @@ WebRtcVideoSendChannel::WebRtcVideoSendChannel(
       bitrate_allocator_factory_(bitrate_allocator_factory),
       default_send_options_(options),
       last_send_stats_log_ms_(-1),
-      crypto_options_(crypto_options) {
+      crypto_options_(crypto_options),
+      encoder_switch_request_callback_(
+          std::move(video_encoder_switch_request_callback)) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
 }
 
@@ -1242,14 +1249,21 @@ bool WebRtcVideoSendChannel::SetSenderParameters(
 void WebRtcVideoSendChannel::RequestEncoderSwitch(
     std::optional<SdpVideoFormat> format,
     bool allow_default_fallback) {
-  if (!worker_thread_->IsCurrent()) {
-    worker_thread_->PostTask(
-        SafeTask(task_safety_.flag(), [this, format, allow_default_fallback] {
-          RequestEncoderSwitch(std::move(format), allow_default_fallback);
-        }));
-    return;
+  auto task =
+      SafeTask(task_safety_.flag(), [this, format, allow_default_fallback] {
+        RTC_DCHECK_RUN_ON(&thread_checker_);
+        ApplyEncoderSwitch(std::move(format), allow_default_fallback);
+      });
+  if (encoder_switch_request_callback_) {
+    encoder_switch_request_callback_(std::move(task));
+  } else {
+    worker_thread_->PostTask(std::move(task));
   }
+}
 
+void WebRtcVideoSendChannel::ApplyEncoderSwitch(
+    std::optional<SdpVideoFormat> format,
+    bool allow_default_fallback) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   RTC_DCHECK(format.has_value() || allow_default_fallback);
 
@@ -1277,7 +1291,7 @@ void WebRtcVideoSendChannel::RequestEncoderSwitch(
                           << allow_default_fallback;
 
       if (allow_default_fallback) {
-        RequestEncoderSwitch(std::nullopt, true);
+        ApplyEncoderSwitch(std::nullopt, true);
       }
       return;
     }

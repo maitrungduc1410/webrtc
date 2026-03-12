@@ -77,7 +77,7 @@ class RtpHeaderExtensionQueryInterface {
   // Returns a vector of RtpHeaderExtensionCapability, whose direction is
   // kStopped if the extension is stopped (not used) by default.
   virtual std::vector<RtpHeaderExtensionCapability> GetRtpHeaderExtensions(
-      const webrtc::FieldTrialsView* field_trials) const = 0;
+      const FieldTrialsView* field_trials) const = 0;
 };
 
 class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
@@ -153,7 +153,9 @@ class VideoEngineInterface : public RtpHeaderExtensionQueryInterface {
       const MediaConfig& config,
       const VideoOptions& options,
       const CryptoOptions& crypto_options,
-      VideoBitrateAllocatorFactory* video_bitrate_allocator_factory) = 0;
+      VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
+      VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+          video_encoder_switch_request_callback = nullptr) = 0;
 
   virtual std::unique_ptr<VideoMediaReceiveChannelInterface>
   CreateReceiveChannel(const Environment& env,
@@ -240,7 +242,7 @@ RtpParameters CreateRtpParametersWithEncodings(StreamParams sp);
 // GetRtpHeaderExtensions() that are not kStopped.
 std::vector<RtpExtension> GetDefaultEnabledRtpHeaderExtensions(
     const RtpHeaderExtensionQueryInterface& query_interface,
-    const webrtc::FieldTrialsView* field_trials);
+    const FieldTrialsView* field_trials);
 
 }  //  namespace webrtc
 

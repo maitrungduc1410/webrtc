@@ -960,6 +960,10 @@ struct VideoReceiverParameters : MediaChannelParameters {};
 
 class VideoMediaSendChannelInterface : public MediaSendChannelInterface {
  public:
+  using EncoderSwitchRequestAction = absl::AnyInvocable<void() &&>;
+  using EncoderSwitchRequestCallback =
+      absl::AnyInvocable<void(EncoderSwitchRequestAction)>;
+
   virtual bool SetSenderParameters(const VideoSenderParameters& params) = 0;
   // Starts or stops transmission (and potentially capture) of local video.
   virtual bool SetSend(bool send) = 0;

@@ -79,7 +79,7 @@ RtpParameters CreateRtpParametersWithEncodings(StreamParams sp) {
 
 std::vector<RtpExtension> GetDefaultEnabledRtpHeaderExtensions(
     const RtpHeaderExtensionQueryInterface& query_interface,
-    const webrtc::FieldTrialsView* field_trials) {
+    const FieldTrialsView* field_trials) {
   std::vector<RtpExtension> extensions;
   for (const auto& entry :
        query_interface.GetRtpHeaderExtensions(field_trials)) {

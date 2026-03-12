@@ -106,7 +106,9 @@ class WebRtcVideoEngine : public VideoEngineInterface {
       const MediaConfig& config,
       const VideoOptions& options,
       const CryptoOptions& crypto_options,
-      VideoBitrateAllocatorFactory* video_bitrate_allocator_factory) override;
+      VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
+      VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+          video_encoder_switch_request_callback = nullptr) override;
   std::unique_ptr<VideoMediaReceiveChannelInterface> CreateReceiveChannel(
       const Environment& env,
       Call* call,
@@ -167,7 +169,9 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
       const VideoOptions& options,
       const CryptoOptions& crypto_options,
       VideoEncoderFactory* encoder_factory,
-      VideoBitrateAllocatorFactory* bitrate_allocator_factory);
+      VideoBitrateAllocatorFactory* bitrate_allocator_factory,
+      VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+          video_encoder_switch_request_callback);
   ~WebRtcVideoSendChannel() override;
 
   MediaType media_type() const override { return MediaType::VIDEO; }
@@ -291,6 +295,10 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   bool ApplyChangedParams(const ChangedSenderParameters& changed_params);
   bool ValidateSendSsrcAvailability(const StreamParams& sp) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(thread_checker_);
+  // Executes the actual encoder switch operation.
+  void ApplyEncoderSwitch(std::optional<SdpVideoFormat> format,
+                          bool allow_default_fallback)
+      RTC_RUN_ON(thread_checker_);
 
   // Wrapper for the sender part.
   class WebRtcVideoSendStream {
@@ -476,6 +484,10 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   // Callback invoked whenever the sender parameters change.
   absl::AnyInvocable<void()> parameters_changed_callback_
       RTC_GUARDED_BY(&thread_checker_);
+
+  // Callback to intercept the encoder switch request.
+  VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
+      encoder_switch_request_callback_;
 };
 
 class WebRtcVideoReceiveChannel : public MediaChannelUtil,
