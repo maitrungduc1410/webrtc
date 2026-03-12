@@ -662,10 +662,10 @@ rtc_library("libjingle_peerconnection_api") {
     # Basically, don't add stuff here. You might break sensitive downstream
     # targets like pnacl. API should not depend on anything outside of this
     # file, really. All these should arguably go away in time.
-    "../media:rtc_media_config",
-    "../rtc_base:checks",
-    "../rtc_base:threading",
-    "../rtc_base/system:rtc_export",
+    "../media:rtc_media_config",  # keep
+    "../rtc_base:checks",  # keep
+    "../rtc_base:threading",  # keep
+    "../rtc_base/system:rtc_export",  # keep
   ]
 }
 
