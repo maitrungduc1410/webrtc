@@ -23,7 +23,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView& trials)
       l4s_avg_g_down("L4sAvgGDown", 1.0 / 128.0),
       smoothed_rtt_avg_g_up("SmoothedRttAvgGUp", 1.0 / 8.0),
       smoothed_rtt_avg_g_down("SmoothedRttAvgGDown", 1.0 / 8.0),
-      max_segment_size("MaxSegmentSize", DataSize::Bytes(1000)),
+      max_segment_size("MaxSegmentSize", DataSize::Bytes(1280)),
       bytes_in_flight_head_room("BytesInFlightHeadRoom", 1.1),
       beta_loss("BetaLoss", 0.7),
       post_congestion_delay_rtts("PostCongestionDelayRtts", 100),

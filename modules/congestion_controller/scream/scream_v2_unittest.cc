@@ -180,9 +180,9 @@ TEST(ScreamV2Test, ReferenceWindowIncreaseToDataInflight) {
     clock.AdvanceTime(feedback_interval);
   }
   // Target rate can increase up to 1.1 * data_in_flight + Max Segment Size(
-  // default 1000 bytes) when no max target rate has been set.
+  // default 1280 bytes) when no max target rate has been set.
   EXPECT_EQ(scream.ref_window(),
-            1.1 * feedback.data_in_flight + DataSize::Bytes(1000));
+            1.1 * feedback.data_in_flight + DataSize::Bytes(1280));
 }
 
 TEST(ScreamV2Test, CalculatesL4sAlpha) {
