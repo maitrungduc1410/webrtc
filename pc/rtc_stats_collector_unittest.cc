@@ -26,6 +26,7 @@
 #include "absl/strings/str_replace.h"
 #include "api/audio/audio_device.h"
 #include "api/audio/audio_processing_statistics.h"
+#include "api/audio_options.h"
 #include "api/candidate.h"
 #include "api/data_channel_interface.h"
 #include "api/dtls_transport_interface.h"
@@ -54,6 +55,7 @@
 #include "common_video/include/quality_limitation_reason.h"
 #include "json/reader.h"
 #include "json/value.h"
+#include "media/base/fake_media_engine.h"
 #include "media/base/media_channel.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
@@ -65,6 +67,7 @@
 #include "p2p/base/transport_description.h"
 #include "pc/media_stream.h"
 #include "pc/peer_connection_internal.h"
+#include "pc/rtp_sender.h"
 #include "pc/sctp_data_channel.h"
 #include "pc/stream_collection.h"
 #include "pc/test/fake_audio_track.h"
@@ -2693,14 +2696,14 @@ TEST_P(RTCStatsCollectorTest, CollectRTCOutboundRtpStreamStats_Video) {
   auto video_sender = stats_->SetupLocalTrackAndSender(
       MediaType::VIDEO, "LocalVideoTrackID", 1, true,
       /*attachment_id=*/50);
-  EXPECT_CALL(*video_sender, GetParametersInternal(_, _)).WillRepeatedly([] {
-    RtpParameters params;
-    params.encodings.push_back(RtpEncodingParameters());
-    params.encodings[0].ssrc = 1;
-    params.encodings.push_back(RtpEncodingParameters());
-    params.encodings[1].ssrc = 2;
-    return params;
-  });
+
+  // Set up the fake video channel to return the expected RtpParameters
+  // containing both simulcast encodings for the primary SSRC.
+  StreamParams sp;
+  sp.add_ssrc(1);
+  sp.add_ssrc(2);
+  sp.ssrc_groups.push_back(SsrcGroup(kSimSsrcGroupSemantics, {1, 2}));
+  video_media_channels.first->AddSendStream(sp);
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -3821,6 +3824,52 @@ TEST_P(RTCStatsCollectorTest, GetStatsWithReceiverSelector) {
   EXPECT_TRUE(receiver_report->Get(graph.transport_id));
   EXPECT_FALSE(receiver_report->Get(graph.peer_connection_id));
   EXPECT_FALSE(receiver_report->Get(graph.media_source_id));
+}
+
+TEST_P(RTCStatsCollectorTest,
+       GetStatsDoesNotBlockWhenFetchingSenderParameters) {
+  // We must create a new FakePeerConnectionForStats with a separate worker
+  // thread because the test base uses the current thread for all three, which
+  // bypasses the thread hop and avoids the
+  // RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS check.
+  auto worker_thread = Thread::Create();
+  worker_thread->Start();
+  pc_ = make_ref_counted<FakePeerConnectionForStats>(env_, worker_thread.get());
+  SetStatsTimestampWithEnvironmentClock(GetParam());
+  // Create a track and a real sender to ensure we test the actual blocking
+  // behavior in RtpSenderBase::GetParametersInternal.
+  scoped_refptr<MediaStreamTrackInterface> track = CreateFakeTrack(
+      MediaType::AUDIO, "audioTrack", MediaStreamTrackInterface::kLive);
+
+  auto fake_media_channel = std::make_unique<FakeVoiceMediaSendChannel>(
+      webrtc::AudioOptions(), pc_->network_thread());
+
+  scoped_refptr<AudioRtpSender> sender = AudioRtpSender::Create(
+      env_, pc_->signaling_thread(), pc_->worker_thread(), "sender_id",
+      /*stats=*/nullptr, /*set_streams_observer=*/nullptr,
+      /*media_channel=*/nullptr);
+
+  worker_thread->BlockingCall([&] {
+    fake_media_channel->AddSendStream(StreamParams::CreateLegacy(1234));
+    sender->SetMediaChannel(fake_media_channel.get());
+  });
+
+  sender->SetSsrc(1234);
+  sender->SetTrack(track.get());
+
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  pc_->AddSender(sender);
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+
+  scoped_refptr<const RTCStatsReport> report;
+  stats_->stats_collector().GetStatsReport(
+      RTCStatsObtainer::Create(&report, [this] { main_thread_.Quit(); }));
+  main_thread_.Run();
+
+  sender->Stop();
+  sender = nullptr;
+  stats_.reset();
+  pc_ = nullptr;
 }
 
 TEST_P(RTCStatsCollectorTest, GetStatsWithNullSenderSelector) {

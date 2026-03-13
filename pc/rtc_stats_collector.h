@@ -156,13 +156,13 @@ class RTCStatsCollector {
  private:
   struct StatsGatheringResults {
     std::vector<RtpTransceiverStatsInfo> transceiver_stats_infos;
-    std::vector<std::vector<RtpParameters>> sender_parameters;
     Call::Stats call_stats;
     std::optional<AudioDeviceModule::Stats> audio_device_stats;
   };
 
   struct WorkerThreadResult {
     StatsGatheringResults results;
+    std::vector<std::vector<RtpParameters>> sender_parameters;
     std::vector<TransceiverReferences> transceiver_references;
   };
   struct CollectionContext;
