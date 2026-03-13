@@ -136,7 +136,8 @@ class BaseChannel : public ChannelInterface,
   // This method will also remove any existing streams that were bound to this
   // channel on the basis of payload type, since one of these streams might
   // actually belong to a new channel. See: crbug.com/webrtc/11477
-  bool SetPayloadTypeDemuxingEnabled(bool enabled) override;
+  bool SetPayloadTypeDemuxingEnabled(bool enabled) override
+      RTC_RUN_ON(network_thread());
 
   void Enable(bool enable) override;
 
@@ -249,9 +250,6 @@ class BaseChannel : public ChannelInterface,
   void ChannelWritable_n() RTC_RUN_ON(network_thread());
   void ChannelNotWritable_n() RTC_RUN_ON(network_thread());
 
-  bool SetPayloadTypeDemuxingEnabled_w(bool enabled)
-      RTC_RUN_ON(worker_thread());
-
   // Should be called whenever the conditions for
   // IsReadyToReceiveMedia/IsReadyToSendMedia are satisfied (or unsatisfied).
   // Updates the send/recv state of the media channel.
@@ -285,10 +283,6 @@ class BaseChannel : public ChannelInterface,
   // Returns true if the demuxer payload type changed and a re-registration
   // is needed.
   bool MaybeAddHandledPayloadType(int payload_type) RTC_RUN_ON(worker_thread());
-
-  // Returns true if the demuxer payload type criteria was non-empty before
-  // clearing.
-  bool ClearHandledPayloadTypes() RTC_RUN_ON(worker_thread());
 
   // Checks that the provided RTP header extensions are valid.
   // This verifies that all extension IDs are within the valid range,
@@ -364,7 +358,7 @@ class BaseChannel : public ChannelInterface,
   // call to the worker thread, so it should be safe.
   bool enabled_ RTC_GUARDED_BY(worker_thread()) = false;
   bool enabled_s_ RTC_GUARDED_BY(signaling_thread()) = false;
-  bool payload_type_demuxing_enabled_ RTC_GUARDED_BY(worker_thread()) = true;
+  bool payload_type_demuxing_enabled_ RTC_GUARDED_BY(network_thread()) = true;
   std::vector<StreamParams> local_streams_ RTC_GUARDED_BY(worker_thread());
   std::vector<StreamParams> remote_streams_ RTC_GUARDED_BY(worker_thread());
   RtpTransceiverDirection local_content_direction_

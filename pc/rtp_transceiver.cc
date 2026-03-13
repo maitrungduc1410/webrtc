@@ -1366,7 +1366,7 @@ bool RtpTransceiver::SetChannelContent(
 }
 
 bool RtpTransceiver::SetChannelPayloadTypeDemuxingEnabled(bool enabled) {
-  RTC_DCHECK_RUN_ON(context()->worker_thread());
+  RTC_DCHECK_RUN_ON(context()->network_thread());
   RTC_DCHECK(channel_);
   return channel_->SetPayloadTypeDemuxingEnabled(enabled);
 }

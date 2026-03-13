@@ -5962,12 +5962,10 @@ bool SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     return true;
   }
 
-  // TODO(bugs.webrtc.org/11993): This BlockingCall() will also block on the
-  // network thread for every demuxer sink that needs to be updated. The demuxer
-  // state needs to be fully (and only) managed on the network thread and once
-  // that's the case, there's no need to stop by on the worker. Ideally we could
-  // also do this without blocking.
-  return context_->worker_thread()->BlockingCall([&channels_to_update]() {
+  // TODO(bugs.webrtc.org/11993): The demuxer state is now fully managed on
+  // the network thread. So we do a single blocking call here to the network
+  // thread. Ideally we could also do this without blocking.
+  return context_->network_thread()->BlockingCall([&channels_to_update]() {
     for (const auto& it : channels_to_update) {
       if (!it.second->SetChannelPayloadTypeDemuxingEnabled(it.first)) {
         // Note that the state has already been irrevocably changed at this
