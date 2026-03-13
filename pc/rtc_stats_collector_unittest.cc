@@ -2690,9 +2690,17 @@ TEST_P(RTCStatsCollectorTest, CollectRTCOutboundRtpStreamStats_Video) {
   auto video_media_channels =
       pc_->AddVideoChannel("VideoMid", "TransportName", video_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  stats_->SetupLocalTrackAndSender(MediaType::VIDEO, "LocalVideoTrackID", 1,
-                                   true,
-                                   /*attachment_id=*/50);
+  auto video_sender = stats_->SetupLocalTrackAndSender(
+      MediaType::VIDEO, "LocalVideoTrackID", 1, true,
+      /*attachment_id=*/50);
+  EXPECT_CALL(*video_sender, GetParametersInternal(_, _)).WillRepeatedly([] {
+    RtpParameters params;
+    params.encodings.push_back(RtpEncodingParameters());
+    params.encodings[0].ssrc = 1;
+    params.encodings.push_back(RtpEncodingParameters());
+    params.encodings[1].ssrc = 2;
+    return params;
+  });
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -2756,6 +2764,21 @@ TEST_P(RTCStatsCollectorTest, CollectRTCOutboundRtpStreamStats_Video) {
   EXPECT_EQ(
       report->Get(expected_video.id())->cast_to<RTCOutboundRtpStreamStats>(),
       expected_video);
+
+  // Find the sub-stats for the second simulcast outbound RTP stream and verify
+  // that its `media_source_id` is set.
+  std::string id_of_second_ssrc;
+  for (const auto* outbound_rtp : stats_of_my_type) {
+    if (outbound_rtp->ssrc.value_or(0) == 2) {
+      id_of_second_ssrc = outbound_rtp->id();
+      break;
+    }
+  }
+  ASSERT_TRUE(report->Get(id_of_second_ssrc));
+  auto& second_video =
+      report->Get(id_of_second_ssrc)->cast_to<RTCOutboundRtpStreamStats>();
+  EXPECT_TRUE(second_video.media_source_id.has_value());
+  EXPECT_EQ(*second_video.media_source_id, "SV50");
 
   // Set previously undefined values and "GetStats" again.
   video_media_info.senders[0].qp_sum = 9;
