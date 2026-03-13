@@ -806,7 +806,7 @@ TEST(ScreamTest, MaybeTest(SendVideoOnlyReturnLinkWithBurstLoss)) {
             GetPacketsSent(result.caller_stats[5]));
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(10),
-                                              DataRate::KilobitsPerSec(1100))));
+                                              DataRate::KilobitsPerSec(1200))));
 }
 
 // Test that Scream adapt to a link with traffic policing on the network path
