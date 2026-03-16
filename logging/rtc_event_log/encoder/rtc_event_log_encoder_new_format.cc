@@ -465,23 +465,18 @@ void RtcEventLogEncoderNewFormat::EncodeRtpPacket(const Batch& batch,
   }
 
   {
-    // TODO(webrtc:14975) Remove this kill switch after DD in RTC event log has
-    //                    been rolled out.
-    if (encode_dependency_descriptor_) {
-      std::vector<std::span<const uint8_t>> raw_dds(batch.size());
-      bool has_dd = false;
-      for (size_t i = 0; i < batch.size(); ++i) {
-        raw_dds[i] =
-            batch[i]
-                ->template GetRawExtension<RtpDependencyDescriptorExtension>();
-        has_dd |= !raw_dds[i].empty();
-      }
-      if (has_dd) {
-        if (auto dd_encoded =
-                RtcEventLogDependencyDescriptorEncoderDecoder::Encode(
-                    raw_dds)) {
-          *proto_batch->mutable_dependency_descriptor() = *dd_encoded;
-        }
+    std::vector<std::span<const uint8_t>> raw_dds(batch.size());
+    bool has_dd = false;
+    for (size_t i = 0; i < batch.size(); ++i) {
+      raw_dds[i] =
+          batch[i]
+              ->template GetRawExtension<RtpDependencyDescriptorExtension>();
+      has_dd |= !raw_dds[i].empty();
+    }
+    if (has_dd) {
+      if (auto dd_encoded =
+              RtcEventLogDependencyDescriptorEncoderDecoder::Encode(raw_dds)) {
+        *proto_batch->mutable_dependency_descriptor() = *dd_encoded;
       }
     }
   }
@@ -704,9 +699,7 @@ void RtcEventLogEncoderNewFormat::EncodeRtpPacket(const Batch& batch,
 RtcEventLogEncoderNewFormat::RtcEventLogEncoderNewFormat(
     const FieldTrialsView& field_trials)
     : encode_neteq_set_minimum_delay_kill_switch_(field_trials.IsEnabled(
-          "WebRTC-RtcEventLogEncodeNetEqSetMinimumDelayKillSwitch")),
-      encode_dependency_descriptor_(!field_trials.IsDisabled(
-          "WebRTC-RtcEventLogEncodeDependencyDescriptor")) {}
+          "WebRTC-RtcEventLogEncodeNetEqSetMinimumDelayKillSwitch")) {}
 
 std::string RtcEventLogEncoderNewFormat::EncodeLogStart(int64_t timestamp_us,
                                                         int64_t utc_time_us) {

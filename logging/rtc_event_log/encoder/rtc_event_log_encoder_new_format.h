@@ -152,7 +152,6 @@ class RtcEventLogEncoderNewFormat final : public RtcEventLogEncoder {
   void EncodeRtpPacket(const Batch& batch, ProtoType* proto_batch);
 
   const bool encode_neteq_set_minimum_delay_kill_switch_;
-  const bool encode_dependency_descriptor_;
 };
 
 }  // namespace webrtc
