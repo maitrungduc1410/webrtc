@@ -278,12 +278,6 @@ class BaseChannel : public ChannelInterface,
   RtpHeaderExtensions GetDeduplicatedRtpHeaderExtensions(
       const RtpHeaderExtensions& extensions);
 
-  // Add `payload_type` to `demuxer_criteria_` if payload type demuxing is
-  // enabled.
-  // Returns true if the demuxer payload type changed and a re-registration
-  // is needed.
-  bool MaybeAddHandledPayloadType(int payload_type) RTC_RUN_ON(worker_thread());
-
   // Checks that the provided RTP header extensions are valid.
   // This verifies that all extension IDs are within the valid range,
   // that there are no duplicate IDs, and that no existing extension ID
@@ -297,13 +291,17 @@ class BaseChannel : public ChannelInterface,
   // failed, which needs to be treated as an error.
   bool MaybeUpdateDemuxerAndRtpExtensions_w(
       bool update_demuxer,
+      std::optional<flat_set<uint8_t>> payload_types,
       const RtpHeaderExtensions& extensions,
+      std::optional<flat_set<uint32_t>> ssrcs,
       std::string& error_desc) RTC_RUN_ON(worker_thread());
 
   // Registers a demuxer criteria with the transport, on the network thread.
   // This function will fail if there's no transport of if a sink is already
   // registered for this channel's demuxer_critera().
-  bool RegisterRtpDemuxerSink_w() RTC_RUN_ON(worker_thread());
+  bool RegisterRtpDemuxerSink_w(bool clear_payload_types,
+                                std::optional<flat_set<uint32_t>> ssrcs)
+      RTC_RUN_ON(worker_thread());
 
   // Return description of media channel to facilitate logging
   std::string ToString() const;
@@ -316,11 +314,8 @@ class BaseChannel : public ChannelInterface,
       RTC_RUN_ON(network_thread());
   void DisconnectFromRtpTransport_n() RTC_RUN_ON(network_thread());
   void SignalSentPacket_n(const SentPacketInfo& sent_packet);
-  // Only called on the network thread, so should be marked as
-  // `RTC_RUN_ON(network_thread());` but currently accesses variables
-  // that are associated with the worker thread. Those operations are
-  // done in a synchronous way, so they're safe, but not ideal.
-  RtpDemuxerCriteria demuxer_criteria() const RTC_NO_THREAD_SAFETY_ANALYSIS;
+  // Only called on the network thread.
+  RtpDemuxerCriteria demuxer_criteria() const RTC_RUN_ON(network_thread());
 
   TaskQueueBase* const worker_thread_;
   Thread* const network_thread_;
@@ -367,7 +362,7 @@ class BaseChannel : public ChannelInterface,
       RTC_GUARDED_BY(worker_thread()) = RtpTransceiverDirection::kInactive;
 
   // Cached list of payload types, used if payload type demuxing is re-enabled.
-  flat_set<uint8_t> payload_types_ RTC_GUARDED_BY(worker_thread());
+  flat_set<uint8_t> payload_types_ RTC_GUARDED_BY(network_thread());
   // A stored copy of the rtp header extensions as applied to the transport.
   RtpHeaderExtensions rtp_header_extensions_ RTC_GUARDED_BY(worker_thread());
 
@@ -377,7 +372,7 @@ class BaseChannel : public ChannelInterface,
       RTC_GUARDED_BY(worker_thread());
 
   const std::string mid_;
-  flat_set<uint32_t> ssrcs_ RTC_GUARDED_BY(worker_thread());
+  flat_set<uint32_t> ssrcs_ RTC_GUARDED_BY(network_thread());
   // This generator is used to generate SSRCs for local streams.
   // This is needed in cases where SSRCs are not negotiated or set explicitly
   // like in Simulcast.
