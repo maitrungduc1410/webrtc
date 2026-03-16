@@ -418,14 +418,6 @@ void AudioProcessingSimulator::ConfigureAudioProcessor() {
   if (settings_.use_ts) {
     apm_config.transient_suppression.enabled = *settings_.use_ts != 0;
   }
-  if (settings_.multi_channel_render) {
-    apm_config.pipeline.multi_channel_render = *settings_.multi_channel_render;
-  }
-
-  if (settings_.multi_channel_capture) {
-    apm_config.pipeline.multi_channel_capture =
-        *settings_.multi_channel_capture;
-  }
 
   if (settings_.use_adaptive_stereo_downmixing_for_aec) {
     if (*settings_.use_adaptive_stereo_downmixing_for_aec) {

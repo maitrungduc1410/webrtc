@@ -128,8 +128,6 @@ struct SimulationSettings {
   std::optional<int> maximum_internal_processing_rate;
   int initial_mic_level;
   bool simulate_mic_gain = false;
-  std::optional<bool> multi_channel_render;
-  std::optional<bool> multi_channel_capture;
   std::optional<int> simulated_mic_kind;
   std::optional<int> frame_for_sending_capture_output_used_false;
   std::optional<int> frame_for_sending_capture_output_used_true;
