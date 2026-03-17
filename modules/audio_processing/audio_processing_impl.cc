@@ -468,6 +468,10 @@ AudioProcessingImpl::AudioProcessingImpl(
                   std::move(capture_analyzer),
                   std::move(neural_residual_echo_estimator)),
       constants_(
+          !env.field_trials().IsEnabled(
+              "WebRTC-ApmExperimentalMultiChannelRenderKillSwitch"),
+          !env.field_trials().IsEnabled(
+              "WebRTC-ApmExperimentalMultiChannelCaptureKillSwitch"),
           EnforceSplitBandHpf(env.field_trials()),
           MinimizeProcessingForUnusedOutput(env.field_trials()),
           env.field_trials().IsEnabled("WebRTC-ApmEnforce48kHzProcessingRate")),
@@ -649,9 +653,16 @@ void AudioProcessingImpl::InitializeLocked(const ProcessingConfig& config) {
              render_processing_rate == 48000);
 
   if (submodule_states_.RenderMultiBandSubModulesActive()) {
+    // By default, downmix the render stream to mono for analysis. This has been
+    // demonstrated to work well for AEC in most practical scenarios.
+    const bool multi_channel_render = config_.pipeline.multi_channel_render &&
+                                      constants_.multi_channel_render_support;
+    int render_processing_num_channels =
+        multi_channel_render
+            ? formats_.api_format.reverse_input_stream().num_channels()
+            : 1;
     formats_.render_processing_format =
-        StreamConfig(render_processing_rate,
-                     formats_.api_format.reverse_input_stream().num_channels());
+        StreamConfig(render_processing_rate, render_processing_num_channels);
   } else {
     formats_.render_processing_format = StreamConfig(
         formats_.api_format.reverse_input_stream().sample_rate_hz(),
@@ -669,6 +680,10 @@ void AudioProcessingImpl::ApplyConfig(const AudioProcessing::Config& config) {
   RTC_LOG(LS_INFO) << "AudioProcessing::ApplyConfig: " << config.ToString();
 
   const bool pipeline_config_changed =
+      config_.pipeline.multi_channel_render !=
+          config.pipeline.multi_channel_render ||
+      config_.pipeline.multi_channel_capture !=
+          config.pipeline.multi_channel_capture ||
       config_.pipeline.maximum_internal_processing_rate !=
           config.pipeline.maximum_internal_processing_rate ||
       config_.pipeline.capture_downmix_method !=
@@ -763,6 +778,12 @@ size_t AudioProcessingImpl::num_input_channels() const {
 }
 
 size_t AudioProcessingImpl::num_proc_channels() const {
+  // Used as callback from submodules, hence locking is not allowed.
+  const bool multi_channel_capture = config_.pipeline.multi_channel_capture &&
+                                     constants_.multi_channel_capture_support;
+  if (submodule_states_.EchoControllerEnabled() && !multi_channel_capture) {
+    return 1;
+  }
   return num_output_channels();
 }
 
@@ -1289,6 +1310,16 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
       SampleRateSupportsMultiBand(
           capture_nonlocked_.capture_processing_format.sample_rate_hz())) {
     capture_buffer->SplitIntoFrequencyBands();
+  }
+
+  const bool multi_channel_capture = config_.pipeline.multi_channel_capture &&
+                                     constants_.multi_channel_capture_support;
+  if (submodules_.echo_controller && !multi_channel_capture) {
+    // Force down-mixing of the number of channels after the detection of
+    // capture signal saturation.
+    // TODO(peah): Look into ensuring that this kind of tampering with the
+    // AudioBuffer functionality should not be needed.
+    capture_buffer->set_num_channels(1);
   }
 
   if (submodules_.high_pass_filter &&

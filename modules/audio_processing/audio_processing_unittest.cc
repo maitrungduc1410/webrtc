@@ -2056,6 +2056,8 @@ void RunApmRateAndChannelTest(ArrayView<const int> sample_rates_hz,
                               ArrayView<const int> capture_channel_counts,
                               ArrayView<const bool> mono_capture_output) {
   AudioProcessing::Config apm_config;
+  apm_config.pipeline.multi_channel_render = true;
+  apm_config.pipeline.multi_channel_capture = true;
   apm_config.echo_canceller.enabled = true;
   scoped_refptr<AudioProcessing> apm =
       BuiltinAudioProcessingBuilder(apm_config).Build(CreateEnvironment());

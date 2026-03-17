@@ -94,6 +94,8 @@ void FuzzOneInput(FuzzDataHelper fuzz_data) {
           : nullptr;
   scoped_refptr<AudioProcessing> apm =
       BuiltinAudioProcessingBuilder()
+          .SetConfig({.pipeline = {.multi_channel_render = true,
+                                   .multi_channel_capture = true}})
           .SetCapturePostProcessing(std::move(capture_processor))
           .SetRenderPreProcessing(std::move(render_processor))
           .Build(CreateEnvironment());
