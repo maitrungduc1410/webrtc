@@ -161,6 +161,43 @@ TEST(ScreamV2Test, ReferenceWindowIncreaseLessPerStepIfCeDetected) {
   EXPECT_GT(scream_1.ref_window(), scream_2.ref_window());
 }
 
+TEST(ScreamV2Test, ReferenceWindowDecreaseIfPacketsAreLostForTheFirstTime) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  ScreamV2 scream(env);
+
+  TransportPacketsFeedback feedback =
+      CreateFeedback(clock.CurrentTime(), /*rtt=*/TimeDelta::Millis(10),
+                     /*number_of_ect1_packets=*/20,
+                     /*number_of_packets_in_flight=*/20);
+
+  scream.OnTransportPacketsFeedback(feedback);
+  DataSize ref_window = scream.ref_window();
+  clock.AdvanceTime(TimeDelta::Millis(25));
+
+  TransportPacketsFeedback loss_feedback =
+      CreateFeedback(clock.CurrentTime(), /*rtt=*/TimeDelta::Millis(10),
+                     /*number_of_ect1_packets=*/5,
+                     /*number_of_packets_in_flight=*/5);
+  loss_feedback.packet_feedbacks[3].receive_time = Timestamp::PlusInfinity();
+  loss_feedback.packet_feedbacks[3].reported_lost_for_the_first_time = true;
+
+  scream.OnTransportPacketsFeedback(loss_feedback);
+  EXPECT_LT(scream.ref_window(), ref_window);
+  ref_window = scream.ref_window();
+
+  clock.AdvanceTime(TimeDelta::Millis(25));
+  TransportPacketsFeedback loss_feedback2 =
+      CreateFeedback(clock.CurrentTime(), /*rtt=*/TimeDelta::Millis(10),
+                     /*number_of_ect1_packets=*/5,
+                     /*number_of_packets_in_flight=*/5);
+  loss_feedback2.packet_feedbacks[0].receive_time = Timestamp::PlusInfinity();
+  loss_feedback2.packet_feedbacks[0].reported_lost_for_the_first_time = false;
+
+  scream.OnTransportPacketsFeedback(loss_feedback2);
+  EXPECT_GE(scream.ref_window(), ref_window);
+}
+
 TEST(ScreamV2Test, ReferenceWindowIncreaseToDataInflight) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
   Environment env = CreateTestEnvironment({.time = &clock});

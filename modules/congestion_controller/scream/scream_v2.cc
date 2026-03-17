@@ -45,7 +45,7 @@ DataSize DataUnitsAckedAndNotMarked(const TransportPacketsFeedback& msg) {
 
 bool HasLostPackets(const TransportPacketsFeedback& msg) {
   for (const auto& packet : msg.PacketsWithFeedback()) {
-    if (!packet.IsReceived()) {
+    if (!packet.IsReceived() && packet.reported_lost_for_the_first_time) {
       return true;
     }
   }
