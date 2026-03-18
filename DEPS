@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'b30d84fa40626ba910ed277984b3cc7737f49c2e',
+  'chromium_revision': '72553e8b4bdc25825c847a7093078979e87c838b',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@904cd4f06715973dbd0f092eee0aa8e2c5d7667e',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@471b43a4ef2c531b50b1109e05604bf2f7e34a98',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@8527fd9f72b14778901d9cac901736c97213344f',
+    'https://chromium.googlesource.com/chromium/src/testing@260e1270b0bd9281950ded5f58da8d8b32f43b51',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@793a1bc3679b136c77dfffe8c74b09a31786b9c0',
+    'https://chromium.googlesource.com/chromium/src/third_party@9c2ce92f1a07cd93501f76189f9dfd058994bb38',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -505,7 +505,7 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@95d1432b5c506cc6b500b34c23f06c4708139fe9',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@d819b798b712d4064ad12b7bd9257acf78e34cb0',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@946d97db8d906277085e361892b7efda5152e2f1',
   'src/third_party/flatbuffers/src':
@@ -609,7 +609,7 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '9b59f48e11a56a8d2dddd60299e7e25b68b3072c',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '08919e34b61cbb1950dd20a87f4748d5795fa2a9',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@4dc3ed6779e386922affe81b6b933cc534f2fc32',
+    'https://chromium.googlesource.com/chromium/src/tools@9d8b817ce41993df74f7d6e71a741a42ada1a8ea',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'IxP1FmK52UK5we5ZE7jEkvED0_fBvkCslzXKDVIuV9QC',
+          'version': 'rz90VPpK87UYOL1GQGLlBARBJdK5-L_MAuzuM8bszasC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
@@ -842,7 +842,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/android_deps/autorolled',
-              'version': 'bSNUpmo1wIHCZI5w3gxpUEAdVSqFPcTlstxTARVxcuwC',
+              'version': 'PGgvEOiRpg1Z5fBKSrpvnnX1CFBZU6KVNUBVkyukBKoC',
           },
       ],
       'condition': 'checkout_android and non_git_source',
@@ -864,7 +864,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + '7607ca500436b37ad23fb8d18614bec7796b68a7',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '1726a929009be60a5ed049d23052cbb7ce6f2f96',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + 'c148dc8fadf4ae427fd57d4edb92b855e3d8939c',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '3d2de1816307bac63c16a297e8c4dc501b4076df',
