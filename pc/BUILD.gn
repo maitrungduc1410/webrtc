@@ -1069,6 +1069,19 @@ rtc_library("rtc_stats_traversal") {
   ]
 }
 
+rtc_library("scoped_operations_batcher") {
+  visibility = [ ":*" ]
+  sources = [
+    "scoped_operations_batcher.cc",
+    "scoped_operations_batcher.h",
+  ]
+  deps = [
+    "../rtc_base:checks",
+    "../rtc_base:threading",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
+  ]
+}
+
 rtc_library("sdp_munging_detector") {
   visibility = [ ":*" ]
   sources = [
@@ -1121,6 +1134,7 @@ rtc_library("sdp_offer_answer") {
     ":rtp_sender_proxy",
     ":rtp_transceiver",
     ":rtp_transmission_manager",
+    ":scoped_operations_batcher",
     ":sdp_munging_detector",
     ":sdp_payload_type_suggester",
     ":sdp_state_provider",
@@ -2502,6 +2516,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "rtp_parameters_conversion_unittest.cc",
       "rtp_sender_receiver_unittest.cc",
       "rtp_transceiver_unittest.cc",
+      "scoped_operations_batcher_unittest.cc",
       "sctp_utils_unittest.cc",
       "sdp_munging_detector_unittest.cc",
       "sdp_offer_answer_unittest.cc",
@@ -2552,6 +2567,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":rtp_transceiver",
       ":rtp_transport",
       ":rtp_transport_internal",
+      ":scoped_operations_batcher",
       ":sctp_data_channel",
       ":sctp_transport",
       ":sctp_utils",

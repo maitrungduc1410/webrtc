@@ -86,6 +86,7 @@
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transceiver.h"
 #include "pc/rtp_transmission_manager.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/sdp_munging_detector.h"
 #include "pc/session_description.h"
 #include "pc/simulcast_description.h"
@@ -112,71 +113,6 @@
 namespace webrtc {
 namespace {
 
-// Batches operations to be executed synchronously on the worker thread.
-//
-// When the batcher goes out of scope (or `Run()` is explicitly called), it
-// executes all queued tasks in a single `BlockingCall` to the worker thread.
-//
-// Tasks can either have a `void` return type, or return a new task.
-// Any tasks returned by the executed worker thread tasks are collected
-// and subsequently executed on the calling thread (typically the signaling
-// thread) after the worker thread operations have completed.
-class ScopedOperationsBatcher {
- public:
-  explicit ScopedOperationsBatcher(Thread* worker_thread)
-      : worker_thread_(worker_thread) {
-    RTC_DCHECK(worker_thread_);
-  }
-
-  ~ScopedOperationsBatcher() { Run(); }
-
-  void Run() {
-    std::vector<absl::AnyInvocable<void() &&>> signaling_tasks;
-    if (!tasks_.empty()) {
-      worker_thread_->BlockingCall([&] {
-        for (auto& task : tasks_) {
-          if (task.void_task) {
-            std::move(task.void_task)();
-          } else {
-            RTC_DCHECK(task.returning_task);
-            auto ret = std::move(task.returning_task)();
-            if (ret) {
-              signaling_tasks.push_back(std::move(ret));
-            }
-          }
-        }
-      });
-      tasks_.clear();
-    }
-
-    for (auto& task : signaling_tasks) {
-      std::move(task)();
-    }
-  }
-
-  // Queues non-nullptr tasks to be executed on the worker when the
-  // ScopedOperationsBatcher goes out of scope.
-  void push_back(absl::AnyInvocable<void() &&> task) {
-    if (task) {
-      tasks_.push_back({.void_task = std::move(task)});
-    }
-  }
-
-  void push_back(absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task) {
-    if (task) {
-      tasks_.push_back({.returning_task = std::move(task)});
-    }
-  }
-
- private:
-  struct BatchedTask {
-    absl::AnyInvocable<void() &&> void_task;
-    absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> returning_task;
-  };
-
-  Thread* const worker_thread_;
-  std::vector<BatchedTask> tasks_;
-};
 
 struct DtlsTransportAndName {
   scoped_refptr<DtlsTransport> transport;
