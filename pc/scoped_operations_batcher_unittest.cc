@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/functional/any_invocable.h"
 #include "rtc_base/thread.h"
@@ -20,23 +21,23 @@
 namespace webrtc {
 namespace {
 
-TEST(ScopedOperationsBatcherTest, ExecutesTasksOnWorkerThread) {
-  auto worker_thread = Thread::Create();
-  worker_thread->Start();
+TEST(ScopedOperationsBatcherTest, ExecutesTasksOnTargetThread) {
+  auto target_thread = Thread::Create();
+  target_thread->Start();
 
   bool task_executed = false;
-  bool worker_checked = false;
+  bool target_checked = false;
 
   {
-    ScopedOperationsBatcher batcher(worker_thread.get());
+    ScopedOperationsBatcher batcher(target_thread.get());
     batcher.push_back([&] {
       task_executed = true;
-      worker_checked = worker_thread->IsCurrent();
+      target_checked = target_thread->IsCurrent();
     });
   }
 
   EXPECT_TRUE(task_executed);
-  EXPECT_TRUE(worker_checked);
+  EXPECT_TRUE(target_checked);
 }
 
 TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
@@ -46,8 +47,8 @@ TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
   // `~ScopedOperationsBatcher()`.
   auto signaling_thread = Thread::Current();
 
-  auto worker_thread = Thread::Create();
-  worker_thread->Start();
+  auto target_thread = Thread::Create();
+  target_thread->Start();
 
   bool return_task_executed = false;
   Thread* return_task_thread = nullptr;
@@ -55,7 +56,7 @@ TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
   Thread* task_thread = nullptr;
 
   {
-    ScopedOperationsBatcher batcher(worker_thread.get());
+    ScopedOperationsBatcher batcher(target_thread.get());
     absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task =
         [&]() -> absl::AnyInvocable<void() &&> {
       task_executed = true;
@@ -69,9 +70,33 @@ TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
   }
 
   EXPECT_TRUE(task_executed);
-  EXPECT_EQ(task_thread, worker_thread.get());
+  EXPECT_EQ(task_thread, target_thread.get());
   EXPECT_TRUE(return_task_executed);
   EXPECT_EQ(return_task_thread, signaling_thread);
+}
+
+TEST(ScopedOperationsBatcherTest, YieldsToHighPriorityTasks) {
+  auto target_thread = Thread::Create();
+  target_thread->Start();
+
+  std::vector<int> execution_order;
+
+  {
+    ScopedOperationsBatcher batcher(target_thread.get());
+    batcher.push_back([&] { execution_order.push_back(1); });
+    batcher.push_back([&] {
+      execution_order.push_back(2);
+      // Post a high-priority task that should interrupt the batch.
+      target_thread->PostHighPriorityTask(
+          [&] { execution_order.push_back(3); });
+    });
+    batcher.push_back([&] { execution_order.push_back(4); });
+    batcher.push_back([&] { execution_order.push_back(5); });
+  }
+
+  // Expect the high priority task (3) to execute immediately after the task
+  // that posted it (2). The regular tasks (4, 5) should yield.
+  EXPECT_EQ(execution_order, std::vector<int>({1, 2, 3, 4, 5}));
 }
 
 }  // namespace

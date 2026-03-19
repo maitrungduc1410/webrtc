@@ -11,17 +11,25 @@
 #ifndef PC_SCOPED_OPERATIONS_BATCHER_H_
 #define PC_SCOPED_OPERATIONS_BATCHER_H_
 
+#include <variant>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
+#include "api/sequence_checker.h"
+#include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread.h"
 
 namespace webrtc {
 
-// Batches operations to be executed synchronously on the worker thread.
+// Batches operations to be executed synchronously on a target thread.
+//
+// ScopedOperationsBatcher must only be created on the signaling thread.
 //
 // When the batcher goes out of scope (or `Run()` is explicitly called), it
-// executes all queued tasks in a single `BlockingCall` to the worker thread.
+// executes all queued tasks in one or more `BlockingCall`s to the target
+// thread. If the target thread requests a yield during batch execution, the
+// batcher will cooperatively yield the thread and resume execution in a
+// subsequent `BlockingCall`.
 //
 // Tasks can either have a `void` return type, or return a new task.
 // Any tasks returned by the executed worker thread tasks are collected
@@ -29,23 +37,23 @@ namespace webrtc {
 // thread) after the worker thread operations have completed.
 class ScopedOperationsBatcher {
  public:
-  explicit ScopedOperationsBatcher(Thread* worker_thread);
+  explicit ScopedOperationsBatcher(Thread* target_thread);
   ~ScopedOperationsBatcher();
 
   void Run();
 
-  // Queues non-nullptr tasks to be executed on the worker when the
+  // Queues non-nullptr tasks to be executed on the target thread when the
   // ScopedOperationsBatcher goes out of scope.
   void push_back(absl::AnyInvocable<void() &&> task);
   void push_back(absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task);
 
  private:
-  struct BatchedTask {
-    absl::AnyInvocable<void() &&> void_task;
-    absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> returning_task;
-  };
+  using BatchedTask =
+      std::variant<absl::AnyInvocable<void() &&>,
+                   absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&>>;
 
-  Thread* const worker_thread_;
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
+  Thread* const target_thread_;
   std::vector<BatchedTask> tasks_;
 };
 
