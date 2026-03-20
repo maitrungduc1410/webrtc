@@ -57,7 +57,6 @@ class VCMTiming {
   };
 
   static constexpr TimeDelta kDefaultRenderDelay = TimeDelta::Millis(10);
-  static constexpr int kDelayMaxChangeMsPerS = 100;
 
   VCMTiming(Clock* clock, const FieldTrialsView& field_trials);
   virtual ~VCMTiming() = default;
@@ -78,11 +77,6 @@ class VCMTiming {
 
   // Set the minimum and maximum playout delay from capture to render.
   void set_playout_delay(const VideoPlayoutDelay& playout_delay);
-
-  // Increases or decreases the current delay to get closer to the target delay.
-  // Calculates how long it has been since the previous call to this function,
-  // and increases/decreases the delay in proportion to the time difference.
-  void UpdateCurrentDelay(uint32_t frame_timestamp);
 
   // Increases or decreases the current delay to get closer to the target delay.
   // Given the actual decode time in ms and the render time in ms for a frame,
@@ -158,7 +152,6 @@ class VCMTiming {
   TimeDelta max_playout_delay_ RTC_GUARDED_BY(mutex_);
   TimeDelta jitter_delay_ RTC_GUARDED_BY(mutex_);
   TimeDelta current_delay_ RTC_GUARDED_BY(mutex_);
-  uint32_t prev_frame_timestamp_ RTC_GUARDED_BY(mutex_);
   std::optional<TimingFrameInfo> timing_frame_info_ RTC_GUARDED_BY(mutex_);
   size_t num_decoded_frames_ RTC_GUARDED_BY(mutex_);
   std::optional<int> max_composition_delay_in_frames_ RTC_GUARDED_BY(mutex_);
