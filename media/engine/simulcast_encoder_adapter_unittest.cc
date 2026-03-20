@@ -2840,7 +2840,18 @@ TEST_F(TestSimulcastEncoderAdapterFake,
             adapter_->Encode(input_frame, &frame_types));
 }
 
-TEST_F(TestSimulcastEncoderAdapterFake, ConcurrentEncodeAndOnEncodedImage) {
+// Only run this test under TSAN, otherwise it doesn't make much sense and
+// mostly wastes CPU resources.
+#if defined(THREAD_SANITIZER)
+#define MAYBE_ConcurrentEncodeAndOnEncodedImage \
+  ConcurrentEncodeAndOnEncodedImage
+#else
+#define MAYBE_ConcurrentEncodeAndOnEncodedImage \
+  DISABLED_ConcurrentEncodeAndOnEncodedImage
+#endif
+
+TEST_F(TestSimulcastEncoderAdapterFake,
+       MAYBE_ConcurrentEncodeAndOnEncodedImage) {
   // The test setup here is quite complex, but that is needed in order to make
   // sure tools like TSAN is able to reliable detect issue in the wrapper
   // encoder instances used for each stream. The code below makes sure that
