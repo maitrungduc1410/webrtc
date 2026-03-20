@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'd1fc7b8926ecd425bcb2a42b5f690cc60f9854b8',
+  'chromium_revision': '31f6cbd695178167c3430e897e07cba52e316006',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@013cd9d1bc97edce5e115f5fbe48a771ef1d89d2',
+    'https://chromium.googlesource.com/chromium/src/build@7e958c162b6043bbb4b84e9d1418f8ee8f68ba34',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@95ed44cf5f06dbb5861030b91c9db9ccb4316762',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@20f52cf52a7b171aa220240f103b15ff4c3fef45',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@7858fc4146da04e5e0f5583afe3aa04337ef29ba',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@53cc79e2fca64e4075719222582ca77ff1276bc4',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@e61263adf8c3a8a77d023d89e6d6ce8e9b49ece3',
+    'https://chromium.googlesource.com/chromium/src/third_party@1ec8287478b97a74971870a689dec6b1c9573f9d',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -488,7 +488,7 @@ deps = {
   },
 
   'src/third_party/boringssl/src':
-    'https://boringssl.googlesource.com/boringssl.git@28cf3dd50d8a9c8bc810c8fa84138af8da711e97',
+    'https://boringssl.googlesource.com/boringssl.git@6453bd80a9fe293c0adb8ae67d5d9c233100a7b9',
   'src/third_party/breakpad/breakpad':
     'https://chromium.googlesource.com/breakpad/breakpad.git@8be0e3114685fcc1589561067282edf75ea1259a',
   'src/third_party/catapult':
@@ -505,7 +505,7 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@40b296d214b2fa92c4605a0244f26c2d824f3996',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@315fe9236154fbe4124aeed270c9f5b96a060666',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@946d97db8d906277085e361892b7efda5152e2f1',
   'src/third_party/flatbuffers/src':
@@ -609,7 +609,7 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'c9aa1481b548e78ce3d6f79eabb6eca0be044e34',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'd2aaedff4b9e6fdb90edfdb57f02d79c87d23a73',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@50d5e17692834d647a6b47f138480f833d7c392e',
+    'https://chromium.googlesource.com/chromium/src/tools@1582fc6219ee1aba33145c937c50a2f2df665f8d',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'HrOnciB8BQGl5MNBfsfgysiPtdI3nERmtEhel7WeC4oC',
+          'version': 'wzjBTMka_ZRUOzMrirBfHngiFx_liKeSqVeKtVlO7FwC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
@@ -842,7 +842,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/android_deps/autorolled',
-              'version': 'PGgvEOiRpg1Z5fBKSrpvnnX1CFBZU6KVNUBVkyukBKoC',
+              'version': 'pLc9v3YoCPpc5bZ-yPGyIg0hLqZeXaIpzEHHWOI09UsC',
           },
       ],
       'condition': 'checkout_android and non_git_source',
