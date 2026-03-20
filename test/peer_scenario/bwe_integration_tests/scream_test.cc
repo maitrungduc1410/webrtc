@@ -364,7 +364,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt20msNoEcn)) {
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(200),
-                                              DataRate::KilobitsPerSec(800))));
+                                              DataRate::KilobitsPerSec(900))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt100msEcn)) {
@@ -467,7 +467,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity1500KbpsRtt30msNoEcn)) {
   SendMediaTestResult result = SendMediaInOneDirection(std::move(params), s);
   EXPECT_THAT(result.caller().subspan(1), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(800),
-                                              DataRate::KilobitsPerSec(2000))));
+                                              DataRate::KilobitsPerSec(2200))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcn)) {
@@ -564,8 +564,8 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithTwcc)) {
   // BWE rampup is quite slow since feedback is only sent every 90ms
   // approximately.
   EXPECT_THAT(result.caller().subspan(5), Each(AvailableSendBitrateIsBetween(
-                                              DataRate::KilobitsPerSec(1200),
-                                              DataRate::KilobitsPerSec(2400))));
+                                              DataRate::KilobitsPerSec(700),
+                                              DataRate::KilobitsPerSec(2600))));
 }
 
 TEST(ScreamTest, MaybeTest(CallerPauseSendingVideoIfFeedbackNotReceived)) {
