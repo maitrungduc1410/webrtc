@@ -16,6 +16,7 @@
 
 #include "api/jsep.h"
 #include "api/media_types.h"
+#include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/scoped_refptr.h"
@@ -34,6 +35,7 @@
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_util.h"
 #include "pc/media_session.h"
+#include "rtc_base/logging.h"
 #include "test/create_frame_generator_capturer.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -206,7 +208,7 @@ INSTANTIATE_TEST_SUITE_P(
              .l4s_network = true,
              .network_capacity = DataRate::KilobitsPerSec(3000),
              .expected_bwe_min = DataRate::KilobitsPerSec(1500),
-             .max_bwe = DataRate::KilobitsPerSec(3000),
+             .max_bwe = DataRate::KilobitsPerSec(3600),
          },
          {
              .test_name = "L4s500Kbit",
@@ -239,12 +241,18 @@ TEST_P(BweRampupWithInitialProbeTest, BweRampUpBothDirectionsWithoutMedia) {
   PeerScenarioClient* caller = s.CreateClient(config);
   PeerScenarioClient* callee = s.CreateClient(config);
 
-  auto transceiver = caller->pc()->AddTransceiver(MediaType::VIDEO);
-  ASSERT_TRUE(transceiver.error().ok());
+  auto transceiver_or = caller->pc()->AddTransceiver(MediaType::VIDEO);
+  ASSERT_TRUE(transceiver_or.error().ok());
+  auto transceiver = transceiver_or.value();
+
+  auto parameters = transceiver->sender()->GetParameters();
+  ASSERT_THAT(parameters.encodings, testing::SizeIs(1));
+  parameters.encodings[0].max_bitrate_bps = 3'000'000;
+  ASSERT_TRUE(transceiver->sender()->SetParameters(parameters).ok());
 
   MockRtpSenderObserver observer;
   EXPECT_CALL(observer, OnFirstPacketSent).Times(0);
-  transceiver.value()->sender()->SetObserver(&observer);
+  transceiver->sender()->SetObserver(&observer);
 
   caller->pc()->ReconfigureBandwidthEstimation(
       {.allow_probe_without_media = true});
@@ -289,6 +297,18 @@ TEST_P(BweRampupWithInitialProbeTest, BweRampUpBothDirectionsWithoutMedia) {
       });
   // Wait for SDP negotiation.
   s.WaitAndProcess(&offer_exchange_done);
+
+  // Set max encoding rate for Callee as well.
+  ASSERT_THAT(callee->pc()->GetTransceivers(), SizeIs(1));
+  auto callee_transceiver = callee->pc()->GetTransceivers()[0];
+  auto callee_params = callee_transceiver->sender()->GetParameters();
+  if (callee_params.encodings.size() > 0) {
+    callee_params.encodings[0].max_bitrate_bps = 10'000'000;
+    ASSERT_TRUE(
+        callee_transceiver->sender()->SetParameters(callee_params).ok());
+  } else {
+    RTC_LOG(LS_WARNING) << "Callee encodings is empty after negotiation!";
+  }
 
   // Test that 1s after offer/answer exchange finish, we have a BWE estimate,
   // even though no video frames have been sent.
