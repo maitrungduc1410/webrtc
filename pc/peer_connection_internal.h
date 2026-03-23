@@ -127,8 +127,9 @@ class PeerConnectionSdpMethods {
       scoped_refptr<MediaStreamTrackInterface> track,
       const RtpTransceiverInit& init,
       bool fire_callback = true) = 0;
-  // Asynchronously calls SctpTransport::Start() on the network thread for
-  // `sctp_mid()` if set. Called as part of setting the local description.
+  // Synchronously calls SctpTransport::Start() on the network thread for
+  // `sctp_mid()` if set. Called as part of pushing down the media descriptions
+  // after a complete offer/answer.
   virtual RTCError StartSctpTransport(const SctpOptions& options) = 0;
 
   // Asynchronously adds a remote candidate on the network thread.
