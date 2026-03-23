@@ -183,8 +183,6 @@ class VideoSendStreamImplTest : public ::testing::Test {
     encoder_config.simulcast_layers.push_back(VideoStream());
     encoder_config.simulcast_layers.back().active = true;
     encoder_config.simulcast_layers.back().bitrate_priority = 1.0;
-    encoder_config.simulcast_layers.back().width = 640;
-    encoder_config.simulcast_layers.back().height = 360;
     return encoder_config;
   }
 
@@ -293,7 +291,7 @@ TEST_F(VideoSendStreamImplTest,
        MaxBitrateCorrectIfActiveEncodingUpdatedAfterCreation) {
   VideoEncoderConfig one_active_encoding = TestVideoEncoderConfig();
   ASSERT_THAT(one_active_encoding.simulcast_layers, SizeIs(1));
-  one_active_encoding.max_bitrate_bps = 2'500'000;
+  one_active_encoding.max_bitrate_bps = 10'000'000;
   one_active_encoding.simulcast_layers[0].max_bitrate_bps = 2'000'000;
   VideoEncoderConfig no_active_encodings = one_active_encoding.Copy();
   no_active_encodings.simulcast_layers[0].active = false;
@@ -309,12 +307,12 @@ TEST_F(VideoSendStreamImplTest,
   time_controller_.AdvanceTime(TimeDelta::Zero());
 
   Sequence s;
-  // Expect zero max bitrate before the encoder has notified about the actual
-  // send streams.
-  EXPECT_CALL(
-      bitrate_allocator_,
-      AddObserver(vss_impl.get(),
-                  Field(&MediaStreamAllocationConfig::max_bitrate_bps, Eq(0))))
+  // Expect codec max bitrate as max needed bitrate before the encoder has
+  // notifed about the actual send streams.
+  EXPECT_CALL(bitrate_allocator_,
+              AddObserver(vss_impl.get(),
+                          Field(&MediaStreamAllocationConfig::max_bitrate_bps,
+                                Eq(one_active_encoding.max_bitrate_bps))))
       .InSequence(s);
 
   // Expect the sum of active encodings as max needed bitrate after
