@@ -31,6 +31,7 @@
 namespace webrtc {
 namespace {
 
+constexpr TimeDelta kDefaultRenderDelay = TimeDelta::Millis(10);
 // Default pacing that is used for the low-latency renderer path.
 constexpr TimeDelta kZeroPlayoutDelayDefaultMinPacing = TimeDelta::Millis(8);
 constexpr TimeDelta kLowLatencyStreamMaxPlayoutDelayThreshold =

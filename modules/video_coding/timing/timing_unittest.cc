@@ -397,7 +397,8 @@ TEST(VCMTimingTest, Reset) {
   SimulatedClock clock(Timestamp::Millis(33));
   VCMTiming timing(&clock, field_trials);
 
-  timing.set_render_delay(TimeDelta::Millis(11));
+  const TimeDelta default_render_delay = timing.GetTimings().render_delay;
+  timing.set_render_delay(default_render_delay + TimeDelta::Millis(1));
   TimeDelta min_playout_delay = TimeDelta::Millis(50);
   TimeDelta max_playout_delay = TimeDelta::Millis(500);
   timing.set_playout_delay({min_playout_delay, max_playout_delay});
@@ -419,7 +420,7 @@ TEST(VCMTimingTest, Reset) {
   EXPECT_GT(timings.num_decoded_frames, 0u);
   EXPECT_EQ(timings.minimum_delay, TimeDelta::Zero());
   EXPECT_EQ(timings.estimated_max_decode_time, TimeDelta::Zero());
-  EXPECT_EQ(timings.render_delay, VCMTiming::kDefaultRenderDelay);
+  EXPECT_EQ(timings.render_delay, default_render_delay);
   EXPECT_EQ(timings.min_playout_delay, TimeDelta::Zero());
   EXPECT_EQ(timings.max_playout_delay, max_playout_delay);
   EXPECT_EQ(timings.target_delay, TimeDelta::Zero());

@@ -56,26 +56,24 @@ class VCMTiming {
     TimeDelta current_delay;
   };
 
-  static constexpr TimeDelta kDefaultRenderDelay = TimeDelta::Millis(10);
-
   VCMTiming(Clock* clock, const FieldTrialsView& field_trials);
   virtual ~VCMTiming() = default;
 
   // Resets the timing to the initial state.
   void Reset();
 
-  // Set the amount of time needed to render an image. Defaults to 10 ms.
+  // Sets the amount of time needed to render an image. Defaults to 10 ms.
   void set_render_delay(TimeDelta render_delay);
 
-  // Set the minimum time the video must be delayed on the receiver to
+  // Sets the minimum time the video must be delayed on the receiver to
   // get the desired jitter buffer level.
   void SetJitterDelay(TimeDelta required_delay);
 
-  // Set/get the minimum playout delay from capture to render.
+  // Sets/gets the minimum playout delay from capture to render.
   TimeDelta min_playout_delay() const;
   void set_min_playout_delay(TimeDelta min_playout_delay);
 
-  // Set the minimum and maximum playout delay from capture to render.
+  // Sets the minimum and maximum playout delay from capture to render.
   void set_playout_delay(const VideoPlayoutDelay& playout_delay);
 
   // Increases or decreases the current delay to get closer to the target delay.
@@ -113,7 +111,7 @@ class VCMTiming {
   // render delay.
   TimeDelta TargetVideoDelay() const;
 
-  // Return current timing information.
+  // Returns current timing information.
   VideoDelayTimings GetTimings() const;
 
   void SetTimingFrameInfo(const TimingFrameInfo& info);
