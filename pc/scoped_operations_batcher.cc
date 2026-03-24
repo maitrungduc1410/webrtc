@@ -55,7 +55,7 @@ void ScopedOperationsBatcher::Run() {
           }
         }
         ++task_idx;
-        if (!target_thread_is_current && target_thread_->IsYieldRequested()) {
+        if (!target_thread_is_current && target_thread_->HasPendingTasks()) {
           return;
         }
       }

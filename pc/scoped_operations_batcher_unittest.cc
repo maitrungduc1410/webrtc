@@ -75,7 +75,7 @@ TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
   EXPECT_EQ(return_task_thread, signaling_thread);
 }
 
-TEST(ScopedOperationsBatcherTest, YieldsToHighPriorityTasks) {
+TEST(ScopedOperationsBatcherTest, YieldsToOtherTasks) {
   auto target_thread = Thread::Create();
   target_thread->Start();
 
@@ -86,16 +86,17 @@ TEST(ScopedOperationsBatcherTest, YieldsToHighPriorityTasks) {
     batcher.push_back([&] { execution_order.push_back(1); });
     batcher.push_back([&] {
       execution_order.push_back(2);
-      // Post a high-priority task that should interrupt the batch.
-      target_thread->PostHighPriorityTask(
-          [&] { execution_order.push_back(3); });
+      // Post a task that should interrupt the batch since we now yield to any
+      // pending task.
+      target_thread->PostTask([&] { execution_order.push_back(3); });
     });
     batcher.push_back([&] { execution_order.push_back(4); });
     batcher.push_back([&] { execution_order.push_back(5); });
   }
 
-  // Expect the high priority task (3) to execute immediately after the task
-  // that posted it (2). The regular tasks (4, 5) should yield.
+  // Expect the task (3) to execute immediately after the task
+  // that posted it (2). The operations remaining in the batch (4, 5)
+  // should resume after the thread has processed the new task.
   EXPECT_EQ(execution_order, std::vector<int>({1, 2, 3, 4, 5}));
 }
 
