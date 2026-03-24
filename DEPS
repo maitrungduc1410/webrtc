@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '4acdf7133f643cd2a965fe471f646599359c7d82',
+  'chromium_revision': '8327d89a4740050d03a5249ed4d37293128fe124',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@998e2389625373f61d37fbd6e60bea45ea30536c',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@6ca5eede75d2546ea22a3f555c272f6dfbd1dbd7',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@0491a27dd1af96bf568bd0911c6cae53d9e4b2dc',
+    'https://chromium.googlesource.com/chromium/src/testing@3fef7fabf503f7917199692b28a5a601e418aa1b',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@db50e5c54009efb3b2fbd3aae771080dc398c5f9',
+    'https://chromium.googlesource.com/chromium/src/third_party@4aeca26d44dde61760914d708098d96da28dce80',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -505,13 +505,13 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@2e5b239d792f082ee7c008ffea310da64d5527eb',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@416ff6088da5735e8321c5a297b9aef8b291bc5b',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@946d97db8d906277085e361892b7efda5152e2f1',
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@4f623df3319df7e39a89fa2f4a198d43744917b7',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@488b14fd17934e8bbb469b6b383e10544ea0824d',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -609,11 +609,11 @@ deps = {
       'condition': 'checkout_android',
   },
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '3c997950a05e9d0da33d95e99ad952ba275b21e4',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '357268a3f619b8bcc9b9b28b373dcf32f3df74b7',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'e6d763860001ba1a76a63adcff5efb12b1c96024',
   'src/third_party/libvpx/source/libvpx':
-    'https://chromium.googlesource.com/webm/libvpx.git@e1dd14963a005523d0eb3a72954921934b3a8be7',
+    'https://chromium.googlesource.com/webm/libvpx.git@3fce57ecc905d95a4619f33d09851d68c5a88663',
   'src/third_party/libyuv':
     'https://chromium.googlesource.com/libyuv/libyuv.git@30809ff64a9ca5e45f86439c0d474c2d3eef3d05',
   'src/third_party/lss': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@465340f84f9f81116a8e50542e7b34293d1a2567',
+    'https://chromium.googlesource.com/chromium/src/tools@2fc91c62a51235748aadfeca64d08266e2a72896',
 
   'src/third_party/espresso': {
       'packages': [
@@ -707,7 +707,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'GIgdzzHTYcjiT8XrtVjd6rjspxYt0Hs0drpRjWcNwYUC',
+          'version': 'lH4R_xNZoL7YwnNSJYRSgU6ve0ypQAaGXUhHSMV8238C',
       },
     ],
     'condition': 'checkout_android and non_git_source',
