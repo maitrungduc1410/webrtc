@@ -38,8 +38,8 @@ RTCError CheckInputConsistency(const std::vector<Codec>& codecs) {
         RTC_LOG(LS_ERROR) << "Duplicate payload type in codec list, " << codec
                           << " and " << codecs[it->second]
                           << " have the same ID";
-        LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                             "Duplicate payload type in codec list");
+        return LOG_ERROR(RTCError(RTCErrorType::INVALID_PARAMETER)
+                         << "Duplicate payload type in codec list");
       }
     }
   }
@@ -74,8 +74,8 @@ RTCError CheckInputConsistency(const std::vector<Codec>& codecs) {
         if (!(FromString(apt_it->second, &associated_pt))) {
           RTC_LOG(LS_ERROR) << "Non-numeric argument to rtx apt: " << codec
                             << " apt=" << apt_it->second;
-          LOG_AND_RETURN_ERROR(RTCErrorType::INVALID_PARAMETER,
-                               "Non-numeric argument to rtx apt parameter");
+          return LOG_ERROR(RTCError(RTCErrorType::INVALID_PARAMETER)
+                           << "Non-numeric argument to rtx apt parameter");
         }
         if (codec.id != Codec::kIdNotSet &&
             pt_to_index.count(associated_pt) != 1) {
@@ -83,9 +83,9 @@ RTCError CheckInputConsistency(const std::vector<Codec>& codecs) {
               << "Surprising condition: RTX codec APT not found: " << codec
               << " points to a PT that occurs "
               << pt_to_index.count(associated_pt) << " times";
-          LOG_AND_RETURN_ERROR(
-              RTCErrorType::INVALID_PARAMETER,
-              "PT pointed to by rtx apt parameter does not exist");
+          return LOG_ERROR(
+              RTCError(RTCErrorType::INVALID_PARAMETER)
+              << "PT pointed to by rtx apt parameter does not exist");
         }
         // const Codec& referred_codec = codecs[pt_to_index[associated_pt]];
         // Not true:

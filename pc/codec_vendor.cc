@@ -660,10 +660,10 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         if (!IsMediaContentOfType(current_content,
                                   media_description_options.type)) {
           // Can happen if the remote side re-uses a MID while recycling.
-          LOG_AND_RETURN_ERROR(RTCErrorType::INTERNAL_ERROR,
-                               "Media type for content with mid='" +
-                                   current_content->mid() +
-                                   "' does not match previous type.");
+          return LOG_ERROR(RTCError(RTCErrorType::INTERNAL_ERROR)
+                           << "Media type for content with mid='"
+                           << current_content->mid()
+                           << "' does not match previous type.");
         }
         const MediaContentDescription* mcd =
             current_content->media_description();
@@ -796,10 +796,10 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
         if (!IsMediaContentOfType(current_content,
                                   media_description_options.type)) {
           // Can happen if the remote side re-uses a MID while recycling.
-          LOG_AND_RETURN_ERROR(RTCErrorType::INTERNAL_ERROR,
-                               "Media type for content with mid='" +
-                                   current_content->mid() +
-                                   "' does not match previous type.");
+          return LOG_ERROR(RTCError(RTCErrorType::INTERNAL_ERROR)
+                           << "Media type for content with mid='"
+                           << current_content->mid()
+                           << "' does not match previous type.");
         }
         const MediaContentDescription* mcd =
             current_content->media_description();
