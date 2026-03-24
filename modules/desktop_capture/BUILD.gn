@@ -28,6 +28,8 @@ rtc_library("primitives") {
     "desktop_geometry.h",
     "desktop_region.cc",
     "desktop_region.h",
+    "frame_texture.cc",
+    "frame_texture.h",
     "shared_desktop_frame.cc",
     "shared_desktop_frame.h",
     "shared_memory.cc",
@@ -41,6 +43,7 @@ rtc_library("primitives") {
     "../../rtc_base:refcount",
     "../../rtc_base:stringutils",
     "../../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/libyuv",
   ]
 }
@@ -140,6 +143,7 @@ if (rtc_include_tests) {
       "desktop_and_cursor_composer_unittest.cc",
       "desktop_capturer_differ_wrapper_unittest.cc",
       "desktop_frame_rotation_unittest.cc",
+      "desktop_frame_texture_unittest.cc",
       "desktop_frame_unittest.cc",
       "desktop_geometry_unittest.cc",
       "desktop_region_unittest.cc",
@@ -591,6 +595,8 @@ rtc_library("desktop_capture") {
 
   if (rtc_enable_win_wgc) {
     sources += [
+      "win/dxgi_desktop_frame.cc",
+      "win/dxgi_desktop_frame.h",
       "win/wgc_capture_session.cc",
       "win/wgc_capture_session.h",
       "win/wgc_capture_source.cc",
