@@ -50,7 +50,6 @@ if (rtc_include_tests) {
     sources = [ "cascaded_biquad_filter_unittest.cc" ]
     deps = [
       ":cascaded_biquad_filter",
-      "../../../rtc_base:checks",
       "../../../test:test_support",
       "//api:array_view",
       "//rtc_base:checks",
