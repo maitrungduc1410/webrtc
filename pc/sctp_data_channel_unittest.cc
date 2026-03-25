@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "pc/sctp_data_channel.h"
+
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -25,7 +27,6 @@
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/transport/data_channel_transport_interface.h"
-#include "pc/sctp_data_channel.h"
 #include "pc/sctp_utils.h"
 #include "pc/test/fake_data_channel_controller.h"
 #include "rtc_base/checks.h"
