@@ -304,7 +304,6 @@ rtc_library("speech_level_estimator_unittest") {
     "..:apm_logging",
     "../../../api/audio:audio_processing",
     "../../../rtc_base:checks",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -323,7 +322,6 @@ rtc_library("adaptive_digital_gain_controller_unittest") {
     "..:audio_frame_view",
     "../../../api/audio:audio_processing",
     "../../../common_audio",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -337,7 +335,6 @@ rtc_library("gain_applier_unittest") {
     ":gain_applier",
     ":test_utils",
     "../../../api/audio:audio_frame_api",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -354,7 +351,6 @@ rtc_library("saturation_protector_unittest") {
     ":common",
     ":saturation_protector",
     "..:apm_logging",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -364,7 +360,6 @@ rtc_library("biquad_filter_unittests") {
   sources = [ "biquad_filter_unittest.cc" ]
   deps = [
     ":biquad_filter",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -393,7 +388,6 @@ rtc_library("fixed_digital_unittests") {
     "../../../api/audio:audio_frame_api",
     "../../../common_audio",
     "../../../rtc_base:checks",
-    "../../../rtc_base:gunit_helpers",
     "../../../system_wrappers:metrics",
     "../../../test:test_support",
   ]
@@ -442,7 +436,6 @@ rtc_library("noise_estimator_unittests") {
     "../../../api:function_view",
     "../../../api/audio:audio_frame_api",
     "../../../rtc_base:checks",
-    "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
 }
@@ -455,7 +448,6 @@ rtc_library("vad_wrapper_unittests") {
     ":vad_wrapper",
     "../../../api/audio:audio_frame_api",
     "../../../rtc_base:checks",
-    "../../../rtc_base:gunit_helpers",
     "../../../rtc_base:safe_compare",
     "../../../test:test_support",
   ]
