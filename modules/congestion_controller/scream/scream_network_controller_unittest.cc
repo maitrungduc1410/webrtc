@@ -412,7 +412,9 @@ PaddingTestResult ProcessUntilPaddingStartAndStop(
         scream_controller.OnTransportPacketsFeedback(feedback);
     if (update.pacer_config.has_value()) {
       if (update.pacer_config->pad_rate() != DataRate::Zero()) {
-        padding_start = clock.CurrentTime();
+        if (padding_start.IsZero()) {
+          padding_start = clock.CurrentTime();
+        }
         if (increase_send_rate) {
           // Set the send rate equal to the padding rate.
           send_rate = update.pacer_config->pad_rate();
@@ -485,6 +487,40 @@ TEST(ScreamControllerTest, PeriodicallyAllowPadding) {
 
   EXPECT_GT(time_between_padding, TimeDelta::Millis(2500));
   EXPECT_LT(time_between_padding, TimeDelta::Millis(3300));
+}
+
+TEST(ScreamControllerTest, DelayPaddingAfterCongestion) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  NetworkControllerConfig config(env);
+  ScreamNetworkController scream_controller(config);
+  CcFeedbackGenerator feedback_generator(
+      {.network_config = {.queue_delay_ms = 10,
+                          .link_capacity = DataRate::KilobitsPerSec(500)},
+       .send_as_ect1 = true});
+  StreamsConfig streams_config;
+  streams_config.max_total_allocated_bitrate = DataRate::KilobitsPerSec(1000);
+  scream_controller.OnStreamsConfig(streams_config);
+
+  // Padding should start, but then stop since pushing to max allocated causes
+  // congestion.
+  PaddingTestResult result_1 = ProcessUntilPaddingStartAndStop(
+      clock, scream_controller, feedback_generator,
+      /*increase_send_rate=*/true);
+
+  // Ensure it was stopped quickly when congestion kicked in.
+  EXPECT_LT(result_1.padding_stop - result_1.padding_start,
+            TimeDelta::Seconds(1));
+
+  // Network recovers because increase_send_rate=false keeps sending rate at
+  // 50kbps. Wait until next padding starts.
+  PaddingTestResult result_2 = ProcessUntilPaddingStartAndStop(
+      clock, scream_controller, feedback_generator,
+      /*increase_send_rate=*/false);
+
+  TimeDelta time_until_padding = result_2.padding_start - result_1.padding_stop;
+  EXPECT_GT(time_until_padding, TimeDelta::Millis(2500));
+  EXPECT_LT(time_until_padding, TimeDelta::Millis(3500));
 }
 
 TEST(ScreamControllerTest, PadsToMinOf2xCurrentMaxAndEverSeenMax) {
