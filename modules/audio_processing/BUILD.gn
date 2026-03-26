@@ -57,7 +57,6 @@ rtc_library("audio_buffer") {
   defines = []
 
   deps = [
-    "../../api:array_view",
     "../../api/audio:audio_frame_api",
     "../../api/audio:audio_processing",
     "../../common_audio",
@@ -80,7 +79,6 @@ rtc_library("high_pass_filter") {
 
   deps = [
     ":audio_buffer",
-    "../../api:array_view",
     "../../rtc_base:checks",
     "utility:cascaded_biquad_filter",
   ]
@@ -98,7 +96,6 @@ rtc_library("post_filter") {
 
   deps = [
     ":audio_buffer",
-    "../../api:array_view",
     "../../rtc_base:checks",
     "utility:cascaded_biquad_filter",
   ]
@@ -174,7 +171,6 @@ rtc_library("audio_processing") {
     ":high_pass_filter",
     ":post_filter",
     ":rms_level",
-    "../../api:array_view",
     "../../api:field_trials_view",
     "../../api:function_view",
     "../../api:make_ref_counted",
@@ -245,7 +241,6 @@ rtc_library("residual_echo_detector") {
   ]
   deps = [
     ":apm_logging",
-    "../../api:array_view",
     "../../api/audio:audio_processing",
     "../../rtc_base:checks",
     "../../rtc_base:logging",
@@ -259,10 +254,7 @@ rtc_library("rms_level") {
     "rms_level.cc",
     "rms_level.h",
   ]
-  deps = [
-    "../../api:array_view",
-    "../../rtc_base:checks",
-  ]
+  deps = [ "../../rtc_base:checks" ]
 }
 
 rtc_library("audio_processing_statistics") {
@@ -294,7 +286,6 @@ rtc_library("apm_logging") {
     "logging/apm_data_dumper.h",
   ]
   deps = [
-    "../../api:array_view",
     "../../common_audio",
     "../../rtc_base:checks",
     "../../rtc_base:stringutils",
@@ -311,7 +302,6 @@ if (rtc_include_tests) {
       ":aec_dump_interface",
       ":audio_buffer",
       ":audio_processing",
-      "../../api:array_view",
       "../../api:scoped_refptr",
       "../../api/audio:audio_processing",
       "../../api/audio:audio_processing_statistics",
@@ -363,7 +353,6 @@ if (rtc_include_tests) {
         ":high_pass_filter",
         ":mocks",
         ":post_filter",
-        "../../api:array_view",
         "../../api:make_ref_counted",
         "../../api:ref_count",
         "../../api:scoped_refptr",
@@ -485,7 +474,6 @@ if (rtc_include_tests) {
     deps = [
       ":audio_processing",
       ":audioproc_test_utils",
-      "../../api:array_view",
       "../../api:scoped_refptr",
       "../../api/audio:audio_processing",
       "../../api/audio:builtin_audio_processing_builder",
@@ -512,7 +500,6 @@ if (rtc_include_tests) {
       "test/fake_recording_device.h",
     ]
     deps = [
-      "../../api:array_view",
       "../../api/audio:audio_frame_api",
       "../../common_audio",
       "../../rtc_base:checks",
@@ -639,7 +626,6 @@ rtc_library("audioproc_test_utils") {
   deps = [
     ":audio_buffer",
     ":audio_processing",
-    "../../api:array_view",
     "../../api/audio:audio_frame_api",
     "../../api/audio:audio_processing",
     "../../common_audio",

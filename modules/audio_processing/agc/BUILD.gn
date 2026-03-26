@@ -24,7 +24,6 @@ rtc_library("agc") {
     "..:apm_logging",
     "..:audio_buffer",
     "..:audio_frame_view",
-    "../../../api:array_view",
     "../../../api:field_trials_view",
     "../../../api/audio:audio_processing",
     "../../../api/environment",
@@ -52,7 +51,6 @@ rtc_library("level_estimation") {
     "utility.h",
   ]
   deps = [
-    "../../../api:array_view",
     "../../../rtc_base:checks",
     "../vad",
   ]
@@ -108,7 +106,6 @@ if (rtc_include_tests) {
       ":level_estimation",
       "..:audio_buffer",
       "..:mocks",
-      "../../../api:array_view",
       "../../../api:field_trials",
       "../../../api/audio:audio_processing",
       "../../../api/environment",

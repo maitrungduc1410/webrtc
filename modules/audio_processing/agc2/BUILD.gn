@@ -28,7 +28,6 @@ rtc_library("speech_level_estimator") {
   deps = [
     ":common",
     "..:apm_logging",
-    "../../../api:array_view",
     "../../../api:field_trials_view",
     "../../../api/audio:audio_processing",
     "../../../rtc_base:checks",
@@ -94,10 +93,7 @@ rtc_library("biquad_filter") {
     "biquad_filter.cc",
     "biquad_filter.h",
   ]
-  deps = [
-    "../../../api:array_view",
-    "../../../rtc_base:checks",
-  ]
+  deps = [ "../../../rtc_base:checks" ]
 }
 
 rtc_library("clipping_predictor") {
@@ -150,7 +146,6 @@ rtc_library("fixed_digital") {
     ":common",
     "..:apm_logging",
     "..:audio_frame_view",
-    "../../../api:array_view",
     "../../../api/audio:audio_frame_api",
     "../../../common_audio",
     "../../../rtc_base:checks",
@@ -216,7 +211,6 @@ rtc_library("input_volume_controller") {
     ":input_volume_stats_reporter",
     "..:audio_buffer",
     "..:audio_frame_view",
-    "../../../api:array_view",
     "../../../api:field_trials_view",
     "../../../api/audio:audio_processing",
     "../../../rtc_base:checks",
@@ -370,7 +364,6 @@ rtc_library("biquad_filter_unittests") {
   sources = [ "biquad_filter_unittest.cc" ]
   deps = [
     ":biquad_filter",
-    "../../../api:array_view",
     "../../../rtc_base:gunit_helpers",
     "../../../test:test_support",
   ]
@@ -397,7 +390,6 @@ rtc_library("fixed_digital_unittests") {
     ":test_utils",
     "..:apm_logging",
     "..:audio_frame_view",
-    "../../../api:array_view",
     "../../../api/audio:audio_frame_api",
     "../../../common_audio",
     "../../../rtc_base:checks",
@@ -424,7 +416,6 @@ rtc_library("input_volume_controller_unittests") {
     ":input_volume_controller",
     "..:audio_buffer",
     "..:audio_frame_view",
-    "../../../api:array_view",
     "../../../api/audio:audio_processing",
     "../../../api/environment:environment_factory",
     "../../../rtc_base:checks",
@@ -462,7 +453,6 @@ rtc_library("vad_wrapper_unittests") {
   deps = [
     ":common",
     ":vad_wrapper",
-    "../../../api:array_view",
     "../../../api/audio:audio_frame_api",
     "../../../rtc_base:checks",
     "../../../rtc_base:gunit_helpers",
