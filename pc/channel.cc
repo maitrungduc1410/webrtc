@@ -827,7 +827,7 @@ RTCError BaseChannel::UpdateLocalStreams_w(
     }
 
     if (media_send_channel()->AddSendStream(new_stream)) {
-      RTC_LOG(LS_INFO) << "Add send stream ssrc: " << new_stream.ssrcs[0]
+      RTC_LOG(LS_INFO) << "Add send stream ssrc: " << new_stream.first_ssrc()
                        << " into " << ToString();
     } else {
       return RTCError::InvalidParameter()
