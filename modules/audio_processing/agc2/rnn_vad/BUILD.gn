@@ -34,6 +34,8 @@ rtc_library("rnn_vad") {
     "..:cpu_features",
     "../../../../api:array_view",
     "../../../../rtc_base:checks",
+    "../../../../rtc_base:safe_compare",
+    "../../../../rtc_base:safe_conversions",
     "//third_party/rnnoise:rnn_vad",
   ]
 }
@@ -317,10 +319,12 @@ if (rtc_include_tests) {
         ":rnn_vad",
         ":rnn_vad_common",
         "..:cpu_features",
+        "../../../../api:array_view",
         "../../../../common_audio",
         "../../../../rtc_base:checks",
         "../../../../rtc_base:logging",
         "../../../../rtc_base:safe_compare",
+        "../../../../test:test_support",
         "//third_party/abseil-cpp/absl/flags:flag",
         "//third_party/abseil-cpp/absl/flags:parse",
       ]

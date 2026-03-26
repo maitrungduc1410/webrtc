@@ -50,7 +50,10 @@ rtc_library("capture_mixer_unittests") {
   ]
   deps = [
     ":capture_mixer",
+    "..:audioproc_test_utils",
     "../../../api:array_view",
+    "../../../rtc_base:gunit_helpers",
+    "../../../rtc_base:stringutils",
     "../../../test:test_support",
   ]
 }
