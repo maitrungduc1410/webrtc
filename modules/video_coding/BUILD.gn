@@ -47,7 +47,6 @@ rtc_library("frame_dependencies_calculator") {
   ]
 
   deps = [
-    "../../api:array_view",
     "../../common_video/generic_frame_descriptor",
     "../../rtc_base:checks",
     "../../rtc_base:logging",
@@ -113,7 +112,6 @@ rtc_library("h26x_packet_buffer") {
     ":codec_globals_headers",
     ":h264_sprop_parameter_sets",
     ":packet_buffer",
-    "../../api:array_view",
     "../../api/video:video_frame",
     "../../api/video:video_frame_type",
     "../../common_video",
@@ -199,7 +197,6 @@ rtc_library("video_coding") {
     "..:module_api",
     "..:module_api_public",
     "..:module_fec_api",
-    "../../api:array_view",
     "../../api:fec_controller_api",
     "../../api:field_trials_view",
     "../../api:rtp_packet_info",
@@ -338,7 +335,6 @@ rtc_library("video_coding_utility") {
   ]
 
   deps = [
-    "../../api:array_view",
     "../../api:field_trials_view",
     "../../api:scoped_refptr",
     "../../api:sequence_checker",
@@ -619,7 +615,6 @@ rtc_library("webrtc_vp9") {
     ":video_codec_interface",
     ":video_coding_utility",
     ":webrtc_libvpx_interface",
-    "../../api:array_view",
     "../../api:fec_controller_api",
     "../../api:field_trials_view",
     "../../api:refcountedbase",
@@ -854,7 +849,6 @@ if (rtc_include_tests) {
       ":video_coding_utility",
       ":videocodec_test_stats_impl",
       ":webrtc_vp9_helpers",
-      "../../api:array_view",
       "../../api:field_trials_view",
       "../../api:make_ref_counted",
       "../../api:rtp_parameters",
@@ -993,7 +987,6 @@ if (rtc_include_tests) {
       ":webrtc_vp8",
       ":webrtc_vp9",
       ":webrtc_vp9_helpers",
-      "../../api:array_view",
       "../../api:create_frame_generator",
       "../../api:create_videocodec_test_fixture_api",
       "../../api:field_trials",
@@ -1131,7 +1124,6 @@ if (rtc_include_tests) {
       ":webrtc_vp9_helpers",
       "..:module_api",
       "..:module_fec_api",
-      "../../api:array_view",
       "../../api:create_frame_generator",
       "../../api:create_simulcast_test_fixture_api",
       "../../api:fec_controller_api",

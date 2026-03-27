@@ -14,10 +14,10 @@
 #include <cstdint>
 #include <initializer_list>
 #include <numeric>
+#include <span>
 #include <string>
 #include <vector>
 
-#include "api/array_view.h"
 #include "api/audio/audio_frame.h"
 #include "api/audio/channel_layout.h"
 #include "api/rtp_packet_info.h"
@@ -340,8 +340,8 @@ TEST(FrameCombiner, GainCurveIsSmoothForAlternatingNumberOfStreams) {
                        config.sample_rate_hz, number_of_streams,
                        &audio_frame_for_mixing);
       cumulative_change += change_calculator.CalculateGainChange(
-          ArrayView<const int16_t>(frame1.data(), number_of_samples),
-          ArrayView<const int16_t>(audio_frame_for_mixing.data(),
+          std::span<const int16_t>(frame1.data(), number_of_samples),
+          std::span<const int16_t>(audio_frame_for_mixing.data(),
                                    number_of_samples));
     }
 

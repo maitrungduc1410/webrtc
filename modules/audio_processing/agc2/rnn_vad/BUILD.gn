@@ -302,7 +302,6 @@ if (rtc_include_tests) {
         ":rnn_vad",
         ":rnn_vad_common",
         "..:cpu_features",
-        "../../../../api:array_view",
         "../../../../common_audio",
         "../../../../rtc_base:checks",
         "../../../../rtc_base:logging",
