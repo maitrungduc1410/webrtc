@@ -38,7 +38,6 @@ rtc_library("capture_levels_adjuster_unittests") {
     ":capture_levels_adjuster",
     "..:audio_buffer",
     "..:audioproc_test_utils",
-    "../../../rtc_base:stringutils",
     "../../../test:test_support",
   ]
 }
