@@ -530,6 +530,7 @@ if (rtc_include_tests) {
         "../api:mock_audio_mixer",
         "../api:mock_frame_transformer",
         "../api:mock_video_codec_factory",
+        "../api:payload_type",
         "../api:rtp_headers",
         "../api:rtp_parameters",
         "../api:scoped_refptr",

@@ -340,6 +340,7 @@ rtc_library("jsep") {
   ]
   deps = [
     ":candidate",
+    ":payload_type",
     ":ref_count",
     ":rtc_error",
     ":rtp_parameters",

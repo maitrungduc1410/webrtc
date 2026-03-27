@@ -105,6 +105,7 @@ rtc_library("channel") {
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/cleanup",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
+    "//third_party/abseil-cpp/absl/strings:str_format",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -1228,6 +1229,7 @@ rtc_library("sdp_payload_type_suggester") {
     ":jsep_transport_collection",
     ":session_description",
     "../api:jsep",
+    "../api:payload_type",
     "../api:peer_connection_interface",
     "../api:rtc_error",
     "../call:payload_type",
@@ -1235,6 +1237,7 @@ rtc_library("sdp_payload_type_suggester") {
     "../media:codec",
     "../rtc_base:checks",
     "../rtc_base:event_tracer",
+    "../rtc_base:logging",
     "../rtc_base:threading",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
@@ -1390,6 +1393,7 @@ rtc_library("simulcast_sdp_serializer") {
   deps = [
     ":session_description",
     ":simulcast_description",
+    "../api:payload_type",
     "../api:rtc_error",
     "../api:rtp_parameters",
     "../media:codec",
@@ -2268,6 +2272,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:make_ref_counted",
       "../api:media_stream_interface",
       "../api:mock_datagram_connection_observer",
+      "../api:payload_type",
       "../api:peer_connection_interface",
       "../api:priority",
       "../api:rtc_error",
@@ -2625,6 +2630,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:mock_encoder_selector",
       "../api:mock_packet_socket_factory",
       "../api:mock_video_track",
+      "../api:payload_type",
       "../api:peer_connection_interface",
       "../api:priority",
       "../api:ref_count",

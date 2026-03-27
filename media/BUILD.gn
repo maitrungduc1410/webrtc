@@ -356,6 +356,7 @@ rtc_source_set("media_channel") {
     "../rtc_base:stringutils",
     "../rtc_base/network:sent_packet",
     "../video/config:encoder_config",
+    "//third_party/abseil-cpp/absl/container:flat_hash_map",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
@@ -374,6 +375,7 @@ rtc_library("codec") {
   ]
   deps = [
     ":media_constants",
+    "../api:payload_type",
     "../api:rtp_parameters",
     "../api/audio_codecs:audio_codecs_api",
     "../api/video_codecs:scalability_mode",
@@ -400,6 +402,7 @@ rtc_library("codec_list") {
   deps = [
     ":codec",
     ":media_constants",
+    "../api:payload_type",
     "../api:rtc_error",
     "../rtc_base:checks",
     "../rtc_base:logging",
@@ -970,6 +973,7 @@ if (rtc_include_tests) {
         "../api:mock_video_codec_factory",
         "../api:mock_video_decoder",
         "../api:mock_video_encoder",
+        "../api:payload_type",
         "../api:priority",
         "../api:ref_count",
         "../api:rtc_error",

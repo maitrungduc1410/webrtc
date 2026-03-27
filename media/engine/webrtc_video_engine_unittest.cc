@@ -36,6 +36,7 @@
 #include "api/field_trials.h"
 #include "api/make_ref_counted.h"
 #include "api/media_types.h"
+#include "api/payload_type.h"
 #include "api/priority.h"
 #include "api/rtc_error.h"
 #include "api/rtp_headers.h"
@@ -5626,7 +5627,7 @@ TEST_F(WebRtcVideoChannelTest,
   VideoReceiverParameters parameters;
   parameters.codecs.push_back(GetEngineCodec("VP8"));
   parameters.codecs.push_back(GetEngineCodec("VP8"));
-  parameters.codecs[1].id += 1;
+  parameters.codecs[1].id = PayloadType(parameters.codecs[1].id + 1);
   EXPECT_TRUE(receive_channel_->SetReceiverParameters(parameters));
 }
 

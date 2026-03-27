@@ -21,6 +21,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "api/crypto/crypto_options.h"
 #include "api/jsep.h"
@@ -156,9 +157,9 @@ RTCError MaybeIgnorePacketization(const MediaChannelParameters& new_params,
       // Note: this writes into old_params
       codec.packetization = std::nullopt;
     } else if (!has_matching_packetization) {
-      std::string error_desc = StringFormat(
+      std::string error_desc = absl::StrFormat(
           "Failed to set local answer due to incompatible codec "
-          "packetization for pt='%d' specified.",
+          "packetization for pt='%v' specified.",
           codec.id);
       return RTCError(RTCErrorType::INTERNAL_ERROR, error_desc);
     }
