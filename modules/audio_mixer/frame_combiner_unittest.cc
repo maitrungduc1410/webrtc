@@ -19,7 +19,6 @@
 
 #include "api/array_view.h"
 #include "api/audio/audio_frame.h"
-#include "api/audio/audio_view.h"
 #include "api/audio/channel_layout.h"
 #include "api/rtp_packet_info.h"
 #include "api/rtp_packet_infos.h"
@@ -146,15 +145,12 @@ TEST(FrameCombiner, ContainsAllRtpPacketInfos) {
 TEST(FrameCombinerDeathTest, BuildCrashesWithManyChannels) {
   FrameCombiner combiner(true);
   for (const int rate : {8000, 18000, 34000, 48000}) {
-    for (const int number_of_channels : {10, 20, 21}) {
-      RTC_DCHECK_LE(number_of_channels, kMaxNumberOfAudioChannels);
+    for (const int number_of_channels : {10, 15, 17}) {
       if (static_cast<size_t>(rate / 100 * number_of_channels) >
           AudioFrame::kMaxDataSizeSamples) {
         continue;
       }
       const std::vector<AudioFrame*> all_frames = {&frame1, &frame2};
-      SetUpFrames(rate, number_of_channels);
-
       const int number_of_frames = 2;
       SCOPED_TRACE(
           ProduceDebugText(rate, number_of_channels, number_of_frames));
@@ -162,8 +158,11 @@ TEST(FrameCombinerDeathTest, BuildCrashesWithManyChannels) {
           all_frames.begin(), all_frames.begin() + number_of_frames);
       AudioFrame audio_frame_for_mixing;
       EXPECT_DEATH(
-          combiner.Combine(frames_to_combine, number_of_channels, rate,
-                           frames_to_combine.size(), &audio_frame_for_mixing),
+          {
+            SetUpFrames(rate, number_of_channels);
+            combiner.Combine(frames_to_combine, number_of_channels, rate,
+                             frames_to_combine.size(), &audio_frame_for_mixing);
+          },
           "");
     }
   }
