@@ -70,14 +70,14 @@ void ScopedOperationsBatcher::Run() {
   }
 }
 
-void ScopedOperationsBatcher::push_back(absl::AnyInvocable<void() &&> task) {
+void ScopedOperationsBatcher::Add(absl::AnyInvocable<void() &&> task) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   if (task) {
     tasks_.emplace_back(std::move(task));
   }
 }
 
-void ScopedOperationsBatcher::push_back(
+void ScopedOperationsBatcher::AddWithFinalizer(
     absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   if (task) {

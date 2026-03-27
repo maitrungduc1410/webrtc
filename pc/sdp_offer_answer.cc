@@ -2414,17 +2414,17 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     if (content->rejected && !transceiver->stopped()) {
       RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                        << " since the media section was rejected.";
-      worker_tasks.push_back(transceiver->GetStopTransceiverProcedure());
+      worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
     }
     if (!content->rejected && RtpTransceiverDirectionHasRecv(local_direction)) {
       if (!media_desc->streams().empty() &&
           media_desc->streams()[0].has_ssrcs()) {
         uint32_t ssrc = media_desc->streams()[0].first_ssrc();
-        worker_tasks.push_back(
+        worker_tasks.Add(
             transceiver->receiver_internal()->GetSetupForMediaChannel(ssrc));
       } else {
-        worker_tasks.push_back(transceiver->receiver_internal()
-                                   ->GetSetupForUnsignaledMediaChannel());
+        worker_tasks.Add(transceiver->receiver_internal()
+                             ->GetSetupForUnsignaledMediaChannel());
       }
     }
   }
@@ -3484,7 +3484,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       if (transceiver->internal()->reused_for_addtrack()) {
         transceiver->internal()->set_created_by_addtrack(true);
       } else {
-        worker_tasks.push_back(
+        worker_tasks.Add(
             transceiver->internal()->GetStopTransceiverProcedure());
         transceivers()->Remove(transceiver);
       }
@@ -4094,7 +4094,7 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
           // is not already stopped, SDP munging has happened and we need to
           // ensure the transceiver is stopped.
           if (!transceiver->internal()->stopped()) {
-            worker_tasks.push_back(
+            worker_tasks.Add(
                 transceiver->internal()->GetStopTransceiverProcedure());
           }
           RTC_DCHECK(transceiver->internal()->stopped());

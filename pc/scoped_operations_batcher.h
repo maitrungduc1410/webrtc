@@ -44,8 +44,9 @@ class ScopedOperationsBatcher {
 
   // Queues non-nullptr tasks to be executed on the target thread when the
   // ScopedOperationsBatcher goes out of scope.
-  void push_back(absl::AnyInvocable<void() &&> task);
-  void push_back(absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task);
+  void Add(absl::AnyInvocable<void() &&> task);
+  void AddWithFinalizer(
+      absl::AnyInvocable<absl::AnyInvocable<void() &&>() &&> task);
 
  private:
   using BatchedTask =

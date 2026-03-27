@@ -30,7 +30,7 @@ TEST(ScopedOperationsBatcherTest, ExecutesTasksOnTargetThread) {
 
   {
     ScopedOperationsBatcher batcher(target_thread.get());
-    batcher.push_back([&] {
+    batcher.Add([&] {
       task_executed = true;
       target_checked = target_thread->IsCurrent();
     });
@@ -66,7 +66,7 @@ TEST(ScopedOperationsBatcherTest, ExecutesReturnedTasksOnCallingThread) {
         return_task_thread = Thread::Current();
       };
     };
-    batcher.push_back(std::move(task));
+    batcher.AddWithFinalizer(std::move(task));
   }
 
   EXPECT_TRUE(task_executed);
@@ -83,15 +83,15 @@ TEST(ScopedOperationsBatcherTest, YieldsToOtherTasks) {
 
   {
     ScopedOperationsBatcher batcher(target_thread.get());
-    batcher.push_back([&] { execution_order.push_back(1); });
-    batcher.push_back([&] {
+    batcher.Add([&] { execution_order.push_back(1); });
+    batcher.Add([&] {
       execution_order.push_back(2);
       // Post a task that should interrupt the batch since we now yield to any
       // pending task.
       target_thread->PostTask([&] { execution_order.push_back(3); });
     });
-    batcher.push_back([&] { execution_order.push_back(4); });
-    batcher.push_back([&] { execution_order.push_back(5); });
+    batcher.Add([&] { execution_order.push_back(4); });
+    batcher.Add([&] { execution_order.push_back(5); });
   }
 
   // Expect the task (3) to execute immediately after the task
