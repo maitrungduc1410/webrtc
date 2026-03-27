@@ -33,6 +33,7 @@
 #include "media/base/rid_description.h"
 #include "media/base/stream_params.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/numerics/safe_compare.h"
 
 namespace webrtc {
 namespace {
@@ -194,8 +195,8 @@ RTCError CheckRtpParametersValues(const RtpParameters& rtp_parameters,
     }
     if (rtp_parameters.encodings[i].num_temporal_layers) {
       if (*rtp_parameters.encodings[i].num_temporal_layers < 1 ||
-          *rtp_parameters.encodings[i].num_temporal_layers >
-              kMaxTemporalStreams) {
+          SafeGt(*rtp_parameters.encodings[i].num_temporal_layers,
+                 kMaxTemporalStreams)) {
         return LOG_ERROR(RTCError(RTCErrorType::INVALID_RANGE)
                          << "Attempted to set RtpParameters "
                             "num_temporal_layers to an invalid number.");
