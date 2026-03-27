@@ -1088,8 +1088,10 @@ rtc_library("scoped_operations_batcher") {
     "scoped_operations_batcher.h",
   ]
   deps = [
+    "../api:rtc_error",
     "../api:sequence_checker",
     "../rtc_base:checks",
+    "../rtc_base:logging",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
