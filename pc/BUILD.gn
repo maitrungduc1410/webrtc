@@ -103,6 +103,7 @@ rtc_library("channel") {
     "../rtc_base/containers:flat_set",
     "../rtc_base/network:sent_packet",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/cleanup",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
@@ -588,6 +589,8 @@ rtc_library("rtp_transport") {
     ":rtp_transport_internal",
     ":session_description",
     "../api:field_trials_view",
+    "../api:rtc_error",
+    "../api:rtp_parameters",
     "../api:sequence_checker",
     "../api/task_queue",
     "../api/task_queue:pending_task_safety_flag",
@@ -606,11 +609,13 @@ rtc_library("rtp_transport") {
     "../rtc_base:macromagic",
     "../rtc_base:network_route",
     "../rtc_base:socket",
+    "../rtc_base:stringutils",
     "../rtc_base/containers:flat_map",
     "../rtc_base/containers:flat_set",
     "../rtc_base/network:received_packet",
     "../rtc_base/network:sent_packet",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -623,6 +628,7 @@ rtc_source_set("rtp_transport_internal") {
   sources = [ "rtp_transport_internal.h" ]
   deps = [
     ":session_description",
+    "../api:rtc_error",
     "../api/task_queue:pending_task_safety_flag",
     "../api/transport:ecn_marking",
     "../api/units:timestamp",
