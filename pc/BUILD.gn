@@ -1702,6 +1702,7 @@ rtc_library("rtp_transceiver") {
     ":rtp_sender",
     ":rtp_sender_proxy",
     ":rtp_transport_internal",
+    ":scoped_operations_batcher",
     ":session_description",
     ":video_rtp_receiver",
     "../api:audio_options_api",

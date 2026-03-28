@@ -5220,25 +5220,22 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
                            "types, ignoring all.";
     }
 
-    // This for-loop of invokes helps audio impairment during re-negotiations.
-    // One of the causes is that downstairs decoder creation is synchronous at
-    // the moment, and that a decoder is created for each codec listed in the
-    // SDP.
-    //
-    // TODO(bugs.webrtc.org/12840): consider merging the invokes again after
-    // these projects have shipped:
-    // - bugs.webrtc.org/12462
-    // - crbug.com/1157227
-    // - crbug.com/1187289
+    // Batch up the calls to set the local/remote channel content.
+    ScopedOperationsBatcher batcher(context_->worker_thread());
+
     for (const auto& [transceiver, content] : channels) {
-      RTCError error =
-          (source == CS_LOCAL)
-              ? transceiver->SetChannelLocalContent(content, type)
-              : transceiver->SetChannelRemoteContent(content, type);
-      if (!error.ok()) {
-        return error;
+      if (source == CS_LOCAL) {
+        transceiver->SetChannelLocalContent(content, type, batcher);
+      } else {
+        transceiver->SetChannelRemoteContent(content, type, batcher);
       }
     }
+
+    RTCError error = batcher.Run();
+    if (!error.ok()) {
+      return error;
+    }
+
     // If local and remote are both set, we assume that it's safe to trigger
     // CCFB.
     if (pc_->trials().IsEnabled("WebRTC-RFC8888CongestionControlFeedback")) {
