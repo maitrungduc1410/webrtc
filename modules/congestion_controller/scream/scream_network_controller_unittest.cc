@@ -14,6 +14,7 @@
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
+#include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/congestion_controller/scream/test/cc_feedback_generator.h"
@@ -571,6 +572,30 @@ TEST(ScreamControllerTest, CanSetStartBitrate) {
       scream_controller.OnTransportPacketsFeedback(feedback);
   EXPECT_GE(update.target_rate->target_rate, DataRate::KilobitsPerSec(2980));
   EXPECT_LT(update.target_rate->target_rate, DataRate::KilobitsPerSec(3300));
+}
+
+TEST(ScreamControllerTest, IgnoreFeedbackWithoutReceivedPackets) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  NetworkControllerConfig config(env);
+  config.constraints.starting_rate = DataRate::KilobitsPerSec(300);
+  ScreamNetworkController scream_controller(config);
+
+  TransportPacketsFeedback msg;
+  msg.feedback_time = clock.CurrentTime();
+  PacketResult result;
+  result.sent_packet.send_time = clock.CurrentTime();
+  result.sent_packet.sequence_number = 1;
+  result.sent_packet.size = DataSize::Bytes(1000);
+  ASSERT_FALSE(result.IsReceived());
+  msg.packet_feedbacks.push_back(result);
+
+  NetworkControlUpdate update =
+      scream_controller.OnTransportPacketsFeedback(msg);
+  // Scream should not change the target rate if there are no received packets.
+  // Since this is the first feedback, the target rate should be the starting
+  // rate.
+  EXPECT_EQ(update.target_rate->target_rate, DataRate::KilobitsPerSec(300));
 }
 
 }  // namespace
