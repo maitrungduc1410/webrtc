@@ -95,6 +95,7 @@ if (rtc_enable_protobuf) {
       "../../rtc_base:timeutils",
       "../../test:create_test_environment",
       "../../test:fileutils",
+      "../../test:run_loop",
       "../../test:test_support",
       "../../test:wait_until",
       "//testing/gtest",
