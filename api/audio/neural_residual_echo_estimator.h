@@ -57,6 +57,11 @@ class NeuralResidualEchoEstimator {
   // Returns a recommended AEC3 configuration for this estimator.
   virtual EchoCanceller3Config GetConfiguration(bool multi_channel) const = 0;
 
+  // Adjusts the provided AEC3 suppressor configuration based on the estimator's
+  // requirements.
+  virtual EchoCanceller3Config::Suppressor AdjustConfig(
+      const EchoCanceller3Config::Suppressor& config) const = 0;
+
   // Resets the internal state of the estimator.
   virtual void Reset() = 0;
 };
