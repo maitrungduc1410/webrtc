@@ -1372,17 +1372,17 @@ void RtpTransceiver::SetChannelContent(
             });
       });
 }
-
-bool RtpTransceiver::SetChannelPayloadTypeDemuxingEnabled(bool enabled) {
-  RTC_DCHECK_RUN_ON(context()->network_thread());
-  RTC_DCHECK(channel_);
-  return channel_->SetPayloadTypeDemuxingEnabled(enabled);
-}
-
 void RtpTransceiver::EnableChannel(bool enable) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(channel_);
   channel_->Enable(enable);
+}
+
+void RtpTransceiver::ResetUnsignaledRecvStream() {
+  RTC_DCHECK_RUN_ON(thread_);
+  if (MediaReceiveChannelInterface* receive_channel = media_receive_channel()) {
+    receive_channel->ResetUnsignaledRecvStream();
+  }
 }
 
 const std::vector<StreamParams>& RtpTransceiver::channel_local_streams() const {

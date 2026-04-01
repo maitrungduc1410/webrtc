@@ -617,6 +617,7 @@ rtc_library("rtp_transport") {
     "../rtc_base/network:sent_packet",
     "../rtc_base/system:no_unique_address",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/container:flat_hash_map",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -1150,6 +1151,7 @@ rtc_library("sdp_offer_answer") {
     ":rtp_sender_proxy",
     ":rtp_transceiver",
     ":rtp_transmission_manager",
+    ":rtp_transport_internal",
     ":scoped_operations_batcher",
     ":sdp_munging_detector",
     ":sdp_payload_type_suggester",

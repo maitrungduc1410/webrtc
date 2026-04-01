@@ -3143,6 +3143,11 @@ bool WebRtcVideoReceiveChannel::RemoveRecvStream(uint32_t ssrc) {
 }
 
 void WebRtcVideoReceiveChannel::ResetUnsignaledRecvStream() {
+  if (!worker_thread_->IsCurrent()) {
+    worker_thread_->PostTask(SafeTask(
+        task_safety_.flag(), [this]() { ResetUnsignaledRecvStream(); }));
+    return;
+  }
   RTC_DCHECK_RUN_ON(&thread_checker_);
   RTC_LOG(LS_INFO) << "ResetUnsignaledRecvStream.";
   unsignaled_stream_params_ = StreamParams();

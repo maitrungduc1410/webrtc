@@ -711,6 +711,7 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   // Variables.
   const Environment env_;
   TaskQueueBase* const worker_thread_;
+  ScopedTaskSafety task_safety_;
   scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;
   RTC_NO_UNIQUE_ADDRESS SequenceChecker network_thread_checker_{
       SequenceChecker::kDetached};

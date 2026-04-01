@@ -2495,6 +2495,11 @@ bool WebRtcVoiceReceiveChannel::RemoveRecvStream(uint32_t ssrc) {
 }
 
 void WebRtcVoiceReceiveChannel::ResetUnsignaledRecvStream() {
+  if (!worker_thread_->IsCurrent()) {
+    worker_thread_->PostTask(SafeTask(
+        task_safety_.flag(), [this]() { ResetUnsignaledRecvStream(); }));
+    return;
+  }
   RTC_DCHECK_RUN_ON(worker_thread_);
   RTC_LOG(LS_INFO) << "ResetUnsignaledRecvStream.";
   unsignaled_stream_params_ = StreamParams();

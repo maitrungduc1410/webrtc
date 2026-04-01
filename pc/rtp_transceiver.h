@@ -392,8 +392,9 @@ class RtpTransceiver : public RtpTransceiverInterface {
   void SetChannelRemoteContent(const MediaContentDescription* content,
                                SdpType type,
                                ScopedOperationsBatcher& batcher);
-  bool SetChannelPayloadTypeDemuxingEnabled(bool enabled);
   void EnableChannel(bool enable);
+  void ResetUnsignaledRecvStream();
+
   const std::vector<StreamParams>& channel_local_streams() const;
   const std::vector<StreamParams>& channel_remote_streams() const;
   absl::string_view channel_transport_name() const;
