@@ -771,7 +771,6 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
       RTC_GUARDED_BY(thread_checker_);
 
   const int receive_buffer_size_;
-  ScopedTaskSafety task_safety_;
 };
 
 // Keeping the old name "WebRtcVideoChannel" around because some external
