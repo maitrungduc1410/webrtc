@@ -156,17 +156,6 @@ void VCMTiming::IncomingTimestamp(uint32_t rtp_timestamp, Timestamp now) {
 
 Timestamp VCMTiming::RenderTime(uint32_t frame_timestamp, Timestamp now) const {
   MutexLock lock(&mutex_);
-  return RenderTimeInternal(frame_timestamp, now);
-}
-
-void VCMTiming::SetLastDecodeScheduledTimestamp(
-    Timestamp last_decode_scheduled) {
-  MutexLock lock(&mutex_);
-  last_decode_scheduled_ = last_decode_scheduled;
-}
-
-Timestamp VCMTiming::RenderTimeInternal(uint32_t frame_timestamp,
-                                        Timestamp now) const {
   if (timings_.UseLowLatencyRendering()) {
     // Render as soon as possible or with low-latency renderer algorithm.
     return Timestamp::Zero();
@@ -186,6 +175,12 @@ Timestamp VCMTiming::RenderTimeInternal(uint32_t frame_timestamp,
       std::clamp(timings_.current_delay, timings_.min_playout_delay,
                  timings_.max_playout_delay);
   return estimated_complete_time + actual_delay;
+}
+
+void VCMTiming::SetLastDecodeScheduledTimestamp(
+    Timestamp last_decode_scheduled) {
+  MutexLock lock(&mutex_);
+  last_decode_scheduled_ = last_decode_scheduled;
 }
 
 TimeDelta VCMTiming::EstimatedMaxDecodeTime() const {

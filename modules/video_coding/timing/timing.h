@@ -131,8 +131,6 @@ class VCMTiming {
 
  private:
   TimeDelta EstimatedMaxDecodeTime() const RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  Timestamp RenderTimeInternal(uint32_t frame_timestamp, Timestamp now) const
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   TimeDelta TargetDelayInternal() const RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   TimeDelta StatsTargetDelayInternal() const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
