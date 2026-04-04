@@ -3808,6 +3808,8 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
     caller()->UpdateDelayStats("caller reception", current_size);
     callee()->UpdateDelayStats("callee reception", current_size);
   }
+  EXPECT_TRUE(caller()->AudioDelayStatsPercentageChecked());
+  EXPECT_TRUE(callee()->AudioDelayStatsPercentageChecked());
 }
 
 TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
