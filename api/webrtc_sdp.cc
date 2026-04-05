@@ -696,6 +696,9 @@ bool ParseSctpPort(absl::string_view line,
   if (!FromString(fields[1], sctp_port)) {
     return ParseFailed(line, "Invalid sctp port value.", error);
   }
+  if (!IsValidPort(*sctp_port)) {
+    return ParseFailed(line, "Invalid sctp port value.", error);
+  }
   return true;
 }
 
@@ -711,6 +714,9 @@ bool ParseSctpMaxMessageSize(absl::string_view line,
     return ParseFailedExpectMinFieldNum(line, expected_min_fields, error);
   }
   if (!FromString(fields[1], max_message_size)) {
+    return ParseFailed(line, "Invalid SCTP max message size.", error);
+  }
+  if (*max_message_size < 0) {
     return ParseFailed(line, "Invalid SCTP max message size.", error);
   }
   return true;

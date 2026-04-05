@@ -2785,6 +2785,42 @@ TEST_F(WebRtcSdpTest, DeserializeSdpWithSctpDataChannelsWithSctpColonPort) {
       MatchesCurrentDescriptionNoCandidates(SdpDeserialize(sdp_with_data)));
 }
 
+TEST_F(WebRtcSdpTest, DeserializeSdpWithNegativeSctpPort) {
+  std::string sdp = kSdpString;
+  sdp.append(kSdpSctpDataChannelStringWithSctpColonPort);
+  SdpParseError error;
+  absl::StrReplaceAll({{absl::StrCat(kDefaultSctpPort), absl::StrCat("-1")}},
+                      &sdp);
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp, &error);
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=sctp-port:-1");
+}
+
+TEST_F(WebRtcSdpTest, DeserializeSdpWithTooLargeSctpPort) {
+  std::string sdp = kSdpString;
+  sdp.append(kSdpSctpDataChannelStringWithSctpColonPort);
+  SdpParseError error;
+  absl::StrReplaceAll({{absl::StrCat(kDefaultSctpPort), absl::StrCat("70000")}},
+                      &sdp);
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp, &error);
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=sctp-port:70000");
+}
+
+TEST_F(WebRtcSdpTest, DeserializeSdpWithStringSctpPort) {
+  std::string sdp = kSdpString;
+  sdp.append(kSdpSctpDataChannelStringWithSctpColonPort);
+  SdpParseError error;
+  absl::StrReplaceAll(
+      {{absl::StrCat(kDefaultSctpPort), absl::StrCat("webrtc")}}, &sdp);
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp, &error);
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=sctp-port:webrtc");
+}
+
 TEST_F(WebRtcSdpTest, DeserializeSdpWithSctpDataChannelsWithSctpInit) {
   bool use_sctpmap = false;
   AddSctpDataChannel(use_sctpmap);
@@ -2883,6 +2919,18 @@ TEST_F(WebRtcSdpTest, DeserializeSdpWithSctpDataChannelsWithMaxMessageSize) {
   EXPECT_TRUE(CompareSessionDescription(
       CreateSessionDescriptionWithSctpMaxMessageSize(desc_, 12345),
       SdpDeserialize(sdp_with_data)));
+}
+
+TEST_F(WebRtcSdpTest,
+       DeserializeSdpWithSctpDataChannelsWithInvalidMaxMessageSize) {
+  std::string sdp_with_data = kSdpString;
+  sdp_with_data.append(kSdpSctpDataChannelStringWithSctpColonPort);
+  sdp_with_data.append("a=max-message-size:-1\r\n");
+  SdpParseError error;
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp_with_data, &error);
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=max-message-size:-1");
 }
 
 TEST_F(WebRtcSdpTest, SerializeSdpWithSctpDataChannelWithMaxMessageSize) {
