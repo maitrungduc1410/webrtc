@@ -40,6 +40,7 @@
 #include "net/dcsctp/packet/chunk/reconfig_chunk.h"
 #include "net/dcsctp/packet/chunk/sack_chunk.h"
 #include "net/dcsctp/packet/chunk/shutdown_chunk.h"
+#include "net/dcsctp/packet/chunk/shutdown_ack_chunk.h"
 #include "net/dcsctp/packet/data.h"
 #include "net/dcsctp/packet/error_cause/unrecognized_chunk_type_cause.h"
 #include "net/dcsctp/packet/parameter/heartbeat_info_parameter.h"
@@ -774,6 +775,31 @@ TEST(DcSctpSocketTest, ShutdownTimerExpiresTooManyTimeClosesConnection) {
   EXPECT_THAT(a.cb.ConsumeSentPacket(),
               HasChunks(ElementsAre(IsChunkType(AbortChunk::kType))));
   EXPECT_TRUE(a.cb.ConsumeSentPacket().empty());
+}
+
+TEST(DcSctpSocketTest, T2ShutdownTimerExpiresResendsShutdownAck) {
+  SocketUnderTest a("A");
+  SocketUnderTest z("Z");
+
+  ConnectSockets(a, z);
+
+  z.socket.Shutdown();
+
+  // A receives SHUTDOWN, sends SHUTDOWN_ACK.
+  // A is now in SHUTDOWN-ACK-SENT state.
+  a.socket.ReceivePacket(z.cb.ConsumeSentPacket());
+
+  // Drop the SHUTDOWN_ACK sent by A.
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+
+  EXPECT_EQ(a.socket.state(), SocketState::kShuttingDown);
+  EXPECT_EQ(z.socket.state(), SocketState::kShuttingDown);
+
+  // Advance time to trigger timer expiry, which makes A resend SHUTDOWN_ACK.
+  AdvanceTime(a, z, a.options.rto_initial.ToTimeDelta());
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
 }
 
 TEST(DcSctpSocketTest, EstablishConnectionWhileSendingData) {

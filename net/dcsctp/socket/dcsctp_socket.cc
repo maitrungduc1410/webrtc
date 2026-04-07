@@ -1036,6 +1036,8 @@ TimeDelta DcSctpSocket::OnCookieTimerExpiry() {
 }
 
 TimeDelta DcSctpSocket::OnShutdownTimerExpiry() {
+  RTC_DCHECK(state_ == State::kShutdownSent ||
+             state_ == State::kShutdownAckSent);
   RTC_DLOG(LS_VERBOSE) << log_prefix() << "Timer " << t2_shutdown_->name()
                        << " has expired: " << t2_shutdown_->expiration_count()
                        << "/"
@@ -1058,10 +1060,19 @@ TimeDelta DcSctpSocket::OnShutdownTimerExpiry() {
     return TimeDelta::Zero();
   }
 
-  // https://tools.ietf.org/html/rfc4960#section-9.2
-  // "If the timer expires, the endpoint must resend the SHUTDOWN with the
-  // updated last sequential TSN received from its peer."
-  SendShutdown();
+  if (state_ == State::kShutdownAckSent) {
+    // https://tools.ietf.org/html/rfc4960#section-9.2
+    // "... and start a T2-shutdown timer of its own, entering the
+    // SHUTDOWN-ACK-SENT state.  If the timer expires, the endpoint must
+    // resend the SHUTDOWN ACK."
+    SendShutdownAck();
+  } else {
+    // https://tools.ietf.org/html/rfc4960#section-9.2
+    // "It shall then start the T2-shutdown timer and enter the SHUTDOWN-SENT
+    // state.  If the timer expires, the endpoint must resend the SHUTDOWN
+    // with the updated last sequential TSN received from its peer."
+    SendShutdown();
+  }
   RTC_DCHECK(IsConsistent());
   return tcb_->current_rto();
 }
