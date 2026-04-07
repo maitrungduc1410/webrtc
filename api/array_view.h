@@ -18,10 +18,8 @@
 
 namespace webrtc {
 
-// A parameter pack of extents is used to ensure that ArrayView<T> inlines to
-// span<T>, but only 0 or 1 extent is supported.
-template <typename T, size_t... extent>
-using ArrayView ABSL_DEPRECATE_AND_INLINE() = std::span<T, extent...>;
+template <typename T, size_t extent = std::dynamic_extent>
+using ArrayView ABSL_DEPRECATE_AND_INLINE() = std::span<T, extent>;
 
 template <typename T>
 ABSL_DEPRECATE_AND_INLINE()
