@@ -358,6 +358,7 @@ class WebRtcVoiceReceiveChannel final
   bool AddRecvStream(const StreamParams& sp) override;
   bool RemoveRecvStream(uint32_t ssrc) override;
   void ResetUnsignaledRecvStream() override;
+  absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamCallback() override;
   std::optional<uint32_t> GetUnsignaledSsrc() const override;
 
   void OnDemuxerCriteriaUpdatePending() override;

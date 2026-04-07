@@ -125,6 +125,10 @@ class RtpReceiveChannelHelper : public Base, public MediaChannelUtil {
   bool CheckNoRtcp() { return rtcp_packets_.empty(); }
   void set_fail_set_recv_codecs(bool fail) { fail_set_recv_codecs_ = fail; }
   void ResetUnsignaledRecvStream() override {}
+  absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamCallback()
+      override {
+    return [this]() { ResetUnsignaledRecvStream(); };
+  }
   std::optional<uint32_t> GetUnsignaledSsrc() const override {
     return std::nullopt;
   }

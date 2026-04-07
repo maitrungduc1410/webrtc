@@ -101,6 +101,10 @@ class MockVoiceMediaReceiveChannelInterface
               (override));
   MOCK_METHOD(bool, RemoveRecvStream, (uint32_t ssrc), (override));
   MOCK_METHOD(void, ResetUnsignaledRecvStream, (), (override));
+  MOCK_METHOD(absl::AnyInvocable<void() &&>,
+              GetResetUnsignaledRecvStreamCallback,
+              (),
+              (override));
   MOCK_METHOD(void,
               SetInterface,
               (webrtc::MediaChannelNetworkInterface * iface),

@@ -279,6 +279,11 @@ class MediaReceiveChannelInterface {
   // Resets any cached StreamParams for an unsignaled RecvStream, and removes
   // any existing unsignaled streams.
   virtual void ResetUnsignaledRecvStream() = 0;
+  // Returns a callback that can be used to reset unsignaled receive streams.
+  // The purpose is to allow binding the channel's safety flag to a callback
+  // that is run on the worker thread, ensuring the channel is alive.
+  virtual absl::AnyInvocable<void() &&>
+  GetResetUnsignaledRecvStreamCallback() = 0;
   // Sets the abstract interface class for sending RTP/RTCP data.
   virtual void SetInterface(MediaChannelNetworkInterface* iface) = 0;
   // Called on the network when an RTP packet is received.

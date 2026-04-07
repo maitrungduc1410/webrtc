@@ -56,6 +56,7 @@
 #include "api/video/video_codec_constants.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
+#include "media/base/media_channel.h"
 #include "media/base/media_constants.h"
 #include "media/base/media_engine.h"
 #include "media/base/rid_description.h"
@@ -5166,9 +5167,12 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
   RTC_DCHECK(sdesc);
 
   if (ConfiguredForMedia()) {
+    // Batch up operations for the worker thread.
+    ScopedOperationsBatcher batcher(context_->worker_thread());
+
     // Note: This may perform a BlockingCall over to the network thread, which
     // we'll also do in a loop below.
-    UpdatePayloadTypeDemuxingState(source, bundle_groups_by_mid);
+    UpdatePayloadTypeDemuxingState(source, bundle_groups_by_mid, batcher);
 
     // Push down the new SDP media section for each audio/video transceiver.
     auto rtp_transceivers = transceivers()->ListInternal();
@@ -5214,9 +5218,6 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
       RTC_LOG(LS_ERROR) << "Warning: Inconsistent congestion control feedback "
                            "types, ignoring all.";
     }
-
-    // Batch up the calls to set the local/remote channel content.
-    ScopedOperationsBatcher batcher(context_->worker_thread());
 
     for (const auto& [transceiver, content] : channels) {
       if (source == CS_LOCAL) {
@@ -5770,7 +5771,8 @@ SdpOfferAnswerHandler::GetMediaDescriptionOptionsForRejectedData(
 
 void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     ContentSource source,
-    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid) {
+    const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid,
+    ScopedOperationsBatcher& worker_tasks) {
   TRACE_EVENT0("webrtc",
                "SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState");
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -5939,10 +5941,6 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
   // unsignaled streams that might have been created previously based on
   // payload type matches. This prevents SSRC collisions if those SSRCs
   // are later reused.
-  // TODO(tommi): Could/should we rather issue the calls to the transceivers
-  // on the network thread? This will post tasks per transceiver to the worker
-  // thread. A common configuration will have joined worker and network threads,
-  // so bundling with the network thread may be more efficient.
   for (RtpTransceiver* transceiver : transceivers()->ListInternal()) {
     const ContentInfo* content =
         FindMediaSectionForTransceiver(transceiver, sdesc);
@@ -5951,13 +5949,17 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     }
     auto it = transports_to_update.find(content->mid());
     if (it != transports_to_update.end() && !it->second) {
-      // TODO: bugs.webrtc.org/42221580 - This will remove *all* unsignaled
-      // streams (those without an explicitly signaled SSRC), which may include
-      // streams that were matched to this channel by MID or RID. Ideally we'd
-      // remove only the streams that were matched based on payload type alone,
-      // but currently there is no straightforward way to identify those
-      // streams.
-      transceiver->ResetUnsignaledRecvStream();
+      if (MediaReceiveChannelInterface* receive_channel =
+              transceiver->media_receive_channel()) {
+        // TODO: bugs.webrtc.org/42221580 - This will remove *all* unsignaled
+        // streams (those without an explicitly signaled SSRC), which may
+        // include streams that were matched to this channel by MID or RID.
+        // Ideally we'd remove only the streams that were matched based on
+        // payload type alone, but currently there is no straightforward way to
+        // identify those streams.
+        worker_tasks.Add(
+            receive_channel->GetResetUnsignaledRecvStreamCallback());
+      }
     }
   }
 }

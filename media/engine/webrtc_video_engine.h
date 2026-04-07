@@ -529,6 +529,7 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   }
   bool RemoveRecvStream(uint32_t ssrc) override;
   void ResetUnsignaledRecvStream() override;
+  absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamCallback() override;
   std::optional<uint32_t> GetUnsignaledSsrc() const override;
   void OnDemuxerCriteriaUpdatePending() override;
   void OnDemuxerCriteriaUpdateComplete() override;

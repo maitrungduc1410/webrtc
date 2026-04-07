@@ -72,6 +72,8 @@
 
 namespace webrtc {
 
+class ScopedOperationsBatcher;
+
 // SdpOfferAnswerHandler is a component
 // of the PeerConnection object as defined
 // by the PeerConnectionInterface API surface.
@@ -575,7 +577,8 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // payload type based demuxing in the affected channels.
   void UpdatePayloadTypeDemuxingState(
       ContentSource source,
-      const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid);
+      const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid,
+      ScopedOperationsBatcher& worker_tasks);
 
   // Updates the error state, signaling if necessary.
   void SetSessionError(SessionError error, const std::string& error_desc);

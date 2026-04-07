@@ -393,7 +393,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
                                SdpType type,
                                ScopedOperationsBatcher& batcher);
   void EnableChannel(bool enable);
-  void ResetUnsignaledRecvStream();
 
   const std::vector<StreamParams>& channel_local_streams() const;
   const std::vector<StreamParams>& channel_remote_streams() const;
