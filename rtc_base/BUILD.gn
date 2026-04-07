@@ -1141,7 +1141,10 @@ rtc_library("network_constants") {
     "network_constants.cc",
     "network_constants.h",
   ]
-  deps = [ ":checks" ]
+  deps = [
+    ":checks",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
 }
 
 if (is_android) {
