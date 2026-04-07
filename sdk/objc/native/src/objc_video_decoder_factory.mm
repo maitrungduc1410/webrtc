@@ -106,8 +106,9 @@ std::unique_ptr<VideoDecoder> ObjCVideoDecoderFactory::Create(
 
       if ([decoder conformsToProtocol:@protocol(RTC_OBJC_TYPE(
                                           RTCNativeVideoDecoderBuilder))]) {
-        return [((
-            id<RTC_OBJC_TYPE(RTCNativeVideoDecoderBuilder)>)decoder) build:env];
+        return [((id<RTC_OBJC_TYPE(RTCNativeVideoDecoderBuilder)>)decoder)
+            buildWithEnvironment:env
+                          format:format];
       } else {
         return std::unique_ptr<ObjCVideoDecoder>(new ObjCVideoDecoder(decoder));
       }
