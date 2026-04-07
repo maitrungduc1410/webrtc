@@ -20,7 +20,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/audio_options.h"
 #include "api/candidate.h"
@@ -53,6 +52,7 @@
 #include "pc/rtp_receiver.h"
 #include "pc/rtp_transceiver.h"
 #include "pc/rtp_transmission_manager.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/sdp_payload_type_suggester.h"
 #include "pc/sdp_state_provider.h"
 #include "pc/session_description.h"
@@ -191,9 +191,8 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // belongs to the network and worker threads.
   // The caller is responsible for invoking the callbacks on the correct threads
   // in the order 1st network thread, 2nd worker thread.
-  void GetMediaChannelTeardownTasks(
-      std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
-      std::vector<absl::AnyInvocable<void() &&>>& worker_tasks);
+  void GetMediaChannelTeardownTasks(ScopedOperationsBatcher& network_tasks,
+                                    ScopedOperationsBatcher& worker_tasks);
 
   PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> local_streams();
   PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> remote_streams();

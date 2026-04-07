@@ -63,6 +63,7 @@
 #include "pc/rtp_receiver_proxy.h"
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transceiver.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/track_media_info_map.h"
 #include "pc/transport_stats.h"
 #include "rtc_base/checks.h"
@@ -1412,12 +1413,12 @@ void RTCStatsCollector::ClearCachedStatsReport() {
 }
 
 void RTCStatsCollector::CancelPendingRequestAndGetShutdownTasks(
-    std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
-    std::vector<absl::AnyInvocable<void() &&>>& worker_tasks) {
+    ScopedOperationsBatcher& network_tasks,
+    ScopedOperationsBatcher& worker_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   signaling_safety_->SetNotAlive();
-  worker_tasks.push_back([flag = worker_safety_]() { flag->SetNotAlive(); });
-  network_tasks.push_back([flag = network_safety_]() { flag->SetNotAlive(); });
+  worker_tasks.Add([flag = worker_safety_]() { flag->SetNotAlive(); });
+  network_tasks.Add([flag = network_safety_]() { flag->SetNotAlive(); });
 }
 
 void RTCStatsCollector::ProducePartialResultsOnSignalingThread(

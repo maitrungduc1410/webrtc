@@ -5660,8 +5660,8 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
 }
 
 void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
-    std::vector<absl::AnyInvocable<void() &&>>& network_tasks,
-    std::vector<absl::AnyInvocable<void() &&>>& worker_tasks) {
+    ScopedOperationsBatcher& network_tasks,
+    ScopedOperationsBatcher& worker_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (!transceivers()) {
@@ -5670,21 +5670,16 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
   auto list = transceivers()->List();
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::VIDEO) {
-      if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
-        network_tasks.push_back(std::move(task));
-      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask(
-              /*stop_senders=*/true)) {
-        worker_tasks.push_back(std::move(task));
-      }
+      network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
+      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
+          /*stop_senders=*/true));
     }
   }
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::AUDIO) {
-      if (auto task = transceiver->internal()->GetClearChannelNetworkTask())
-        network_tasks.push_back(std::move(task));
-      if (auto task = transceiver->internal()->GetDeleteChannelWorkerTask(
-              /*stop_senders=*/true))
-        worker_tasks.push_back(std::move(task));
+      network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
+      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
+          /*stop_senders=*/true));
     }
   }
 }
