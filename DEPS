@@ -520,8 +520,8 @@ deps = {
   },
   'src/third_party/freetype/src':
     'https://chromium.googlesource.com/chromium/src/third_party/freetype2.git@99b479dc34728936b006679a31e12b8cf432fc55',
-  'src/third_party/harfbuzz-ng/src':
-    'https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git@6f4c5cec306d31e6822303f5ba248a14293d588e',
+  'src/third_party/harfbuzz/src':
+    'https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git@4fc96139259ebc35f40118e0382ac8037d928e5c',
   'src/third_party/google_benchmark/src': {
     'url': 'https://chromium.googlesource.com/external/github.com/google/benchmark.git@188e8278990a9069ffc84441cb5a024fd0bede37',
   },
