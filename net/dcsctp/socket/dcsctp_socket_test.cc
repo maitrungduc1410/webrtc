@@ -802,6 +802,53 @@ TEST(DcSctpSocketTest, T2ShutdownTimerExpiresResendsShutdownAck) {
               HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
 }
 
+TEST(DcSctpSocketTest, ShutdownResendsShutdownAckWhenInShutdownAckSent) {
+  DcSctpOptions options_a;
+  options_a.rto_initial = DurationMs(1000);
+  SocketUnderTest a("A", options_a);
+
+  DcSctpOptions options_z;
+  options_z.rto_initial = DurationMs(500);
+  SocketUnderTest z("Z", options_z);
+
+  ConnectSockets(a, z);
+
+  z.socket.Shutdown();
+
+  // Z sends SHUTDOWN, A receives it.
+  std::vector<uint8_t> shutdown_packet = z.cb.ConsumeSentPacket();
+  a.socket.ReceivePacket(shutdown_packet);
+
+  // A sends SHUTDOWN ACK, which is lost.
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+
+  EXPECT_EQ(a.socket.state(), SocketState::kShuttingDown);
+  EXPECT_EQ(z.socket.state(), SocketState::kShuttingDown);
+
+  // After 500ms, Z retransmits SHUTDOWN, which A receives.
+  AdvanceTime(a, z, z.options.rto_initial.ToTimeDelta());
+  std::vector<uint8_t> retransmitted_shutdown = z.cb.ConsumeSentPacket();
+  EXPECT_THAT(retransmitted_shutdown,
+              HasChunks(ElementsAre(IsChunkType(ShutdownChunk::kType))));
+  a.socket.ReceivePacket(retransmitted_shutdown);
+
+  // Verify that a SHUTDOWN ACK packet is immediately produced and sent to Z.
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+
+  // Verify that the T2-shutdown timer was restarted on A.
+  // Current time is 500ms, should expire 1000ms later, at 1500ms.
+  // First verify that it doesn't expire at 1000ms (if it wasn't restarted).
+  AdvanceTime(a, z, DurationMs(500).ToTimeDelta());
+  EXPECT_THAT(a.cb.ConsumeSentPacket(), IsEmpty());
+
+  // Advance to 1500ms - it should expire and resend SHUTDOWN_ACK.
+  AdvanceTime(a, z, DurationMs(500).ToTimeDelta());
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+}
+
 TEST(DcSctpSocketTest, ShutdownIgnoredInShutdownReceived) {
   SocketUnderTest a("A");
   SocketUnderTest z("Z");
