@@ -734,6 +734,35 @@ TEST_P(PeerConnectionEndToEndTest, TooManyDataChannelsOpenedBeforeConnecting) {
             channels[kReducedMaxSctpStreams / 2]->state());
 }
 
+// Verifies that max-message-size is propagated to the DataChannel.
+TEST_P(PeerConnectionEndToEndTest, MaxMessageSizePropagated) {
+  CreatePcs(MockAudioEncoderFactory::CreateEmptyFactory(),
+            MockAudioDecoderFactory::CreateEmptyFactory());
+
+  DataChannelInit init;
+  scoped_refptr<DataChannelInterface> caller_dc(
+      caller_->CreateDataChannel("caller", init));
+  MockDataChannelObserver caller_dc_observer(caller_dc.get());
+
+  Negotiate();
+  WaitForConnection();
+
+  EXPECT_TRUE(WaitUntil([&] { return caller_dc_observer.IsOpen(); }));
+
+  // Attempting to send a message larger than our announced max-message-size
+  // should fail.
+  DataBuffer buffer(CopyOnWriteBuffer(kSctpSendBufferSize + 64),
+                    /*binary=*/true);
+  EXPECT_FALSE(caller_dc->Send(buffer));
+
+  scoped_refptr<DataChannelInterface> callee_dc(
+      callee_->CreateDataChannel("callee", init));
+  MockDataChannelObserver callee_dc_observer(callee_dc.get());
+  EXPECT_THAT(WaitUntil([&] { return caller_dc_observer.IsOpen(); }, IsTrue()),
+              IsRtcOk());
+  EXPECT_FALSE(callee_dc->Send(buffer));
+}
+
 #endif  // WEBRTC_HAVE_SCTP
 
 TEST_P(PeerConnectionEndToEndTest, CanRestartIce) {
