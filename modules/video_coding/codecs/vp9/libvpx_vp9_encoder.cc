@@ -1815,7 +1815,7 @@ void LibvpxVp9Encoder::GetEncodedLayerFrame(const vpx_codec_cx_pkt* pkt) {
   vpx_codec_iter_t iter = nullptr;
   const vpx_codec_cx_pkt_t* cx_data = nullptr;
   encoded_image_.set_psnr(std::nullopt);
-  while ((cx_data = vpx_codec_get_cx_data(encoder_, &iter)) != nullptr) {
+  while ((cx_data = libvpx_->codec_get_cx_data(encoder_, &iter)) != nullptr) {
     if (cx_data->kind == VPX_CODEC_PSNR_PKT) {
       // PSNR index: 0: total, 1: Y, 2: U, 3: V
       encoded_image_.set_psnr(
