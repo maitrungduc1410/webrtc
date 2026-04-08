@@ -39,8 +39,8 @@
 #include "net/dcsctp/packet/chunk/init_chunk.h"
 #include "net/dcsctp/packet/chunk/reconfig_chunk.h"
 #include "net/dcsctp/packet/chunk/sack_chunk.h"
-#include "net/dcsctp/packet/chunk/shutdown_chunk.h"
 #include "net/dcsctp/packet/chunk/shutdown_ack_chunk.h"
+#include "net/dcsctp/packet/chunk/shutdown_chunk.h"
 #include "net/dcsctp/packet/data.h"
 #include "net/dcsctp/packet/error_cause/unrecognized_chunk_type_cause.h"
 #include "net/dcsctp/packet/parameter/heartbeat_info_parameter.h"
@@ -800,6 +800,45 @@ TEST(DcSctpSocketTest, T2ShutdownTimerExpiresResendsShutdownAck) {
   AdvanceTime(a, z, a.options.rto_initial.ToTimeDelta());
   EXPECT_THAT(a.cb.ConsumeSentPacket(),
               HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+}
+
+TEST(DcSctpSocketTest, ShutdownIgnoredInShutdownReceived) {
+  SocketUnderTest a("A");
+  SocketUnderTest z("Z");
+
+  ConnectSockets(a, z);
+
+  z.socket.Shutdown();
+
+  // A reads SHUTDOWN, produces SHUTDOWN ACK.
+  a.socket.ReceivePacket(z.cb.ConsumeSentPacket());
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(ShutdownAckChunk::kType))));
+  EXPECT_EQ(a.socket.state(), SocketState::kShuttingDown);
+
+  // Second shutdown while already shutting down, must be ignored.
+  a.socket.Shutdown();
+  EXPECT_THAT(a.cb.ConsumeSentPacket(), IsEmpty());
+}
+
+TEST(DcSctpSocketTest, ShutdownIgnoredInShutdownPending) {
+  SocketUnderTest a("A");
+  SocketUnderTest z("Z");
+
+  ConnectSockets(a, z);
+
+  // Send a message that will remain outstanding (unacknowledged) which
+  // transitions the socket to SHUTDOWN-PENDING instead of SHUTDOWN-SENT.
+  a.socket.Send(DcSctpMessage(StreamID(1), PPID(53), {1, 2}), kSendOptions);
+  a.socket.Shutdown();
+
+  EXPECT_THAT(a.cb.ConsumeSentPacket(),
+              HasChunks(ElementsAre(IsChunkType(DataChunk::kType))));
+  EXPECT_EQ(a.socket.state(), SocketState::kShuttingDown);
+
+  // Second shutdown while already shutting down, must be ignored.
+  a.socket.Shutdown();
+  EXPECT_THAT(a.cb.ConsumeSentPacket(), IsEmpty());
 }
 
 TEST(DcSctpSocketTest, EstablishConnectionWhileSendingData) {

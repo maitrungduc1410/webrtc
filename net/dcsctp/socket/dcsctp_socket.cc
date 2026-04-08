@@ -466,7 +466,9 @@ void DcSctpSocket::Shutdown() {
     // TODO(webrtc:12739): Remove this check, as it just hides the problem that
     // the socket can transition from ShutdownSent to ShutdownPending, or
     // ShutdownAckSent to ShutdownPending which is illegal.
-    if (state_ != State::kShutdownSent && state_ != State::kShutdownAckSent) {
+    if (state_ != State::kShutdownSent && state_ != State::kShutdownAckSent &&
+        state_ != State::kShutdownReceived &&
+        state_ != State::kShutdownPending) {
       SetState(State::kShutdownPending, "Shutdown called");
       t1_init_->Stop();
       t1_cookie_->Stop();
