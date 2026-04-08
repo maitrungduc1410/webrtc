@@ -1924,10 +1924,14 @@ void PeerConnection::Close() {
 
   NoteUsageEvent(UsageEvent::CLOSE_CALLED);
 
+  ScopedOperationsBatcher worker_tasks(worker_thread());
+
   if (ConfiguredForMedia()) {
-    for (const auto& transceiver : rtp_manager()->transceivers()->List()) {
-      if (!transceiver->stopped())
-        transceiver->StopInternal();
+    for (RtpTransceiver* transceiver :
+         rtp_manager()->transceivers()->ListInternal()) {
+      if (!transceiver->stopped()) {
+        worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+      }
     }
   }
 
@@ -1938,7 +1942,6 @@ void PeerConnection::Close() {
   // worker thread (see `PushNewMediaChannelAndDeleteChannel`) and then
   // eventually freed on the signaling thread.
   // It would be good to combine those steps with the teardown steps here.
-  ScopedOperationsBatcher worker_tasks(worker_thread());
   {
     ScopedOperationsBatcher network_tasks(network_thread());
     sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
