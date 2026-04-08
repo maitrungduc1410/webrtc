@@ -211,7 +211,7 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   bool RemoveSendStream(uint32_t ssrc) override;
   void FillBitrateInfo(BandwidthEstimationInfo* bwe_info) override;
   bool GetStats(VideoMediaSendInfo* info) override;
-  absl::AnyInvocable<std::optional<VideoMediaSendInfo>()> GetStatsCallback()
+  absl::AnyInvocable<std::optional<VideoMediaSendInfo>()> GetStatsTask()
       override;
 
   void OnPacketSent(const SentPacketInfo& sent_packet) override;
@@ -529,14 +529,14 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   }
   bool RemoveRecvStream(uint32_t ssrc) override;
   void ResetUnsignaledRecvStream() override;
-  absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamCallback() override;
+  absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamTask() override;
   std::optional<uint32_t> GetUnsignaledSsrc() const override;
   void OnDemuxerCriteriaUpdatePending() override;
   void OnDemuxerCriteriaUpdateComplete() override;
   bool SetSink(uint32_t ssrc, VideoSinkInterface<VideoFrame>* sink) override;
   void SetDefaultSink(VideoSinkInterface<VideoFrame>* sink) override;
   bool GetStats(VideoMediaReceiveInfo* info) override;
-  absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()> GetStatsCallback()
+  absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()> GetStatsTask()
       override;
   void OnPacketReceived(RtpPacketReceived packet) override;
   bool SetBaseMinimumPlayoutDelayMs(uint32_t ssrc, int delay_ms) override;

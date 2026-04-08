@@ -2319,8 +2319,8 @@ RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w() {
         VoiceMediaReceiveChannelInterface* voice_receive =
             receive_channel->AsVoiceReceiveChannel();
         RTC_CHECK(voice_receive);
-        refs.get_send_stats_voice = voice_send->GetStatsCallback();
-        refs.get_receive_stats_voice = voice_receive->GetStatsCallback(false);
+        refs.get_send_stats_voice = voice_send->GetStatsTask();
+        refs.get_receive_stats_voice = voice_receive->GetStatsTask(false);
         refs.get_send_parameters = voice_send->GetRtpSendParametersCallback();
       } else if (stats.media_type == MediaType::VIDEO) {
         VideoMediaSendChannelInterface* video_send =
@@ -2329,8 +2329,8 @@ RTCStatsCollector::PrepareTransceiverStatsInfosAndCallStats_s_w() {
         VideoMediaReceiveChannelInterface* video_receive =
             receive_channel->AsVideoReceiveChannel();
         RTC_CHECK(video_receive);
-        refs.get_send_stats_video = video_send->GetStatsCallback();
-        refs.get_receive_stats_video = video_receive->GetStatsCallback();
+        refs.get_send_stats_video = video_send->GetStatsTask();
+        refs.get_receive_stats_video = video_receive->GetStatsTask();
         refs.get_send_parameters = video_send->GetRtpSendParametersCallback();
       }
     }

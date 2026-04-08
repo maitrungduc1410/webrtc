@@ -282,8 +282,7 @@ class MediaReceiveChannelInterface {
   // Returns a callback that can be used to reset unsignaled receive streams.
   // The purpose is to allow binding the channel's safety flag to a callback
   // that is run on the worker thread, ensuring the channel is alive.
-  virtual absl::AnyInvocable<void() &&>
-  GetResetUnsignaledRecvStreamCallback() = 0;
+  virtual absl::AnyInvocable<void() &&> GetResetUnsignaledRecvStreamTask() = 0;
   // Sets the abstract interface class for sending RTP/RTCP data.
   virtual void SetInterface(MediaChannelNetworkInterface* iface) = 0;
   // Called on the network when an RTP packet is received.
@@ -934,7 +933,7 @@ class VoiceMediaSendChannelInterface : public MediaSendChannelInterface {
   // during asynchronous teardown where signaling thread and worker thread state
   // may be torn down asynchronously.
   virtual absl::AnyInvocable<std::optional<VoiceMediaSendInfo>()>
-  GetStatsCallback() = 0;
+  GetStatsTask() = 0;
   virtual bool SenderNackEnabled() const = 0;
   virtual bool SenderNonSenderRttEnabled() const = 0;
   virtual bool SetOptions(const AudioOptions& options) = 0;
@@ -966,7 +965,7 @@ class VoiceMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
   // during asynchronous teardown where signaling thread and worker thread state
   // may be torn down asynchronously.
   virtual absl::AnyInvocable<std::optional<VoiceMediaReceiveInfo>()>
-  GetStatsCallback(bool reset_legacy) = 0;
+  GetStatsTask(bool reset_legacy) = 0;
   virtual enum RtcpMode RtcpMode() const = 0;
   virtual void SetRtcpMode(enum RtcpMode mode) = 0;
   virtual void SetReceiveNackEnabled(bool enabled) = 0;
@@ -1016,7 +1015,7 @@ class VideoMediaSendChannelInterface : public MediaSendChannelInterface {
   // during asynchronous teardown where signaling thread and worker thread state
   // may be torn down asynchronously.
   virtual absl::AnyInvocable<std::optional<VideoMediaSendInfo>()>
-  GetStatsCallback() = 0;
+  GetStatsTask() = 0;
   // This fills the "bitrate parts" (rtx, video bitrate) of the
   // BandwidthEstimationInfo, since that part that isn't possible to get
   // through Call::GetStats, as they are statistics of the send
@@ -1060,7 +1059,7 @@ class VideoMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
   // during asynchronous teardown where signaling thread and worker thread state
   // may be torn down asynchronously.
   virtual absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()>
-  GetStatsCallback() = 0;
+  GetStatsTask() = 0;
   virtual bool AddDefaultRecvStreamForTesting(const StreamParams& sp) = 0;
 };
 

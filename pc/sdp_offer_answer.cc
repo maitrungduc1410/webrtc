@@ -5957,8 +5957,7 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
         // Ideally we'd remove only the streams that were matched based on
         // payload type alone, but currently there is no straightforward way to
         // identify those streams.
-        worker_tasks.Add(
-            receive_channel->GetResetUnsignaledRecvStreamCallback());
+        worker_tasks.Add(receive_channel->GetResetUnsignaledRecvStreamTask());
       }
     }
   }

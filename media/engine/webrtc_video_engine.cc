@@ -1737,7 +1737,7 @@ void WebRtcVideoSendChannel::FillSendCodecStats(
 }
 
 absl::AnyInvocable<std::optional<VideoMediaSendInfo>()>
-WebRtcVideoSendChannel::GetStatsCallback() {
+WebRtcVideoSendChannel::GetStatsTask() {
   return [this, safety = task_safety_.flag()]() mutable
              -> std::optional<VideoMediaSendInfo> {
     if (!safety->alive()) {
@@ -3164,7 +3164,7 @@ void WebRtcVideoReceiveChannel::ResetUnsignaledRecvStream() {
 }
 
 absl::AnyInvocable<void() &&>
-WebRtcVideoReceiveChannel::GetResetUnsignaledRecvStreamCallback() {
+WebRtcVideoReceiveChannel::GetResetUnsignaledRecvStreamTask() {
   return SafeTask(task_safety_.flag(),
                   [this]() { ResetUnsignaledRecvStream(); });
 }
@@ -3262,7 +3262,7 @@ void WebRtcVideoReceiveChannel::FillReceiveCodecStats(
 }
 
 absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()>
-WebRtcVideoReceiveChannel::GetStatsCallback() {
+WebRtcVideoReceiveChannel::GetStatsTask() {
   return [this, safety = task_safety_.flag()]() mutable
              -> std::optional<VideoMediaReceiveInfo> {
     if (!safety->alive()) {

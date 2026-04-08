@@ -1862,7 +1862,7 @@ bool WebRtcVoiceSendChannel::GetStats(VoiceMediaSendInfo* info) {
 }
 
 absl::AnyInvocable<std::optional<VoiceMediaSendInfo>()>
-WebRtcVoiceSendChannel::GetStatsCallback() {
+WebRtcVoiceSendChannel::GetStatsTask() {
   return [this, safety = task_safety_.flag()]() mutable
              -> std::optional<VoiceMediaSendInfo> {
     if (!safety->alive()) {
@@ -2506,7 +2506,7 @@ void WebRtcVoiceReceiveChannel::ResetUnsignaledRecvStream() {
 }
 
 absl::AnyInvocable<void() &&>
-WebRtcVoiceReceiveChannel::GetResetUnsignaledRecvStreamCallback() {
+WebRtcVoiceReceiveChannel::GetResetUnsignaledRecvStreamTask() {
   return SafeTask(task_safety_.flag(),
                   [this]() { ResetUnsignaledRecvStream(); });
 }
@@ -2811,19 +2811,18 @@ void WebRtcVoiceReceiveChannel::FillReceiveCodecStats(
 }
 
 absl::AnyInvocable<std::optional<VoiceMediaReceiveInfo>()>
-WebRtcVoiceReceiveChannel::GetStatsCallback(bool get_and_clear_legacy_stats) {
-  return
-      [this, get_and_clear_legacy_stats, safety = task_safety_.flag()]() mutable
-          -> std::optional<VoiceMediaReceiveInfo> {
-        if (!safety->alive()) {
-          return std::nullopt;
-        }
-        VoiceMediaReceiveInfo info;
-        if (GetStats(&info, get_and_clear_legacy_stats)) {
-          return info;
-        }
-        return std::nullopt;
-      };
+WebRtcVoiceReceiveChannel::GetStatsTask(bool reset_legacy) {
+  return [this, reset_legacy, safety = task_safety_.flag()]() mutable
+             -> std::optional<VoiceMediaReceiveInfo> {
+    if (!safety->alive()) {
+      return std::nullopt;
+    }
+    VoiceMediaReceiveInfo info;
+    if (GetStats(&info, reset_legacy)) {
+      return info;
+    }
+    return std::nullopt;
+  };
 }
 
 void WebRtcVoiceReceiveChannel::SetRawAudioSink(

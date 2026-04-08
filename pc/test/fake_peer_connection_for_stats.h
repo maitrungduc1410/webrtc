@@ -113,7 +113,7 @@ class FakeVoiceMediaSendChannelForStats : public FakeVoiceMediaSendChannel {
     return false;
   }
 
-  absl::AnyInvocable<std::optional<VoiceMediaSendInfo>()> GetStatsCallback()
+  absl::AnyInvocable<std::optional<VoiceMediaSendInfo>()> GetStatsTask()
       override {
     return [this, safety = task_safety_.flag()]() mutable
                -> std::optional<VoiceMediaSendInfo> {
@@ -156,8 +156,8 @@ class FakeVoiceMediaReceiveChannelForStats
     return false;
   }
 
-  absl::AnyInvocable<std::optional<VoiceMediaReceiveInfo>()> GetStatsCallback(
-      bool get_and_clear_legacy_stats) override {
+  absl::AnyInvocable<std::optional<VoiceMediaReceiveInfo>()> GetStatsTask(
+      bool reset_legacy) override {
     return [this, safety = task_safety_.flag()]() mutable
                -> std::optional<VoiceMediaReceiveInfo> {
       if (!safety->alive()) {
@@ -198,7 +198,7 @@ class FakeVideoMediaSendChannelForStats : public FakeVideoMediaSendChannel {
     return false;
   }
 
-  absl::AnyInvocable<std::optional<VideoMediaSendInfo>()> GetStatsCallback()
+  absl::AnyInvocable<std::optional<VideoMediaSendInfo>()> GetStatsTask()
       override {
     return [this, safety = task_safety_.flag()]() mutable
                -> std::optional<VideoMediaSendInfo> {
@@ -239,7 +239,7 @@ class FakeVideoMediaReceiveChannelForStats
     return false;
   }
 
-  absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()> GetStatsCallback()
+  absl::AnyInvocable<std::optional<VideoMediaReceiveInfo>()> GetStatsTask()
       override {
     return [this, safety = task_safety_.flag()]() mutable
                -> std::optional<VideoMediaReceiveInfo> {
