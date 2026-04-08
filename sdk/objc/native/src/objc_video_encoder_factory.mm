@@ -240,9 +240,8 @@ std::unique_ptr<VideoEncoder> ObjCVideoEncoderFactory::Create(
       [encoder_factory_ createEncoder:info];
   if ([encoder conformsToProtocol:@protocol(RTC_OBJC_TYPE(
                                       RTCNativeVideoEncoderBuilder))]) {
-    return [((id<RTC_OBJC_TYPE(RTCNativeVideoEncoderBuilder)>)encoder)
-        buildWithEnvironment:env
-                      format:format];
+    return
+        [((id<RTC_OBJC_TYPE(RTCNativeVideoEncoderBuilder)>)encoder) build:env];
   } else {
     return std::make_unique<ObjCVideoEncoder>(encoder);
   }

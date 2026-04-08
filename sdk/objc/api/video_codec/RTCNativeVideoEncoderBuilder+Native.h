@@ -15,14 +15,12 @@
 #include <memory>
 
 #include "api/environment/environment.h"
-#include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_encoder.h"
 
 @protocol RTC_OBJC_TYPE
 (RTCNativeVideoEncoderBuilder)
 
-    - (std::unique_ptr<webrtc::VideoEncoder>)buildWithEnvironment
-    : (const webrtc::Environment&)env format
-    : (const webrtc::SdpVideoFormat&)format;
+    - (std::unique_ptr<webrtc::VideoEncoder>)build
+    : (const webrtc::Environment&)env;
 
 @end
