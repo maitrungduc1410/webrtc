@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@dd54dd5186566a13bda647123c22540666b12ace',
+    'https://chromium.googlesource.com/chromium/src/build@f8e78935f70876dee2dfbef9cacd9f0266e246a5',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@95ed44cf5f06dbb5861030b91c9db9ccb4316762',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -728,8 +728,8 @@ deps = {
   'src/third_party/android_sdk/public': {
       'packages': [
           {
-              'package': 'chromium/third_party/android_sdk/public/build-tools/36.1.0',
-              'version': '-jLl4Ibk_WmgTsZaP-ueQwZDhBwkWf5BsQ4UNrkzXF0C',
+              'package': 'chromium/third_party/android_sdk/public/build-tools/37.0.0',
+              'version': 'febJrTgiK9s1ANoUlc4Orn3--zs9GjGCj2vQc8g7OaMC',
           },
           {
               'package': 'chromium/third_party/android_sdk/public/emulator',
@@ -740,8 +740,8 @@ deps = {
               'version': 'qTD9QdBlBf3dyHsN1lJ0RH6AhHxR42Hmg2Ih-Vj4zIEC'
           },
           {
-              'package': 'chromium/third_party/android_sdk/public/platforms/android-36.1',
-              'version': 'gxwLT70eR_ObwZJzKK8UIS-N549yAocNTmc0JHgO7gUC',
+              'package': 'chromium/third_party/android_sdk/public/platforms/android-37.0',
+              'version': 'WhtP32Q46ZHdTmgCgdauM3ws_H9iPoGKEZ_cPggcQ6wC',
           },
           {
               'package': 'chromium/third_party/android_sdk/public/cmdline-tools/linux',
