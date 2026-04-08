@@ -2832,6 +2832,7 @@ void PeerConnection::AddRemoteCandidate(absl::string_view mid,
   new_candidate.set_network_type(ADAPTER_TYPE_UNKNOWN);
   new_candidate.set_relay_protocol("");
   new_candidate.set_underlying_type_for_vpn(ADAPTER_TYPE_UNKNOWN);
+  new_candidate.set_network_slice(NetworkSlice::NO_SLICE);
 
   network_thread()->PostTask(SafeTask(
       network_thread_safety_,
