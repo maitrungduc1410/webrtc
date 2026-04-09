@@ -149,7 +149,7 @@ WebRTC uses std::string, with content assumed to be UTF-8. Note that this has to
 be verified whenever accepting external input.
 
 For concatenation of strings, use `webrtc::StrJoin` or
-`webrtc::SimpleStringBuilder` directly.
+`webrtc::StringBuilder` directly.
 
 For string views, use `absl::string_view`, not `std::string_view`. The former is
 heavily used in webrtc, and there are platforms we export to where the two are

@@ -22,6 +22,7 @@
 #include <numeric>
 #include <optional>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -131,8 +132,7 @@ std::unique_ptr<ScalableVideoController> CreateVp9ScalabilityStructure(
     return std::make_unique<ScalableVideoControllerNoLayering>();
   }
 
-  char name[20];
-  SimpleStringBuilder ss(name);
+  StringBuilder ss;
   if (codec.mode == VideoCodecMode::kScreensharing) {
     // TODO(bugs.webrtc.org/11999): Compose names of the structures when they
     // are implemented.
@@ -186,6 +186,7 @@ std::unique_ptr<ScalableVideoController> CreateVp9ScalabilityStructure(
     }
   }
 
+  std::string name = ss.Release();
   std::optional<ScalabilityMode> scalability_mode =
       ScalabilityModeFromString(name);
   if (!scalability_mode.has_value()) {

@@ -159,8 +159,7 @@ LogMessage::LogMessage(const char* file,
   }
 
   if (err_ctx != ERRCTX_NONE) {
-    char tmp_buf[1024];
-    SimpleStringBuilder tmp(tmp_buf);
+    StringBuilder tmp;
     tmp.AppendFormat("[0x%08X]", err);
     switch (err_ctx) {
       case ERRCTX_ERRNO:

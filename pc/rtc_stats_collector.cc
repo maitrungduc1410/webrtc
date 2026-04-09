@@ -99,8 +99,7 @@ std::string RTCCodecStatsIDFromTransportAndCodecParameters(
     const char direction,
     const std::string& transport_id,
     const RtpCodecParameters& codec_params) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << 'C' << direction << transport_id << '_' << codec_params.payload_type;
   // TODO(https://crbug.com/webrtc/14420): If we stop supporting different FMTP
   // lines for the same PT and transport, which should be illegal SDP, then we
@@ -109,69 +108,62 @@ std::string RTCCodecStatsIDFromTransportAndCodecParameters(
   if (WriteFmtpParameters(codec_params.parameters, fmtp)) {
     sb << '_' << fmtp.Release();
   }
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCIceCandidatePairStatsIDFromConnectionInfo(
     const ConnectionInfo& info) {
-  char buf[4096];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << "CP" << info.local_candidate.id() << "_" << info.remote_candidate.id();
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCTransportStatsIDFromTransportChannel(
     const std::string& transport_name,
     int channel_component) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << 'T' << transport_name << channel_component;
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCInboundRtpStreamStatsIDFromSSRC(const std::string& transport_id,
                                                MediaType media_type,
                                                uint32_t ssrc) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << 'I' << transport_id << (media_type == MediaType::AUDIO ? 'A' : 'V')
      << ssrc;
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCOutboundRtpStreamStatsIDFromSSRC(const std::string& transport_id,
                                                 MediaType media_type,
                                                 uint32_t ssrc) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << 'O' << transport_id << (media_type == MediaType::AUDIO ? 'A' : 'V')
      << ssrc;
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCRemoteInboundRtpStreamStatsIdFromSourceSsrc(
     MediaType media_type,
     uint32_t source_ssrc) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << "RI" << (media_type == MediaType::AUDIO ? 'A' : 'V') << source_ssrc;
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCRemoteOutboundRTPStreamStatsIDFromSSRC(MediaType media_type,
                                                       uint32_t source_ssrc) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << "RO" << (media_type == MediaType::AUDIO ? 'A' : 'V') << source_ssrc;
-  return sb.str();
+  return sb.Release();
 }
 
 std::string RTCMediaSourceStatsIDFromKindAndAttachment(MediaType media_type,
                                                        int attachment_id) {
-  char buf[1024];
-  SimpleStringBuilder sb(buf);
+  StringBuilder sb;
   sb << 'S' << (media_type == MediaType::AUDIO ? 'A' : 'V') << attachment_id;
-  return sb.str();
+  return sb.Release();
 }
 
 const char* DataStateToRTCDataChannelState(

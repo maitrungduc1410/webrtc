@@ -1288,8 +1288,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
         encoder_config_, &codec);
   }
 
-  char log_stream_buf[4 * 1024];
-  SimpleStringBuilder log_stream(log_stream_buf);
+  StringBuilder log_stream;
   log_stream << "ReconfigureEncoder: simulcast streams: ";
   for (size_t i = 0; i < codec.numberOfSimulcastStreams; ++i) {
     log_stream << "{" << i << ": " << codec.simulcastStream[i].width << "x"
