@@ -46,91 +46,81 @@ if (!build_with_chromium) {
       deps += [ "rtc_tools" ]
     }
     if (rtc_include_tests) {
-      deps += [ ":test_suites" ]
-    }
-    if (!build_with_chromium && rtc_include_tests) {
-      deps += [ "tools_webrtc:validate_test_registration" ]
+      deps += [
+        ":audio_engine_tests",
+        ":rtc_p2p_unittests",
+        ":rtc_unittests",
+        ":video_engine_tests",
+        ":voip_unittests",
+        ":webrtc_nonparallel_tests",
+        ":webrtc_perf_tests",
+        "common_audio:common_audio_unittests",
+        "common_video:common_video_unittests",
+        "examples:examples_unittests",
+        "media:rtc_media_unittests",
+        "modules:modules_tests",
+        "modules:modules_unittests",
+        "modules/audio_coding:audio_coding_tests",
+        "modules/audio_processing:audio_processing_tests",
+        "modules/remote_bitrate_estimator:rtp_to_text",
+        "modules/rtp_rtcp:test_packet_masks_metrics",
+        "modules/video_capture:video_capture_internal_impl",
+        "modules/video_coding:video_codec_perf_tests",
+        "net/dcsctp:dcsctp_unittests",
+        "p2p:dtls_ice_integration_bench",
+        "pc:peerconnection_unittests",
+        "pc:rtc_pc_unittests",
+        "pc:slow_peer_connection_unittests",
+        "pc:svc_tests",
+        "rtc_tools:video_encoder",
+        "rtc_tools:video_replay",
+        "stats:rtc_stats_unittests",
+        "system_wrappers:system_wrappers_unittests",
+        "test",
+        "video:screenshare_loopback",
+        "video:sv_loopback",
+        "video:video_loopback",
+        "video/timing:video_timing_tests",
+      ]
+      if (use_libfuzzer) {
+        deps += [ "test/fuzzers" ]
+      }
+
+      # TODO(bugs.webrtc.org/430260876): Remove once rust links with libwebrtc.
+      if (!is_asan && !rtc_rusty_base64) {
+        # Do not build :webrtc_lib_link_test because lld complains on some OS
+        # (e.g. when target_os = "mac") when is_asan=true. For more details,
+        # see bugs.webrtc.org/11027#c5.
+        deps += [ ":webrtc_lib_link_test" ]
+      }
+      if (is_ios) {
+        deps += [
+          "examples:apprtcmobile_tests",
+          "sdk:sdk_framework_unittests",
+          "sdk:sdk_unittests",
+        ]
+      }
+      if (is_android) {
+        deps += [
+          "examples:android_examples_junit_tests",
+          "sdk/android:android_instrumentation_test_apk",
+          "sdk/android:android_sdk_junit_tests",
+        ]
+      } else {
+        deps += [ "modules/video_capture:video_capture_tests" ]
+      }
+      if (rtc_enable_protobuf) {
+        deps += [
+          "logging:rtc_event_log_rtp_dump",
+          "tools_webrtc/perf:webrtc_dashboard_upload",
+        ]
+      }
+      if ((is_linux || is_chromeos) && rtc_use_pipewire) {
+        deps += [ "modules/desktop_capture:shared_screencast_stream_test" ]
+      }
     }
     if (target_os == "android") {
       deps += [ "tools_webrtc:binary_version_check" ]
-    }
-  }
-}
-
-if (rtc_include_tests) {
-  group("test_suites") {
-    testonly = true
-    deps = [
-      ":audio_engine_tests",
-      ":rtc_unittests",
-      ":video_engine_tests",
-      ":voip_unittests",
-      ":webrtc_nonparallel_tests",
-      ":webrtc_perf_tests",
-      "common_audio:common_audio_unittests",
-      "common_video:common_video_unittests",
-      "examples:examples_unittests",
-      "media:rtc_media_unittests",
-      "modules:modules_tests",
-      "modules:modules_unittests",
-      "modules/audio_coding:audio_coding_tests",
-      "modules/audio_processing:audio_processing_tests",
-      "modules/remote_bitrate_estimator:rtp_to_text",
-      "modules/rtp_rtcp:test_packet_masks_metrics",
-      "modules/video_capture:video_capture_internal_impl",
-      "modules/video_coding:video_codec_perf_tests",
-      "net/dcsctp:dcsctp_unittests",
-      "p2p:dtls_ice_integration_bench",
-      "p2p:rtc_p2p_unittests",
-      "pc:peerconnection_unittests",
-      "pc:rtc_pc_unittests",
-      "pc:slow_peer_connection_unittests",
-      "pc:svc_tests",
-      "rtc_tools:video_encoder",
-      "rtc_tools:video_replay",
-      "stats:rtc_stats_unittests",
-      "system_wrappers:system_wrappers_unittests",
-      "test",
-      "video:screenshare_loopback",
-      "video:sv_loopback",
-      "video:video_loopback",
-      "video/timing:video_timing_tests",
-    ]
-    if (use_libfuzzer) {
-      deps += [ "test/fuzzers" ]
-    }
-
-    # TODO(bugs.webrtc.org/430260876): Remove once rust links with libwebrtc.
-    if (!is_asan && !rtc_rusty_base64) {
-      # Do not build :webrtc_lib_link_test because lld complains on some OS
-      # (e.g. when target_os = "mac") when is_asan=true. For more details,
-      # see bugs.webrtc.org/11027#c5.
-      deps += [ ":webrtc_lib_link_test" ]
-    }
-    if (is_ios) {
-      deps += [
-        "examples:apprtcmobile_tests",
-        "sdk:sdk_framework_unittests",
-        "sdk:sdk_unittests",
-      ]
-    }
-    if (is_android) {
-      deps += [
-        "examples:android_examples_junit_tests",
-        "sdk/android:android_instrumentation_test_apk",
-        "sdk/android:android_sdk_junit_tests",
-      ]
-    } else {
-      deps += [ "modules/video_capture:video_capture_tests" ]
-    }
-    if (rtc_enable_protobuf) {
-      deps += [
-        "logging:rtc_event_log_rtp_dump",
-        "tools_webrtc/perf:webrtc_dashboard_upload",
-      ]
-    }
-    if ((is_linux || is_chromeos) && rtc_use_pipewire) {
-      deps += [ "modules/desktop_capture:shared_screencast_stream_test" ]
     }
   }
 }
@@ -770,15 +760,9 @@ if (rtc_include_tests && !build_with_chromium) {
     }
   }
 
-  rtc_test_suite("webrtc_nonparallel_tests") {
+  rtc_test("webrtc_nonparallel_tests") {
     testonly = true
-    tests = [
-      "rtc_base:cpu_time_unittest",
-      "rtc_base:file_rotating_stream_unittest",
-      "rtc_base:null_socket_server_unittest",
-      "rtc_base:physical_socket_server_unittest",
-      "rtc_base:socket_address_unittest",
-    ]
+    deps = [ "rtc_base:rtc_base_nonparallel_tests" ]
     if (is_android) {
       shard_timeout = 900
     }
