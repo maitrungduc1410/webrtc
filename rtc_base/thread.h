@@ -302,6 +302,7 @@ class RTC_LOCKABLE RTC_EXPORT Thread : public TaskQueueBase {
     return messages_.size() + delayed_messages_.size();
   }
 
+  absl::string_view queue_name() const override { return name_; }
   bool IsCurrent() const;
 
   // Sleeps the calling thread for the specified number of milliseconds, during
