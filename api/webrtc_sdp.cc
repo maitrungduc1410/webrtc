@@ -1387,6 +1387,7 @@ void BuildMediaDescription(const ContentInfo* content_info,
                            const MediaType media_type,
                            const std::vector<Candidate>& candidates,
                            int msid_signaling,
+                           bool use_wildcard,
                            std::string* message) {
   RTC_DCHECK(message);
   if (!content_info) {
@@ -1470,9 +1471,8 @@ void BuildMediaDescription(const ContentInfo* content_info,
   if (IsDtlsSctp(media_desc->protocol())) {
     BuildSctpContentAttributes(media_desc, message);
   } else if (IsRtpProtocol(media_desc->protocol())) {
-    // TODO: issues.webrtc.org/48979442 - Make this field trial controlled
     BuildRtpContentAttributes(media_desc, media_type, msid_signaling,
-                              /* use_wildcard= */ false, message);
+                              use_wildcard, message);
   }
 }
 
@@ -3312,7 +3312,8 @@ std::string SdpSerialize(const SessionDescriptionInterface& jdesc) {
     GetCandidatesByMindex(jdesc, ++mline_index, &candidates);
     BuildMediaDescription(&content, desc->GetTransportInfoByName(content.mid()),
                           content.media_description()->type(), candidates,
-                          desc->msid_signaling(), &message);
+                          desc->msid_signaling(),
+                          jdesc.encoding_options().use_wildcard, &message);
   }
   return message;
 }
