@@ -535,15 +535,13 @@ RTCError RtpTransceiver::CreateChannel(
               srtp_required, crypto_options, std::move(callbacks));
     }
   });
-  return SetChannel(std::move(new_channel), std::move(transport_lookup),
-                    /*set_media_channels=*/false);
+  return SetChannel(std::move(new_channel), std::move(transport_lookup));
 }
 
 RTCError RtpTransceiver::SetChannel(
     std::unique_ptr<ChannelInterface> channel,
     absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
-        transport_lookup,
-    bool set_media_channels) {
+        transport_lookup) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(channel);
   RTC_DCHECK(transport_lookup);
@@ -586,9 +584,6 @@ RTCError RtpTransceiver::SetChannel(
 
   if (err.ok()) {
     transport_name_ = std::move(transport_name);
-    if (set_media_channels) {
-      PushNewMediaChannel();
-    }
   }
 
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(2);
@@ -668,19 +663,6 @@ void RtpTransceiver::ClearChannel() {
   if (worker_task) {
     context()->worker_thread()->BlockingCall([&] { std::move(worker_task)(); });
   }
-}
-
-void RtpTransceiver::PushNewMediaChannel() {
-  RTC_DCHECK_RUN_ON(thread_);
-  RTC_DCHECK(channel_);
-  if (senders_.empty() && receivers_.empty()) {
-    return;
-  }
-  context()->worker_thread()->BlockingCall([&, channel = channel_.get()]() {
-    RTC_DCHECK_RUN_ON(context()->worker_thread());
-    SetMediaChannels(channel->media_send_channel(),
-                     channel->media_receive_channel());
-  });
 }
 
 // RTC_RUN_ON(context()->worker_thread());

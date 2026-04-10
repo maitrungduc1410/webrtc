@@ -190,8 +190,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   RTCError SetChannel(
       std::unique_ptr<ChannelInterface> channel,
       absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
-          transport_lookup,
-      bool set_media_channels = true);
+          transport_lookup);
 
   // Clear the association between the transceiver and the channel.
   void ClearChannel();
@@ -419,13 +418,11 @@ class RtpTransceiver : public RtpTransceiverInterface {
                         scoped_refptr<PendingTaskSafetyFlag> safety)
       RTC_RUN_ON(context()->network_thread());
   void OnFirstPacketSent();
+
   // Stops the receivers synchronously and returns a task that stops the
   // senders. The returned task must be executed on the worker thread.
   [[nodiscard]] absl_nonnull absl::AnyInvocable<void() &&>
   GetStopSendingAndReceiving();
-  // Tell the senders and receivers about possibly-new media channels
-  // in a newly created `channel_`.
-  void PushNewMediaChannel();
 
   void SetMediaChannels(MediaSendChannelInterface* send,
                         MediaReceiveChannelInterface* receive)
