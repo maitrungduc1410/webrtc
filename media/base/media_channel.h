@@ -232,11 +232,10 @@ class MediaSendChannelInterface {
       uint32_t ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) = 0;
 
-  // note: The encoder_selector object must remain valid for the lifetime of the
-  // MediaChannel, unless replaced.
   virtual void SetEncoderSelector(
       uint32_t /* ssrc */,
-      VideoEncoderFactory::EncoderSelectorInterface* /* encoder_selector */) {}
+      scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
+      /*encoder_selector*/) {}
   virtual RtpParameters GetRtpSendParameters(uint32_t ssrc) const = 0;
   // Returns a callback that is to be used to retrieve RTP send parameters
   // in the same way as `GetRtpSendParameters` does.

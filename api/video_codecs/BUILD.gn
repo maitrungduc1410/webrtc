@@ -80,6 +80,7 @@ rtc_library("video_codecs_api") {
   deps = [
     ":scalability_mode",
     "..:fec_controller_api",
+    "..:refcountedbase",
     "..:rtp_parameters",
     "../../media:media_constants",
     "../../modules/video_coding:codec_globals_headers",
