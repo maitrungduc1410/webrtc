@@ -187,7 +187,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   //     The callback allows us to combine the transport lookup with network
   //     state initialization of the channel object.
   // ClearChannel() must be used before calling SetChannel() again.
-  RTCError SetChannel(
+  RTCError SetChannelForTest(
       std::unique_ptr<ChannelInterface> channel,
       absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
           transport_lookup);

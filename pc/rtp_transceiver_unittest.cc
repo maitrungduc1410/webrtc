@@ -133,10 +133,11 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   EXPECT_CALL(*channel1, SetFirstPacketSentCallback_n(_)).Times(0);
   EXPECT_CALL(*channel1, SetPacketReceivedCallback_n(_)).Times(0);
 
-  transceiver->SetChannel(std::move(channel1), [&](const std::string& mid) {
-    EXPECT_EQ(mid, content_name);
-    return nullptr;
-  });
+  transceiver->SetChannelForTest(std::move(channel1),
+                                 [&](const std::string& mid) {
+                                   EXPECT_EQ(mid, content_name);
+                                   return nullptr;
+                                 });
   EXPECT_TRUE(transceiver->HasChannel());
 
   // Stop the transceiver.
@@ -146,7 +147,7 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   auto channel2 = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel2, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
 
-  // Clear the current channel - required to allow SetChannel()
+  // Clear the current channel - required to allow SetChannelForTest()
   // ClearChannel calls callbacks with nullptr, so we expect it.
   EXPECT_CALL(*channel1_ptr, SetFirstPacketReceivedCallback_n(_))
       .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
@@ -159,8 +160,8 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   ASSERT_FALSE(transceiver->HasChannel());
 
   // Channel can no longer be set, so this call should be a no-op.
-  transceiver->SetChannel(std::move(channel2),
-                          [](const std::string&) { return nullptr; });
+  transceiver->SetChannelForTest(std::move(channel2),
+                                 [](const std::string&) { return nullptr; });
   EXPECT_FALSE(transceiver->HasChannel());
 }
 
@@ -180,10 +181,11 @@ TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
   EXPECT_CALL(*channel, SetFirstPacketSentCallback_n(_)).Times(0);
   EXPECT_CALL(*channel, SetPacketReceivedCallback_n(_)).Times(0);
 
-  transceiver->SetChannel(std::move(channel), [&](const std::string& mid) {
-    EXPECT_EQ(mid, content_name);
-    return nullptr;
-  });
+  transceiver->SetChannelForTest(std::move(channel),
+                                 [&](const std::string& mid) {
+                                   EXPECT_EQ(mid, content_name);
+                                   return nullptr;
+                                 });
   EXPECT_TRUE(transceiver->HasChannel());
 
   // Stop the transceiver.
@@ -223,7 +225,7 @@ TEST_F(RtpTransceiverTest, TransportNameIsUpdated) {
   EXPECT_CALL(*channel, SetFirstPacketSentCallback_n(_)).Times(0);
   EXPECT_CALL(*channel, SetPacketReceivedCallback_n(_)).Times(0);
 
-  auto result = transceiver->SetChannel(
+  auto result = transceiver->SetChannelForTest(
       std::move(channel), [&](const std::string& mid) -> RtpTransportInternal* {
         return rtp_transport.get();
       });
@@ -795,8 +797,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
   EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
 
-  transceiver_->SetChannel(std::move(mock_channel),
-                           [](const std::string&) { return nullptr; });
+  transceiver_->SetChannelForTest(std::move(mock_channel),
+                                  [](const std::string&) { return nullptr; });
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
               ElementsAre(Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped),
@@ -838,8 +840,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions, ReturnsNegotiatedHdrExts) {
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kAnswer, &description);
 
-  transceiver_->SetChannel(std::move(mock_channel),
-                           [](const std::string&) { return nullptr; });
+  transceiver_->SetChannelForTest(std::move(mock_channel),
+                                  [](const std::string&) { return nullptr; });
 
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
               ElementsAre(Field(&RtpHeaderExtensionCapability::direction,
@@ -882,8 +884,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kPrAnswer, &description);
 
-  transceiver_->SetChannel(std::move(mock_channel),
-                           [](const std::string&) { return nullptr; });
+  transceiver_->SetChannelForTest(std::move(mock_channel),
+                                  [](const std::string&) { return nullptr; });
 
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
               ElementsAre(Field(&RtpHeaderExtensionCapability::direction,
@@ -920,8 +922,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
   EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
 
-  transceiver_->SetChannel(std::move(mock_channel),
-                           [](const std::string&) { return nullptr; });
+  transceiver_->SetChannelForTest(std::move(mock_channel),
+                                  [](const std::string&) { return nullptr; });
 
   AudioContentDescription description_pr_answer;
   description_pr_answer.set_rtp_header_extensions({RtpExtension("uri1", 1)});

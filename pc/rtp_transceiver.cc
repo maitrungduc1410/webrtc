@@ -535,10 +535,33 @@ RTCError RtpTransceiver::CreateChannel(
               srtp_required, crypto_options, std::move(callbacks));
     }
   });
-  return SetChannel(std::move(new_channel), std::move(transport_lookup));
+
+  channel_ = std::move(new_channel);
+  transport_name_ = std::nullopt;
+
+  std::optional<std::string> transport_name;
+  RTCError err = context()->network_thread()->BlockingCall(
+      [&, flag = signaling_thread_safety_, channel = channel_.get()]() {
+        RtpTransportInternal* transport =
+            std::move(transport_lookup)(channel->mid());
+        if (!channel->SetRtpTransport(transport)) {
+          return RTCError::InvalidParameter()
+                 << "Invalid transport for mid=" << channel->mid();
+        }
+        if (transport) {
+          transport_name = transport->transport_name();
+        }
+        return RTCError::OK();
+      });
+
+  if (err.ok()) {
+    transport_name_ = std::move(transport_name);
+  }
+
+  return err;
 }
 
-RTCError RtpTransceiver::SetChannel(
+RTCError RtpTransceiver::SetChannelForTest(
     std::unique_ptr<ChannelInterface> channel,
     absl::AnyInvocable<RtpTransportInternal*(const std::string&) &&>
         transport_lookup) {
