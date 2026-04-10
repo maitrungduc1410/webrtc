@@ -1047,6 +1047,65 @@ TEST_F(RtpTransceiverTestWithFakeCall,
   transceiver->StopStandard();
 }
 
+// Sframe tests
+
+TEST_F(RtpTransceiverUnifiedPlanTest, SframeEnabledIsNulloptByDefault) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  EXPECT_EQ(transceiver->SframeEnabled(), std::nullopt);
+}
+
+TEST_F(RtpTransceiverUnifiedPlanTest, TryToEnableSframeSetsValueToTrue) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  EXPECT_TRUE(transceiver->TryToEnableSframe().ok());
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(true));
+}
+
+TEST_F(RtpTransceiverUnifiedPlanTest,
+       TryToEnableSframeCanBeCalledMultipleTimes) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  EXPECT_TRUE(transceiver->TryToEnableSframe().ok());
+  EXPECT_TRUE(transceiver->TryToEnableSframe().ok());
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(true));
+}
+
+TEST_F(RtpTransceiverUnifiedPlanTest,
+       TryToEnableSframeFailsAfterExplicitlySetToFalse) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  // Simulate the transceiver having been explicitly set to false (e.g. via
+  // ApplySframeEnabled during SDP application).
+  transceiver->ApplySframeEnabled(false);
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(false));
+
+  RTCError error = transceiver->TryToEnableSframe();
+  EXPECT_FALSE(error.ok());
+  EXPECT_EQ(error.type(), RTCErrorType::INVALID_MODIFICATION);
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(false));
+}
+
+TEST_F(RtpTransceiverUnifiedPlanTest, ApplySframeEnabledTrueSetsState) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  transceiver->ApplySframeEnabled(true);
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(true));
+}
+
+TEST_F(RtpTransceiverUnifiedPlanTest, ApplySframeEnabledFalseSetsState) {
+  scoped_refptr<RtpTransceiver> transceiver = CreateTransceiver(
+      MockSender(MediaType::AUDIO), MockReceiver(MediaType::AUDIO));
+
+  transceiver->ApplySframeEnabled(false);
+  EXPECT_THAT(transceiver->SframeEnabled(), Optional(false));
+}
+
 }  // namespace
 
 }  // namespace webrtc

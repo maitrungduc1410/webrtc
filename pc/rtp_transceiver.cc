@@ -952,6 +952,40 @@ std::optional<RtpTransceiverDirection> RtpTransceiver::fired_direction() const {
   return fired_direction_;
 }
 
+RTCError RtpTransceiver::TryToEnableSframe() {
+  RTC_DCHECK_RUN_ON(thread_);
+
+  if (sframe_enabled_.has_value() && sframe_enabled_.value() == false) {
+    return LOG_ERROR(RTCError::InvalidModification()
+                     << "Cannot enable Sframe after it has been "
+                        "disabled by a completed negotiation.");
+  }
+
+  sframe_enabled_ = true;
+
+  on_negotiation_needed_();
+
+  return RTCError::OK();
+}
+
+void RtpTransceiver::ApplySframeEnabled(bool sframe_enabled) {
+  RTC_DCHECK_RUN_ON(thread_);
+  // Cannot re-enable Sframe after it has been negotiated to disabled.
+  RTC_DCHECK(!(sframe_enabled_ == false && sframe_enabled == true));
+
+  sframe_enabled_ = sframe_enabled;
+
+  if (sframe_enabled && channel_) {
+    // TODO(bugs.webrtc.org/479862368): Enable Sframe on the media send and
+    // receive channels when the encryption pipeline is implemented.
+  }
+}
+
+std::optional<bool> RtpTransceiver::SframeEnabled() const {
+  RTC_DCHECK_RUN_ON(thread_);
+  return sframe_enabled_;
+}
+
 bool RtpTransceiver::receptive() const {
   RTC_DCHECK_RUN_ON(thread_);
   return receptive_;

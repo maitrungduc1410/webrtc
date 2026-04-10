@@ -140,6 +140,9 @@ const char kSdpWithoutIceUfragPwd[] =
 const char kSdpWithoutDtlsFingerprint[] =
     "Called with SDP without DTLS fingerprint.";
 const char kSdpWithoutCrypto[] = "Called with SDP without crypto setup.";
+const char kSframeNotInOffer[] =
+    "Remote answer has a=sframe for a media section but the corresponding "
+    "offer did not include a=sframe.";
 
 const char kSessionError[] = "Session error code: ";
 const char kSessionErrorDesc[] = "Session error description: ";
@@ -379,6 +382,33 @@ RTCError VerifyDirectionsInAnswer(const SessionDescription* local_offer,
         RtpTransceiverDirectionHasRecv(remote_direction)) {
       return LOG_ERROR(RTCError(RTCErrorType::INVALID_PARAMETER)
                        << "Incompatible send direction");
+    }
+  }
+  return RTCError::OK();
+}
+
+// Checks that no answer m-section introduces a=sframe that was not present in
+// the corresponding offer m-section.
+RTCError VerifySframeInAnswer(const SessionDescription* local_offer,
+                              const SessionDescription* remote_answer) {
+  RTC_DCHECK(local_offer);
+  RTC_DCHECK(remote_answer);
+
+  const ContentInfos& offer_contents = local_offer->contents();
+  const ContentInfos& answer_contents = remote_answer->contents();
+
+  for (size_t i = 0; i < answer_contents.size() && i < offer_contents.size();
+       ++i) {
+    if (answer_contents[i].rejected) {
+      continue;
+    }
+    const MediaContentDescription* answer_media =
+        answer_contents[i].media_description();
+    const MediaContentDescription* offer_media =
+        offer_contents[i].media_description();
+    if (answer_media->sframe_enabled() && !offer_media->sframe_enabled()) {
+      return LOG_ERROR(RTCError(RTCErrorType::INVALID_PARAMETER)
+                       << kSframeNotInOffer);
     }
   }
   return RTCError::OK();
@@ -861,6 +891,8 @@ MediaDescriptionOptions GetMediaDescriptionOptionsForTransceiver(
       transceiver->filtered_codec_preferences();
   media_description_options.header_extensions =
       transceiver->GetHeaderExtensionsToNegotiate();
+  media_description_options.sframe_enabled =
+      transceiver->SframeEnabled().value_or(false);
   // This behavior is specified in JSEP. The gist is that:
   // 1. The MSID is included if the RtpTransceiver's direction is sendonly or
   //    sendrecv.
@@ -1959,6 +1991,7 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
         }
         transceiver->set_receptive(
             RtpTransceiverDirectionHasRecv(media_desc->direction()));
+        transceiver->ApplySframeEnabled(media_desc->sframe_enabled());
       }
       pc_->RunWithObserver([&](auto observer) {
         for (const auto& transceiver : remove_list) {
@@ -2417,6 +2450,20 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
       RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                        << " since the media section was rejected.";
       worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+    }
+    // If the local offer included Sframe but the remote answer does not,
+    // stop the transceiver since Sframe cannot be downgraded.
+    if (sdp_type == SdpType::kPrAnswer || sdp_type == SdpType::kAnswer) {
+      const ContentInfo* local_content =
+          FindMediaSectionForTransceiver(transceiver, local_description());
+      if (local_content && !content->rejected &&
+          local_content->media_description()->sframe_enabled() &&
+          !media_desc->sframe_enabled() && !transceiver->stopped()) {
+        RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
+                         << " since the remote answer does not include Sframe.";
+        transceiver->ClearChannel();
+        worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+      }
     }
     if (!content->rejected && RtpTransceiverDirectionHasRecv(local_direction)) {
       if (!media_desc->streams().empty() &&
@@ -3773,6 +3820,14 @@ bool SdpOfferAnswerHandler::CheckIfNegotiationIsNeeded() {
     // 5.3 If transceiver isn't stopped and is associated with an m= section
     // in description then perform the following checks:
 
+    // If the transceiver's Sframe state differs from the negotiated state
+    // in the current local description, negotiation is needed.
+    if (transceiver->SframeEnabled().has_value() &&
+        transceiver->SframeEnabled().value() !=
+            current_local_media_description->sframe_enabled()) {
+      return true;
+    }
+
     // 5.3.1 If transceiver.[[Direction]] is "sendrecv" or "sendonly", and the
     // associated m= section in description either doesn't contain a single
     // "a=msid" line, or the number of MSIDs from the "a=msid" lines in this
@@ -4006,6 +4061,18 @@ RTCError SdpOfferAnswerHandler::ValidateSessionDescription(
     }
   }
 
+  // Validate Sframe consistency: reject remote answers that introduce
+  // a=sframe for media sections where the local offer did not include it.
+  if (source == CS_REMOTE &&
+      (type == SdpType::kPrAnswer || type == SdpType::kAnswer)) {
+    RTC_DCHECK(local_description());
+    error = VerifySframeInAnswer(local_description()->description(),
+                                 sdesc->description());
+    if (!error.ok()) {
+      return error;
+    }
+  }
+
   return RTCError::OK();
 }
 
@@ -4203,6 +4270,7 @@ SdpOfferAnswerHandler::AssociateTransceiver(
           /*header_extensions_to_negotiate=*/{}, sender_id, receiver_id);
       transceiver->internal()->set_direction(
           RtpTransceiverDirection::kRecvOnly);
+      transceiver->internal()->ApplySframeEnabled(media_desc->sframe_enabled());
       if (type == SdpType::kOffer) {
         transceivers()->StableState(transceiver)->set_newly_created();
       }
