@@ -294,7 +294,9 @@ LibvpxVp9Encoder::LibvpxVp9Encoder(const Environment& env,
       config_changed_(true),
       encoder_info_override_(env.field_trials()),
       psnr_experiment_(env.field_trials()),
-      psnr_frame_sampler_(psnr_experiment_.SamplingInterval()) {
+      psnr_frame_sampler_(psnr_experiment_.SamplingInterval()),
+      post_encode_frame_drop_(!env.field_trials().IsDisabled(
+          "WebRTC-LibvpxVp9Encoder-PostEncodeFrameDrop")) {
   codec_ = {};
   memset(&svc_params_, 0, sizeof(vpx_svc_extra_cfg_t));
 }
@@ -966,6 +968,10 @@ int LibvpxVp9Encoder::InitAndSetControlSettings() {
   }
   // Enable encoder skip of static/low content blocks.
   libvpx_->codec_control(encoder_, VP8E_SET_STATIC_THRESHOLD, 1);
+
+  if (post_encode_frame_drop_) {
+    libvpx_->codec_control(encoder_, VP9E_SET_POSTENCODE_DROP, 1);
+  }
 
   // This has to be done after the initial setup is completed.
   AdjustScalingFactorsForTopActiveLayer();
