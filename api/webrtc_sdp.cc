@@ -1072,8 +1072,13 @@ void AddPacketizationLine(const Codec& codec, std::string* message) {
   AddLine(os.str(), message);
 }
 
-void AddRtcpFbLines(const Codec& codec, std::string* message) {
+void AddRtcpFbLines(const Codec& codec,
+                    const FeedbackParams& skip_params,
+                    std::string* message) {
   for (const FeedbackParam& param : codec.feedback_params.params()) {
+    if (skip_params.Has(param)) {
+      continue;
+    }
     StringBuilder os;
     WriteRtcpFbHeader(codec.id, &os);
     os << " " << param.id();
@@ -1129,6 +1134,24 @@ void BuildRtpmap(const MediaContentDescription* media_desc,
                  std::string* message) {
   RTC_DCHECK(message != nullptr);
   RTC_DCHECK(media_desc != nullptr);
+
+  FeedbackParams common_fb_params;
+  if (use_wildcard) {
+    if (media_desc->rtcp_fb_ack_ccfb()) {
+      common_fb_params.Add(FeedbackParam("ack", "ccfb"));
+    }
+    const std::vector<Codec>& codecs = media_desc->codecs();
+    if (!codecs.empty()) {
+      FeedbackParams intersection = codecs[0].feedback_params;
+      for (size_t i = 1; i < codecs.size(); ++i) {
+        intersection.Intersect(codecs[i].feedback_params);
+      }
+      for (const auto& param : intersection.params()) {
+        common_fb_params.Add(param);
+      }
+    }
+  }
+
   StringBuilder os;
   if (media_type == MediaType::VIDEO) {
     for (Codec codec : media_desc->codecs()) {
@@ -1150,7 +1173,7 @@ void BuildRtpmap(const MediaContentDescription* media_desc,
         AddLine(os.str(), message);
       }
       AddPacketizationLine(codec, message);
-      AddRtcpFbLines(codec, message);
+      AddRtcpFbLines(codec, common_fb_params, message);
       AddFmtpLine(codec, message);
     }
   } else if (media_type == MediaType::AUDIO) {
@@ -1177,7 +1200,7 @@ void BuildRtpmap(const MediaContentDescription* media_desc,
         os << "/" << codec.channels;
       }
       AddLine(os.str(), message);
-      AddRtcpFbLines(codec, message);
+      AddRtcpFbLines(codec, common_fb_params, message);
       AddFmtpLine(codec, message);
       int minptime = 0;
       if (GetParameter(kCodecParamMinPTime, codec.params, &minptime)) {
@@ -1209,12 +1232,14 @@ void BuildRtpmap(const MediaContentDescription* media_desc,
     }
   }
   if (use_wildcard) {
-    if (media_desc->rtcp_fb_ack_ccfb()) {
-      // RFC 8888 section 6
-      InitAttrLine(kAttributeRtcpFb, &os);
-      os << kSdpDelimiterColon;
-      os << "* ack ccfb";
-      AddLine(os.str(), message);
+    for (const FeedbackParam& param : common_fb_params.params()) {
+      StringBuilder os_fb;
+      WriteRtcpFbHeader(kWildcardPayloadType, &os_fb);
+      os_fb << " " << param.id();
+      if (!param.param().empty()) {
+        os_fb << " " << param.param();
+      }
+      AddLine(os_fb.str(), message);
     }
   }
 }
