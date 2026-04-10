@@ -404,35 +404,7 @@ void BaseChannel::OnNetworkRouteChanged(
   media_send_channel()->OnNetworkRouteChanged(transport_name(), new_route);
 }
 
-void BaseChannel::SetFirstPacketReceivedCallback_n(
-    absl::AnyInvocable<void(const RtpPacketReceived&) &&> callback) {
-  RTC_DCHECK_RUN_ON(network_thread());
-  RTC_DCHECK(!on_first_packet_received_ || !callback);
 
-  // TODO(bugs.webrtc.org/11992): Rename SetFirstPacketReceivedCallback_n to
-  // something that indicates network thread initialization/uninitialization and
-  // call Init_n() / Deinit_n() respectively.
-  // if (!callback)
-  //   Deinit_n();
-
-  on_first_packet_received_ = std::move(callback);
-}
-
-void BaseChannel::SetFirstPacketSentCallback_n(
-    absl::AnyInvocable<void() &&> callback) {
-  RTC_DCHECK_RUN_ON(network_thread());
-  RTC_DCHECK(!on_first_packet_sent_ || !callback);
-
-  on_first_packet_sent_ = std::move(callback);
-}
-
-void BaseChannel::SetPacketReceivedCallback_n(
-    absl::AnyInvocable<void(const RtpPacketReceived&)> callback) {
-  RTC_DCHECK_RUN_ON(network_thread());
-  RTC_DCHECK(!on_packet_received_n_ || !callback);
-
-  on_packet_received_n_ = std::move(callback);
-}
 
 void BaseChannel::OnTransportReadyToSend(bool ready) {
   RTC_DCHECK_RUN_ON(network_thread());

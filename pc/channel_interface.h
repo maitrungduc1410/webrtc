@@ -85,16 +85,6 @@ class ChannelInterface {
   // Enables or disables this channel
   virtual void Enable(bool enable) = 0;
 
-  // Used for latency measurements.
-  virtual void SetFirstPacketReceivedCallback_n(
-      absl::AnyInvocable<void(const RtpPacketReceived&) &&> callback) = 0;
-  virtual void SetFirstPacketSentCallback_n(
-      absl::AnyInvocable<void() &&> callback) = 0;
-
-  // Used to unmute.
-  virtual void SetPacketReceivedCallback_n(
-      absl::AnyInvocable<void(const RtpPacketReceived&)> callback) = 0;
-
   // Channel control
   virtual RTCError SetLocalContent(const MediaContentDescription* content,
                                    SdpType type) = 0;

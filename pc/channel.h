@@ -138,16 +138,6 @@ class BaseChannel : public ChannelInterface,
     return remote_streams_;
   }
 
-  // Used for latency measurements.
-  void SetFirstPacketReceivedCallback_n(
-      absl::AnyInvocable<void(const RtpPacketReceived&) &&> callback) override;
-  void SetFirstPacketSentCallback_n(
-      absl::AnyInvocable<void() &&> callback) override;
-
-  void SetPacketReceivedCallback_n(
-      absl::AnyInvocable<void(const RtpPacketReceived&)> callback) override
-      RTC_RUN_ON(network_thread());
-
   // From RtpTransport - public for testing only
   void OnTransportReadyToSend(bool ready);
 
