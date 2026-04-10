@@ -258,13 +258,15 @@ std::unique_ptr<ChannelInterface> CreateMediaChannel(
     std::unique_ptr<MediaReceiveChannelInterface>& receive,
     absl::string_view mid,
     bool srtp_required,
-    CryptoOptions crypto_options) {
+    CryptoOptions crypto_options,
+    ChannelCallbacks callbacks) {
   return std::make_unique<Channel>(
       context->worker_thread(), context->network_thread(),
       context->signaling_thread(),
       std::unique_ptr<Send>(static_cast<Send*>(send.release())),
       std::unique_ptr<Receive>(static_cast<Receive*>(receive.release())), mid,
-      srtp_required, crypto_options, context->ssrc_generator());
+      srtp_required, crypto_options, context->ssrc_generator(),
+      std::move(callbacks));
 }
 
 std::vector<absl::AnyInvocable<void() &&>> DetachAndGetStopTasksForSenders(
@@ -467,6 +469,25 @@ RTCError RtpTransceiver::CreateChannel(
     signaling_thread_safety_->SetAlive();
   }
 
+  ChannelCallbacks callbacks;
+  callbacks.on_first_packet_received =
+      [thread = thread_, flag = signaling_thread_safety_,
+       this](const RtpPacketReceived& packet) mutable {
+        thread->PostTask(SafeTask(
+            std::move(flag),
+            [this, ssrc = packet.Ssrc()]() { OnFirstPacketReceived(ssrc); }));
+      };
+  callbacks.on_first_packet_sent =
+      [thread = thread_, flag = signaling_thread_safety_, this]() mutable {
+        thread->PostTask(
+            SafeTask(std::move(flag), [this]() { OnFirstPacketSent(); }));
+      };
+  callbacks.on_packet_received =
+      [this, flag = signaling_thread_safety_](const RtpPacketReceived& packet) {
+        RTC_DCHECK_RUN_ON(context()->network_thread());
+        OnPacketReceived(packet.Ssrc(), flag);
+      };
+
   std::unique_ptr<ChannelInterface> new_channel;
   // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
   // the worker thread. We shouldn't be using the `call_ptr_` hack here but
@@ -505,13 +526,13 @@ RTCError RtpTransceiver::CreateChannel(
           CreateMediaChannel<VoiceChannel, VoiceMediaSendChannelInterface,
                              VoiceMediaReceiveChannelInterface>(
               context(), media_send_channel, media_receive_channel, mid,
-              srtp_required, crypto_options);
+              srtp_required, crypto_options, std::move(callbacks));
     } else {
       new_channel =
           CreateMediaChannel<VideoChannel, VideoMediaSendChannelInterface,
                              VideoMediaReceiveChannelInterface>(
               context(), media_send_channel, media_receive_channel, mid,
-              srtp_required, crypto_options);
+              srtp_required, crypto_options, std::move(callbacks));
     }
   });
   return SetChannel(std::move(new_channel), std::move(transport_lookup),
@@ -560,24 +581,6 @@ RTCError RtpTransceiver::SetChannel(
         if (transport) {
           transport_name = transport->transport_name();
         }
-        channel->SetFirstPacketReceivedCallback_n(
-            [thread = thread_, flag = flag,
-             this](const RtpPacketReceived& packet) mutable {
-              thread->PostTask(
-                  SafeTask(std::move(flag), [this, ssrc = packet.Ssrc()]() {
-                    OnFirstPacketReceived(ssrc);
-                  }));
-            });
-        channel->SetFirstPacketSentCallback_n(
-            [thread = thread_, flag = flag, this]() mutable {
-              thread->PostTask(
-                  SafeTask(std::move(flag), [this]() { OnFirstPacketSent(); }));
-            });
-        channel->SetPacketReceivedCallback_n(
-            [this, flag = flag](const RtpPacketReceived& packet) {
-              RTC_DCHECK_RUN_ON(context()->network_thread());
-              OnPacketReceived(packet.Ssrc(), flag);
-            });
         return RTCError::OK();
       });
 

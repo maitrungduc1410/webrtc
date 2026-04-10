@@ -91,7 +91,8 @@ class BaseChannel : public ChannelInterface,
       absl::string_view mid,
       bool srtp_required,
       CryptoOptions crypto_options,
-      UniqueRandomIdGenerator* ssrc_generator);
+      UniqueRandomIdGenerator* ssrc_generator,
+      ChannelCallbacks callbacks = {});
   ~BaseChannel() override;
 
   TaskQueueBase* worker_thread() const { return worker_thread_; }
@@ -366,7 +367,8 @@ class VoiceChannel : public BaseChannel {
       absl::string_view mid,
       bool srtp_required,
       CryptoOptions crypto_options,
-      UniqueRandomIdGenerator* ssrc_generator);
+      UniqueRandomIdGenerator* ssrc_generator,
+      ChannelCallbacks callbacks = {});
 
   ~VoiceChannel() override;
 
@@ -431,7 +433,8 @@ class VideoChannel : public BaseChannel {
       absl::string_view mid,
       bool srtp_required,
       CryptoOptions crypto_options,
-      UniqueRandomIdGenerator* ssrc_generator);
+      UniqueRandomIdGenerator* ssrc_generator,
+      ChannelCallbacks callbacks = {});
   ~VideoChannel() override;
 
   VideoChannel* AsVideoChannel() override { return this; }

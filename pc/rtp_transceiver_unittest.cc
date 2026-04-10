@@ -126,9 +126,13 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   auto channel1 = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel1, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*channel1, mid()).WillRepeatedly(ReturnRef(content_name));
-  EXPECT_CALL(*channel1, SetFirstPacketReceivedCallback_n(_));
   EXPECT_CALL(*channel1, SetRtpTransport(_)).WillRepeatedly(Return(true));
   auto channel1_ptr = channel1.get();
+
+  EXPECT_CALL(*channel1, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel1, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel1, SetPacketReceivedCallback_n(_)).Times(0);
+
   transceiver->SetChannel(std::move(channel1), [&](const std::string& mid) {
     EXPECT_EQ(mid, content_name);
     return nullptr;
@@ -143,9 +147,17 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   EXPECT_CALL(*channel2, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
 
   // Clear the current channel - required to allow SetChannel()
-  EXPECT_CALL(*channel1_ptr, SetFirstPacketReceivedCallback_n(_));
+  // ClearChannel calls callbacks with nullptr, so we expect it.
+  EXPECT_CALL(*channel1_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel1_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel1_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   transceiver->ClearChannel();
+
   ASSERT_FALSE(transceiver->HasChannel());
+
   // Channel can no longer be set, so this call should be a no-op.
   transceiver->SetChannel(std::move(channel2),
                           [](const std::string&) { return nullptr; });
@@ -159,11 +171,14 @@ TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
       env(), MediaType::VIDEO, context(), codec_lookup_helper(), nullptr);
   transceiver->set_mid(content_name);
   auto channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto channel_ptr = channel.get();
   EXPECT_CALL(*channel, media_type()).WillRepeatedly(Return(MediaType::VIDEO));
   EXPECT_CALL(*channel, mid()).WillRepeatedly(ReturnRef(content_name));
-  EXPECT_CALL(*channel, SetFirstPacketReceivedCallback_n(_))
-      .WillRepeatedly(testing::Return());
   EXPECT_CALL(*channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel, SetPacketReceivedCallback_n(_)).Times(0);
 
   transceiver->SetChannel(std::move(channel), [&](const std::string& mid) {
     EXPECT_EQ(mid, content_name);
@@ -176,6 +191,12 @@ TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
   EXPECT_TRUE(transceiver->HasChannel());
 
   // Set the channel to `nullptr`.
+  EXPECT_CALL(*channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   transceiver->ClearChannel();
   EXPECT_FALSE(transceiver->HasChannel());
 }
@@ -193,11 +214,14 @@ TEST_F(RtpTransceiverTest, TransportNameIsUpdated) {
 
   transceiver->set_mid(content_name);
   auto channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto channel_ptr = channel.get();
   EXPECT_CALL(*channel, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*channel, mid()).WillRepeatedly(ReturnRef(content_name));
-  EXPECT_CALL(*channel, SetFirstPacketReceivedCallback_n(_))
-      .WillRepeatedly(Return());
   EXPECT_CALL(*channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*channel, SetPacketReceivedCallback_n(_)).Times(0);
 
   auto result = transceiver->SetChannel(
       std::move(channel), [&](const std::string& mid) -> RtpTransportInternal* {
@@ -220,6 +244,12 @@ TEST_F(RtpTransceiverTest, TransportNameIsUpdated) {
   // Clearing the channel should reset the transport name to nullopt.
   transceiver->SetTransport(dtls_transport, "yadt");
   EXPECT_EQ(transceiver->transport_name(), "yadt");
+  EXPECT_CALL(*channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   transceiver->ClearChannel();
   EXPECT_FALSE(transceiver->transport_name().has_value());
 }
@@ -753,10 +783,18 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   const std::string content_name("my_mid");
   transceiver_->set_mid(content_name);
   auto mock_channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  // Raw ptr for updating expectations later since `mock_channel` will be moved
+  // to `SetChannel`.
+  auto mock_channel_ptr = mock_channel.get();
   EXPECT_CALL(*mock_channel, media_type())
       .WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*mock_channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
+
   transceiver_->SetChannel(std::move(mock_channel),
                            [](const std::string&) { return nullptr; });
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
@@ -769,6 +807,12 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
                           Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped)));
 
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   ClearChannel();
 }
 
@@ -776,12 +820,17 @@ TEST_F(RtpTransceiverTestForHeaderExtensions, ReturnsNegotiatedHdrExts) {
   const std::string content_name("my_mid");
   transceiver_->set_mid(content_name);
   auto mock_channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto mock_channel_ptr = mock_channel.get();
   EXPECT_CALL(*mock_channel, media_type())
       .WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*mock_channel, voice_media_send_channel())
       .WillRepeatedly(Return(nullptr));
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*mock_channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
 
   RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
                                     RtpExtension("uri2", 2)};
@@ -801,6 +850,12 @@ TEST_F(RtpTransceiverTestForHeaderExtensions, ReturnsNegotiatedHdrExts) {
                                 RtpTransceiverDirection::kStopped),
                           Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped)));
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   ClearChannel();
 }
 
@@ -809,12 +864,17 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   const std::string content_name("my_mid");
   transceiver_->set_mid(content_name);
   auto mock_channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto mock_channel_ptr = mock_channel.get();
   EXPECT_CALL(*mock_channel, media_type())
       .WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*mock_channel, voice_media_send_channel())
       .WillRepeatedly(Return(nullptr));
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*mock_channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
 
   RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
                                     RtpExtension("uri2", 2)};
@@ -834,6 +894,12 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
                                 RtpTransceiverDirection::kStopped),
                           Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped)));
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   ClearChannel();
 }
 
@@ -842,12 +908,18 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   const std::string content_name("my_mid");
   transceiver_->set_mid(content_name);
   auto mock_channel = std::make_unique<NiceMock<MockChannelInterface>>();
+  auto mock_channel_ptr = mock_channel.get();
   EXPECT_CALL(*mock_channel, media_type())
       .WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*mock_channel, voice_media_send_channel())
       .WillRepeatedly(Return(nullptr));
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*mock_channel, SetFirstPacketReceivedCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetFirstPacketSentCallback_n(_)).Times(0);
+  EXPECT_CALL(*mock_channel, SetPacketReceivedCallback_n(_)).Times(0);
+
   transceiver_->SetChannel(std::move(mock_channel),
                            [](const std::string&) { return nullptr; });
 
@@ -880,6 +952,12 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
                           Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped)));
 
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetFirstPacketSentCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
+  EXPECT_CALL(*mock_channel_ptr, SetPacketReceivedCallback_n(_))
+      .WillOnce([](auto&& cb) { EXPECT_FALSE(cb); });
   ClearChannel();
 }
 

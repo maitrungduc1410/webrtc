@@ -39,6 +39,7 @@
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "p2p/dtls/dtls_transport_internal.h"
+#include "pc/channel_interface.h"
 #include "pc/rtp_media_utils.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/session_description.h"
@@ -179,13 +180,17 @@ BaseChannel::BaseChannel(
     absl::string_view mid,
     bool srtp_required,
     CryptoOptions crypto_options,
-    UniqueRandomIdGenerator* ssrc_generator)
+    UniqueRandomIdGenerator* ssrc_generator,
+    ChannelCallbacks callbacks)
     : media_send_channel_(std::move(send_media_channel_impl)),
       media_receive_channel_(std::move(receive_media_channel_impl)),
       worker_thread_(worker_thread),
       network_thread_(network_thread),
       signaling_thread_(signaling_thread),
       alive_(PendingTaskSafetyFlag::Create()),
+      on_first_packet_received_(std::move(callbacks.on_first_packet_received)),
+      on_first_packet_sent_(std::move(callbacks.on_first_packet_sent)),
+      on_packet_received_n_(std::move(callbacks.on_packet_received)),
       srtp_required_(srtp_required),
       extensions_filter_(
           crypto_options.srtp.enable_encrypted_rtp_header_extensions
@@ -881,7 +886,8 @@ VoiceChannel::VoiceChannel(
     absl::string_view mid,
     bool srtp_required,
     CryptoOptions crypto_options,
-    UniqueRandomIdGenerator* ssrc_generator)
+    UniqueRandomIdGenerator* ssrc_generator,
+    ChannelCallbacks callbacks)
     : BaseChannel(worker_thread,
                   network_thread,
                   signaling_thread,
@@ -890,7 +896,8 @@ VoiceChannel::VoiceChannel(
                   mid,
                   srtp_required,
                   crypto_options,
-                  ssrc_generator) {}
+                  ssrc_generator,
+                  std::move(callbacks)) {}
 
 VoiceChannel::~VoiceChannel() {
   TRACE_EVENT0("webrtc", "VoiceChannel::~VoiceChannel");
@@ -1052,7 +1059,8 @@ VideoChannel::VideoChannel(
     absl::string_view mid,
     bool srtp_required,
     CryptoOptions crypto_options,
-    UniqueRandomIdGenerator* ssrc_generator)
+    UniqueRandomIdGenerator* ssrc_generator,
+    ChannelCallbacks callbacks)
     : BaseChannel(worker_thread,
                   network_thread,
                   signaling_thread,
@@ -1061,8 +1069,8 @@ VideoChannel::VideoChannel(
                   mid,
                   srtp_required,
                   crypto_options,
-                  ssrc_generator) {
-}
+                  ssrc_generator,
+                  std::move(callbacks)) {}
 
 VideoChannel::~VideoChannel() {
   TRACE_EVENT0("webrtc", "VideoChannel::~VideoChannel");
