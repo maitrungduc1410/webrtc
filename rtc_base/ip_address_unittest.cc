@@ -634,6 +634,28 @@ TEST(IPAddressTest, TestIsAny) {
   EXPECT_TRUE(IPIsAny(IPAddress(kIPv4MappedAnyAddr)));
 }
 
+TEST(IPAddressTest, TestMappedLocalAddresses) {
+  // IPv4 loopback: 127.0.0.1
+  IPAddress v4_loopback(0x7f000001);
+  // IPv4-mapped IPv6 loopback: ::ffff:127.0.0.1
+  IPAddress mapped_loopback = v4_loopback.AsIPv6Address();
+  EXPECT_TRUE(IPIsLoopback(mapped_loopback));
+
+  // IPv4 private: 192.168.1.1
+  IPAddress v4_private;
+  EXPECT_TRUE(IPFromString("192.168.1.1", &v4_private));
+  // IPv4-mapped IPv6 private: ::ffff:192.168.1.1
+  IPAddress mapped_private = v4_private.AsIPv6Address();
+  EXPECT_TRUE(IPIsPrivate(mapped_private));
+
+  // IPv4 link-local: 169.254.1.1
+  IPAddress v4_linklocal;
+  EXPECT_TRUE(IPFromString("169.254.1.1", &v4_linklocal));
+  // IPv4-mapped IPv6 link-local: ::ffff:169.254.1.1
+  IPAddress mapped_linklocal = v4_linklocal.AsIPv6Address();
+  EXPECT_TRUE(IPIsLinkLocal(mapped_linklocal));
+}
+
 TEST(IPAddressTest, TestIsEui64) {
   IPAddress addr;
   EXPECT_TRUE(IPFromString(kIPv6EuiAddrString, &addr));

@@ -229,12 +229,13 @@ static bool IPIsPrivateNetworkV6(const IPAddress& ip) {
 }
 
 bool IPIsPrivateNetwork(const IPAddress& ip) {
-  switch (ip.family()) {
+  IPAddress normalized = ip.Normalized();
+  switch (normalized.family()) {
     case AF_INET: {
-      return IPIsPrivateNetworkV4(ip);
+      return IPIsPrivateNetworkV4(normalized);
     }
     case AF_INET6: {
-      return IPIsPrivateNetworkV6(ip);
+      return IPIsPrivateNetworkV6(normalized);
     }
   }
   return false;
@@ -246,8 +247,9 @@ static bool IPIsSharedNetworkV4(const IPAddress& ip) {
 }
 
 bool IPIsSharedNetwork(const IPAddress& ip) {
-  if (ip.family() == AF_INET) {
-    return IPIsSharedNetworkV4(ip);
+  IPAddress normalized = ip.Normalized();
+  if (normalized.family() == AF_INET) {
+    return IPIsSharedNetworkV4(normalized);
   }
   return false;
 }
@@ -324,12 +326,13 @@ static bool IPIsLoopbackV6(const IPAddress& ip) {
 }
 
 bool IPIsLoopback(const IPAddress& ip) {
-  switch (ip.family()) {
+  IPAddress normalized = ip.Normalized();
+  switch (normalized.family()) {
     case AF_INET: {
-      return IPIsLoopbackV4(ip);
+      return IPIsLoopbackV4(normalized);
     }
     case AF_INET6: {
-      return IPIsLoopbackV6(ip);
+      return IPIsLoopbackV6(normalized);
     }
   }
   return false;
@@ -345,12 +348,13 @@ bool IPIsUnspec(const IPAddress& ip) {
 }
 
 size_t HashIP(const IPAddress& ip) {
-  switch (ip.family()) {
+  IPAddress normalized = ip.Normalized();
+  switch (normalized.family()) {
     case AF_INET: {
-      return ip.ipv4_address().s_addr;
+      return normalized.ipv4_address().s_addr;
     }
     case AF_INET6: {
-      in6_addr v6addr = ip.ipv6_address();
+      in6_addr v6addr = normalized.ipv6_address();
       const uint32_t* v6_as_ints =
           reinterpret_cast<const uint32_t*>(&v6addr.s6_addr);
       return v6_as_ints[0] ^ v6_as_ints[1] ^ v6_as_ints[2] ^ v6_as_ints[3];
@@ -483,12 +487,13 @@ static bool IPIsLinkLocalV6(const IPAddress& ip) {
 }
 
 bool IPIsLinkLocal(const IPAddress& ip) {
-  switch (ip.family()) {
+  IPAddress normalized = ip.Normalized();
+  switch (normalized.family()) {
     case AF_INET: {
-      return IPIsLinkLocalV4(ip);
+      return IPIsLinkLocalV4(normalized);
     }
     case AF_INET6: {
-      return IPIsLinkLocalV6(ip);
+      return IPIsLinkLocalV6(normalized);
     }
   }
   return false;
