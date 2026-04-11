@@ -156,13 +156,11 @@ void VCMTiming::UpdateCurrentDelay(Timestamp render_time,
 
 void VCMTiming::StopDecodeTimer(TimeDelta decode_time, Timestamp now) {
   MutexLock lock(&mutex_);
-  decode_time_filter_->AddTiming(decode_time.ms(), now.ms());
   RTC_DCHECK_GE(decode_time, TimeDelta::Zero());
+  decode_time_filter_->AddSample(decode_time.ms(), now.ms());
   ++timings_.num_decoded_frames;
-
-  int max_decode_ms = decode_time_filter_->RequiredDecodeTimeMs();
-  RTC_DCHECK_GE(max_decode_ms, 0);
-  timings_.estimated_max_decode_time = TimeDelta::Millis(max_decode_ms);
+  timings_.estimated_max_decode_time =
+      TimeDelta::Millis(decode_time_filter_->GetPercentileMs());
 }
 
 void VCMTiming::IncomingTimestamp(uint32_t rtp_timestamp, Timestamp now) {
@@ -210,7 +208,7 @@ TimeDelta VCMTiming::MaxWaitingTime(Timestamp render_time,
     // `render_time` == 0 indicates that the frame should be decoded and
     // rendered as soon as possible. However, the decoder can be choked if too
     // many frames are sent at once. Therefore, limit the interframe delay to
-    // |zero_playout_delay_min_pacing_| unless too many frames are queued in
+    // `zero_playout_delay_min_pacing_` unless too many frames are queued in
     // which case the frames are sent to the decoder at once.
     if (too_many_frames_queued) {
       return TimeDelta::Zero();
@@ -231,17 +229,17 @@ TimeDelta VCMTiming::TargetVideoDelay() const {
   return timings_.TargetDelay();
 }
 
-VideoFrame::RenderParameters VCMTiming::RenderParameters() const {
-  MutexLock lock(&mutex_);
-  return {.use_low_latency_rendering = timings_.UseLowLatencyRendering(),
-          .max_composition_delay_in_frames = max_composition_delay_in_frames_};
-}
-
 VCMTiming::VideoDelayTimings VCMTiming::GetTimings() const {
   MutexLock lock(&mutex_);
   VideoDelayTimings timings = timings_;
   timings.target_delay = timings_.StatsTargetDelay();
   return timings;
+}
+
+VideoFrame::RenderParameters VCMTiming::RenderParameters() const {
+  MutexLock lock(&mutex_);
+  return {.use_low_latency_rendering = timings_.UseLowLatencyRendering(),
+          .max_composition_delay_in_frames = max_composition_delay_in_frames_};
 }
 
 void VCMTiming::SetMaxCompositionDelayInFrames(
