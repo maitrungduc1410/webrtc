@@ -150,7 +150,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   RtpTransceiver& operator=(RtpTransceiver&&) = delete;
 
   // Creates the Voice/VideoChannel and sets it.
-  RTCError CreateChannel(
+  void CreateChannel(
       absl::string_view mid,
       Call* call_ptr,
       const MediaConfig& media_config,
@@ -160,7 +160,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
       const VideoOptions& video_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       absl::AnyInvocable<RtpTransportInternal*(absl::string_view) &&>
-          transport_lookup);
+          transport_lookup,
+      ScopedOperationsBatcher& network_batcher);
 
   // Sets the Voice/VideoChannel. The caller must pass in the correct channel
   // implementation based on the type of the transceiver.  The call must

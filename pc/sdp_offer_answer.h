@@ -384,11 +384,12 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
 
   // Either creates or destroys the transceiver's BaseChannel according to the
   // given media section.
-  RTCError UpdateTransceiverChannel(
+  void UpdateTransceiverChannel(
       scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>
           transceiver,
       const ContentInfo& content,
-      const ContentGroup* bundle_group) RTC_RUN_ON(signaling_thread());
+      const ContentGroup* bundle_group,
+      ScopedOperationsBatcher& network_tasks) RTC_RUN_ON(signaling_thread());
 
   // Either creates or destroys the local data channel according to the given
   // media section.

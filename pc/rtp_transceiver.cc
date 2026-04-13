@@ -442,7 +442,7 @@ RtpTransceiver::~RtpTransceiver() {
   RTC_DCHECK(!owned_receive_channel_);
 }
 
-RTCError RtpTransceiver::CreateChannel(
+void RtpTransceiver::CreateChannel(
     absl::string_view mid,
     Call* call_ptr,
     const MediaConfig& media_config,
@@ -452,7 +452,8 @@ RTCError RtpTransceiver::CreateChannel(
     const VideoOptions& video_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
     absl::AnyInvocable<RtpTransportInternal*(absl::string_view) &&>
-        transport_lookup) {
+        transport_lookup,
+    ScopedOperationsBatcher& network_batcher) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!channel_);
   RTC_DCHECK(!mid_ || mid_.value() == mid);
@@ -539,26 +540,27 @@ RTCError RtpTransceiver::CreateChannel(
   channel_ = std::move(new_channel);
   transport_name_ = std::nullopt;
 
-  std::optional<std::string> transport_name;
-  RTCError err = context()->network_thread()->BlockingCall(
-      [&, flag = signaling_thread_safety_, channel = channel_.get()]() {
+  network_batcher.AddWithFinalizer(
+      [this, channel = channel_.get(),
+       transport_lookup = std::move(transport_lookup)]() mutable
+          -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
+        RTC_DCHECK_RUN_ON(context()->network_thread());
         RtpTransportInternal* transport =
             std::move(transport_lookup)(channel->mid());
         if (!channel->SetRtpTransport(transport)) {
           return RTCError::InvalidParameter()
                  << "Invalid transport for mid=" << channel->mid();
         }
+        std::optional<std::string> transport_name;
         if (transport) {
           transport_name = transport->transport_name();
         }
-        return RTCError::OK();
+        return ScopedOperationsBatcher::FinalizerTask(
+            [this, transport_name = std::move(transport_name)]() mutable {
+              RTC_DCHECK_RUN_ON(thread_);
+              transport_name_ = std::move(transport_name);
+            });
       });
-
-  if (err.ok()) {
-    transport_name_ = std::move(transport_name);
-  }
-
-  return err;
 }
 
 RTCError RtpTransceiver::SetChannelForTest(
