@@ -1,5 +1,5 @@
 ---
-name: webrtc-include-cleaner
+name: include-cleaner
 description: Runs the WebRTC include-cleaner tool (IWYU replacement) to fix headers in C++ files. Use when preparing a CL for upload, after modifying .cc or .h files, or when instructed to fix include regressions.
 ---
 
@@ -48,12 +48,12 @@ steps to ensure build and style consistency:
 
 1. **Check for build errors**: The tool might occasionally make mistakes. Run a
    build to verify.
-1. **Fix GN dependencies**: Use `tools_webrtc/gn_check_autofix.py` to fix any
+2. **Fix GN dependencies**: Use `tools_webrtc/gn_check_autofix.py` to fix any
    `deps` issues caused by include changes.
    ```bash
    tools_webrtc/gn_check_autofix.py -C out/Default
    ```
-1. **Format code**: Run `git cl format` to fix any formatting issues in the
+3. **Format code**: Run `git cl format` to fix any formatting issues in the
    `#include` blocks.
    ```bash
    git cl format
