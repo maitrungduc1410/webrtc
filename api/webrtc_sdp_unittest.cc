@@ -30,6 +30,7 @@
 #include "api/media_types.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
+#include "api/uma_metrics.h"
 #include "media/base/codec.h"
 #include "media/base/media_constants.h"
 #include "media/base/rid_description.h"
@@ -45,6 +46,8 @@
 #include "rtc_base/message_digest.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/ssl_fingerprint.h"
+#include "rtc_base/strings/string_builder.h"
+#include "system_wrappers/include/metrics.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -3944,6 +3947,48 @@ TEST_F(WebRtcSdpTest, BandwidthLimitOfNegativeOneIgnored) {
       GetFirstVideoContentDescription(jdesc_output->description());
   ASSERT_THAT(vcd, NotNull());
   EXPECT_EQ(kAutoBandwidth, vcd->bandwidth());
+}
+
+TEST_F(WebRtcSdpTest, SdpBandwidthMetrics) {
+  metrics::Reset();
+  auto get_sdp = [](absl::string_view value) {
+    StringBuilder sb;
+    sb << "v=0\r\n"
+       << "o=- 18446744069414584320 18446462598732840960 IN IP4 127.0.0.1\r\n"
+       << "s=-\r\n"
+       << "t=0 0\r\n"
+       << "m=video 3457 RTP/SAVPF 120\r\n"
+       << "b=AS:" << value << "\r\n";
+    return sb.Release();
+  };
+
+  // kSdpBandwidthNegativeOne
+  SdpDeserialize(get_sdp("-1"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthNegativeOne));
+
+  // kSdpBandwidthZero
+  SdpDeserialize(get_sdp("0"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthZero));
+
+  // kSdpBandwidthSmall
+  SdpDeserialize(get_sdp("1000"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthSmall));
+
+  // kSdpBandwidthLarge
+  SdpDeserialize(get_sdp("3000000"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthLarge));
+
+  // kSdpBandwidthParseFailure
+  SdpDeserialize(get_sdp("999999999999"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthParseFailure));
+
+  EXPECT_METRIC_EQ(5,
+                   metrics::NumSamples("WebRTC.PeerConnection.SdpBandwidth"));
 }
 
 // Test that "ufrag"/"pwd" in the candidate line itself are ignored, and only

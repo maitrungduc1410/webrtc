@@ -38,6 +38,7 @@
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/sctp_transport_interface.h"
+#include "api/uma_metrics.h"
 #include "media/base/codec.h"
 #include "media/base/media_constants.h"
 #include "media/base/rid_description.h"
@@ -61,6 +62,7 @@
 #include "rtc_base/ssl_fingerprint.h"
 #include "rtc_base/string_encode.h"
 #include "rtc_base/strings/string_builder.h"
+#include "system_wrappers/include/metrics.h"
 
 namespace webrtc {
 
@@ -2605,7 +2607,22 @@ bool ParseContent(absl::string_view message,
       }
       int b = 0;
       if (!GetValueFromString(*line, bandwidth, &b, error)) {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthParseFailure, kSdpBandwidthMax);
         return false;
+      }
+      if (b == -1) {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthNegativeOne, kSdpBandwidthMax);
+      } else if (b == 0) {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthZero, kSdpBandwidthMax);
+      } else if (b > 0 && b <= INT_MAX / 1000) {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthSmall, kSdpBandwidthMax);
+      } else if (b > INT_MAX / 1000) {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthLarge, kSdpBandwidthMax);
       }
       // TODO(deadbeef): Historically, applications may be setting a value
       // of -1 to mean "unset any previously set bandwidth limit", even

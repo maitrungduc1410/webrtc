@@ -250,6 +250,17 @@ enum class SdpMungingOutcome {
   kMaxValue = kRejected,
 };
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum SdpBandwidthCategory {
+  kSdpBandwidthParseFailure = 0,
+  kSdpBandwidthNegativeOne = 1,
+  kSdpBandwidthZero = 2,
+  kSdpBandwidthSmall = 3,  // 1 to INT_MAX/1000
+  kSdpBandwidthLarge = 4,  // INT_MAX/1000 + 1 to INT_MAX
+  kSdpBandwidthMax
+};
+
 // When adding new metrics please consider using the style described in
 // https://chromium.googlesource.com/chromium/src.git/+/HEAD/tools/metrics/histograms/README.md#usage
 // instead of the legacy enums used above.
