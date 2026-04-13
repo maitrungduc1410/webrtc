@@ -12,10 +12,15 @@
 
 #import "RTCH264ProfileLevelId.h"
 #import "RTCVideoEncoderH264.h"
+#import "api/peerconnection/RTCVideoCodecInfo+Private.h"
 #import "api/video_codec/RTCVideoCodecConstants.h"
 #import "api/video_codec/RTCVideoEncoderVP8.h"
 #import "api/video_codec/RTCVideoEncoderVP9.h"
 #import "base/RTCVideoCodecInfo.h"
+#import "helpers/NSString+StdString.h"
+
+#include "absl/algorithm/container.h"
+#include "api/video_codecs/scalability_mode_helper.h"
 
 #if defined(RTC_USE_LIBAOM_AV1_ENCODER)
 #import "api/video_codec/RTCVideoEncoderAV1.h"  // nogncheck
@@ -79,6 +84,38 @@
   [orderedCodecs addObjectsFromArray:codecs];
 
   return [orderedCodecs copy];
+}
+
+- (RTC_OBJC_TYPE(RTCVideoEncoderCodecSupport) *)
+    queryCodecSupport:(RTC_OBJC_TYPE(RTCVideoCodecInfo) *)info
+      scalabilityMode:(nullable NSString *)scalabilityMode {
+  std::optional<webrtc::ScalabilityMode> mode;
+  if (scalabilityMode) {
+    mode = webrtc::ScalabilityModeStringToEnum([scalabilityMode stdString]);
+    if (!mode.has_value()) {
+      return [[RTC_OBJC_TYPE(RTCVideoEncoderCodecSupport) alloc]
+          initWithSupported:NO];
+    }
+  }
+  webrtc::SdpVideoFormat format = [info nativeSdpVideoFormat];
+  for (RTC_OBJC_TYPE(RTCVideoCodecInfo) *
+       supportedCodec in [[self class] supportedCodecs]) {
+    webrtc::SdpVideoFormat supportedFormat =
+        [supportedCodec nativeSdpVideoFormat];
+    if (!format.IsSameCodec(supportedFormat)) {
+      continue;
+    }
+    if (!mode.has_value()) {
+      return [[RTC_OBJC_TYPE(RTCVideoEncoderCodecSupport) alloc]
+          initWithSupported:YES];
+    }
+    bool modeSupported =
+        absl::c_linear_search(supportedFormat.scalability_modes, *mode);
+    return [[RTC_OBJC_TYPE(RTCVideoEncoderCodecSupport) alloc]
+        initWithSupported:modeSupported];
+  }
+  return
+      [[RTC_OBJC_TYPE(RTCVideoEncoderCodecSupport) alloc] initWithSupported:NO];
 }
 
 @end
