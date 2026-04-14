@@ -3982,12 +3982,17 @@ TEST_F(WebRtcSdpTest, SdpBandwidthMetrics) {
   EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
                                          kSdpBandwidthLarge));
 
+  // kSdpBandwidthNegative
+  SdpDeserialize(get_sdp("-1000"));
+  EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
+                                         kSdpBandwidthNegative));
+
   // kSdpBandwidthParseFailure
   SdpDeserialize(get_sdp("999999999999"));
   EXPECT_METRIC_EQ(1, metrics::NumEvents("WebRTC.PeerConnection.SdpBandwidth",
                                          kSdpBandwidthParseFailure));
 
-  EXPECT_METRIC_EQ(5,
+  EXPECT_METRIC_EQ(6,
                    metrics::NumSamples("WebRTC.PeerConnection.SdpBandwidth"));
 }
 

@@ -2623,6 +2623,9 @@ bool ParseContent(absl::string_view message,
       } else if (b > INT_MAX / 1000) {
         RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
                                   kSdpBandwidthLarge, kSdpBandwidthMax);
+      } else {
+        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
+                                  kSdpBandwidthNegative, kSdpBandwidthMax);
       }
       // TODO(deadbeef): Historically, applications may be setting a value
       // of -1 to mean "unset any previously set bandwidth limit", even
