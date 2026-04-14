@@ -2414,12 +2414,6 @@ void PeerConnection::StopRtcEventLog_w() {
   env_.event_log().StopLogging();
 }
 
-std::optional<SSLRole> PeerConnection::GetSctpSslRole_n() {
-  RTC_DCHECK_RUN_ON(network_thread());
-  return sctp_mid_n_ ? transport_controller_->GetDtlsRole(*sctp_mid_n_)
-                     : std::nullopt;
-}
-
 bool PeerConnection::GetSslRole(const std::string& content_name,
                                 SSLRole* role) {
   RTC_DCHECK_RUN_ON(signaling_thread());

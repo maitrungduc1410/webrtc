@@ -335,8 +335,6 @@ class PeerConnection : public PeerConnectionInternal,
     return !sdp_handler_ ||
            sdp_handler_->signaling_state() == PeerConnectionInterface::kClosed;
   }
-  // Get current SSL role used by SCTP's underlying transport.
-  std::optional<SSLRole> GetSctpSslRole_n() override;
 
   void OnSctpDataChannelStateChanged(
       int channel_id,

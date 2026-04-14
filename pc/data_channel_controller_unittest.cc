@@ -195,7 +195,7 @@ TEST_F(DataChannelControllerTest, MaxChannels) {
   NiceMock<MockDataChannelTransport> transport;
   int channel_id = 0;
 
-  ON_CALL(*pc_, GetSctpSslRole_n).WillByDefault([&]() {
+  EXPECT_CALL(transport, DtlsRole()).WillRepeatedly([&]() {
     return std::optional<SSLRole>((channel_id & 1) ? SSL_SERVER : SSL_CLIENT);
   });
 
@@ -220,7 +220,7 @@ TEST_F(DataChannelControllerTest, RespectTransportFailureOnOpenChannel) {
   NiceMock<MockDataChannelTransport> transport;
   int channel_id = 0;
 
-  ON_CALL(*pc_, GetSctpSslRole_n).WillByDefault([&]() {
+  ON_CALL(transport, DtlsRole).WillByDefault([&]() {
     return std::optional<SSLRole>((channel_id & 1) ? SSL_SERVER : SSL_CLIENT);
   });
   EXPECT_CALL(transport, OpenChannel(_, _))
@@ -263,7 +263,7 @@ TEST_F(DataChannelControllerTest, DcepFailureOnTooSmallMaxMessageSize) {
 TEST_F(DataChannelControllerTest, BufferedAmountIncludesFromTransport) {
   NiceMock<MockDataChannelTransport> transport;
   EXPECT_CALL(transport, buffered_amount(0)).WillOnce(Return(4711));
-  ON_CALL(*pc_, GetSctpSslRole_n).WillByDefault([&]() { return SSL_CLIENT; });
+  ON_CALL(transport, DtlsRole).WillByDefault([&]() { return SSL_CLIENT; });
 
   DataChannelControllerForTest dcc(pc_.get(), &transport);
   auto dc = dcc.InternalCreateDataChannelWithProxy(
@@ -276,9 +276,8 @@ TEST_F(DataChannelControllerTest, BufferedAmountIncludesFromTransport) {
 // not get re-used for new channels. Only once the state reaches `kClosed`
 // should a StreamId be available again for allocation.
 TEST_F(DataChannelControllerTest, NoStreamIdReuseWhileClosing) {
-  ON_CALL(*pc_, GetSctpSslRole_n).WillByDefault([&]() { return SSL_CLIENT; });
-
   NiceMock<MockDataChannelTransport> transport;  // Wider scope than `dcc`.
+  ON_CALL(transport, DtlsRole).WillByDefault([&]() { return SSL_CLIENT; });
   DataChannelControllerForTest dcc(pc_.get(), &transport);
 
   // Create the first channel and check that we got the expected, first sid.

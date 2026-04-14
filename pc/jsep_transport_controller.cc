@@ -265,6 +265,7 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
   // thread during negotiations, potentially multiple times.
   // WebRtcSessionDescriptionFactory::InternalCreateAnswer is one example.
   if (!network_thread_->IsCurrent()) {
+    RTC_DCHECK_RUN_ON(signaling_thread_);
     return network_thread_->BlockingCall([&] { return GetDtlsRole(mid); });
   }
 
