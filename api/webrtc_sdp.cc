@@ -208,6 +208,11 @@ bool IsTokenChar(char ch) {
          (ch >= 0x41 && ch <= 0x5a) || (ch >= 0x5e && ch <= 0x7e);
 }
 
+void ReportSdpBandwidth(SdpBandwidthCategory category) {
+  RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth", category,
+                            kSdpBandwidthMax);
+}
+
 struct SsrcInfo {
   uint32_t ssrc_id;
   std::string cname;
@@ -2607,25 +2612,19 @@ bool ParseContent(absl::string_view message,
       }
       int b = 0;
       if (!GetValueFromString(*line, bandwidth, &b, error)) {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthParseFailure, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthParseFailure);
         return false;
       }
       if (b == -1) {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthNegativeOne, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthNegativeOne);
       } else if (b == 0) {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthZero, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthZero);
       } else if (b > 0 && b <= INT_MAX / 1000) {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthSmall, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthSmall);
       } else if (b > INT_MAX / 1000) {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthLarge, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthLarge);
       } else {
-        RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.SdpBandwidth",
-                                  kSdpBandwidthNegative, kSdpBandwidthMax);
+        ReportSdpBandwidth(kSdpBandwidthNegative);
       }
       // TODO(deadbeef): Historically, applications may be setting a value
       // of -1 to mean "unset any previously set bandwidth limit", even
