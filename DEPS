@@ -1349,6 +1349,7 @@ include_rules = [
   "+absl/base/config.h",
   "+absl/base/nullability.h",
   "+absl/base/macros.h",
+  "+absl/base/no_destructor.h",
   "+absl/cleanup/cleanup.h",
   "+absl/container",
   "-absl/container/fixed_array.h",
