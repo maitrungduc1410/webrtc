@@ -391,6 +391,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
           transceiver,
       const ContentInfo& content,
       const ContentGroup* bundle_group,
+      ScopedOperationsBatcher& worker_tasks,
       ScopedOperationsBatcher& network_tasks) RTC_RUN_ON(signaling_thread());
 
   // Either creates or destroys the local data channel according to the given

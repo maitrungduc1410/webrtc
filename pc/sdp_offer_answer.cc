@@ -4145,7 +4145,7 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
       }
       auto transceiver = transceiver_or_error.MoveValue();
       UpdateTransceiverChannel(transceiver, new_content, bundle_group,
-                               network_tasks);
+                               worker_tasks, network_tasks);
       // Handle locally rejected content. This code path is only needed for apps
       // that SDP munge. Remote rejected content is handled in
       // ApplyRemoteDescriptionUpdateTransceiverState().
@@ -4344,6 +4344,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
     const ContentInfo& content,
     const ContentGroup* bundle_group,
+    ScopedOperationsBatcher& worker_tasks,
     ScopedOperationsBatcher& network_tasks) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateTransceiverChannel");
   RTC_DCHECK(IsUnifiedPlan());
@@ -4362,7 +4363,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
             RTC_DCHECK_RUN_ON(network_thread());
             return transport_controller_n()->GetRtpTransport(mid);
           },
-          network_tasks);
+          worker_tasks, network_tasks);
     }
   }
 }
@@ -5687,6 +5688,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
   // at this point.
   RTC_DCHECK_RUN_ON(signaling_thread());
 
+  ScopedOperationsBatcher worker_tasks(context_->worker_thread());
   ScopedOperationsBatcher network_tasks(network_thread());
 
   const ContentInfo* voice = GetFirstAudioContent(&desc);
@@ -5700,7 +5702,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
           RTC_DCHECK_RUN_ON(network_thread());
           return transport_controller_n()->GetRtpTransport(mid);
         },
-        network_tasks);
+        worker_tasks, network_tasks);
   }
 
   const ContentInfo* video = GetFirstVideoContent(&desc);
@@ -5714,7 +5716,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
           RTC_DCHECK_RUN_ON(network_thread());
           return transport_controller_n()->GetRtpTransport(mid);
         },
-        network_tasks);
+        worker_tasks, network_tasks);
   }
 
   const ContentInfo* data = GetFirstDataContent(&desc);
@@ -5724,6 +5726,10 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
                      << "Failed to create data channel.");
   }
 
+  RTCError error = worker_tasks.Run();
+  if (!error.ok()) {
+    return error;
+  }
   return network_tasks.Run();
 }
 
