@@ -3962,9 +3962,15 @@ RTCError SdpOfferAnswerHandler::ValidateSessionDescription(
 
   // Validate that there are no collisions of bundled payload types.
   error = ValidateBundledPayloadTypes(*sdesc->description());
-  // TODO(bugs.webrtc.org/14420): actually reject.
   RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.ValidBundledPayloadTypes",
                         error.ok());
+  if (!error.ok()) {
+    RTC_LOG(LS_ERROR) << "Bundled payload type collision: " << error.message();
+    if (env_.field_trials().IsEnabled(
+            "WebRTC-SdpBundlePayloadTypeCollisionCheck")) {
+      return error;
+    }
+  }
 
   // Validate that there are no collisions of bundled header extensions ids.
   error = ValidateBundledRtpHeaderExtensions(*sdesc->description());
