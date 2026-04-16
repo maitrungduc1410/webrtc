@@ -174,12 +174,7 @@ RTCError MergeCodecs(const CodecList& reference_codecs,
                      absl::string_view mid,
                      CodecList& offered_codecs,
                      PayloadTypeSuggester& pt_suggester) {
-  // TODO: bugs.webrtc.org/360058654 - This method makes blocking calls to
-  // the network thread. Once those calls run on the current (signaling) thread
-  // change `RTC_LOG_THREAD_BLOCK_COUNT()` to
-  // `RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS()`.
-  RTC_LOG_THREAD_BLOCK_COUNT();
-
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   // Add all new codecs that are not RTX/RED codecs.
   // The two-pass splitting of the loops means preferring payload types
   // of actual codecs with respect to collisions.
@@ -752,11 +747,7 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
     const std::vector<Codec> codecs_from_offer,
     PayloadTypeSuggester& pt_suggester) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  // TODO: bugs.webrtc.org/360058654 - This method makes blocking calls to
-  // the network thread. Once those calls run on the current (signaling) thread
-  // change `RTC_LOG_THREAD_BLOCK_COUNT()` to
-  // `RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS()`.
-  RTC_LOG_THREAD_BLOCK_COUNT();
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   CodecList codecs;
   std::string mid = media_description_options.mid;
   if (current_content && current_content->mid() == mid &&

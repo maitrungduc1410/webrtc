@@ -101,6 +101,7 @@ JsepTransportController::JsepTransportController(
       role_update_safety_flag_n_(role_update_safety_flag_s_) {
   RTC_DCHECK(signaling_thread_);
   RTC_DCHECK(network_thread_);
+  RTC_DCHECK(port_allocator_);
   // The `transport_observer` is assumed to be non-null.
   RTC_DCHECK(config_.transport_observer);
   RTC_DCHECK(config_.rtcp_handler);
@@ -370,11 +371,12 @@ std::unique_ptr<SSLCertChain> JsepTransportController::GetRemoteSSLCertChain(
   return dtls->GetRemoteSSLCertChain();
 }
 
-void JsepTransportController::MaybeStartGathering() {
+std::vector<IceParameters> JsepTransportController::MaybeStartGathering() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  network_thread_->BlockingCall([&] {
+  return network_thread_->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread_);
     MaybeStartGathering_n();
+    return port_allocator_->GetPooledIceCredentials();
   });
 }
 

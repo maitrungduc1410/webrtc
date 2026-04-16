@@ -1692,6 +1692,12 @@ void SdpOfferAnswerHandler::PrepareForShutdown() {
   weak_ptr_factory_.InvalidateWeakPtrs();
 }
 
+void SdpOfferAnswerHandler::UpdateCachedIceCredentials(
+    std::vector<IceParameters> credentials) {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  cached_pooled_ice_credentials_ = std::move(credentials);
+}
+
 void SdpOfferAnswerHandler::Close() {
   RTC_LOG_THREAD_BLOCK_COUNT();
   ChangeSignalingState(PeerConnectionInterface::kClosed);
@@ -2774,7 +2780,8 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
   // MaybeStartGathering needs to be called after informing the observer so
   // that we don't signal any candidates before signaling that
   // SetLocalDescription completed.
-  transport_controller_s()->MaybeStartGathering();
+  cached_pooled_ice_credentials_ =
+      transport_controller_s()->MaybeStartGathering();
 }
 
 void SdpOfferAnswerHandler::DoCreateOffer(
@@ -4512,9 +4519,7 @@ void SdpOfferAnswerHandler::GetOptionsForOffer(
 
   session_options->rtcp_cname = rtcp_cname_;
   session_options->crypto_options = pc_->GetCryptoOptions();
-  session_options->pooled_ice_credentials =
-      context_->network_thread()->BlockingCall(
-          [this] { return port_allocator()->GetPooledIceCredentials(); });
+  session_options->pooled_ice_credentials = cached_pooled_ice_credentials_;
   session_options->offer_extmap_allow_mixed =
       pc_->configuration()->offer_extmap_allow_mixed;
 
@@ -4807,9 +4812,7 @@ void SdpOfferAnswerHandler::GetOptionsForAnswer(
 
   session_options->rtcp_cname = rtcp_cname_;
   session_options->crypto_options = pc_->GetCryptoOptions();
-  session_options->pooled_ice_credentials =
-      context_->network_thread()->BlockingCall(
-          [this] { return port_allocator()->GetPooledIceCredentials(); });
+  session_options->pooled_ice_credentials = cached_pooled_ice_credentials_;
   // draft-hancke-tsvwg-snap.
   session_options->use_sctp_snap = pc_->trials().IsEnabled("WebRTC-Sctp-Snap");
 }

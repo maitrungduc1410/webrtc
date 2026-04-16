@@ -45,6 +45,7 @@
 #include "p2p/dtls/dtls_transport_internal.h"
 #include "p2p/dtls/fake_dtls_transport.h"
 #include "p2p/test/fake_ice_transport.h"
+#include "p2p/test/fake_port_allocator.h"
 #include "pc/dtls_transport.h"
 #include "pc/rtp_transport.h"
 #include "pc/rtp_transport_internal.h"
@@ -122,10 +123,22 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
     fake_ice_transport_factory_ = std::make_unique<FakeIceTransportFactory>();
     fake_dtls_transport_factory_ = std::make_unique<FakeDtlsTransportFactory>();
   }
+  ~JsepTransportControllerTest() override {
+    if (network_thread_ != nullptr && port_allocator_) {
+      network_thread_->BlockingCall([&] { port_allocator_ = std::nullopt; });
+    }
+  }
 
   void CreateJsepTransportController(JsepTransportController::Config config,
                                      Thread* network_thread = Thread::Current(),
                                      PortAllocator* port_allocator = nullptr) {
+    if (port_allocator == nullptr) {
+      if (!port_allocator_) {
+        port_allocator_.emplace(env_, network_thread->socketserver(),
+                                network_thread);
+      }
+      port_allocator = &*port_allocator_;
+    }
     config.transport_observer = this;
     config.rtcp_handler = [](const CopyOnWriteBuffer& packet,
                              int64_t packet_time_us) {
@@ -381,6 +394,7 @@ class JsepTransportControllerTest : public JsepTransportController::Observer,
   std::unique_ptr<Thread> network_thread_;
   std::unique_ptr<FakeIceTransportFactory> fake_ice_transport_factory_;
   std::unique_ptr<FakeDtlsTransportFactory> fake_dtls_transport_factory_;
+  std::optional<FakePortAllocator> port_allocator_;
   Thread* const signaling_thread_ = nullptr;
   Thread* ice_signaled_on_thread_ = nullptr;
   // Used to verify the SignalRtpTransportChanged/SignalDtlsTransportChanged are

@@ -228,10 +228,10 @@ class JsepTransportController final {
   // Must be called on the signaling thread.
   bool NeedsIceRestart(absl::string_view mid) const;
   // Start gathering candidates for any new transports, or transports doing an
-  // ICE restart.
+  // ICE restart. Returns the pooled ICE credentials from the port allocator.
   //
   // Must be called on the signaling thread.
-  void MaybeStartGathering();
+  std::vector<IceParameters> MaybeStartGathering();
   RTCError AddRemoteCandidates(absl::string_view mid,
                                const std::vector<Candidate>& candidates);
   // Must be called on the signaling thread.
