@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -32,6 +33,7 @@
 #include "api/rtp_transport_factory.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/data_channel_transport_interface.h"
 #include "api/transport/ecn_marking.h"
@@ -55,6 +57,7 @@
 #include "pc/sctp_transport.h"
 #include "pc/session_description.h"
 #include "pc/transport_stats.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_certificate.h"
@@ -258,6 +261,9 @@ class JsepTransportController final {
   // Must be called on the signaling thread.
   RTCError RollbackTransports();
 
+  // Must be called on the signaling thread.
+  absl::AnyInvocable<void() &&> MakeCloseTask();
+
  private:
   // Always called via a blocking call from the signaling thread.
   RTCError SetLocalDescription_n(SdpType type,
@@ -300,6 +306,7 @@ class JsepTransportController final {
                               const SessionDescription* local_desc,
                               const SessionDescription* remote_desc)
       RTC_RUN_ON(network_thread_);
+  flat_map<std::string, SSLRole> GetDtlsRoles_n() RTC_RUN_ON(network_thread_);
   RTCError ValidateAndMaybeUpdateBundleGroups(
       bool local,
       SdpType type,
@@ -407,6 +414,8 @@ class JsepTransportController final {
       RTC_RUN_ON(network_thread_);
   void OnTransportRoleConflict_n(IceTransportInternal* transport)
       RTC_RUN_ON(network_thread_);
+  void OnDtlsRoleChange_n(DtlsTransportInternal* transport, SSLRole role)
+      RTC_RUN_ON(network_thread_);
   void OnTransportStateChanged_n(IceTransportInternal* transport)
       RTC_RUN_ON(network_thread_);
   void OnTransportCandidatePairChanged_n(const CandidatePairChangeEvent& event)
@@ -450,6 +459,14 @@ class JsepTransportController final {
   scoped_refptr<RTCCertificate> certificate_;
 
   BundleManager bundles_;
+
+  flat_map<std::string, SSLRole> mid_to_dtls_role_
+      RTC_GUARDED_BY(signaling_thread_);
+
+  scoped_refptr<PendingTaskSafetyFlag> role_update_safety_flag_s_
+      RTC_GUARDED_BY(signaling_thread_);
+  scoped_refptr<PendingTaskSafetyFlag> role_update_safety_flag_n_
+      RTC_GUARDED_BY(network_thread_);
 };
 
 }  // namespace webrtc
