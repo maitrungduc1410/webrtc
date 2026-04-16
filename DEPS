@@ -10,7 +10,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '0018274875c8ef9f63121ae89f3f3ac82b47cf19',
+  'chromium_revision': 'b81312c5580ba60af5c15ce7580fe3e249f27da5',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -69,7 +69,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@b343247d8a2742e878026a13be01c63141d56b17',
+    'https://chromium.googlesource.com/chromium/src/build@30f826b301424a82294fdde5cf075c5fab0e4e7b',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@7c8d573b2fcd027a044da24af74ee1a2b446b973',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -78,13 +78,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@fda76a858d37d3587f273432a1d182e3b129bf69',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@f6c4c6de3f286a144b13430ab5a7b5d1429bc9db',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@0546da9969ade46b4ee64bbcd0082e4ea98190c8',
+    'https://chromium.googlesource.com/chromium/src/testing@bdcddcc1242b7ae747ead8360fafaf568b83d6a2',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@93320e6a3f883feca2ee02ef5d692e3e2aa63543',
+    'https://chromium.googlesource.com/chromium/src/third_party@762a791064f9e3d01eac80dd82ba14ebc82b2eca',
 
   'src/buildtools/linux64': {
     'packages': [
@@ -337,7 +337,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8f11bb1d4438d0239d0dfc1bd9456a9f31629dda',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@b91786fe7721ead25f0eb7897c9b30790675ebbc',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@cfa69897b08a4e491072da2964011dd67848aab6',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@6ca46ff28e3578c57cbead6f233969eb3dabc176',
 
@@ -505,13 +505,13 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@d3d60ac6e0f16780bcfcc825385e1d338801a558',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@0ea4801192281fff1675855b6c03fd71811133e2',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@13c80751ffc4178d02eb6d951b9a551614158ab1',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@b5e18fb9da84e26ceef30d4e4886696bf59337c0',
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@b741b09494bf65c4ad9489a33534567cf4bdab4a',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@94752b19eb1cd64544bd8b9323ba90cf588c660d',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -668,7 +668,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@a14df107f8e914aa0e4bf287b23edd473b736bd5',
+    'https://chromium.googlesource.com/chromium/src/tools@ba8101f02d5857c0bcab415981f767239ae5a07a',
 
   'src/third_party/espresso': {
       'packages': [
@@ -718,7 +718,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/manifest_merger',
-               'version': 'o1Bt-Bx435D2r3hIbZWAp6bAdPRb9X5Dl4O3uEjY7tsC',
+               'version': '0rmwfYwKE6YVzeH3Jo4JwqDYNjs_qr6dO5YTaQ0FAssC',
           },
       ],
       'condition': 'checkout_android',
