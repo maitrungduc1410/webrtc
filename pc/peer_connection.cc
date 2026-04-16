@@ -1682,6 +1682,11 @@ RTCError PeerConnection::SetConfiguration(
   // Apply part of the configuration on the network thread.  In theory this
   // shouldn't fail.
   std::vector<IceParameters> pooled_credentials;
+  // TODO: webrtc:42222117 - For carrying `new_states` from the transport
+  // controller on the network thread to the transport controller on the
+  // signaling thread, we should instead use a
+  // ScopedOperationsBatcher::BatchTaskWithFinalizer.
+  flat_map<std::string, JsepTransportController::TransportState> new_states;
   if (!network_thread()->BlockingCall([&] {
         RTC_DCHECK_RUN_ON(network_thread());
         // As described in JSEP, calling setConfiguration with new ICE
@@ -1700,12 +1705,14 @@ RTCError PeerConnection::SetConfiguration(
             modified_config.stun_candidate_keepalive_interval,
             has_local_description);
         pooled_credentials = port_allocator_->GetPooledIceCredentials();
+        new_states = transport_controller_n()->GetTransportStates_n();
         return result;
       })) {
     return LOG_ERROR(RTCError(RTCErrorType::INTERNAL_ERROR)
                      << "Failed to apply configuration to PortAllocator.");
   }
 
+  transport_controller_s()->SetTransportStates(std::move(new_states));
   sdp_handler_->UpdateCachedIceCredentials(std::move(pooled_credentials));
   configuration_ = modified_config;
   return RTCError::OK();

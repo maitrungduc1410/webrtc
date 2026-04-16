@@ -153,6 +153,11 @@ class JsepTransportController final {
             [](const webrtc::CandidatePairChangeEvent&) {};
   };
 
+  struct TransportState {
+    std::optional<SSLRole> dtls_role;
+    bool needs_ice_restart = false;
+  };
+
   // The ICE related events are fired on the `network_thread`.
   // All the transport related methods are called on the `network_thread`
   // and destruction of the JsepTransportController must occur on the
@@ -256,6 +261,12 @@ class JsepTransportController final {
   // Must be called on the signaling thread.
   std::optional<SSLRole> GetDtlsRole(absl::string_view mid) const;
 
+  // Must be called on the signaling thread.
+  void SetTransportStates(flat_map<std::string, TransportState> states);
+
+  // Must be called on the network thread.
+  flat_map<std::string, TransportState> GetTransportStates_n();
+
   bool GetStats(absl::string_view transport_name, TransportStats* stats) const;
 
   // Must be called on the signaling thread.
@@ -306,7 +317,7 @@ class JsepTransportController final {
                               const SessionDescription* local_desc,
                               const SessionDescription* remote_desc)
       RTC_RUN_ON(network_thread_);
-  flat_map<std::string, SSLRole> GetDtlsRoles_n() RTC_RUN_ON(network_thread_);
+
   RTCError ValidateAndMaybeUpdateBundleGroups(
       bool local,
       SdpType type,
@@ -460,7 +471,7 @@ class JsepTransportController final {
 
   BundleManager bundles_;
 
-  flat_map<std::string, SSLRole> mid_to_dtls_role_
+  flat_map<std::string, TransportState> transport_states_
       RTC_GUARDED_BY(signaling_thread_);
 
   scoped_refptr<PendingTaskSafetyFlag> role_update_safety_flag_s_

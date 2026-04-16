@@ -520,9 +520,11 @@ TEST_F(JsepTransportControllerTest, NeedIceRestart) {
   // Initially NeedsIceRestart should return false.
   EXPECT_FALSE(transport_controller_->NeedsIceRestart(kAudioMid1));
   EXPECT_FALSE(transport_controller_->NeedsIceRestart(kVideoMid1));
-  // Set the needs-ice-restart flag and verify NeedsIceRestart starts returning
-  // true.
+  // Set the needs-ice-restart flag, synchronize the transport states and verify
+  // NeedsIceRestart starts returning true.
   transport_controller_->SetNeedsIceRestartFlag();
+  transport_controller_->SetTransportStates(
+      transport_controller_->GetTransportStates_n());
   EXPECT_TRUE(transport_controller_->NeedsIceRestart(kAudioMid1));
   EXPECT_TRUE(transport_controller_->NeedsIceRestart(kVideoMid1));
   // For a nonexistent transport, false should be returned.

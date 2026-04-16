@@ -606,12 +606,7 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
     const ContentInfo* current_content,
     PayloadTypeSuggester& pt_suggester) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  // TODO: bugs.webrtc.org/360058654 - Currently blocking calls occur in
-  // this context, e.g. 34 blocking calls in the `*.VerifyBestConnection*`
-  // tests in `peerconnection_unittests`.
-  // Once those calls run on the current (signaling) thread, change to
-  // `RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS()`.
-  RTC_LOG_THREAD_BLOCK_COUNT();
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   CodecList codecs;
   std::string mid = media_description_options.mid;
   // If current content exists and is not being recycled, use its codecs.

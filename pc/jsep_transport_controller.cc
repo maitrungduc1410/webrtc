@@ -142,14 +142,14 @@ RTCError JsepTransportController::SetLocalDescription(
   RTC_DCHECK(local_desc);
   TRACE_EVENT0("webrtc", "JsepTransportController::SetLocalDescription");
 
-  flat_map<std::string, SSLRole> new_roles;
+  flat_map<std::string, TransportState> new_states;
   RTCError error = network_thread_->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread_);
     RTCError err = SetLocalDescription_n(type, local_desc, remote_desc);
-    new_roles = GetDtlsRoles_n();
+    new_states = GetTransportStates_n();
     return err;
   });
-  mid_to_dtls_role_ = std::move(new_roles);
+  transport_states_ = std::move(new_states);
   return error;
 }
 
@@ -182,14 +182,14 @@ RTCError JsepTransportController::SetRemoteDescription(
   RTC_DCHECK(remote_desc);
   TRACE_EVENT0("webrtc", "JsepTransportController::SetRemoteDescription");
 
-  flat_map<std::string, SSLRole> new_roles;
+  flat_map<std::string, TransportState> new_states;
   RTCError error = network_thread_->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread_);
     RTCError err = SetRemoteDescription_n(type, local_desc, remote_desc);
-    new_roles = GetDtlsRoles_n();
+    new_states = GetTransportStates_n();
     return err;
   });
-  mid_to_dtls_role_ = std::move(new_roles);
+  transport_states_ = std::move(new_states);
   return error;
 }
 
@@ -276,10 +276,11 @@ void JsepTransportController::SetNeedsIceRestartFlag() {
 bool JsepTransportController::NeedsIceRestart(
     absl::string_view transport_name) const {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  return network_thread_->BlockingCall([&] {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    return NeedsIceRestart_n(transport_name);
-  });
+  auto it = transport_states_.find(std::string(transport_name));
+  if (it != transport_states_.end()) {
+    return it->second.needs_ice_restart;
+  }
+  return false;
 }
 
 bool JsepTransportController::NeedsIceRestart_n(
@@ -293,9 +294,9 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
     absl::string_view mid) const {
   if (signaling_thread_->IsCurrent()) {
     RTC_DCHECK_RUN_ON(signaling_thread_);
-    auto it = mid_to_dtls_role_.find(std::string(mid));
-    if (it != mid_to_dtls_role_.end()) {
-      return it->second;
+    auto it = transport_states_.find(std::string(mid));
+    if (it != transport_states_.end()) {
+      return it->second.dtls_role;
     }
     return std::nullopt;
   }
@@ -307,6 +308,12 @@ std::optional<SSLRole> JsepTransportController::GetDtlsRole(
     return std::optional<SSLRole>();
   }
   return t->GetDtlsRole();
+}
+
+void JsepTransportController::SetTransportStates(
+    flat_map<std::string, TransportState> states) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  transport_states_ = std::move(states);
 }
 
 bool JsepTransportController::SetLocalCertificate(
@@ -447,15 +454,15 @@ RTCError JsepTransportController::RollbackTransports() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   scoped_refptr<PendingTaskSafetyFlag> new_flag =
       PendingTaskSafetyFlag::CreateAttachedToTaskQueue(true, signaling_thread_);
-  flat_map<std::string, SSLRole> new_roles;
+  flat_map<std::string, TransportState> new_states;
   RTCError error = network_thread_->BlockingCall([&] {
     RTC_DCHECK_RUN_ON(network_thread_);
     RTCError err = RollbackTransports_n();
-    new_roles = GetDtlsRoles_n();
+    new_states = GetTransportStates_n();
     role_update_safety_flag_n_ = new_flag;
     return err;
   });
-  mid_to_dtls_role_ = std::move(new_roles);
+  transport_states_ = std::move(new_states);
   role_update_safety_flag_s_->SetNotAlive();
   role_update_safety_flag_s_ = std::move(new_flag);
   return error;
@@ -804,13 +811,17 @@ RTCError JsepTransportController::ApplyDescription_n(
   return RTCError::OK();
 }
 
-flat_map<std::string, SSLRole> JsepTransportController::GetDtlsRoles_n() {
+flat_map<std::string, JsepTransportController::TransportState>
+JsepTransportController::GetTransportStates_n() {
   RTC_DCHECK_RUN_ON(network_thread_);
-  flat_map<std::string, SSLRole> roles;
+  flat_map<std::string, TransportState> states;
   transports_.ForEachTransport([&](JsepTransport& t) {
     std::optional<SSLRole> role = t.GetDtlsRole();
-    if (!role)
-      return;
+    bool needs_ice_restart = t.needs_ice_restart();
+
+    TransportState state;
+    state.dtls_role = role;
+    state.needs_ice_restart = needs_ice_restart;
 
     bool bundled = false;
     for (const std::unique_ptr<ContentGroup>& bundle_group :
@@ -819,16 +830,16 @@ flat_map<std::string, SSLRole> JsepTransportController::GetDtlsRoles_n() {
       if (first_mid && *first_mid == t.name()) {
         bundled = true;
         for (const std::string& mid : bundle_group->content_names()) {
-          roles[mid] = *role;
+          states[mid] = state;
         }
         break;
       }
     }
     if (!bundled) {
-      roles[std::string(t.name())] = *role;
+      states[std::string(t.name())] = state;
     }
   });
-  return roles;
+  return states;
 }
 
 RTCError JsepTransportController::ValidateAndMaybeUpdateBundleGroups(
@@ -1546,12 +1557,12 @@ void JsepTransportController::OnDtlsRoleChange_n(
     DtlsTransportInternal* transport,
     SSLRole role) {
   RTC_DCHECK_RUN_ON(network_thread_);
-  flat_map<std::string, SSLRole> new_roles = GetDtlsRoles_n();
+  flat_map<std::string, TransportState> new_states = GetTransportStates_n();
   signaling_thread_->PostTask(
       SafeTask(role_update_safety_flag_n_,
-               [this, new_roles = std::move(new_roles)]() mutable {
+               [this, new_states = std::move(new_states)]() mutable {
                  RTC_DCHECK_RUN_ON(signaling_thread_);
-                 mid_to_dtls_role_ = std::move(new_roles);
+                 transport_states_ = std::move(new_states);
                }));
 }
 
