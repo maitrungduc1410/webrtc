@@ -7,7 +7,8 @@ prompts.
 
 ### Discover Associated Issue
 
-To discover what (if any) issue is associated with the current branch:
+To discover what (if any) issue (often referred to as a CL or Gerrit Change) is
+associated with the current branch:
 
 1. Run `git cl issue`:
    ```bash
@@ -20,6 +21,9 @@ To discover what (if any) issue is associated with the current branch:
 
 When uploading a branch that is part of a chain of local branches,
 `git cl upload` may prompt to update all branches in the chain.
+
+**Note**: A branch based directly on `origin/main` is not considered part of a
+chain.
 
 **Action**: Ask the user if they want to upload the entire chain or only the
 current branch. Uploading the entire chain should be the default option
@@ -57,8 +61,10 @@ To avoid the editor opening for the CL description:
 
 ### Upload Incremental Updates
 
-When an issue is already associated with the branch, and you want to upload an
-incremental update:
+When an issue is already associated with the branch (verify with
+`git cl issue`), and you want to upload an incremental update, **strongly
+prefer** using the `-m` flag. This is the most reliable way to avoid interactive
+prompts for descriptions.
 
 1. Use the `-m` flag to specify a one-line description of the update:
    ```bash
@@ -75,12 +81,20 @@ Presubmit warnings will prompt for `y/N`. In an automated environment:
    background.
 2. Or fix the warnings before uploading (e.g., add issue numbers to TODOs).
 
-## Recommended Command
+## Recommended Commands
 
-For a fully non-interactive upload with CQ dry run:
+### For Incremental Updates (Issue Already Associated)
+
+```bash
+git cl upload -d -m "One-line description of the update"
+```
+
+### For Initial Upload or Chained Branches
 
 ```bash
 git cl upload --cherry-pick-stacked -d --commit-description=+
 ```
+
+*Note*: Drop `--cherry-pick-stacked` if the branch is not part of a chain.
 
 If presubmit warnings occur, be prepared to send `y` to stdin.
