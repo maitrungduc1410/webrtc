@@ -4187,7 +4187,8 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
           // transceiver stopping. But if the rejection was caused by SDP
           // munging then we need to ensure the transceiver is stopping here.
           if (!transceiver->internal()->stopping()) {
-            transceiver->internal()->StopStandard();
+            worker_tasks.AddWithFinalizer(
+                transceiver->internal()->StopStandardAsync());
           }
           RTC_DCHECK(transceiver->internal()->stopping());
         } else {

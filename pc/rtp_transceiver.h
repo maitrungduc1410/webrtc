@@ -55,6 +55,7 @@
 #include "pc/rtp_sender.h"
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transport_internal.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/session_description.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/system/plan_b_only.h"
@@ -330,6 +331,11 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // This is used by SdpOfferAnswerHandler to batch worker thread operations.
   [[nodiscard]] absl_nullable absl::AnyInvocable<void() &&>
   GetStopTransceiverProcedure();
+
+  // Returns a task that stops the transceiver.
+  // The task must be executed on the worker thread.
+  // This is used by SdpOfferAnswerHandler to batch worker thread operations.
+  ScopedOperationsBatcher::BatchTaskWithFinalizer StopStandardAsync();
 
   // RtpTransceiverInterface implementation.
   MediaType media_type() const override;

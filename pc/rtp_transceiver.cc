@@ -1089,6 +1089,28 @@ RTCError RtpTransceiver::StopStandard() {
   return RTCError::OK();
 }
 
+ScopedOperationsBatcher::BatchTaskWithFinalizer
+RtpTransceiver::StopStandardAsync() {
+  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK(unified_plan_);
+
+  if (stopping_) {
+    return nullptr;
+  }
+
+  auto stop_task = GetStopSendingAndReceiving();
+
+  return [this, stop_task = std::move(stop_task)]() mutable
+             -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
+    RTC_DCHECK_RUN_ON(context()->worker_thread());
+    std::move(stop_task)();
+    return ScopedOperationsBatcher::FinalizerTask([this]() {
+      RTC_DCHECK_RUN_ON(thread_);
+      on_negotiation_needed_();
+    });
+  };
+}
+
 void RtpTransceiver::StopInternal() {
   RTC_DCHECK_RUN_ON(thread_);
   auto stop_task = GetStopTransceiverProcedure();
