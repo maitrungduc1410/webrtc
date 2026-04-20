@@ -211,9 +211,8 @@ BaseChannel::~BaseChannel() {
 
   // Eats any outstanding messages or packets.
   alive_->SetNotAlive();
-  // The media channel is destroyed at the end of the destructor, since it
-  // is a std::unique_ptr. The transport channel (rtp_transport) must outlive
-  // the media channel.
+  // The channel must be disconnected from the transport before destruction.
+  RTC_DCHECK(rtp_transport_ == nullptr);
 }
 
 std::string BaseChannel::ToString() const {

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
@@ -3478,7 +3479,16 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   std::vector<scoped_refptr<MediaStreamInterface>> all_added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> all_removed_streams;
   std::vector<scoped_refptr<RtpReceiverInterface>> removed_receivers;
+  // Keep to-be-removed transceivers alive until after tasks for them have been
+  // run.
+  std::vector<RtpTransceiverProxyRefPtr> transceivers_to_remove;
+  absl::Cleanup cleanup_remove = [&] {
+    for (const auto& transceiver : transceivers_to_remove) {
+      transceivers()->Remove(transceiver);
+    }
+  };
   ScopedOperationsBatcher worker_tasks(context_->worker_thread());
+  ScopedOperationsBatcher network_tasks(context_->network_thread());
 
   for (auto&& transceivers_stable_state_pair : transceivers()->StableStates()) {
     auto transceiver = transceivers_stable_state_pair.first;
@@ -3530,7 +3540,9 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
     // newly created (newly_created) or if remote streams were not set.
 
     RTC_DCHECK(transceiver->internal()->mid().has_value());
-    transceiver->internal()->ClearChannel();
+    network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
+    worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
+        /*stop_senders=*/false));
 
     if (signaling_state() == PeerConnectionInterface::kHaveRemoteOffer &&
         transceiver->receiver()) {
@@ -3542,7 +3554,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       } else {
         worker_tasks.Add(
             transceiver->internal()->GetStopTransceiverProcedure());
-        transceivers()->Remove(transceiver);
+        transceivers_to_remove.push_back(transceiver);
       }
     }
     auto sender_internal = transceiver->internal()->sender_internal();
@@ -3556,7 +3568,12 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       transceiver->internal()->set_mline_index(stable_state.mline_index());
     }
   }
-  RTCError e = transport_controller_s()->RollbackTransports();
+
+  RTCError e = network_tasks.Run();
+  RTC_DCHECK(e.ok());  // only void tasks queued.
+  e = worker_tasks.Run();
+  RTC_DCHECK(e.ok());  // only void tasks queued.
+  e = transport_controller_s()->RollbackTransports();
   if (!e.ok()) {
     return e;
   }
@@ -4114,8 +4131,15 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
+  // Thread safety requires specific execution order for tasks:
+  // - Construction: Worker tasks before Network tasks.
+  //   (Network depends on Worker setup).
+  // - Destruction: Network tasks before Worker tasks.
+  //   (Worker cleanup may depend on Network teardown).
+  // The batchers below are declared and executed to enforce these orders.
+  ScopedOperationsBatcher network_teardown_tasks(context_->network_thread());
   ScopedOperationsBatcher worker_tasks(context_->worker_thread());
-  ScopedOperationsBatcher network_tasks(context_->network_thread());
+  ScopedOperationsBatcher network_init_tasks(context_->network_thread());
   const ContentInfos& new_contents = new_session.description()->contents();
   for (size_t i = 0; i < new_contents.size(); ++i) {
     const ContentInfo& new_content = new_contents[i];
@@ -4151,7 +4175,8 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
       }
       auto transceiver = transceiver_or_error.MoveValue();
       UpdateTransceiverChannel(transceiver, new_content, bundle_group,
-                               worker_tasks, network_tasks);
+                               network_teardown_tasks, worker_tasks,
+                               network_init_tasks);
       // Handle locally rejected content. This code path is only needed for apps
       // that SDP munge. Remote rejected content is handled in
       // ApplyRemoteDescriptionUpdateTransceiverState().
@@ -4204,11 +4229,11 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
-  RTCError error = worker_tasks.Run();
-  if (!error.ok()) {
-    return error;
-  }
-  return network_tasks.Run();
+  RTCError error = network_teardown_tasks.Run();
+  RTC_DCHECK(error.ok());  // Teardown tasks cannot fail.
+  error = worker_tasks.Run();
+  RTC_DCHECK(error.ok());  // Cleanup and construction tasks cannot fail.
+  return network_init_tasks.Run();
 }
 
 RTCErrorOr<scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>>
@@ -4350,14 +4375,18 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
     const ContentInfo& content,
     const ContentGroup* bundle_group,
+    ScopedOperationsBatcher& network_teardown_tasks,
     ScopedOperationsBatcher& worker_tasks,
-    ScopedOperationsBatcher& network_tasks) {
+    ScopedOperationsBatcher& network_init_tasks) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateTransceiverChannel");
   RTC_DCHECK(IsUnifiedPlan());
   RTC_DCHECK(transceiver);
   if (content.rejected) {
     if (transceiver->internal()->HasChannel()) {
-      transceiver->internal()->ClearChannel();
+      network_teardown_tasks.Add(
+          transceiver->internal()->GetClearChannelNetworkTask());
+      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
+          /*stop_senders=*/false));
     }
   } else {
     if (!transceiver->internal()->HasChannel()) {
@@ -4369,7 +4398,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
             RTC_DCHECK_RUN_ON(network_thread());
             return transport_controller_n()->GetRtpTransport(mid);
           },
-          worker_tasks, network_tasks);
+          worker_tasks, network_init_tasks);
     }
   }
 }
@@ -5474,6 +5503,8 @@ void SdpOfferAnswerHandler::RemoveStoppedTransceivers() {
 void SdpOfferAnswerHandler::RemoveUnusedChannels(
     const SessionDescription* desc) {
   RTC_DCHECK_RUN_ON(signaling_thread());
+  RTC_DCHECK(!IsUnifiedPlan());
+
   if (ConfiguredForMedia()) {
     // Destroy video channel first since it may have a pointer to the
     // voice channel.
