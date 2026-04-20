@@ -14,6 +14,10 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 
+// X11 creates a CurrentTime macro, which causes compilation errors when
+// including webrtc::Clock.
+#undef CurrentTime
+
 #include <memory>
 #include <string>
 
