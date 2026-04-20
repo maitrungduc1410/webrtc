@@ -379,6 +379,7 @@ RtpTransceiver::RtpTransceiver(
     std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
     bool simulcast_rejected,
     const std::vector<SimulcastLayer>& initial_simulcast_layers,
+    ScopedOperationsBatcher& worker_tasks,
     absl::AnyInvocable<void()> on_negotiation_needed)
     : env_(env),
       thread_(context->signaling_thread()),
@@ -402,37 +403,50 @@ RtpTransceiver::RtpTransceiver(
   RTC_DCHECK(context_->is_configured_for_media());
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
              media_type_ == MediaType::VIDEO);
-  RTC_LOG_THREAD_BLOCK_COUNT();
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (media_type_ == MediaType::VIDEO) {
     ConfigureExtraVideoHeaderExtensions(init_send_encodings,
                                         header_extensions_to_negotiate_);
   }
 
-  // This should be possible without a blocking call to the worker, perhaps done
-  // asynchronously. At the moment this is complicated by the fact that
-  // construction of the channels actually changes the settings of the engine.
-  context_->worker_thread()->BlockingCall([&]() {
-    RTC_DCHECK_RUN_ON(this->context()->worker_thread());
-    auto channels = CreateMediaContentChannels(
-        media_type_, env_, media_engine(), call, media_config, audio_options,
-        video_options, crypto_options, video_bitrate_allocator_factory,
-        GetEncoderSwitchRequestCallback());
-    owned_send_channel_ = std::move(channels.first);
-    owned_receive_channel_ = std::move(channels.second);
-    senders_.push_back(CreateSender(
-        media_type_, env_, context_, legacy_stats_, set_streams_observer_,
-        sender_id, owned_send_channel_.get(), init_send_encodings,
-        simulcast_rejected, initial_simulcast_layers));
-  });
+  auto encoder_switch_callback = GetEncoderSwitchRequestCallback();
 
-  ConfigureSender(senders_.back(), track.get(), stream_ids, init_send_encodings,
-                  codec_vendor());
+  worker_tasks.AddWithFinalizer(
+      [this, call, media_config, audio_options, video_options, crypto_options,
+       video_bitrate_allocator_factory,
+       encoder_switch_callback = std::move(encoder_switch_callback),
+       sender_id = std::string(sender_id), init_send_encodings,
+       simulcast_rejected, initial_simulcast_layers, track, stream_ids,
+       receiver_id = std::string(
+           receiver_id)]() mutable -> ScopedOperationsBatcher::FinalizerTask {
+        RTC_DCHECK_RUN_ON(this->context()->worker_thread());
+        auto channels = CreateMediaContentChannels(
+            media_type_, env_, media_engine(), call, media_config,
+            audio_options, video_options, crypto_options,
+            video_bitrate_allocator_factory,
+            std::move(encoder_switch_callback));
+        auto sender = CreateSender(
+            media_type_, env_, context_, legacy_stats_, set_streams_observer_,
+            sender_id, channels.first.get(), init_send_encodings,
+            simulcast_rejected, initial_simulcast_layers);
+        return ScopedOperationsBatcher::FinalizerTask(
+            [this, channels = std::move(channels), sender = std::move(sender),
+             track, stream_ids, init_send_encodings, receiver_id]() mutable {
+              RTC_DCHECK_RUN_ON(thread_);
+              owned_send_channel_ = std::move(channels.first);
+              owned_receive_channel_ = std::move(channels.second);
+              senders_.push_back(std::move(sender));
 
-  receivers_.push_back(CreateReceiver(
-      media_type_, context_->signaling_thread(), context_->worker_thread(),
-      receiver_id.empty() ? CreateRandomUuid() : receiver_id,
-      owned_receive_channel_.get()));
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
+              ConfigureSender(senders_.back(), track.get(), stream_ids,
+                              init_send_encodings, codec_vendor());
+
+              receivers_.push_back(CreateReceiver(
+                  media_type_, context_->signaling_thread(),
+                  context_->worker_thread(),
+                  receiver_id.empty() ? CreateRandomUuid() : receiver_id,
+                  owned_receive_channel_.get()));
+            });
+      });
 }
 
 RtpTransceiver::~RtpTransceiver() {

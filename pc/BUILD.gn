@@ -1767,6 +1767,7 @@ rtc_library("rtp_transmission_manager") {
     ":rtp_sender",
     ":rtp_sender_proxy",
     ":rtp_transceiver",
+    ":scoped_operations_batcher",
     ":simulcast_description",
     ":transceiver_list",
     ":usage_pattern",

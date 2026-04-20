@@ -115,6 +115,40 @@
 namespace webrtc {
 namespace {
 
+void MaybeHandleLocallyRejectedTransceiver(
+    ContentSource source,
+    const SessionDescriptionInterface& new_session,
+    const ContentInfo& new_content,
+    scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
+    ScopedOperationsBatcher& worker_tasks) {
+  if (source != ContentSource::CS_LOCAL || !new_content.rejected) {
+    return;
+  }
+  if (new_session.GetType() == SdpType::kOffer) {
+    // If the RtpTransceiver API was used, it would already have made the
+    // transceiver stopping. But if the rejection was caused by SDP
+    // munging then we need to ensure the transceiver is stopping here.
+    if (!transceiver->internal()->stopping()) {
+      worker_tasks.AddWithFinalizer(
+          transceiver->internal()->StopStandardAsync());
+    }
+    RTC_DCHECK(transceiver->internal()->stopping());
+  } else {
+    RTC_DCHECK(new_session.GetType() == SdpType::kAnswer ||
+               new_session.GetType() == SdpType::kPrAnswer);
+    // When RtpTransceiver API is used, rejection happens in the offer and
+    // the transceiver will already be stopped at local answer time
+    // (calling stop between SRD(offer) and SLD(answer) would not reject
+    // the content in the answer - instead this would trigger a follow-up
+    // O/A exchange). So if the content was rejected but the transceiver
+    // is not already stopped, SDP munging has happened and we need to
+    // ensure the transceiver is stopped.
+    if (!transceiver->internal()->stopped()) {
+      worker_tasks.Add(transceiver->internal()->GetStopTransceiverProcedure());
+    }
+    RTC_DCHECK(transceiver->internal()->stopped());
+  }
+}
 
 struct DtlsTransportAndName {
   scoped_refptr<DtlsTransport> transport;
@@ -4190,13 +4224,16 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
   ScopedOperationsBatcher worker_tasks(context_->worker_thread());
   ScopedOperationsBatcher network_init_tasks(context_->network_thread());
   const ContentInfos& new_contents = new_session.description()->contents();
+  struct TransceiverUpdate {
+    scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver;
+    const ContentInfo& content;
+  };
+  std::vector<TransceiverUpdate> transceivers_to_update;
+
   for (size_t i = 0; i < new_contents.size(); ++i) {
     const ContentInfo& new_content = new_contents[i];
     MediaType media_type = new_content.media_description()->type();
     mid_generator_.AddKnownId(new_content.mid());
-    auto it = bundle_groups_by_mid.find(new_content.mid());
-    const ContentGroup* bundle_group =
-        it != bundle_groups_by_mid.end() ? it->second : nullptr;
     if (media_type == MediaType::AUDIO || media_type == MediaType::VIDEO) {
       const ContentInfo* old_local_content = nullptr;
       if (old_local_description &&
@@ -4210,9 +4247,9 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
         old_remote_content =
             &old_remote_description->description()->contents()[i];
       }
-      auto transceiver_or_error =
-          AssociateTransceiver(source, new_session.GetType(), i, new_content,
-                               old_local_content, old_remote_content);
+      auto transceiver_or_error = AssociateTransceiver(
+          source, new_session.GetType(), i, new_content, old_local_content,
+          old_remote_content, worker_tasks);
       if (!transceiver_or_error.ok()) {
         // In the case where a transceiver is rejected locally prior to being
         // associated, we don't expect to find a transceiver, but might find it
@@ -4222,50 +4259,19 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
         }
         return transceiver_or_error.MoveError();
       }
-      auto transceiver = transceiver_or_error.MoveValue();
-      UpdateTransceiverChannel(transceiver, new_content, bundle_group,
-                               network_teardown_tasks, worker_tasks,
-                               network_init_tasks);
-      // Handle locally rejected content. This code path is only needed for apps
-      // that SDP munge. Remote rejected content is handled in
-      // ApplyRemoteDescriptionUpdateTransceiverState().
-      if (source == ContentSource::CS_LOCAL && new_content.rejected) {
-        // Local offer.
-        if (new_session.GetType() == SdpType::kOffer) {
-          // If the RtpTransceiver API was used, it would already have made the
-          // transceiver stopping. But if the rejection was caused by SDP
-          // munging then we need to ensure the transceiver is stopping here.
-          if (!transceiver->internal()->stopping()) {
-            worker_tasks.AddWithFinalizer(
-                transceiver->internal()->StopStandardAsync());
-          }
-          RTC_DCHECK(transceiver->internal()->stopping());
-        } else {
-          // Local answer.
-          RTC_DCHECK(new_session.GetType() == SdpType::kAnswer ||
-                     new_session.GetType() == SdpType::kPrAnswer);
-          // When RtpTransceiver API is used, rejection happens in the offer and
-          // the transceiver will already be stopped at local answer time
-          // (calling stop between SRD(offer) and SLD(answer) would not reject
-          // the content in the answer - instead this would trigger a follow-up
-          // O/A exchange). So if the content was rejected but the transceiver
-          // is not already stopped, SDP munging has happened and we need to
-          // ensure the transceiver is stopped.
-          if (!transceiver->internal()->stopped()) {
-            worker_tasks.Add(
-                transceiver->internal()->GetStopTransceiverProcedure());
-          }
-          RTC_DCHECK(transceiver->internal()->stopped());
-        }
-      }
+      transceivers_to_update.push_back(
+          {transceiver_or_error.MoveValue(), new_content});
     } else if (media_type == MediaType::DATA) {
-      const auto data_mid = pc_->sctp_mid();
+      const std::optional<std::string> data_mid = pc_->sctp_mid();
       if (data_mid && new_content.mid() != data_mid.value()) {
         // Ignore all but the first data section.
         RTC_LOG(LS_INFO) << "Ignoring data media section with MID="
                          << new_content.mid();
         continue;
       }
+      auto it = bundle_groups_by_mid.find(new_content.mid());
+      const ContentGroup* bundle_group =
+          it != bundle_groups_by_mid.end() ? it->second : nullptr;
       RTCError error =
           UpdateDataChannelTransport(source, new_content, bundle_group);
       if (!error.ok()) {
@@ -4279,7 +4285,30 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
-  RTCError error = network_teardown_tasks.Run();
+  // Run transceiver creation tasks to ensure transceivers are fully constructed
+  // before UpdateTransceiverChannel is called.
+  RTCError error = worker_tasks.Run();
+  if (!error.ok()) {
+    return error;
+  }
+
+  for (TransceiverUpdate& update : transceivers_to_update) {
+    auto it = bundle_groups_by_mid.find(update.content.mid());
+    const ContentGroup* bundle_group =
+        it != bundle_groups_by_mid.end() ? it->second : nullptr;
+
+    UpdateTransceiverChannel(update.transceiver, update.content, bundle_group,
+                             network_teardown_tasks, worker_tasks,
+                             network_init_tasks);
+    // Handle locally rejected content. This code path is only needed for apps
+    // that SDP munge. Remote rejected content is handled in
+    // ApplyRemoteDescriptionUpdateTransceiverState().
+    MaybeHandleLocallyRejectedTransceiver(source, new_session, update.content,
+                                          std::move(update.transceiver),
+                                          worker_tasks);
+  }
+
+  error = network_teardown_tasks.Run();
   RTC_DCHECK(error.ok());  // Teardown tasks cannot fail.
   error = worker_tasks.Run();
   RTC_DCHECK(error.ok());  // Cleanup and construction tasks cannot fail.
@@ -4293,7 +4322,8 @@ SdpOfferAnswerHandler::AssociateTransceiver(
     size_t mline_index,
     const ContentInfo& content,
     const ContentInfo* old_local_content,
-    const ContentInfo* old_remote_content) {
+    const ContentInfo* old_remote_content,
+    ScopedOperationsBatcher& worker_tasks) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::AssociateTransceiver");
   RTC_DCHECK(IsUnifiedPlan());
 #if RTC_DCHECK_IS_ON
@@ -4369,7 +4399,7 @@ SdpOfferAnswerHandler::AssociateTransceiver(
           pc_->GetCryptoOptions(), video_bitrate_allocator_factory_.get(),
           media_desc->type(), nullptr, {}, send_encodings,
           /*header_extensions_to_negotiate=*/{}, simulcast_rejected,
-          initial_simulcast_layers, sender_id, receiver_id);
+          initial_simulcast_layers, worker_tasks, sender_id, receiver_id);
       transceiver->internal()->set_direction(
           RtpTransceiverDirection::kRecvOnly);
       transceiver->internal()->ApplySframeEnabled(media_desc->sframe_enabled());
