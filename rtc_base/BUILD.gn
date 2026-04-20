@@ -1794,6 +1794,7 @@ rtc_library("rtc_base_tests_utils") {
     "../api:scoped_refptr",
     "../api:sequence_checker",
     "../api/environment",
+    "../api/task_queue",
     "../api/task_queue:pending_task_safety_flag",
     "../api/transport:ecn_marking",
     "../api/units:time_delta",
