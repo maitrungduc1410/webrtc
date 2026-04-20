@@ -14,7 +14,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -772,12 +771,14 @@ RTCError UpdateSimulcastLayerStatusInSender(
     const std::vector<SimulcastLayer>& layers,
     scoped_refptr<RtpSenderInternal> sender) {
   RTC_DCHECK(sender);
+  RTC_LOG_THREAD_BLOCK_COUNT();
   // In practice simulcast is supported only for video. However, this can
   // currently get called for non-video senders in tests.
   // See the `external/wpt/webrtc/simulcast/negotiation-encodings.https.html`
   // test in chromium.
   RtpParameters parameters = sender->GetParametersInternalWithAllLayers();
   std::vector<std::string> disabled_layers;
+  bool changed = false;
 
   // The simulcast envelope cannot be changed, only the status of the streams.
   // So we will iterate over the send encodings rather than the layers.
@@ -792,12 +793,35 @@ RTCError UpdateSimulcastLayerStatusInSender(
       continue;
     }
 
-    encoding.active = !iter->is_paused;
+    if (encoding.active != !iter->is_paused) {
+      encoding.active = !iter->is_paused;
+      changed = true;
+    }
   }
 
-  RTCError result = sender->SetParametersInternalWithAllLayers(parameters);
-  if (result.ok()) {
-    result = sender->DisableEncodingLayers(disabled_layers);
+  RTCError result = RTCError::OK();
+  if (changed) {
+    result = sender->SetParametersInternalWithAllLayers(parameters);
+    if (!result.ok()) {
+      return result;
+    }
+  }
+
+  if (!disabled_layers.empty()) {
+    bool need_disable = false;
+    for (const auto& rid : disabled_layers) {
+      auto iter = std::find_if(
+          parameters.encodings.begin(), parameters.encodings.end(),
+          [&rid](const RtpEncodingParameters& enc) { return enc.rid == rid; });
+      if (iter != parameters.encodings.end() && iter->active) {
+        need_disable = true;
+        break;
+      }
+    }
+
+    if (need_disable) {
+      result = sender->DisableEncodingLayers(disabled_layers);
+    }
   }
 
   return result;
@@ -818,19 +842,44 @@ bool SimulcastIsRejected(const ContentInfo* local_content,
   return simulcast_offered && (!simulcast_answered || !rids_supported);
 }
 
+bool GetInitialSimulcastLayersAndRejectionStatus(
+    ContentSource source,
+    const MediaContentDescription& media_desc,
+    const ContentInfo* old_local_content,
+    bool enable_encrypted_rtp_header_extensions,
+    std::vector<SimulcastLayer>& initial_simulcast_layers) {
+  if (media_desc.HasSimulcast()) {
+    initial_simulcast_layers =
+        source == CS_LOCAL
+            ? media_desc.simulcast_description().send_layers().GetAllLayers()
+            : media_desc.simulcast_description()
+                  .receive_layers()
+                  .GetAllLayers();
+  }
+
+  return SimulcastIsRejected(old_local_content, media_desc,
+                             enable_encrypted_rtp_header_extensions);
+}
+
 RTCError DisableSimulcastInSender(scoped_refptr<RtpSenderInternal> sender) {
   RTC_DCHECK(sender);
+  RTC_LOG_THREAD_BLOCK_COUNT();
   RtpParameters parameters = sender->GetParametersInternalWithAllLayers();
   if (parameters.encodings.size() <= 1) {
     return RTCError::OK();
   }
 
   std::vector<std::string> disabled_layers;
-  std::transform(
-      parameters.encodings.begin() + 1, parameters.encodings.end(),
-      std::back_inserter(disabled_layers),
-      [](const RtpEncodingParameters& encoding) { return encoding.rid; });
-  return sender->DisableEncodingLayers(disabled_layers);
+  for (size_t i = 1; i < parameters.encodings.size(); ++i) {
+    if (parameters.encodings[i].active) {
+      disabled_layers.push_back(parameters.encodings[i].rid);
+    }
+  }
+
+  if (!disabled_layers.empty()) {
+    return sender->DisableEncodingLayers(disabled_layers);
+  }
+  return RTCError::OK();
 }
 
 // The SDP parser used to populate these values by default for the 'content
@@ -4263,7 +4312,14 @@ SdpOfferAnswerHandler::AssociateTransceiver(
   }
 #endif
 
+  bool newly_created = false;
   const MediaContentDescription* media_desc = content.media_description();
+  std::vector<SimulcastLayer> initial_simulcast_layers;
+  bool simulcast_rejected = GetInitialSimulcastLayersAndRejectionStatus(
+      source, *media_desc, old_local_content,
+      pc_->GetCryptoOptions().srtp.enable_encrypted_rtp_header_extensions,
+      initial_simulcast_layers);
+
   auto transceiver = transceivers()->FindByMid(content.mid());
   if (source == CS_LOCAL) {
     // Find the RtpTransceiver that corresponds to this m= section, using the
@@ -4288,9 +4344,11 @@ SdpOfferAnswerHandler::AssociateTransceiver(
         !media_desc->HasSimulcast()) {
       transceiver = FindAvailableTransceiverToReceive(media_desc->type());
     }
+
     // If no RtpTransceiver was found in the previous step, create one with a
     // recvonly direction.
     if (!transceiver) {
+      newly_created = true;
       RTC_LOG(LS_INFO) << "Adding " << MediaTypeToString(media_desc->type())
                        << " transceiver for MID=" << content.mid()
                        << " at i=" << mline_index
@@ -4304,11 +4362,14 @@ SdpOfferAnswerHandler::AssociateTransceiver(
       } else {
         receiver_id = CreateRandomUuid();
       }
+      // TODO: bugs.webrtc.org/42222804 - Batch up the worker thread blocking
+      // call that's embedded in the construction of the transceiver.
       transceiver = rtp_manager()->CreateAndAddTransceiver(
           pc_->configuration()->media_config, audio_options_, video_options_,
           pc_->GetCryptoOptions(), video_bitrate_allocator_factory_.get(),
           media_desc->type(), nullptr, {}, send_encodings,
-          /*header_extensions_to_negotiate=*/{}, sender_id, receiver_id);
+          /*header_extensions_to_negotiate=*/{}, simulcast_rejected,
+          initial_simulcast_layers, sender_id, receiver_id);
       transceiver->internal()->set_direction(
           RtpTransceiverDirection::kRecvOnly);
       transceiver->internal()->ApplySframeEnabled(media_desc->sframe_enabled());
@@ -4321,9 +4382,9 @@ SdpOfferAnswerHandler::AssociateTransceiver(
 
     // Check if the offer indicated simulcast but the answer rejected it.
     // This can happen when simulcast is not supported on the remote party.
-    if (SimulcastIsRejected(old_local_content, *media_desc,
-                            pc_->GetCryptoOptions()
-                                .srtp.enable_encrypted_rtp_header_extensions)) {
+    if (!newly_created && simulcast_rejected) {
+      // TODO: bugs.webrtc.org/42222804 - Optimize this path to avoid blocking
+      // calls for existing transceivers.
       RTCError error =
           DisableSimulcastInSender(transceiver->internal()->sender_internal());
       if (!error.ok()) {
@@ -4339,15 +4400,11 @@ SdpOfferAnswerHandler::AssociateTransceiver(
         << "Transceiver type does not match media description type.");
   }
 
-  if (media_desc->HasSimulcast()) {
-    std::vector<SimulcastLayer> layers =
-        source == CS_LOCAL
-            ? media_desc->simulcast_description().send_layers().GetAllLayers()
-            : media_desc->simulcast_description()
-                  .receive_layers()
-                  .GetAllLayers();
+  if (!newly_created && media_desc->HasSimulcast()) {
+    // TODO: bugs.webrtc.org/42222804 - Optimize this path to avoid blocking
+    // calls for existing transceivers.
     RTCError error = UpdateSimulcastLayerStatusInSender(
-        layers, transceiver->internal()->sender_internal());
+        initial_simulcast_layers, transceiver->internal()->sender_internal());
     if (!error.ok()) {
       RTC_LOG(LS_ERROR) << "Failed updating status for simulcast layers.";
       return std::move(error);

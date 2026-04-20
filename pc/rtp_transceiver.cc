@@ -64,6 +64,7 @@
 #include "pc/rtp_transport_internal.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/session_description.h"
+#include "pc/simulcast_description.h"
 #include "pc/video_rtp_receiver.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/crypto_random.h"
@@ -159,7 +160,10 @@ scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
     LegacyStatsCollectorInterface* legacy_stats,
     RtpSenderBase::SetStreamsObserver* set_streams_observer,
     absl::string_view sender_id,
-    MediaSendChannelInterface* media_send_channel) {
+    MediaSendChannelInterface* media_send_channel,
+    const std::vector<RtpEncodingParameters>& init_send_encodings,
+    bool simulcast_rejected,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers) {
   if (media_type == MediaType::AUDIO) {
     return RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         context->signaling_thread(),
@@ -174,7 +178,8 @@ scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
       VideoRtpSender::Create(
           env, context->signaling_thread(), context->worker_thread(), sender_id,
           set_streams_observer,
-          static_cast<VideoMediaSendChannelInterface*>(media_send_channel)));
+          static_cast<VideoMediaSendChannelInterface*>(media_send_channel),
+          init_send_encodings, simulcast_rejected, initial_simulcast_layers));
 }
 
 void ConfigureSender(
@@ -372,6 +377,8 @@ RtpTransceiver::RtpTransceiver(
     const CryptoOptions& crypto_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
     std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
+    bool simulcast_rejected,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers,
     absl::AnyInvocable<void()> on_negotiation_needed)
     : env_(env),
       thread_(context->signaling_thread()),
@@ -412,9 +419,10 @@ RtpTransceiver::RtpTransceiver(
         GetEncoderSwitchRequestCallback());
     owned_send_channel_ = std::move(channels.first);
     owned_receive_channel_ = std::move(channels.second);
-    senders_.push_back(CreateSender(media_type_, env_, context_, legacy_stats_,
-                                    set_streams_observer_, sender_id,
-                                    owned_send_channel_.get()));
+    senders_.push_back(CreateSender(
+        media_type_, env_, context_, legacy_stats_, set_streams_observer_,
+        sender_id, owned_send_channel_.get(), init_send_encodings,
+        simulcast_rejected, initial_simulcast_layers));
   });
 
   ConfigureSender(senders_.back(), track.get(), stream_ids, init_send_encodings,
@@ -773,7 +781,8 @@ RtpTransceiver::AddSenderPlanB(
     RTC_DCHECK_RUN_ON(context()->worker_thread());
     senders_.push_back(CreateSender(
         media_type_, env_, context_, legacy_stats_, set_streams_observer_,
-        sender_id, channel_ ? channel_->media_send_channel() : nullptr));
+        sender_id, channel_ ? channel_->media_send_channel() : nullptr,
+        send_encodings, false, {}));
   });
   ConfigureSender(senders_.back(), track.get(), stream_ids, send_encodings,
                   codec_vendor());

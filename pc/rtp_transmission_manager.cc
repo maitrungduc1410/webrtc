@@ -47,6 +47,7 @@
 #include "pc/rtp_sender.h"
 #include "pc/rtp_sender_proxy.h"
 #include "pc/rtp_transceiver.h"
+#include "pc/simulcast_description.h"
 #include "pc/usage_pattern.h"
 #include "pc/video_rtp_receiver.h"
 #include "rtc_base/checks.h"
@@ -254,7 +255,9 @@ RtpTransmissionManager::AddTrackUnifiedPlan(
         init_send_encodings
             ? *init_send_encodings
             : std::vector<RtpEncodingParameters>(1, RtpEncodingParameters{}),
-        /*header_extensions_to_negotiate=*/{}, sender_id, /*receiver_id=*/"");
+        /*header_extensions_to_negotiate=*/{},
+        /*simulcast_rejected=*/false, /*initial_simulcast_layers=*/{},
+        sender_id, /*receiver_id=*/"");
     transceiver->internal()->set_created_by_addtrack(true);
     transceiver->internal()->set_direction(RtpTransceiverDirection::kSendRecv);
   }
@@ -274,6 +277,8 @@ RtpTransmissionManager::CreateAndAddTransceiver(
     const std::vector<RtpEncodingParameters>& init_send_encodings,
     const std::vector<RtpHeaderExtensionCapability>&
         header_extensions_to_negotiate,
+    bool simulcast_rejected,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers,
     absl::string_view sender_id,
     absl::string_view receiver_id) {
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -309,7 +314,8 @@ RtpTransmissionManager::CreateAndAddTransceiver(
           stream_ids, std::move(init_send_encodings), context_,
           codec_lookup_helper_, legacy_stats_, observer, audio_options,
           video_options, crypto_options, video_bitrate_allocator_factory,
-          std::move(header_extensions),
+          std::move(header_extensions), simulcast_rejected,
+          initial_simulcast_layers,
           [this_weak_ptr = weak_ptr_factory_.GetWeakPtr()]() {
             if (this_weak_ptr) {
               this_weak_ptr->OnNegotiationNeeded();

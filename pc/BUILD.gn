@@ -1711,6 +1711,7 @@ rtc_library("rtp_transceiver") {
     ":rtp_transport_internal",
     ":scoped_operations_batcher",
     ":session_description",
+    ":simulcast_description",
     ":video_rtp_receiver",
     "../api:audio_options_api",
     "../api:jsep",
@@ -1766,6 +1767,7 @@ rtc_library("rtp_transmission_manager") {
     ":rtp_sender",
     ":rtp_sender_proxy",
     ":rtp_transceiver",
+    ":simulcast_description",
     ":transceiver_list",
     ":usage_pattern",
     ":video_rtp_receiver",
@@ -2023,6 +2025,7 @@ rtc_library("rtp_sender") {
   deps = [
     ":dtmf_sender",
     ":legacy_stats_collector_interface",
+    ":simulcast_description",
     "../api:audio_options_api",
     "../api:dtls_transport_interface",
     "../api:dtmf_sender_interface",

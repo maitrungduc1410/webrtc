@@ -48,6 +48,7 @@
 #include "media/base/media_engine.h"
 #include "pc/dtmf_sender.h"
 #include "pc/legacy_stats_collector_interface.h"
+#include "pc/simulcast_description.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/event.h"
@@ -85,6 +86,37 @@ bool PerSenderRtpEncodingParameterHasValue(
     return true;
   }
   return false;
+}
+
+std::vector<RtpEncodingParameters> CalculateInitialEncodings(
+    const std::vector<RtpEncodingParameters>& default_encodings,
+    const std::vector<RtpEncodingParameters>& init_send_encodings,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers,
+    bool simulcast_rejected) {
+  if (init_send_encodings.empty()) {
+    return default_encodings;
+  }
+  std::vector<RtpEncodingParameters> encodings = init_send_encodings;
+
+  if (!initial_simulcast_layers.empty()) {
+    for (auto it = encodings.begin(); it != encodings.end();) {
+      auto iter = std::find_if(
+          initial_simulcast_layers.begin(), initial_simulcast_layers.end(),
+          [&](const SimulcastLayer& layer) { return layer.rid == it->rid; });
+      if (iter == initial_simulcast_layers.end()) {
+        it = encodings.erase(it);
+      } else {
+        it->active = !iter->is_paused;
+        ++it;
+      }
+    }
+  }
+
+  if (simulcast_rejected && encodings.size() > 1) {
+    encodings.erase(encodings.begin() + 1, encodings.end());
+  }
+
+  return encodings;
 }
 
 void RemoveEncodingLayers(const std::vector<std::string>& rids,
@@ -873,7 +905,14 @@ RTCError RtpSenderBase::DisableEncodingLayers(
                      << "Cannot disable encodings on a stopped sender.");
   }
 
-  if (rids.empty()) {
+  bool all_already_disabled = true;
+  for (const std::string& rid : rids) {
+    if (!absl::c_linear_search(disabled_rids_, rid)) {
+      all_already_disabled = false;
+      break;
+    }
+  }
+  if (all_already_disabled) {
     return RTCError::OK();
   }
 
@@ -1153,25 +1192,37 @@ scoped_refptr<VideoRtpSender> VideoRtpSender::Create(
     Thread* worker_thread,
     absl::string_view id,
     SetStreamsObserver* set_streams_observer,
-    MediaSendChannelInterface* media_channel) {
-  return make_ref_counted<VideoRtpSender>(env, signaling_thread, worker_thread,
-                                          id, set_streams_observer,
-                                          media_channel);
+    MediaSendChannelInterface* media_channel,
+    const std::vector<RtpEncodingParameters>& init_send_encodings,
+    bool simulcast_rejected,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers) {
+  return make_ref_counted<VideoRtpSender>(
+      env, signaling_thread, worker_thread, id, set_streams_observer,
+      media_channel, init_send_encodings, simulcast_rejected,
+      initial_simulcast_layers);
 }
 
-VideoRtpSender::VideoRtpSender(const Environment& env,
-                               Thread* signaling_thread,
-                               Thread* worker_thread,
-                               absl::string_view id,
-                               SetStreamsObserver* set_streams_observer,
-                               MediaSendChannelInterface* media_channel)
+VideoRtpSender::VideoRtpSender(
+    const Environment& env,
+    Thread* signaling_thread,
+    Thread* worker_thread,
+    absl::string_view id,
+    SetStreamsObserver* set_streams_observer,
+    MediaSendChannelInterface* media_channel,
+    const std::vector<RtpEncodingParameters>& init_send_encodings,
+    bool simulcast_rejected,
+    const std::vector<SimulcastLayer>& initial_simulcast_layers)
     : RtpSenderBase(env,
                     signaling_thread,
                     worker_thread,
                     id,
                     MediaType::VIDEO,
                     set_streams_observer,
-                    media_channel) {}
+                    media_channel) {
+  set_init_send_encodings(
+      CalculateInitialEncodings(init_parameters_.encodings, init_send_encodings,
+                                initial_simulcast_layers, simulcast_rejected));
+}
 
 VideoRtpSender::~VideoRtpSender() {
   Stop();

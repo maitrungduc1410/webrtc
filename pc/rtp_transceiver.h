@@ -57,6 +57,7 @@
 #include "pc/rtp_transport_internal.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/session_description.h"
+#include "pc/simulcast_description.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread_annotations.h"
@@ -141,6 +142,8 @@ class RtpTransceiver : public RtpTransceiverInterface {
       const CryptoOptions& crypto_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
+      bool simulcast_rejected,
+      const std::vector<SimulcastLayer>& initial_simulcast_layers,
       absl::AnyInvocable<void()> on_negotiation_needed);
   ~RtpTransceiver() override;
 

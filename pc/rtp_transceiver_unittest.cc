@@ -52,6 +52,7 @@
 #include "pc/rtp_transport_internal.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/session_description.h"
+#include "pc/simulcast_description.h"
 #include "pc/test/enable_fake_media.h"
 #include "pc/test/fake_codec_lookup_helper.h"
 #include "pc/test/mock_channel_interface.h"
@@ -1027,6 +1028,8 @@ TEST_F(RtpTransceiverTestWithFakeCall,
       VideoOptions(), CryptoOptions(),
       /*video_bitrate_allocator_factory=*/nullptr,
       /*header_extensions=*/std::vector<RtpHeaderExtensionCapability>(),
+      /*simulcast_rejected=*/false,
+      /*initial_simulcast_layers=*/std::vector<SimulcastLayer>(),
       /*on_negotiation_needed=*/[] {});
 
   EXPECT_FALSE(transceiver->HasChannel());
