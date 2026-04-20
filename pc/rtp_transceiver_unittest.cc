@@ -61,6 +61,7 @@
 #include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/run_loop.h"
 
 using ::testing::_;
 using ::testing::ElementsAre;
@@ -99,9 +100,10 @@ class RtpTransceiverTest : public testing::Test {
     return &codec_lookup_helper_;
   }
 
- private:
-  AutoThread main_thread_;
+ protected:
+  test::RunLoop main_thread_;
 
+ private:
   static PeerConnectionFactoryDependencies MakeDependencies() {
     PeerConnectionFactoryDependencies d;
     d.network_thread = Thread::Current();
@@ -128,7 +130,6 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   EXPECT_CALL(*channel1, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
   EXPECT_CALL(*channel1, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*channel1, SetRtpTransport(_)).WillRepeatedly(Return(true));
-
 
   transceiver->SetChannelForTest(std::move(channel1),
                                  [&](const std::string& mid) {
@@ -253,9 +254,6 @@ class RtpTransceiverUnifiedPlanTest : public RtpTransceiverTest {
         media_engine()->voice().GetRtpHeaderExtensions(&env().field_trials()),
         /* on_negotiation_needed= */ [] {});
   }
-
- protected:
-  AutoThread main_thread_;
 };
 
 // Basic tests for Stop()
