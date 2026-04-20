@@ -47,7 +47,7 @@ namespace webrtc {
 class ScreenCapturerX11 : public DesktopCapturer,
                           public SharedXDisplay::XEventHandler {
  public:
-  ScreenCapturerX11();
+  explicit ScreenCapturerX11(const DesktopCaptureOptions& options);
   ~ScreenCapturerX11() override;
 
   ScreenCapturerX11(const ScreenCapturerX11&) = delete;
@@ -95,6 +95,7 @@ class ScreenCapturerX11 : public DesktopCapturer,
   void DeinitXlib();
 
   DesktopCaptureOptions options_;
+  Clock& clock_;
 
   Callback* callback_ = nullptr;
 
