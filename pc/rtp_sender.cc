@@ -48,6 +48,7 @@
 #include "media/base/media_engine.h"
 #include "pc/dtmf_sender.h"
 #include "pc/legacy_stats_collector_interface.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/simulcast_description.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/crypto_random.h"
@@ -837,6 +838,99 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
     // parameters right away.
     cached_parameters_ = std::move(current_parameters);
   }
+}
+
+ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
+    uint32_t ssrc) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  if (stopped_ || ssrc == ssrc_) {
+    return nullptr;
+  }
+
+  cached_parameters_.reset();
+
+  // If we are already sending with a particular SSRC, stop sending.
+  if (can_send_track()) {
+    ClearSend();
+    RemoveTrackFromStats();
+  }
+  ssrc_ = ssrc;
+  if (can_send_track()) {
+    SetSend();
+    AddTrackToStats();
+  }
+
+  return [this, ssrc]() mutable
+             -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
+    RTC_DCHECK_RUN_ON(worker_thread_);
+
+    RtpParameters current_parameters;
+    bool params_modified = false;
+
+    if (!init_parameters_.encodings.empty() ||
+        init_parameters_.degradation_preference.has_value()) {
+      if (ssrc != 0) {
+        RTC_DCHECK(media_channel_);
+        // Get the current parameters, which are constructed from the SDP. The
+        // number of layers in the SDP is currently authoritative to support SDP
+        // munging for Plan-B simulcast with "a=ssrc-group:SIM <ssrc-id>..."
+        // lines as described in RFC 5576. All fields should be default
+        // constructed and the SSRC field set, which we need to copy.
+        current_parameters = media_channel_->GetRtpSendParameters(ssrc);
+        // SSRC 0 has special meaning as "no stream". In this case,
+        // current_parameters may have size 0.
+        RTC_CHECK_GE(current_parameters.encodings.size(),
+                     init_parameters_.encodings.size());
+        for (size_t i = 0; i < init_parameters_.encodings.size(); ++i) {
+          init_parameters_.encodings[i].ssrc =
+              current_parameters.encodings[i].ssrc;
+          init_parameters_.encodings[i].rid =
+              current_parameters.encodings[i].rid;
+          current_parameters.encodings[i] = init_parameters_.encodings[i];
+        }
+        current_parameters.degradation_preference =
+            init_parameters_.degradation_preference;
+        params_modified =
+            media_channel_
+                ->SetRtpSendParameters(ssrc, current_parameters, nullptr)
+                .ok();
+        if (params_modified) {
+          // The parameters may change as they're applied.
+          current_parameters = media_channel_->GetRtpSendParameters(ssrc);
+        }
+      }
+      // Clear the `init_parameters_` after they have been applied to the
+      // media channel. This prevents stale values from being used in
+      // subsequent calls to `SetSsrc`, which could happen if `SetSsrc` is
+      // called multiple times on the same sender. See
+      // https://issues.webrtc.org/issues/500993975 for details.
+      init_parameters_.encodings.clear();
+      init_parameters_.degradation_preference = std::nullopt;
+    }
+
+    // While we're on the worker thread, attach the frame decryptor, transformer
+    // and selector to the current media channel.
+    if (frame_encryptor_ != nullptr) {
+      media_channel_->SetFrameEncryptor(ssrc, frame_encryptor_);
+    }
+    if (frame_transformer_ != nullptr) {
+      media_channel_->SetEncoderToPacketizerFrameTransformer(
+          ssrc, frame_transformer_);
+    }
+    if (encoder_selector_ != nullptr) {
+      media_channel_->SetEncoderSelector(ssrc, encoder_selector_);
+    }
+
+    if (params_modified) {
+      return ScopedOperationsBatcher::FinalizerTask(
+          [this, current_parameters = std::move(current_parameters)]() mutable {
+            RTC_DCHECK_RUN_ON(signaling_thread_);
+            cached_parameters_ = std::move(current_parameters);
+          });
+    } else {
+      return ScopedOperationsBatcher::FinalizerTask();
+    }
+  };
 }
 
 void RtpSenderBase::Stop() {

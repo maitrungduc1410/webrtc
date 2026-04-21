@@ -284,6 +284,10 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // Part of ApplyRemoteDescription steps specific to Unified Plan.
   void ApplyRemoteDescriptionUpdateTransceiverState(SdpType sdp_type);
 
+  // Updates sender SSRCs and init send encodings from transceivers.
+  // Part of ApplyLocalDescription steps specific to Unified Plan.
+  void UpdateSenderSsrcsFromLocalDescription() RTC_RUN_ON(signaling_thread());
+
   // Part of ApplyRemoteDescription steps specific to plan b.
   PLAN_B_ONLY void PlanBUpdateSendersAndReceivers(
       const ContentInfo* audio_content,

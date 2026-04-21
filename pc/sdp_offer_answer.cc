@@ -2157,43 +2157,7 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
   }
 
   if (IsUnifiedPlan()) {
-    if (ConfiguredForMedia()) {
-      // We must use List and not ListInternal here because
-      // transceivers()->StableState() is indexed by the non-internal refptr.
-      for (const auto& transceiver_ext : transceivers()->List()) {
-        auto transceiver = transceiver_ext->internal();
-        if (transceiver->stopped()) {
-          continue;
-        }
-        const ContentInfo* content =
-            FindMediaSectionForTransceiver(transceiver, local_description());
-        if (!content) {
-          continue;
-        }
-        if (content->rejected || !transceiver->HasChannel() ||
-            transceiver->channel_local_streams().empty()) {
-          // 0 is a special value meaning "this sender has no associated send
-          // stream". Need to call this so the sender won't attempt to configure
-          // a no longer existing stream and run into DCHECKs in the lower
-          // layers.
-          transceiver->sender_internal()->SetSsrc(0);
-        } else {
-          // Get the StreamParams from the channel which could generate SSRCs.
-          const std::vector<StreamParams>& streams =
-              transceiver->channel_local_streams();
-          transceiver->sender_internal()->set_stream_ids(
-              streams[0].stream_ids());
-          auto encodings =
-              transceiver->sender_internal()->init_send_encodings();
-          transceiver->sender_internal()->SetSsrc(streams[0].first_ssrc());
-          if (!encodings.empty()) {
-            transceivers()
-                ->StableState(transceiver_ext)
-                ->SetInitSendEncodings(encodings);
-          }
-        }
-      }
-    }
+    UpdateSenderSsrcsFromLocalDescription();
   } else {
     // Plan B semantics.
 
@@ -2242,6 +2206,50 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
   }
 
   return RTCError::OK();
+}
+
+void SdpOfferAnswerHandler::UpdateSenderSsrcsFromLocalDescription() {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  RTC_DCHECK(IsUnifiedPlan());
+  if (!ConfiguredForMedia()) {
+    return;
+  }
+  ScopedOperationsBatcher worker_tasks(context_->worker_thread());
+  // We must use List and not ListInternal here because
+  // transceivers()->StableState() is indexed by the non-internal refptr.
+  for (const auto& transceiver_ext : transceivers()->List()) {
+    RtpTransceiver* transceiver = transceiver_ext->internal();
+    if (transceiver->stopped()) {
+      continue;
+    }
+    const ContentInfo* content =
+        FindMediaSectionForTransceiver(transceiver, local_description());
+    if (content == nullptr) {
+      continue;
+    }
+    scoped_refptr<RtpSenderInternal> sender = transceiver->sender_internal();
+    if (content->rejected || !transceiver->HasChannel() ||
+        transceiver->channel_local_streams().empty()) {
+      // 0 is a special value meaning "this sender has no associated send
+      // stream". Need to call this so the sender won't attempt to configure
+      // a no longer existing stream and run into DCHECKs in the lower
+      // layers.
+      worker_tasks.AddWithFinalizer(sender->SetSsrcTask(0));
+    } else {
+      const std::vector<StreamParams>& streams =
+          transceiver->channel_local_streams();
+      sender->set_stream_ids(streams[0].stream_ids());
+      std::vector<RtpEncodingParameters> encodings =
+          sender->init_send_encodings();
+      worker_tasks.AddWithFinalizer(
+          sender->SetSsrcTask(streams[0].first_ssrc()));
+      if (!encodings.empty()) {
+        transceivers()
+            ->StableState(transceiver_ext)
+            ->SetInitSendEncodings(std::move(encodings));
+      }
+    }
+  }
 }
 
 void SdpOfferAnswerHandler::SetRemoteDescription(

@@ -3976,12 +3976,14 @@ TEST_P(RTCStatsCollectorTest,
       /*stats=*/nullptr, /*set_streams_observer=*/nullptr,
       /*media_channel=*/nullptr);
 
-  worker_thread->BlockingCall([&] {
-    fake_media_channel->AddSendStream(StreamParams::CreateLegacy(1234));
-    sender->SetMediaChannel(fake_media_channel.get());
-  });
-
-  sender->SetSsrc(1234);
+  {
+    ScopedOperationsBatcher worker_tasks(pc_->worker_thread());
+    worker_tasks.Add([&]() {
+      fake_media_channel->AddSendStream(StreamParams::CreateLegacy(1234));
+      sender->SetMediaChannel(fake_media_channel.get());
+    });
+    worker_tasks.AddWithFinalizer(sender->SetSsrcTask(1234));
+  }
   sender->SetTrack(track.get());
 
   RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
