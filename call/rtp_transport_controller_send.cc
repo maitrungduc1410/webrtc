@@ -397,12 +397,7 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
 
     env_.event_log().Log(std::make_unique<RtcEventRouteChange>(
         network_route.connected, network_route.packet_overhead));
-    if (rfc_8888_feedback_negotiated_) {
-      sending_packets_as_ect1_ = true;
-      packet_router_.ConfigureForRtcpFeedback(
-          /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-          sending_packets_as_ect1_);
-    }
+
     NetworkRouteChange msg;
     msg.at_time = env_.clock().CurrentTime();
     msg.constraints = ConvertConstraints(bitrate_config, &env_.clock());
@@ -417,6 +412,15 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
     }
     is_congested_ = false;
     pacer_.SetCongested(false);
+  }
+  if (rfc_8888_feedback_negotiated_ && !sending_packets_as_ect1_ &&
+      controller_ && controller_->SupportsEcnAdaptation()) {
+    RTC_LOG(LS_INFO)
+        << "Enabling sending packets as ECT1 again after route change. ";
+    sending_packets_as_ect1_ = true;
+    packet_router_.ConfigureForRtcpFeedback(
+        /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
+        sending_packets_as_ect1_);
   }
 }
 void RtpTransportControllerSend::OnNetworkAvailability(bool network_available) {
