@@ -372,10 +372,10 @@ int PhysicalSocket::SetOption(Option opt, int value) {
     // IP DiffServ  consists of DSCP 6 most significant, ECN 2 least
     // significant.
     dscp_ = value << 2;
-    value = dscp_ + (ecn_ & kEcnMask);
+    value = dscp_ + (ecn_send_options_ & kEcnMask);
   } else if (opt == OPT_SEND_ECN) {
-    ecn_ = value;
-    value = dscp_ + (ecn_ & kEcnMask);
+    ecn_send_options_ = value;
+    value = dscp_ + (ecn_send_options_ & kEcnMask);
   }
 #if defined(WEBRTC_POSIX)
   if (sopt == IPV6_TCLASS) {
@@ -390,6 +390,10 @@ int PhysicalSocket::SetOption(Option opt, int value) {
   if (result != 0) {
     UpdateLastError();
   }
+  if (opt == OPT_RECV_ECN) {
+    read_ecn_ = value == 1;
+  }
+
   return result;
 }
 
@@ -496,7 +500,7 @@ int PhysicalSocket::RecvFrom(ReceiveBuffer& buffer) {
   buffer.payload.SetData(BUF_SIZE, [&](std::span<uint8_t> payload) {
     received =
         DoReadFromSocket(payload.data(), payload.size(), &buffer.source_address,
-                         &timestamp, ecn_ ? &buffer.ecn : nullptr);
+                         &timestamp, read_ecn_ ? &buffer.ecn : nullptr);
     // return 0 if received is -1, indicating error.
     return std::max(received, 0);
   });

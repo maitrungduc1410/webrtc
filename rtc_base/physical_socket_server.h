@@ -249,7 +249,8 @@ class PhysicalSocket : public Socket {
   ConnState state_;
   std::unique_ptr<AsyncDnsResolverInterface> resolver_;
   uint8_t dscp_ = 0;  // 6bit.
-  uint8_t ecn_ = 0;   // 2bits.
+  uint8_t ecn_send_options_ = 0;  // 2bits.
+  bool read_ecn_ = false;
 
 #if RTC_DCHECK_IS_ON
   std::string dbg_addr_;
