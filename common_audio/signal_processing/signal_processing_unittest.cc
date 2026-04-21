@@ -449,12 +449,6 @@ TEST(SplTest, VectorOperationsTest) {
     EXPECT_EQ((a16[kk] * b16[kk]) >> 6, bTmp16[kk]);
   }
 
-  WebRtcSpl_SqrtOfOneMinusXSquared(b16, kVectorSize, bTmp16);
-  for (size_t kk = 0; kk < kVectorSize - 1; ++kk) {
-    EXPECT_EQ(32767, bTmp16[kk]);
-  }
-  EXPECT_EQ(32749, bTmp16[kVectorSize - 1]);
-
   EXPECT_EQ(0, WebRtcSpl_GetScalingSquare(b16, kVectorSize, 1));
 }
 

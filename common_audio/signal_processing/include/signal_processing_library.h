@@ -658,18 +658,6 @@ void WebRtcSpl_CrossCorrelation_mips(int32_t* cross_correlation,
 //      - window    : Hanning vector in Q14.
 void WebRtcSpl_GetHanningWindow(int16_t* window, size_t size);
 
-// Calculates y[k] = sqrt(1 - x[k]^2) for each element of the input vector
-// `in_vector`. Input and output values are in Q15.
-//
-// Inputs:
-//      - in_vector     : Values to calculate sqrt(1 - x^2) of
-//      - vector_length : Length of vector `in_vector`
-//
-// Output:
-//      - out_vector    : Output values in Q15
-void WebRtcSpl_SqrtOfOneMinusXSquared(int16_t* in_vector,
-                                      size_t vector_length,
-                                      int16_t* out_vector);
 // End: Signal processing operations.
 
 // Randomization functions. Implementations collected in

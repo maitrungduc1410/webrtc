@@ -133,7 +133,6 @@ rtc_library("common_audio_c") {
     "signal_processing/spl_inl.c",
     "signal_processing/spl_sqrt.c",
     "signal_processing/splitting_filter.c",
-    "signal_processing/sqrt_of_one_minus_x_squared.c",
     "signal_processing/vector_operations.c",
     "signal_processing/vector_scaling_operations.c",
     "vad/include/webrtc_vad.h",
