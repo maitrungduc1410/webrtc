@@ -37,12 +37,11 @@ void BundleManager::Update(const SessionDescription* description,
   // Rollbacks should call Rollback, not Update.
   RTC_DCHECK(type != SdpType::kRollback);
   bool bundle_groups_changed = false;
-  // TODO(bugs.webrtc.org/3349): Do this for kPrAnswer as well. To make this
-  // work, we also need to make sure PRANSWERs don't call
-  // MaybeDestroyJsepTransport, because the final answer may need the destroyed
-  // transport if it changes the BUNDLE group.
+  // TODO: bugs.webrtc.org/42228228 - Evaluate whether a PR-Answer can establish
+  // a bundle and a final Answer can remove it again. If this happens, PRAnswer
+  // should not destroy the unused transport.
   if (bundle_policy_ == PeerConnectionInterface::kBundlePolicyMaxBundle ||
-      type == SdpType::kAnswer) {
+      type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
     // If our policy is "max-bundle" or this is an answer, update all bundle
     // groups.
     bundle_groups_changed = true;
