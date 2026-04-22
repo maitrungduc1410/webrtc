@@ -24,6 +24,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
+#include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
@@ -55,6 +56,7 @@ class AudioRtpReceiver : public ObserverInterface,
   AudioRtpReceiver(Thread* worker_thread,
                    absl::string_view receiver_id,
                    std::vector<std::string> stream_ids,
+                   absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
                    VoiceMediaReceiveChannelInterface* voice_channel = nullptr);
   // Note: This is a PlanB-only constructor.
   // TODO(https://crbug.com/webrtc/9480): Remove this when streams() is removed.
@@ -134,6 +136,7 @@ class AudioRtpReceiver : public ObserverInterface,
       Thread* worker_thread,
       absl::string_view receiver_id,
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
+      absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
       VoiceMediaReceiveChannelInterface* media_channel,
       RemoteAudioSource::OnAudioChannelGoneAction source_gone_action);
 

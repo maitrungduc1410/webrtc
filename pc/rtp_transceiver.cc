@@ -23,6 +23,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/bind_front.h"
 #include "absl/strings/string_view.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
@@ -160,6 +161,7 @@ scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
     LegacyStatsCollectorInterface* legacy_stats,
     RtpSenderBase::SetStreamsObserver* set_streams_observer,
     absl::string_view sender_id,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     MediaSendChannelInterface* media_send_channel,
     const std::vector<RtpEncodingParameters>& init_send_encodings,
     bool simulcast_rejected,
@@ -170,6 +172,7 @@ scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
         AudioRtpSender::Create(
             env, context->signaling_thread(), context->worker_thread(),
             sender_id, legacy_stats, set_streams_observer,
+            std::move(enable_sframe_at_owner),
             static_cast<VoiceMediaSendChannelInterface*>(media_send_channel)));
   }
   RTC_DCHECK_EQ(media_type, MediaType::VIDEO);
@@ -177,7 +180,7 @@ scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> CreateSender(
       context->signaling_thread(),
       VideoRtpSender::Create(
           env, context->signaling_thread(), context->worker_thread(), sender_id,
-          set_streams_observer,
+          set_streams_observer, std::move(enable_sframe_at_owner),
           static_cast<VideoMediaSendChannelInterface*>(media_send_channel),
           init_send_encodings, simulcast_rejected, initial_simulcast_layers));
 }
@@ -201,11 +204,13 @@ scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
 CreateReceiverOfType(Thread* signaling_thread,
                      Thread* worker_thread,
                      absl::string_view receiver_id,
-                     MediaReceiveChannelInterface* receive_channel) {
+                     MediaReceiveChannelInterface* receive_channel,
+                     absl::AnyInvocable<RTCError()> enable_sframe_at_owner) {
   return RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
       signaling_thread, worker_thread,
       make_ref_counted<RtpReceiverT>(
           worker_thread, receiver_id, std::vector<std::string>(),
+          std::move(enable_sframe_at_owner),
           static_cast<ReceiveInterface*>(receive_channel)));
 }
 
@@ -214,16 +219,19 @@ scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>> CreateReceiver(
     Thread* signaling_thread,
     Thread* worker_thread,
     absl::string_view receiver_id,
-    MediaReceiveChannelInterface* receive_channel) {
+    MediaReceiveChannelInterface* receive_channel,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner) {
   if (media_type == MediaType::AUDIO) {
     return CreateReceiverOfType<AudioRtpReceiver,
                                 VoiceMediaReceiveChannelInterface>(
-        signaling_thread, worker_thread, receiver_id, receive_channel);
+        signaling_thread, worker_thread, receiver_id, receive_channel,
+        std::move(enable_sframe_at_owner));
   }
   RTC_DCHECK_EQ(media_type, MediaType::VIDEO);
   return CreateReceiverOfType<VideoRtpReceiver,
                               VideoMediaReceiveChannelInterface>(
-      signaling_thread, worker_thread, receiver_id, receive_channel);
+      signaling_thread, worker_thread, receiver_id, receive_channel,
+      std::move(enable_sframe_at_owner));
 }
 
 std::pair<std::unique_ptr<MediaSendChannelInterface>,
@@ -427,8 +435,10 @@ RtpTransceiver::RtpTransceiver(
             std::move(encoder_switch_callback));
         auto sender = CreateSender(
             media_type_, env_, context_, legacy_stats_, set_streams_observer_,
-            sender_id, channels.first.get(), init_send_encodings,
-            simulcast_rejected, initial_simulcast_layers);
+            sender_id,
+            absl::bind_front(&RtpTransceiver::TryToEnableSframe, this),
+            channels.first.get(), init_send_encodings, simulcast_rejected,
+            initial_simulcast_layers);
         return ScopedOperationsBatcher::FinalizerTask(
             [this, channels = std::move(channels), sender = std::move(sender),
              track, stream_ids, init_send_encodings, receiver_id]() mutable {
@@ -444,7 +454,8 @@ RtpTransceiver::RtpTransceiver(
                   media_type_, context_->signaling_thread(),
                   context_->worker_thread(),
                   receiver_id.empty() ? CreateRandomUuid() : receiver_id,
-                  owned_receive_channel_.get()));
+                  owned_receive_channel_.get(),
+                  absl::bind_front(&RtpTransceiver::TryToEnableSframe, this)));
             });
       });
 }
@@ -795,8 +806,9 @@ RtpTransceiver::AddSenderPlanB(
     RTC_DCHECK_RUN_ON(context()->worker_thread());
     senders_.push_back(CreateSender(
         media_type_, env_, context_, legacy_stats_, set_streams_observer_,
-        sender_id, channel_ ? channel_->media_send_channel() : nullptr,
-        send_encodings, false, {}));
+        sender_id, /*enable_sframe_at_owner=*/nullptr,
+        channel_ ? channel_->media_send_channel() : nullptr, send_encodings,
+        false, {}));
   });
   ConfigureSender(senders_.back(), track.get(), stream_ids, send_encodings,
                   codec_vendor());

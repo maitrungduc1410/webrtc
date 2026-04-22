@@ -24,6 +24,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
+#include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
@@ -49,6 +50,7 @@ class VideoRtpReceiver : public RtpReceiverBase {
   VideoRtpReceiver(Thread* worker_thread,
                    absl::string_view receiver_id,
                    std::vector<std::string> streams_ids,
+                   absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
                    VideoMediaReceiveChannelInterface* media_channel = nullptr);
   // TODO(hbos): Remove this when streams() is removed.
   // https://crbug.com/webrtc/9480
@@ -58,6 +60,7 @@ class VideoRtpReceiver : public RtpReceiverBase {
       Thread* worker_thread,
       absl::string_view receiver_id,
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
+      absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
       VideoMediaReceiveChannelInterface* media_channel = nullptr);
 
   ~VideoRtpReceiver() override;

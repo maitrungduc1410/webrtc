@@ -24,6 +24,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
+#include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
@@ -47,18 +48,21 @@ VideoRtpReceiver::VideoRtpReceiver(
     Thread* worker_thread,
     absl::string_view receiver_id,
     std::vector<std::string> stream_ids,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     VideoMediaReceiveChannelInterface* media_channel)
     : VideoRtpReceiver(worker_thread,
                        receiver_id,
                        CreateStreamsFromIds(std::move(stream_ids)),
+                       std::move(enable_sframe_at_owner),
                        media_channel) {}
 
 VideoRtpReceiver::VideoRtpReceiver(
     Thread* worker_thread,
     absl::string_view receiver_id,
     const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     VideoMediaReceiveChannelInterface* media_channel)
-    : RtpReceiverBase(worker_thread),
+    : RtpReceiverBase(worker_thread, std::move(enable_sframe_at_owner)),
       id_(receiver_id),
       media_channel_(media_channel),
       source_(make_ref_counted<VideoRtpTrackSource>(&source_callback_)),

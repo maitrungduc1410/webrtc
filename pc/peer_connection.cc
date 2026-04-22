@@ -1287,6 +1287,7 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
     auto audio_sender =
         AudioRtpSender::Create(env_, signaling_thread(), worker_thread(),
                                CreateRandomUuid(), legacy_stats_.get(), nullptr,
+                               /*enable_sframe_at_owner=*/nullptr,
                                rtp_manager()->voice_media_send_channel());
     new_sender = RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
         signaling_thread(), audio_sender);
@@ -1295,6 +1296,7 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
   } else if (kind == MediaStreamTrackInterface::kVideoKind) {
     auto video_sender = VideoRtpSender::Create(
         env_, signaling_thread(), worker_thread(), CreateRandomUuid(), nullptr,
+        /*enable_sframe_at_owner=*/nullptr,
         rtp_manager()->video_media_send_channel(),
         /*init_send_encodings=*/{}, /*simulcast_rejected=*/false,
         /*initial_simulcast_layers=*/{});

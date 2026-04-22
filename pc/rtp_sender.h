@@ -273,6 +273,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
                 absl::string_view id,
                 MediaType media_type,
                 SetStreamsObserver* set_streams_observer,
+                absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
                 MediaSendChannelInterface* media_channel);
 
   // TODO(bugs.webrtc.org/8694): Since SSRC == 0 is technically valid, figure
@@ -352,6 +353,9 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
 
   scoped_refptr<PendingTaskSafetyFlag> worker_safety_;
   ScopedTaskSafety signaling_safety_;
+
+  absl::AnyInvocable<RTCError()> enable_sframe_at_owner_
+      RTC_GUARDED_BY(signaling_thread_);
 };
 
 // LocalAudioSinkAdapter receives data callback as a sink to the local
@@ -410,6 +414,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
       absl::string_view id,
       LegacyStatsCollectorInterface* stats,
       SetStreamsObserver* set_streams_observer,
+      absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
       MediaSendChannelInterface* media_channel);
   ~AudioRtpSender() override;
 
@@ -434,6 +439,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
                  absl::string_view id,
                  LegacyStatsCollectorInterface* legacy_stats,
                  SetStreamsObserver* set_streams_observer,
+                 absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
                  MediaSendChannelInterface* media_channel);
 
   void SetSend() override;
@@ -483,6 +489,7 @@ class VideoRtpSender : public RtpSenderBase {
       Thread* worker_thread,
       absl::string_view id,
       SetStreamsObserver* set_streams_observer,
+      absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
       MediaSendChannelInterface* media_channel,
       const std::vector<RtpEncodingParameters>& init_send_encodings,
       bool simulcast_rejected,
@@ -505,6 +512,7 @@ class VideoRtpSender : public RtpSenderBase {
                  Thread* worker_thread,
                  absl::string_view id,
                  SetStreamsObserver* set_streams_observer,
+                 absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
                  MediaSendChannelInterface* media_channel,
                  const std::vector<RtpEncodingParameters>& init_send_encodings,
                  bool simulcast_rejected,

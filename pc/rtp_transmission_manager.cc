@@ -511,7 +511,8 @@ PLAN_B_ONLY void RtpTransmissionManager::CreateVideoReceiverPlanB(
   // TODO(https://crbug.com/webrtc/9480): When we remove remote_streams(), use
   // the constructor taking stream IDs instead.
   auto video_receiver = make_ref_counted<VideoRtpReceiver>(
-      worker_thread(), remote_sender_info.sender_id, streams);
+      worker_thread(), remote_sender_info.sender_id, streams,
+      /*enable_sframe_at_owner=*/nullptr);
 
   auto task = video_receiver->GetSetupForMediaChannel(
       remote_sender_info.sender_id == kDefaultVideoSenderId

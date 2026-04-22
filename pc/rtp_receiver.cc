@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/media_stream_interface.h"
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
@@ -47,12 +48,26 @@ RtpReceiverInternal::CreateStreamsFromIds(std::vector<std::string> stream_ids) {
   return streams;
 }
 
-RtpReceiverBase::RtpReceiverBase(Thread* worker_thread)
-    : worker_thread_(worker_thread) {}
+RtpReceiverBase::RtpReceiverBase(
+    Thread* worker_thread,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner)
+    : worker_thread_(worker_thread),
+      enable_sframe_at_owner_(std::move(enable_sframe_at_owner)) {}
 
 RTCErrorOr<scoped_refptr<SframeDecrypterInterface>>
 RtpReceiverBase::CreateSframeDecrypterOrError(SframeCipherSuite cipher_suite) {
   RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
+
+  if (!enable_sframe_at_owner_) {
+    return RTCError(RTCErrorType::INTERNAL_ERROR,
+                    "Receiver is not associated with a transceiver");
+  }
+
+  RTCError error = enable_sframe_at_owner_();
+  if (!error.ok()) {
+    return error;
+  }
+
   // TODO(bugs.webrtc.org/479862368): Create the internal Sframe decryption
   // pipeline and return a key management handle.
   return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,

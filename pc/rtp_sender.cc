@@ -221,13 +221,15 @@ bool UnimplementedRtpParameterHasValue(const RtpParameters& parameters) {
   return false;
 }
 
-RtpSenderBase::RtpSenderBase(const Environment& env,
-                             Thread* signaling_thread,
-                             Thread* worker_thread,
-                             absl::string_view id,
-                             MediaType media_type,
-                             SetStreamsObserver* set_streams_observer,
-                             MediaSendChannelInterface* media_channel)
+RtpSenderBase::RtpSenderBase(
+    const Environment& env,
+    Thread* signaling_thread,
+    Thread* worker_thread,
+    absl::string_view id,
+    MediaType media_type,
+    SetStreamsObserver* set_streams_observer,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
+    MediaSendChannelInterface* media_channel)
     : env_(env),
       signaling_thread_(signaling_thread),
       worker_thread_(worker_thread),
@@ -240,7 +242,8 @@ RtpSenderBase::RtpSenderBase(const Environment& env,
           worker_thread_)),
       signaling_safety_(
           PendingTaskSafetyFlag::CreateAttachedToTaskQueue(/*alive=*/true,
-                                                           signaling_thread_)) {
+                                                           signaling_thread_)),
+      enable_sframe_at_owner_(std::move(enable_sframe_at_owner)) {
   RTC_DCHECK(worker_thread_);
   init_parameters_.encodings.emplace_back();
   if (media_channel) {
@@ -1071,6 +1074,17 @@ RTCErrorOr<scoped_refptr<SframeEncrypterInterface>>
 RtpSenderBase::CreateSframeEncrypterOrError(
     const SframeEncrypterInit& options) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
+
+  if (!enable_sframe_at_owner_) {
+    return RTCError(RTCErrorType::INTERNAL_ERROR,
+                    "Sender is not associated with a transceiver");
+  }
+
+  RTCError error = enable_sframe_at_owner_();
+  if (!error.ok()) {
+    return error;
+  }
+
   // TODO(bugs.webrtc.org/479862368): Implement Sframe encrypter creation.
   return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
                   "Sframe encrypter not yet implemented");
@@ -1114,25 +1128,29 @@ scoped_refptr<AudioRtpSender> AudioRtpSender::Create(
     absl::string_view id,
     LegacyStatsCollectorInterface* stats,
     SetStreamsObserver* set_streams_observer,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     MediaSendChannelInterface* media_channel) {
-  return make_ref_counted<AudioRtpSender>(env, signaling_thread, worker_thread,
-                                          id, stats, set_streams_observer,
-                                          media_channel);
+  return make_ref_counted<AudioRtpSender>(
+      env, signaling_thread, worker_thread, id, stats, set_streams_observer,
+      std::move(enable_sframe_at_owner), media_channel);
 }
 
-AudioRtpSender::AudioRtpSender(const Environment& env,
-                               Thread* signaling_thread,
-                               Thread* worker_thread,
-                               absl::string_view id,
-                               LegacyStatsCollectorInterface* stats,
-                               SetStreamsObserver* set_streams_observer,
-                               MediaSendChannelInterface* media_channel)
+AudioRtpSender::AudioRtpSender(
+    const Environment& env,
+    Thread* signaling_thread,
+    Thread* worker_thread,
+    absl::string_view id,
+    LegacyStatsCollectorInterface* stats,
+    SetStreamsObserver* set_streams_observer,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
+    MediaSendChannelInterface* media_channel)
     : RtpSenderBase(env,
                     signaling_thread,
                     worker_thread,
                     id,
                     MediaType::AUDIO,
                     set_streams_observer,
+                    std::move(enable_sframe_at_owner),
                     media_channel),
       legacy_stats_(stats),
       dtmf_sender_(DtmfSender::Create(signaling_thread, this)),
@@ -1286,14 +1304,15 @@ scoped_refptr<VideoRtpSender> VideoRtpSender::Create(
     Thread* worker_thread,
     absl::string_view id,
     SetStreamsObserver* set_streams_observer,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     MediaSendChannelInterface* media_channel,
     const std::vector<RtpEncodingParameters>& init_send_encodings,
     bool simulcast_rejected,
     const std::vector<SimulcastLayer>& initial_simulcast_layers) {
   return make_ref_counted<VideoRtpSender>(
       env, signaling_thread, worker_thread, id, set_streams_observer,
-      media_channel, init_send_encodings, simulcast_rejected,
-      initial_simulcast_layers);
+      std::move(enable_sframe_at_owner), media_channel, init_send_encodings,
+      simulcast_rejected, initial_simulcast_layers);
 }
 
 VideoRtpSender::VideoRtpSender(
@@ -1302,6 +1321,7 @@ VideoRtpSender::VideoRtpSender(
     Thread* worker_thread,
     absl::string_view id,
     SetStreamsObserver* set_streams_observer,
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
     MediaSendChannelInterface* media_channel,
     const std::vector<RtpEncodingParameters>& init_send_encodings,
     bool simulcast_rejected,
@@ -1312,6 +1332,7 @@ VideoRtpSender::VideoRtpSender(
                     id,
                     MediaType::VIDEO,
                     set_streams_observer,
+                    std::move(enable_sframe_at_owner),
                     media_channel) {
   set_init_send_encodings(
       CalculateInitialEncodings(init_parameters_.encodings, init_send_encodings,

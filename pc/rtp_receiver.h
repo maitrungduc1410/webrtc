@@ -33,6 +33,7 @@
 #include "media/base/media_channel.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread.h"
+#include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
 
@@ -109,10 +110,16 @@ class RtpReceiverBase : public RtpReceiverInternal {
   CreateSframeDecrypterOrError(SframeCipherSuite cipher_suite) override;
 
  protected:
-  explicit RtpReceiverBase(Thread* worker_thread);
+  explicit RtpReceiverBase(
+      Thread* worker_thread,
+      absl::AnyInvocable<RTCError()> enable_sframe_at_owner);
 
   RTC_NO_UNIQUE_ADDRESS SequenceChecker signaling_thread_checker_;
   Thread* const worker_thread_;
+
+ private:
+  absl::AnyInvocable<RTCError()> enable_sframe_at_owner_
+      RTC_GUARDED_BY(signaling_thread_checker_);
 };
 
 }  // namespace webrtc
