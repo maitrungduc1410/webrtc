@@ -233,7 +233,7 @@ class BaseChannel : public ChannelInterface,
   // Should be called whenever the conditions for
   // IsReadyToReceiveMedia/IsReadyToSendMedia are satisfied (or unsatisfied).
   // Updates the send/recv state of the media channel.
-  virtual void UpdateMediaSendRecvState_w() RTC_RUN_ON(worker_thread()) = 0;
+  void UpdateMediaSendRecvState_w() RTC_RUN_ON(worker_thread());
 
   RTCError UpdateLocalStreams_w(const std::vector<StreamParams>& streams,
                                 SdpType type) RTC_RUN_ON(worker_thread());
@@ -389,7 +389,7 @@ class VoiceChannel : public BaseChannel {
 
  private:
   // overrides from BaseChannel
-  void UpdateMediaSendRecvState_w() RTC_RUN_ON(worker_thread()) override;
+
   RTCError SetLocalContent_w(const MediaContentDescription* content,
                              SdpType type) RTC_RUN_ON(worker_thread()) override;
   RTCError SetRemoteContent_w(const MediaContentDescription* content,
@@ -454,7 +454,7 @@ class VideoChannel : public BaseChannel {
 
  private:
   // overrides from BaseChannel
-  void UpdateMediaSendRecvState_w() RTC_RUN_ON(worker_thread()) override;
+
   RTCError SetLocalContent_w(const MediaContentDescription* content,
                              SdpType type) RTC_RUN_ON(worker_thread()) override;
   RTCError SetRemoteContent_w(const MediaContentDescription* content,

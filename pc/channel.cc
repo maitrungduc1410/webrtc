@@ -621,6 +621,19 @@ void BaseChannel::DisableMedia_w() {
   UpdateMediaSendRecvState_w();
 }
 
+void BaseChannel::UpdateMediaSendRecvState_w() {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  bool receive =
+      enabled() && RtpTransceiverDirectionHasRecv(local_content_direction());
+  media_receive_channel()->SetReceive(receive);
+
+  bool send = IsReadyToSendMedia_w();
+  media_send_channel()->SetSend(send);
+
+  RTC_LOG(LS_INFO) << "Changing state, recv=" << receive << " send=" << send
+                   << " for " << ToString();
+}
+
 void BaseChannel::UpdateWritableState_n() {
   TRACE_EVENT0("webrtc", "BaseChannel::UpdateWritableState_n");
   if (rtp_transport_->IsWritable(/*rtcp=*/true) &&
@@ -859,22 +872,7 @@ VoiceChannel::~VoiceChannel() {
   DisableMedia_w();
 }
 
-void VoiceChannel::UpdateMediaSendRecvState_w() {
-  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
-  // Render incoming data if we're the active call, and we have the local
-  // content. We receive data on the default channel and multiplexed streams.
-  bool receive =
-      enabled() && RtpTransceiverDirectionHasRecv(local_content_direction());
-  media_receive_channel()->SetPlayout(receive);
 
-  // Send outgoing data if we're the active call, we have the remote content,
-  // and we have had some form of connectivity.
-  bool send = IsReadyToSendMedia_w();
-  media_send_channel()->SetSend(send);
-
-  RTC_LOG(LS_INFO) << "Changing voice state, recv=" << receive
-                   << " send=" << send << " for " << ToString();
-}
 
 RTCError VoiceChannel::SetLocalContent_w(const MediaContentDescription* content,
                                          SdpType type) {
@@ -1033,19 +1031,7 @@ VideoChannel::~VideoChannel() {
   DisableMedia_w();
 }
 
-void VideoChannel::UpdateMediaSendRecvState_w() {
-  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
-  // Send outgoing data if we're the active call, we have the remote content,
-  // and we have had some form of connectivity.
-  bool receive =
-      enabled() && RtpTransceiverDirectionHasRecv(local_content_direction());
-  media_receive_channel()->SetReceive(receive);
 
-  bool send = IsReadyToSendMedia_w();
-  media_send_channel()->SetSend(send);
-  RTC_LOG(LS_INFO) << "Changing video state, recv=" << receive
-                   << " send=" << send << " for " << ToString();
-}
 
 RTCError VideoChannel::SetLocalContent_w(const MediaContentDescription* content,
                                          SdpType type) {
