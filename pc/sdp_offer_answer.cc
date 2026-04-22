@@ -4311,9 +4311,11 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     // Handle locally rejected content. This code path is only needed for apps
     // that SDP munge. Remote rejected content is handled in
     // ApplyRemoteDescriptionUpdateTransceiverState().
+    // Do not use std::move here to ensure that the transceiver stays alive
+    // in the `transceivers_to_update` vector until the end of this function.
+    // This guarantees that it outlives the execution of `worker_tasks.Run()`.
     MaybeHandleLocallyRejectedTransceiver(source, new_session, update.content,
-                                          std::move(update.transceiver),
-                                          worker_tasks);
+                                          update.transceiver, worker_tasks);
   }
 
   error = network_teardown_tasks.Run();
