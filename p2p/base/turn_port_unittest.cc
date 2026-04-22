@@ -2011,9 +2011,7 @@ TEST_F(TurnPortTest, TestTurnCustomizerDisallowChannelData) {
 
 // Do a TURN allocation, establish a TLS connection, and send some data.
 // Add customizer and check that it can add attribute to messages.
-// This destroys the integrity checks on the message.
-// TODO: crbug.com/504567957 - enable once integrity issues have been sorted.
-TEST_F(TurnPortTest, DISABLED_TestTurnCustomizerAddAttribute) {
+TEST_F(TurnPortTest, TestTurnCustomizerAddAttribute) {
   unsigned int observer_message_counter = 0;
   unsigned int observer_channel_data_counter = 0;
   unsigned int observer_attr_counter = 0;
