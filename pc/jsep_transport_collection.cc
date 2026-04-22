@@ -269,14 +269,16 @@ bool JsepTransportCollection::RollbackTransports() {
   // First, remove any new mid->transport mappings.
   for (const auto& kv : mid_to_transport_) {
     if (stable_mid_to_transport_.count(kv.first) == 0) {
-      ret = ret && map_change_callback_(kv.first, nullptr);
+      bool success = map_change_callback_(kv.first, nullptr);
+      ret = ret && success;
     }
   }
   // Next, restore old mappings.
   for (const auto& kv : stable_mid_to_transport_) {
     auto it = mid_to_transport_.find(kv.first);
     if (it == mid_to_transport_.end() || it->second != kv.second) {
-      ret = ret && map_change_callback_(kv.first, kv.second);
+      bool success = map_change_callback_(kv.first, kv.second);
+      ret = ret && success;
     }
   }
   mid_to_transport_ = stable_mid_to_transport_;
