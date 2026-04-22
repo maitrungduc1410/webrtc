@@ -2635,12 +2635,12 @@ TEST_F(PortTest,
 
   // Build ordinary message with valid ufrag/pass.
   in_msg = CreateStunMessageWithUsername(STUN_BINDING_REQUEST, "rfrag:lfrag");
-  in_msg->AddMessageIntegrity("rpass");
   // Add a couple attributes with ID in comprehension-required range.
   in_msg->AddAttribute(StunAttribute::CreateUInt32(0x7777));
   in_msg->AddAttribute(StunAttribute::CreateUInt32(0x4567));
   // ... And one outside the range.
   in_msg->AddAttribute(StunAttribute::CreateUInt32(0xdead));
+  in_msg->AddMessageIntegrity("rpass");
   in_msg->AddFingerprint();
   WriteStunMessage(*in_msg, buf.get());
   ASSERT_TRUE(GetStunMessageFromBufferWriter(port.get(), buf.get(), addr,
@@ -2694,7 +2694,9 @@ TEST_F(PortTest,
       IsRtcOk());
   auto modified_response = rport->last_stun_msg()->Clone();
   modified_response->AddAttribute(StunAttribute::CreateUInt32(0x7777));
+  modified_response->RemoveAttribute(STUN_ATTR_MESSAGE_INTEGRITY);
   modified_response->RemoveAttribute(STUN_ATTR_FINGERPRINT);
+  modified_response->AddMessageIntegrity("rpass");
   modified_response->AddFingerprint();
   ByteBufferWriter buf;
   WriteStunMessage(*modified_response, &buf);
