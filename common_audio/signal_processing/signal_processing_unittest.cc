@@ -621,23 +621,6 @@ TEST(SplTest, SignalProcessingTest) {
   EXPECT_EQ(0, bScale);
 }
 
-TEST(SplTest, FFTTest) {
-  int16_t B[] = {1, 2, 33, 100, 2, 3, 34, 101, 3, 4, 35, 102, 4, 5, 36, 103};
-
-  EXPECT_EQ(0, WebRtcSpl_ComplexFFT(B, 3, 1));
-  //    for (int kk = 0; kk < 16; ++kk) {
-  //        EXPECT_EQ(A[kk], B[kk]);
-  //    }
-  EXPECT_EQ(0, WebRtcSpl_ComplexIFFT(B, 3, 1));
-  //    for (int kk = 0; kk < 16; ++kk) {
-  //        EXPECT_EQ(A[kk], B[kk]);
-  //    }
-  WebRtcSpl_ComplexBitReverse(B, 3);
-  for (int kk = 0; kk < 16; ++kk) {
-    //      EXPECT_EQ(A[kk], B[kk]);
-  }
-}
-
 TEST(SplTest, Resample48WithSaturationTest) {
   // The test resamples 3*kBlockSize number of samples to 2*kBlockSize number
   // of samples.

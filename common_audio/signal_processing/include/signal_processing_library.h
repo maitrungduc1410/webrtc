@@ -800,29 +800,6 @@ int WebRtcSpl_DownsampleFast_mips(const int16_t* data_in,
 
 // End: Filter operations.
 
-// FFT operations
-
-int WebRtcSpl_ComplexFFT(int16_t vector[], int stages, int mode);
-int WebRtcSpl_ComplexIFFT(int16_t vector[], int stages, int mode);
-
-// Treat a 16-bit complex data buffer `complex_data` as an array of 32-bit
-// values, and swap elements whose indexes are bit-reverses of each other.
-//
-// Input:
-//      - complex_data  : Complex data buffer containing 2^`stages` real
-//                        elements interleaved with 2^`stages` imaginary
-//                        elements: [Re Im Re Im Re Im....]
-//      - stages        : Number of FFT stages. Must be at least 3 and at most
-//                        10, since the table WebRtcSpl_kSinTable1024[] is 1024
-//                        elements long.
-//
-// Output:
-//      - complex_data  : The complex data buffer.
-
-void WebRtcSpl_ComplexBitReverse(int16_t* __restrict complex_data, int stages);
-
-// End: FFT operations
-
 /************************************************************
  *
  * RESAMPLING FUNCTIONS AND THEIR STRUCTS ARE DEFINED BELOW
