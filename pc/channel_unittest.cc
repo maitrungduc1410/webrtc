@@ -804,7 +804,7 @@ class ChannelTest : public ::testing::Test {
     EXPECT_TRUE(channel1_->SetRemoteContent(&content, SdpType::kOffer).ok());
     content.set_extmap_allow_mixed_enum(answer_enum);
     EXPECT_TRUE(channel1_->SetLocalContent(&content, SdpType::kAnswer).ok());
-    EXPECT_EQ(answer, media_send_channel1()->ExtmapAllowMixed());
+    EXPECT_EQ(answer, channel1_->media_send_channel()->ExtmapAllowMixed());
   }
 
   // Test that SetLocalContent and SetRemoteContent properly deals
@@ -1522,8 +1522,9 @@ class ChannelTest : public ::testing::Test {
         channel1_->SetLocalContent(&local_media_content1_, SdpType::kOffer)
             .ok());
     EXPECT_EQ(media_send_channel1_impl()->max_bps(), -1);
-    VerifyMaxBitrate(media_send_channel1()->GetRtpSendParameters(kSsrc1),
-                     std::nullopt);
+    VerifyMaxBitrate(
+        channel1_->media_send_channel()->GetRtpSendParameters(kSsrc1),
+        std::nullopt);
   }
 
   // Test that when a channel gets new RtpTransport with a call to
@@ -1633,20 +1634,6 @@ class ChannelTest : public ::testing::Test {
     }
     // Worker thread = current Thread process received messages.
     ProcessThreadQueue(webrtc::Thread::Current());
-  }
-
-  // Accessors that return the standard VideoMedia{Send|Receive}ChannelInterface
-  typename T::MediaSendChannelInterface* media_send_channel1() {
-    return channel1_->media_send_channel();
-  }
-  typename T::MediaSendChannelInterface* media_send_channel2() {
-    return channel2_->media_send_channel();
-  }
-  typename T::MediaReceiveChannelInterface* media_receive_channel1() {
-    return channel1_->media_receive_channel();
-  }
-  typename T::MediaReceiveChannelInterface* media_receive_channel2() {
-    return channel2_->media_receive_channel();
   }
 
   // Accessors that return the FakeMedia<type>SendChannel object.
