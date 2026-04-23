@@ -23,6 +23,7 @@
       'android_instrumentation_test_apk': {},
       'audio_decoder_unittests': {},
       'audio_engine_tests': {},
+      'call_tests': {},
       'common_audio_unittests': {},
       'common_video_unittests': {},
       'dcsctp_unittests': {},
@@ -68,6 +69,7 @@
     'desktop_tests': {
       'audio_decoder_unittests': {},
       'audio_engine_tests': {},
+      'call_tests': {},
       'common_audio_unittests': {},
       'common_video_unittests': {},
       'dcsctp_unittests': {},
@@ -118,6 +120,7 @@
     },
     'fuchsia_compatible_tests': {
       'audio_decoder_unittests': {},
+      'call_tests': {},
       'common_audio_unittests': {},
       'common_video_unittests': {},
       'dcsctp_unittests': {},
@@ -150,6 +153,7 @@
       },
       'audio_decoder_unittests': {},
       'audio_engine_tests': {},
+      'call_tests': {},
       'common_audio_unittests': {},
       'common_video_unittests': {},
       'dcsctp_unittests': {},

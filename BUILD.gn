@@ -132,6 +132,7 @@ if (rtc_include_tests) {
     testonly = true
     deps = [
       ":webrtc_nonparallel_tests",
+      "//call:call_tests",
       "//pc:peerconnection_unittests",
       "//test:test_support_unittests",
     ]
@@ -728,9 +729,6 @@ if (rtc_include_tests && !build_with_chromium) {
   rtc_test("video_engine_tests") {
     testonly = true
     deps = [
-      # TODO(eladalon): call_tests aren't actually video-specific, so we
-      # should move them to a more appropriate test suite.
-      "call:call_tests",
       "call/adaptation:resource_adaptation_tests",
       "test:test_common",
       "test:video_test_common",

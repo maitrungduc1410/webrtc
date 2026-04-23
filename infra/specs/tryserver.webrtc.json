@@ -91,6 +91,27 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_type": "walleye",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -703,6 +724,27 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_type": "walleye",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -1310,6 +1352,27 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_type": "walleye",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -1953,6 +2016,27 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_type": "walleye",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -2509,6 +2593,31 @@
         },
         "test": "audio_decoder_unittests",
         "test_id_prefix": "ninja://modules/audio_coding:audio_decoder_unittests/"
+      },
+      {
+        "args": [
+          "--test-launcher-summary-output=${ISOLATED_OUTDIR}/gtest_output.json",
+          "--test-arg=--gtest_output=json:/custom_artifacts/gtest_output.json",
+          "--test-arg=--undefok=test_launcher_summary_output",
+          "--gtest_output=json:${ISOLATED_OUTDIR}/gtest_output.json"
+        ],
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_file": "${ISOLATED_OUTDIR}/gtest_output.json",
+          "result_format": "gtest_json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "args": [
@@ -3087,6 +3196,104 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/",
+        "variant_id": "iPhone 15 18.2"
+      },
+      {
+        "args": [
+          "--platform",
+          "iPhone 14",
+          "--version",
+          "17.5",
+          "--xcode-build-version",
+          "17a400",
+          "--out-dir",
+          "${ISOLATED_OUTDIR}",
+          "--xctest"
+        ],
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests iPhone 14 17.5",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "cipd_packages": [
+            {
+              "cipd_package": "infra/tools/mac_toolchain/${platform}",
+              "location": ".",
+              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+            }
+          ],
+          "dimensions": {
+            "cpu": "arm64",
+            "os": "Mac-15"
+          },
+          "named_caches": [
+            {
+              "name": "runtime_ios_17_5",
+              "path": "Runtime-ios-17.5"
+            },
+            {
+              "name": "xcode_ios_17a400",
+              "path": "Xcode.app"
+            }
+          ],
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/",
+        "variant_id": "iPhone 14 17.5"
+      },
+      {
+        "args": [
+          "--platform",
+          "iPhone 15",
+          "--version",
+          "18.2",
+          "--xcode-build-version",
+          "17a400",
+          "--out-dir",
+          "${ISOLATED_OUTDIR}",
+          "--xctest"
+        ],
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests iPhone 15 18.2",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "cipd_packages": [
+            {
+              "cipd_package": "infra/tools/mac_toolchain/${platform}",
+              "location": ".",
+              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+            }
+          ],
+          "dimensions": {
+            "cpu": "arm64",
+            "os": "Mac-15"
+          },
+          "named_caches": [
+            {
+              "name": "runtime_ios_18_2",
+              "path": "Runtime-ios-18.2"
+            },
+            {
+              "name": "xcode_ios_17a400",
+              "path": "Xcode.app"
+            }
+          ],
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/",
         "variant_id": "iPhone 15 18.2"
       },
       {
@@ -5012,6 +5219,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -5440,6 +5665,25 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "isolate_profile_data": true,
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "isolate_profile_data": true,
@@ -5941,6 +6185,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -6390,6 +6652,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -6810,6 +7090,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -7288,6 +7586,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -7708,6 +8024,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -8138,6 +8472,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -8563,6 +8915,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -8965,6 +9335,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Ubuntu-22.04"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -9374,6 +9762,25 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cores": "12",
+            "cpu": "x86-64",
+            "os": "Mac-15"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -9810,6 +10217,25 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cores": "12",
+            "cpu": "x86-64",
+            "os": "Mac-15"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -10237,6 +10663,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "arm64-64-Apple_M1",
+            "os": "Mac-15"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -10639,6 +11083,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Mac-15"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -11099,6 +11561,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "arm64-64-Apple_M1",
+            "os": "Mac-15"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -11506,6 +11986,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-11-22000"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -11908,6 +12406,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-11-22000"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -12368,6 +12884,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-10-19045"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -12774,6 +13308,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-10-19045"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
@@ -13186,6 +13738,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-10-19045"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -13593,6 +14163,24 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-10-19045"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
         "module_name": "//common_audio:common_audio_unittests",
         "name": "common_audio_unittests",
         "resultdb": {
@@ -13995,6 +14583,24 @@
         },
         "test": "audio_engine_tests",
         "test_id_prefix": "ninja://:audio_engine_tests/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
+        },
+        "module_name": "//call:call_tests",
+        "name": "call_tests",
+        "resultdb": {
+          "result_format": "json"
+        },
+        "swarming": {
+          "dimensions": {
+            "cpu": "x86-64",
+            "os": "Windows-10-19045"
+          }
+        },
+        "test": "call_tests",
+        "test_id_prefix": "ninja://call:call_tests/"
       },
       {
         "merge": {
