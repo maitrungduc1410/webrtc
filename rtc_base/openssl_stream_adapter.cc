@@ -29,6 +29,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
@@ -288,10 +289,11 @@ long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
 /////////////////////////////////////////////////////////////////////////////
 
 OpenSSLStreamAdapter::OpenSSLStreamAdapter(
+    std::optional<Environment> env,
     std::unique_ptr<StreamInterface> stream,
-    absl::AnyInvocable<void(SSLHandshakeError)> handshake_error,
-    const FieldTrialsView* field_trials)
-    : stream_(std::move(stream)),
+    absl::AnyInvocable<void(SSLHandshakeError)> handshake_error)
+    : env_(std::move(env)),
+      stream_(std::move(stream)),
       handshake_error_(std::move(handshake_error)),
       owner_(TaskQueueBase::Current()),
       state_(SSL_NONE),
@@ -302,8 +304,9 @@ OpenSSLStreamAdapter::OpenSSLStreamAdapter(
       ssl_ctx_(nullptr),
       ssl_mode_(SSL_MODE_DTLS),
       ssl_max_version_(MAX_SSL_PROTOCOL_DTLS),
-      disable_ssl_group_ids_(field_trials && field_trials->IsEnabled(
-                                                 "WebRTC-DisableSslGroupIds")) {
+      disable_ssl_group_ids_(
+          env_.has_value() &&
+          env_->field_trials().IsEnabled("WebRTC-DisableSslGroupIds")) {
   stream_->SetEventCallback(
       [this](int events, int err) { OnEvent(events, err); });
 }
