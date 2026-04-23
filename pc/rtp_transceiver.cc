@@ -262,26 +262,6 @@ CreateMediaContentChannels(
               env, call, media_config, video_options, crypto_options)};
 }
 
-// Helper template to wrap the construction of either a VoiceChannel
-// or VideoChannel object from a given send and receive channel objects.
-template <typename Channel, typename Send, typename Receive>
-std::unique_ptr<ChannelInterface> CreateMediaChannel(
-    ConnectionContext* context,
-    std::unique_ptr<MediaSendChannelInterface>& send,
-    std::unique_ptr<MediaReceiveChannelInterface>& receive,
-    absl::string_view mid,
-    bool srtp_required,
-    CryptoOptions crypto_options,
-    ChannelCallbacks callbacks) {
-  return std::make_unique<Channel>(
-      context->worker_thread(), context->network_thread(),
-      context->signaling_thread(),
-      std::unique_ptr<Send>(static_cast<Send*>(send.release())),
-      std::unique_ptr<Receive>(static_cast<Receive*>(receive.release())), mid,
-      srtp_required, crypto_options, context->ssrc_generator(),
-      std::move(callbacks));
-}
-
 std::vector<absl::AnyInvocable<void() &&>> DetachAndGetStopTasksForSenders(
     std::vector<scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>&
         senders) {
@@ -562,20 +542,13 @@ void RtpTransceiver::CreateChannel(
                            media_receive_channel.get());
         }
 
-        std::unique_ptr<ChannelInterface> new_channel;
-        if (media_type() == MediaType::AUDIO) {
-          new_channel =
-              CreateMediaChannel<VoiceChannel, VoiceMediaSendChannelInterface,
-                                 VoiceMediaReceiveChannelInterface>(
-                  context(), media_send_channel, media_receive_channel, mid_str,
-                  srtp_required, crypto_options, std::move(callbacks));
-        } else {
-          new_channel =
-              CreateMediaChannel<VideoChannel, VideoMediaSendChannelInterface,
-                                 VideoMediaReceiveChannelInterface>(
-                  context(), media_send_channel, media_receive_channel, mid_str,
-                  srtp_required, crypto_options, std::move(callbacks));
-        }
+        std::unique_ptr<ChannelInterface> new_channel =
+            std::make_unique<BaseChannel>(
+                context()->worker_thread(), context()->network_thread(),
+                context()->signaling_thread(), std::move(media_send_channel),
+                std::move(media_receive_channel), mid_str, media_type(),
+                srtp_required, crypto_options, context()->ssrc_generator(),
+                std::move(callbacks));
 
         return ScopedOperationsBatcher::FinalizerTask(
             [this, new_channel = std::move(new_channel)]() mutable {

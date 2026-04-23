@@ -24,6 +24,7 @@
 #include "api/crypto/crypto_options.h"
 #include "api/field_trials.h"
 #include "api/jsep.h"
+#include "api/media_types.h"
 #include "api/rtc_error.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
@@ -120,7 +121,7 @@ class Traits {
   using Options = OptionsT;
 };
 
-class VoiceTraits : public Traits<webrtc::VoiceChannel,
+class VoiceTraits : public Traits<webrtc::BaseChannel,
                                   webrtc::FakeVoiceMediaSendChannel,
                                   webrtc::FakeVoiceMediaReceiveChannel,
                                   webrtc::VoiceMediaSendChannelInterface,
@@ -129,7 +130,7 @@ class VoiceTraits : public Traits<webrtc::VoiceChannel,
                                   webrtc::VoiceMediaInfo,
                                   webrtc::AudioOptions> {};
 
-class VideoTraits : public Traits<webrtc::VideoChannel,
+class VideoTraits : public Traits<webrtc::BaseChannel,
                                   webrtc::FakeVideoMediaSendChannel,
                                   webrtc::FakeVideoMediaReceiveChannel,
                                   webrtc::VideoMediaSendChannelInterface,
@@ -1702,7 +1703,7 @@ class ChannelTest : public ::testing::Test {
 };
 
 template <>
-std::unique_ptr<webrtc::VoiceChannel> ChannelTest<VoiceTraits>::CreateChannel(
+std::unique_ptr<webrtc::BaseChannel> ChannelTest<VoiceTraits>::CreateChannel(
     webrtc::Thread* worker_thread,
     webrtc::Thread* network_thread,
     std::unique_ptr<webrtc::FakeVoiceMediaSendChannel> send_ch,
@@ -1710,10 +1711,10 @@ std::unique_ptr<webrtc::VoiceChannel> ChannelTest<VoiceTraits>::CreateChannel(
     webrtc::RtpTransportInternal* rtp_transport,
     int flags) {
   webrtc::Thread* signaling_thread = webrtc::Thread::Current();
-  auto channel = std::make_unique<webrtc::VoiceChannel>(
+  auto channel = std::make_unique<webrtc::BaseChannel>(
       worker_thread, network_thread, signaling_thread, std::move(send_ch),
-      std::move(receive_ch), kAudioMid, (flags & DTLS) != 0,
-      webrtc::CryptoOptions(), &ssrc_generator_);
+      std::move(receive_ch), kAudioMid, webrtc::MediaType::AUDIO,
+      (flags & DTLS) != 0, webrtc::CryptoOptions(), &ssrc_generator_);
   SendTask(network_thread, [&]() {
     RTC_DCHECK_RUN_ON(channel->network_thread());
     channel->SetRtpTransport(rtp_transport);
@@ -1782,7 +1783,7 @@ class VoiceChannelWithEncryptedRtpHeaderExtensionsDoubleThreadTest
 
 // override to add NULL parameter
 template <>
-std::unique_ptr<webrtc::VideoChannel> ChannelTest<VideoTraits>::CreateChannel(
+std::unique_ptr<webrtc::BaseChannel> ChannelTest<VideoTraits>::CreateChannel(
     webrtc::Thread* worker_thread,
     webrtc::Thread* network_thread,
     std::unique_ptr<webrtc::FakeVideoMediaSendChannel> send_ch,
@@ -1790,10 +1791,10 @@ std::unique_ptr<webrtc::VideoChannel> ChannelTest<VideoTraits>::CreateChannel(
     webrtc::RtpTransportInternal* rtp_transport,
     int flags) {
   webrtc::Thread* signaling_thread = webrtc::Thread::Current();
-  auto channel = std::make_unique<webrtc::VideoChannel>(
+  auto channel = std::make_unique<webrtc::BaseChannel>(
       worker_thread, network_thread, signaling_thread, std::move(send_ch),
-      std::move(receive_ch), kVideoMid, (flags & DTLS) != 0,
-      webrtc::CryptoOptions(), &ssrc_generator_);
+      std::move(receive_ch), kVideoMid, webrtc::MediaType::VIDEO,
+      (flags & DTLS) != 0, webrtc::CryptoOptions(), &ssrc_generator_);
   SendTask(network_thread, [&]() {
     RTC_DCHECK_RUN_ON(channel->network_thread());
     channel->SetRtpTransport(rtp_transport);
