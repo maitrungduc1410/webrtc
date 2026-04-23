@@ -130,7 +130,7 @@ RTCErrorOr<Candidate> ParseCandidate(absl::string_view message) {
   } else if (line_end + 1 == message.size()) {
     first_line = message.substr(0, line_end);
   } else {
-    return RTCError::InvalidParameter() << "Expect one line only";
+    return RTCError::InvalidParameter("Expect one line only");
   }
 
   // For backwards compatibility, don't fail if the supplied string is in the
@@ -189,7 +189,7 @@ RTCErrorOr<Candidate> ParseCandidate(absl::string_view message) {
 
   std::optional<ProtocolType> protocol = StringToProto(transport);
   if (!protocol) {
-    return RTCError::InvalidParameter() << "Unsupported transport type";
+    return RTCError::InvalidParameter("Unsupported transport type");
   }
   bool tcp_protocol = false;
   switch (*protocol) {
@@ -201,7 +201,7 @@ RTCErrorOr<Candidate> ParseCandidate(absl::string_view message) {
       tcp_protocol = true;
       break;
     default:
-      return RTCError::InvalidParameter() << "Unsupported protocol";
+      return RTCError::InvalidParameter("Unsupported protocol");
   }
 
   IceCandidateType candidate_type;
@@ -215,7 +215,7 @@ RTCErrorOr<Candidate> ParseCandidate(absl::string_view message) {
   } else if (type == kCandidatePrflx) {
     candidate_type = IceCandidateType::kPrflx;
   } else {
-    return RTCError::InvalidParameter() << "Unsupported candidate type";
+    return RTCError::InvalidParameter("Unsupported candidate type");
   }
 
   size_t current_position = expected_min_fields;
