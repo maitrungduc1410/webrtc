@@ -105,7 +105,10 @@ if (is_mac || is_ios) {
 # Visibility is limited to webrtc low level system utilities that can't use
 # injectable clock.
 rtc_library("system_time") {
-  visibility = [ "..:threading" ]
+  visibility = [
+    "..:rtc_task_queue_stdlib",
+    "..:threading",
+  ]
   sources = [
     "system_time.cc",
     "system_time.h",

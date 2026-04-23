@@ -720,15 +720,15 @@ rtc_library("rtc_task_queue_stdlib") {
   ]
   deps = [
     ":checks",
-    ":divide_round",
     ":macromagic",
     ":platform_thread",
     ":rtc_event",
-    ":timeutils",
     "../api:location",
     "../api/task_queue",
     "../api/units:time_delta",
+    "../api/units:timestamp",
     "synchronization:mutex",
+    "system:system_time",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
