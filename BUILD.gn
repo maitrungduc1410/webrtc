@@ -133,8 +133,10 @@ if (rtc_include_tests) {
     deps = [
       ":webrtc_nonparallel_tests",
       "//call:call_tests",
+      "//call/adaptation:resource_adaptation_tests",
       "//pc:peerconnection_unittests",
       "//test:test_support_unittests",
+      "//video/adaptation:video_adaptation_tests",
     ]
   }
 }
@@ -729,11 +731,9 @@ if (rtc_include_tests && !build_with_chromium) {
   rtc_test("video_engine_tests") {
     testonly = true
     deps = [
-      "call/adaptation:resource_adaptation_tests",
       "test:test_common",
       "test:video_test_common",
       "video:video_tests",
-      "video/adaptation:video_adaptation_tests",
     ]
 
     data_deps = [ "resources:video_engine_tests_data" ]
