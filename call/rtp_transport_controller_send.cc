@@ -56,7 +56,6 @@
 #include "modules/rtp_rtcp/source/rtp_rtcp_interface.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/containers/flat_map.h"
-#include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/network_route.h"
@@ -94,9 +93,6 @@ TargetRateConstraints ConvertConstraints(const BitrateConstraints& contraints,
                             contraints.start_bitrate_bps, clock);
 }
 
-bool IsRelayed(const NetworkRoute& route) {
-  return route.local.uses_turn() || route.remote.uses_turn();
-}
 }  // namespace
 
 RtpTransportControllerSend::RtpTransportControllerSend(
@@ -115,21 +111,15 @@ RtpTransportControllerSend::RtpTransportControllerSend(
       process_interval_(TimeDelta::PlusInfinity()),
       last_report_block_time_(env_.clock().CurrentTime()),
       initial_config_(env_),
-      reset_feedback_on_route_change_(
-          !env_.field_trials().IsEnabled("WebRTC-Bwe-NoFeedbackReset")),
       add_pacing_to_cwin_(env_.field_trials().IsEnabled(
           "WebRTC-AddPacingToCongestionWindowPushback")),
       reset_bwe_on_adapter_id_change_(
           env_.field_trials().IsEnabled("WebRTC-Bwe-ResetOnAdapterIdChange")),
-      relay_bandwidth_cap_("relay_cap", DataRate::PlusInfinity()),
       transport_overhead_bytes_per_packet_(0),
       network_available_(false),
       congestion_window_size_(DataSize::PlusInfinity()),
       is_congested_(false),
       retransmission_rate_limiter_(&env_.clock(), kRetransmitWindowSizeMs) {
-  ParseFieldTrial(
-      {&relay_bandwidth_cap_},
-      env_.field_trials().Lookup("WebRTC-Bwe-NetworkRouteConstraints"));
   initial_config_.constraints =
       ConvertConstraints(config.bitrate_config, &env_.clock());
   initial_config_.default_pacing_time_window =
@@ -325,7 +315,6 @@ bool RtpTransportControllerSend::IsRelevantRouteChange(
     const NetworkRoute& new_route) const {
   bool connected_changed = old_route.connected != new_route.connected;
   bool route_ids_changed = false;
-  bool relaying_changed = false;
 
   if (reset_bwe_on_adapter_id_change_) {
     route_ids_changed =
@@ -336,10 +325,7 @@ bool RtpTransportControllerSend::IsRelevantRouteChange(
         old_route.local.network_id() != new_route.local.network_id() ||
         old_route.remote.network_id() != new_route.remote.network_id();
   }
-  if (relay_bandwidth_cap_->IsFinite()) {
-    relaying_changed = IsRelayed(old_route) != IsRelayed(new_route);
-  }
-  return connected_changed || route_ids_changed || relaying_changed;
+  return connected_changed || route_ids_changed;
 }
 
 void RtpTransportControllerSend::OnNetworkRouteChanged(
@@ -352,9 +338,6 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
     // consider merging these two methods.
     return;
   }
-
-  std::optional<BitrateConstraints> relay_constraint_update =
-      ApplyOrLiftRelayCap(IsRelayed(network_route));
 
   // Check whether the network route has changed on each transport.
   auto result = network_routes_.insert(
@@ -373,9 +356,6 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
   }
 
   if (inserted) {
-    if (relay_constraint_update.has_value()) {
-      UpdateBitrateConstraints(*relay_constraint_update);
-    }
     transport_overhead_bytes_per_packet_ = network_route.packet_overhead;
     // No need to reset BWE if this is the first time the network connects.
     return;
@@ -402,9 +382,7 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
     msg.at_time = env_.clock().CurrentTime();
     msg.constraints = ConvertConstraints(bitrate_config, &env_.clock());
     transport_overhead_bytes_per_packet_ = network_route.packet_overhead;
-    if (reset_feedback_on_route_change_) {
-      transport_feedback_adapter_.SetNetworkRoute(network_route);
-    }
+    transport_feedback_adapter_.SetNetworkRoute(network_route);
     if (controller_) {
       PostUpdates(controller_->OnNetworkRouteChange(msg));
     } else {
@@ -553,12 +531,6 @@ void RtpTransportControllerSend::SetClientBitratePreferences(
         << "WebRTC.RtpTransportControllerSend.SetClientBitratePreferences: "
            "nothing to update";
   }
-}
-
-std::optional<BitrateConstraints>
-RtpTransportControllerSend::ApplyOrLiftRelayCap(bool is_relayed) {
-  DataRate cap = is_relayed ? relay_bandwidth_cap_ : DataRate::PlusInfinity();
-  return bitrate_configurator_.UpdateWithRelayCap(cap);
 }
 
 void RtpTransportControllerSend::OnTransportOverheadChanged(
