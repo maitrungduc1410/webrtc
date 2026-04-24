@@ -815,6 +815,9 @@ class SimpleVideoStreamEncoderFactory {
         const CodecSpecificInfo* codec_specific_info) override {
       return Result(EncodedImageCallback::Result::OK);
     }
+    void OnFrameDropped(uint32_t rtp_timestamp,
+                        int spatial_id,
+                        bool is_end_of_temporal_unit) override {}
   };
 
   FieldTrials field_trials_ = CreateTestFieldTrials();
