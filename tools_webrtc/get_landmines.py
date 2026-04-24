@@ -55,6 +55,7 @@ def print_landmines():  # pylint: disable=invalid-name
         print('Clobber because of libc++ issue - take 6 (crbug.com/1337238)')
         print('Clobber because b/367066321')
     if host_os() == 'mac':  # includes iOS
+        print('Clobber due changing compilation type again (webrtc:498394143)')
         print(
             'Clobber due changing compilation type of call_tests (webrtc:498394143)'
         )
