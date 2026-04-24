@@ -495,8 +495,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -510,8 +510,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -1119,8 +1119,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -1134,8 +1134,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -1772,8 +1772,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -1787,8 +1787,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -2396,8 +2396,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -2411,8 +2411,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -2842,8 +2842,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_file": "${ISOLATED_OUTDIR}/gtest_output.json",
           "result_format": "gtest_json"
@@ -2855,8 +2855,8 @@
           },
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "args": [
@@ -3341,8 +3341,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -3350,11 +3350,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -3820,8 +3819,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -3829,11 +3828,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -4299,8 +4297,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -4308,11 +4306,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -4778,8 +4775,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -4787,11 +4784,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -5257,8 +5253,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -5266,11 +5262,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -5718,8 +5713,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -5727,11 +5722,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -6180,8 +6174,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -6189,11 +6183,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -6661,8 +6654,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -6670,11 +6663,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -7141,8 +7133,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -7150,11 +7142,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Ubuntu-22.04"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -7625,8 +7616,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -7635,11 +7626,10 @@
             "cores": "12",
             "cpu": "x86-64",
             "os": "Mac-15"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -8111,8 +8101,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -8121,11 +8111,10 @@
             "cores": "12",
             "cpu": "x86-64",
             "os": "Mac-15"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -8576,8 +8565,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -8585,11 +8574,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Mac-15"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -9037,8 +9025,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -9046,11 +9034,10 @@
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
             "os": "Mac-15"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -9524,8 +9511,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -9533,11 +9520,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Windows-10-19045"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -9985,8 +9971,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -9994,11 +9980,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Windows-10-19045"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -10446,8 +10431,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -10455,11 +10440,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Windows-10-19045"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -10907,8 +10891,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests",
+        "module_name": "//video:video_tests",
+        "name": "video_tests",
         "resultdb": {
           "result_format": "json"
         },
@@ -10916,11 +10900,10 @@
           "dimensions": {
             "cpu": "x86-64",
             "os": "Windows-10-19045"
-          },
-          "shards": 4
+          }
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/"
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/"
       },
       {
         "merge": {
@@ -13069,8 +13052,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests iPhone 14 17.5",
+        "module_name": "//video:video_tests",
+        "name": "video_tests iPhone 14 17.5",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -13100,8 +13083,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/",
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/",
         "variant_id": "iPhone 14 17.5"
       },
       {
@@ -13119,8 +13102,8 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_isolated_script_merge.py"
         },
-        "module_name": "//:video_engine_tests",
-        "name": "video_engine_tests iPhone 15 18.2",
+        "module_name": "//video:video_tests",
+        "name": "video_tests iPhone 15 18.2",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -13150,8 +13133,8 @@
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 4
         },
-        "test": "video_engine_tests",
-        "test_id_prefix": "ninja://:video_engine_tests/",
+        "test": "video_tests",
+        "test_id_prefix": "ninja://video:video_tests/",
         "variant_id": "iPhone 15 18.2"
       },
       {

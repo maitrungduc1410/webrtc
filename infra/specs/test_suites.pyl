@@ -54,7 +54,7 @@
       'test_support_unittests': {},
       'tools_unittests': {},
       'video_adaptation_tests': {},
-      'video_engine_tests': {
+      'video_tests': {
         'mixins': ['shards-4'],
       },
       'video_timing_tests': {},
@@ -105,9 +105,7 @@
       },
       'tools_unittests': {},
       'video_adaptation_tests': {},
-      'video_engine_tests': {
-        'mixins': ['shards-4'],
-      },
+      'video_tests': {},
       'video_timing_tests': {},
       'voip_unittests': {},
       'webrtc_nonparallel_tests': {},
@@ -142,7 +140,7 @@
       },
       'system_wrappers_unittests': {},
       'video_adaptation_tests': {},
-      'video_engine_tests': {
+      'video_tests': {
         'mixins': ['shards-4'],
       },
       'voip_unittests': {},
@@ -196,7 +194,7 @@
       'test_support_unittests': {},
       'tools_unittests': {},
       'video_adaptation_tests': {},
-      'video_engine_tests': {
+      'video_tests': {
         'mixins': ['shards-4'],
       },
       'video_timing_tests': {},
