@@ -4088,5 +4088,31 @@ TEST_F(PortTest, TestAddConnectionWithSameAddress) {
   EXPECT_TRUE(port->GetConnection(address) != nullptr);
 }
 
+// This is a COMPILE time check to ensure that the TurnPort class can be
+// subclassed properly.
+class TestPortWrapper : public TurnPort {
+  TestPortWrapper()
+      : TurnPort(args_,
+                 /*socket=*/nullptr,
+                 my_server_address_,
+                 credentials_,
+                 /*server_priority=*/1,
+                 /*tls_alpn_protocols=*/{"alpn"},
+                 /*tls_elliptic_curves=*/{"ecc"},
+                 /*customizer=*/nullptr,
+                 /*tls_cert_verifier=*/nullptr) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    SubscribeReadPacket([](PortInterface* port, const char* data, size_t size,
+                           const SocketAddress& addr) {});
+#pragma clang diagnostic pop
+  }
+
+ private:
+  PortParametersRef args_{.env = CreateTestEnvironment()};
+  ProtocolAddress my_server_address_{kLocalAddr1, PROTO_UDP};
+  RelayCredentials credentials_;
+};
+
 }  // namespace
 }  // namespace webrtc
