@@ -19,9 +19,7 @@
 
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
-#include "api/crypto/frame_decryptor_interface.h"
 #include "api/dtls_transport_interface.h"
-#include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/rtc_error.h"
@@ -102,16 +100,12 @@ class AudioRtpReceiver : public ObserverInterface,
 
   RtpParameters GetParameters() const override;
 
-  void SetFrameDecryptor(
-      scoped_refptr<FrameDecryptorInterface> frame_decryptor) override;
-
-  scoped_refptr<FrameDecryptorInterface> GetFrameDecryptor() const override;
-
   // RtpReceiverInternal implementation.
   void Stop() override;
   absl::AnyInvocable<void() &&> GetSetupForMediaChannel(uint32_t ssrc) override;
   absl::AnyInvocable<void() &&> GetSetupForUnsignaledMediaChannel() override;
-  std::optional<uint32_t> ssrc() const override;
+  MediaReceiveChannelInterface* media_channel() const override
+      RTC_RUN_ON(worker_thread_);
   void NotifyFirstPacketReceived(uint32_t ssrc) override;
   void NotifyFirstPacketReceivedAfterReceptiveChange(uint32_t ssrc) override;
   void set_stream_ids(std::vector<std::string> stream_ids) override;
@@ -128,8 +122,6 @@ class AudioRtpReceiver : public ObserverInterface,
 
   std::vector<RtpSource> GetSources() const override;
   int AttachmentId() const override { return attachment_id_; }
-  void SetFrameTransformer(
-      scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
  private:
   AudioRtpReceiver(
@@ -154,7 +146,6 @@ class AudioRtpReceiver : public ObserverInterface,
   const scoped_refptr<AudioTrackProxyWithInternal<AudioTrack>> track_;
   VoiceMediaReceiveChannelInterface* media_channel_
       RTC_GUARDED_BY(worker_thread_) = nullptr;
-  std::optional<uint32_t> signaled_ssrc_ RTC_GUARDED_BY(worker_thread_);
   std::vector<scoped_refptr<MediaStreamInterface>> streams_
       RTC_GUARDED_BY(&signaling_thread_checker_);
   bool cached_track_enabled_ RTC_GUARDED_BY(&signaling_thread_checker_);
@@ -164,15 +155,11 @@ class AudioRtpReceiver : public ObserverInterface,
   bool received_first_packet_ RTC_GUARDED_BY(&signaling_thread_checker_) =
       false;
   const int attachment_id_;
-  scoped_refptr<FrameDecryptorInterface> frame_decryptor_
-      RTC_GUARDED_BY(worker_thread_);
   scoped_refptr<DtlsTransportInterface> dtls_transport_
       RTC_GUARDED_BY(&signaling_thread_checker_);
   // Stores and updates the playout delay. Handles caching cases if
   // `SetJitterBufferMinimumDelay` is called before start.
   JitterBufferDelay delay_ RTC_GUARDED_BY(worker_thread_);
-  scoped_refptr<FrameTransformerInterface> frame_transformer_
-      RTC_GUARDED_BY(worker_thread_);
   const scoped_refptr<PendingTaskSafetyFlag> worker_thread_safety_;
 };
 
