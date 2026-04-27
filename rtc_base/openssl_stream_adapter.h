@@ -32,6 +32,7 @@
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/stream.h"
 #include "rtc_base/task_utils/repeating_task.h"
+#include "system_wrappers/include/clock.h"
 
 #ifdef OPENSSL_IS_BORINGSSL
 #include "rtc_base/boringssl_identity.h"
@@ -273,6 +274,15 @@ class OpenSSLStreamAdapter final : public SSLStreamAdapter {
   // Kill switch (from field-trial) flag to disable the use of
   // SSL_set_group_ids.
   const bool disable_ssl_group_ids_ = false;
+
+#ifdef OPENSSL_IS_BORINGSSL
+  class ScopedClockForTesting {
+   public:
+    ScopedClockForTesting(SSL_CTX* ctx, Clock* clock);
+    ~ScopedClockForTesting();
+  };
+  std::optional<ScopedClockForTesting> clock_for_testing_;
+#endif
 };
 
 /////////////////////////////////////////////////////////////////////////////

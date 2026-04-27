@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -35,6 +36,7 @@
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -47,8 +49,9 @@
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/stream.h"
 #include "rtc_base/string_encode.h"
+#include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/task_utils/repeating_task.h"
-#include "rtc_base/time_utils.h"
+#include "system_wrappers/include/clock.h"
 
 #ifdef OPENSSL_IS_BORINGSSL
 #include <openssl/digest.h>
@@ -92,12 +95,12 @@ constexpr SrtpCipherMapEntry kSrtpCipherMap[] = {
 #ifdef OPENSSL_IS_BORINGSSL
 // Enabled by EnableTimeCallbackForTesting. Should never be set in production
 // code.
-bool g_use_time_callback_for_testing = false;
-// Not used in production code. Actual time should be relative to Jan 1, 1970.
-void TimeCallbackForTesting(const SSL* ssl, struct timeval* out_clock) {
-  int64_t time = TimeNanos();
-  out_clock->tv_sec = time / kNumNanosecsPerSec;
-  out_clock->tv_usec = (time % kNumNanosecsPerSec) / kNumNanosecsPerMicrosec;
+constinit bool g_use_time_callback_for_testing = false;
+constinit size_t g_num_clock_for_testing_users = 0;
+constinit Clock* g_clock_for_testing = nullptr;
+Mutex& GlobalClockMutex() {
+  static absl::NoDestructor<Mutex> m;
+  return *m;
 }
 #endif
 
@@ -1105,6 +1108,36 @@ void OpenSSLStreamAdapter::Cleanup(uint8_t alert) {
   timeout_task_.Stop();
 }
 
+#ifdef OPENSSL_IS_BORINGSSL
+OpenSSLStreamAdapter::ScopedClockForTesting::ScopedClockForTesting(
+    SSL_CTX* ctx,
+    Clock* clock) {
+  MutexLock lock(&GlobalClockMutex());
+  if (g_num_clock_for_testing_users == 0) {
+    g_clock_for_testing = clock;
+  } else {
+    RTC_CHECK(g_clock_for_testing == clock)
+        << "Multiple SSL clocks for testing is not implemented";
+  }
+  ++g_num_clock_for_testing_users;
+
+  // Not used in production code. Actual time should be relative to Jan 1, 1970.
+  SSL_CTX_set_current_time_cb(
+      ctx, +[](const SSL*, timeval* out_clock) {
+        Timestamp time = g_clock_for_testing->CurrentTime();
+        out_clock->tv_sec = time.us() / TimeDelta::Seconds(1).us();
+        out_clock->tv_usec = time.us() % TimeDelta::Seconds(1).us();
+      });
+}
+OpenSSLStreamAdapter::ScopedClockForTesting::~ScopedClockForTesting() {
+  MutexLock lock(&GlobalClockMutex());
+  --g_num_clock_for_testing_users;
+  if (g_num_clock_for_testing_users == 0) {
+    g_clock_for_testing = nullptr;
+  }
+}
+#endif
+
 SSL_CTX* OpenSSLStreamAdapter::SetupSSLContext() {
 #ifdef OPENSSL_IS_BORINGSSL
   // If X509 objects aren't used, we can use these methods to avoid
@@ -1130,7 +1163,9 @@ SSL_CTX* OpenSSLStreamAdapter::SetupSSLContext() {
 #ifdef OPENSSL_IS_BORINGSSL
   // SSL_CTX_set_current_time_cb is only supported in BoringSSL.
   if (g_use_time_callback_for_testing) {
-    SSL_CTX_set_current_time_cb(ctx, &TimeCallbackForTesting);
+    // Clock should be injected to set one for testing.
+    RTC_CHECK(env_.has_value());
+    clock_for_testing_.emplace(ctx, &env_->clock());
   }
   SSL_CTX_set0_buffer_pool(ctx, openssl::GetBufferPool());
 #endif
