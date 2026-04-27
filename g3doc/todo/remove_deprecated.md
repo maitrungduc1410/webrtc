@@ -13,7 +13,7 @@ APIs that have zero footprint in internal and external downstream projects.
 A symbol is a candidate for removal only if it meets **all** of the following:
 
 1. **Zero Usage:** No references found in WebRTC internals or downstream
-   projects. Chromium/WebKit.
+   projects.
 2. **Maturity:** The `[[deprecated]]` tag was added at least **3 months** ago.
 3. **Batch Size:** No more than **10 symbols** are processed in a single
    iteration.
@@ -35,11 +35,14 @@ current removal cycle:
 4. **Downstream Audit (CodeSearch):** For each matured symbol, perform broad
    searches in downstream projects (outside `third_party/webrtc`).
    - **External Usage:** `cs "content:<SymbolName> -file:stable/webrtc"`
-   - **Chromium Overrides:**
-     `cs "content:<SymbolName> file:chromium -file:third_party/webrtc"`
+   - **Search Optimization:** To minimize false positives with common names
+     (like `kPlanB` or `local_ssrc`), prioritize searching for qualified usage
+     (e.g., `cs "content:SdpSemantics::kPlanB"` or `cs "content:::kPlanB"`) or
+     structural access (e.g., `cs "content:.local_ssrc"`) before performing
+     broad searches for the bare symbol name.
    - *Note:* Pay special attention to virtual methods. If a symbol is overridden
-     in Chromium (e.g., in Blink's `RTCDTMFSenderHandler`), removing it from the
-     WebRTC base class will break the Chromium build.
+     in a downstream project, removing it from the WebRTC base class will break
+     the downstream build.
 5. **Iteration Stop:** Continue the audit process until exactly **10 symbols**
    have been confirmed to have zero results. Once 10 are found, stop the search.
 6. **Documentation:** List the 10 selected symbols, their locations, and their
@@ -61,7 +64,8 @@ For the 10 selected candidates:
    `rtc_unittests`, `rtc_pc_unittests`, `peerconnection_unittests`).
 5. **Verification:** Run the relevant test suites and ensure 100% pass rate.
 6. **Gerrit Upload:** Submit the changes for review. The CL description should
-   not contain any information about downstream projects.
+   refer to "downstream projects" generally and MUST NOT contain the specific
+   names of these projects.
 
 ______________________________________________________________________
 
