@@ -587,9 +587,7 @@ TEST(L4STest, RtcpSentAsEct1IfRtpWithEct1Received) {
   // be RTCP. Negotiation is still done using not ECT.
   callee_to_caller_node->router()->SetWatcher(
       [&](const EmulatedIpPacket& packet) {
-        if (StunMessage::ValidateFingerprint(
-                reinterpret_cast<const char*>(packet.data.data()),
-                packet.data.size())) {
+        if (StunMessage::ValidateFingerprint(packet.data)) {
           return;
         }
         if (packet.ecn == EcnMarking::kEct1 || packet.ecn == EcnMarking::kCe) {

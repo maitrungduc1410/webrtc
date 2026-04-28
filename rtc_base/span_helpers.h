@@ -13,6 +13,9 @@
 
 #include <cstdint>
 #include <span>
+#include <string>
+
+#include "absl/strings/string_view.h"
 
 namespace webrtc {
 
@@ -41,6 +44,15 @@ inline std::span<uint8_t> AsWritableUint8Span(std::span<char> span) {
 inline std::span<const uint8_t> AsUint8Span(std::span<const char> span) {
   return std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(span.data()),
                                   span.size());
+}
+
+inline std::span<const uint8_t> AsUint8Span(absl::string_view s) {
+  return std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(s.data()),
+                                  s.size());
+}
+
+inline std::span<const uint8_t> AsUint8Span(const std::string& s) {
+  return AsUint8Span(absl::string_view(s));
 }
 
 inline absl::string_view AsStringView(std::span<const uint8_t> span) {

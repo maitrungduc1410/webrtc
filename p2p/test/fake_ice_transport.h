@@ -521,8 +521,7 @@ class FakeIceTransportInternal : public IceTransportInternal {
                           int flags)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(network_thread_) {
     last_sent_packet_ = packet;
-    bool is_stun =
-        StunMessage::ValidateFingerprint(packet.data<char>(), packet.size());
+    bool is_stun = StunMessage::ValidateFingerprint(packet);
     if (packet_send_filter_func_ &&
         packet_send_filter_func_(packet.data<char>(), packet.size(), options,
                                  flags)) {
@@ -609,7 +608,7 @@ class FakeIceTransportInternal : public IceTransportInternal {
   }
 
   std::unique_ptr<IceMessage> GetStunMessage(const CopyOnWriteBuffer& packet) {
-    if (!StunMessage::ValidateFingerprint(packet.data<char>(), packet.size())) {
+    if (!StunMessage::ValidateFingerprint(packet)) {
       return nullptr;
     }
 
