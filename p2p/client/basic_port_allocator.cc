@@ -32,6 +32,7 @@
 #include "api/packet_socket_factory.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/enums.h"
 #include "api/units/time_delta.h"
 #include "p2p/base/port.h"
@@ -52,7 +53,6 @@
 #include "rtc_base/network_constants.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
@@ -260,7 +260,7 @@ BasicPortAllocatorSession::BasicPortAllocatorSession(
                            ice_pwd,
                            allocator->flags()),
       allocator_(allocator),
-      network_thread_(Thread::Current()),
+      network_thread_(TaskQueueBase::Current()),
       socket_factory_(allocator->socket_factory()),
       allocation_started_(false),
       network_manager_started_(false),
@@ -1394,7 +1394,7 @@ void AllocationSequence::Stop() {
 }
 
 void AllocationSequence::Process(int epoch) {
-  RTC_DCHECK(Thread::Current() == session_->network_thread());
+  RTC_DCHECK(TaskQueueBase::Current() == session_->network_thread());
   const char* const PHASE_NAMES[kNumPhases] = {"Udp", "Relay", "Tcp"};
 
   if (epoch != epoch_)

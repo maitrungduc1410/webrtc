@@ -17,11 +17,11 @@
 #include "api/environment/environment.h"
 #include "api/local_network_access_permission.h"
 #include "api/packet_socket_factory.h"
+#include "api/task_queue/task_queue_base.h"
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/network.h"
-#include "rtc_base/thread.h"
 
 namespace webrtc {
 class TurnCustomizer;
@@ -33,7 +33,7 @@ namespace webrtc {
 // A struct containing arguments to RelayPortFactory::Create()
 struct CreateRelayPortArgs {
   Environment env;
-  Thread* network_thread;
+  TaskQueueBase* network_thread;
   PacketSocketFactory* socket_factory;
   const Network* network;
   const ProtocolAddress* server_address;
