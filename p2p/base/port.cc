@@ -318,12 +318,6 @@ void Port::SubscribePortComplete(const void* tag,
   port_complete_callback_list_.AddReceiver(tag, std::move(callback));
 }
 
-[[deprecated]] void Port::SubscribeCandidateError(
-    std::function<void(Port*, const IceCandidateErrorEvent&)> callback) {
-  RTC_DCHECK_RUN_ON(thread_);
-  candidate_error_callback_list_.AddReceiver(std::move(callback));
-}
-
 void Port::SubscribeCandidateError(
     const void* tag,
     std::function<void(Port*, const IceCandidateErrorEvent&)> callback) {

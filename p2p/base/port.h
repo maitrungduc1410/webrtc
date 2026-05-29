@@ -281,9 +281,7 @@ class RTC_EXPORT Port : public PortInterface {
   // Provides all of the above information in one handy object.
   const std::vector<Candidate>& Candidates() const override;
   // Fired when candidate discovery failed using certain server.
-  [[deprecated("Use SubscribeCandidateError(const void* tag, ...)")]]
-  void SubscribeCandidateError(
-      std::function<void(Port*, const IceCandidateErrorEvent&)> callback);
+
   void SubscribeCandidateError(
       const void* tag,
       std::function<void(Port*, const IceCandidateErrorEvent&)> callback);
