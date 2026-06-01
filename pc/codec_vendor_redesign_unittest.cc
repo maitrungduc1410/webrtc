@@ -498,5 +498,58 @@ TEST_F(CodecVendorRedesignTest, SetRawPacketizationUpdatesCodecs) {
   EXPECT_EQ(second_it->packetization, second_codec.packetization);
 }
 
+TEST_F(CodecVendorRedesignTest, TestCodecsInAnswerStricterDirectionality) {
+  std::vector<Codec> offer_send_codecs({
+      CreateAudioCodec(40, "codec0", 16000, 1),
+      CreateAudioCodec(41, "codec1", 8000, 1),
+  });
+  std::vector<Codec> answer_recv_codecs({
+      CreateAudioCodec(40, "codec0", 16000, 1),
+      CreateAudioCodec(41, "codec1", 8000, 1),
+  });
+  std::vector<Codec> answer_send_codecs({
+      CreateAudioCodec(42, "codec2", 8000, 1),
+  });
+
+  media_engine_.SetAudioSendCodecs(offer_send_codecs);
+  media_engine_.SetAudioRecvCodecs(offer_send_codecs);
+
+  auto offer_vendor = std::make_unique<CodecVendor>(
+      &media_engine_, /*rtx_enabled=*/true, trials_);
+
+  FakeMediaEngine answer_media_engine;
+  answer_media_engine.SetAudioSendCodecs(answer_send_codecs);
+  answer_media_engine.SetAudioRecvCodecs(answer_recv_codecs);
+
+  auto answer_vendor = std::make_unique<CodecVendor>(
+      &answer_media_engine, /*rtx_enabled=*/true, trials_);
+
+  MediaDescriptionOptions offer_opts(MediaType::AUDIO, "audio",
+                                     RtpTransceiverDirection::kSendOnly,
+                                     /*stopped=*/false);
+  auto offer_result = offer_vendor->GetNegotiatedCodecsForOffer(
+      offer_opts, MediaSessionOptions(), /*current_content=*/nullptr,
+      pt_suggester_);
+  ASSERT_TRUE(offer_result.ok());
+
+  MediaDescriptionOptions answer_opts(MediaType::AUDIO, "audio",
+                                      RtpTransceiverDirection::kSendOnly,
+                                      /*stopped=*/false);
+
+  auto answer_result = answer_vendor->GetNegotiatedCodecsForAnswer(
+      answer_opts, MediaSessionOptions(), RtpTransceiverDirection::kSendOnly,
+      RtpTransceiverDirection::kInactive, /*current_content=*/nullptr,
+      offer_result.value(), pt_suggester_);
+
+  ASSERT_TRUE(answer_result.ok());
+
+  const auto& answer_codecs = answer_result.value();
+
+  // We expect codec0 and codec1 to be present if we want to match legacy
+  // behavior.
+  EXPECT_THAT(answer_codecs, Contains(Field(&Codec::name, "codec0")));
+  EXPECT_THAT(answer_codecs, Contains(Field(&Codec::name, "codec1")));
+}
+
 }  // namespace
 }  // namespace webrtc

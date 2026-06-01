@@ -1222,10 +1222,25 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
         }
       }
       if (payload_types_in_transport_) {
-        // Redesign path: Use configurations to merge supported codecs.
-        MergeCodecsByDirection(media_description_options.type, answer_rtd, mid,
-                               filtered_codecs, pt_suggester,
-                               /*pick_from_top_of_range=*/false);
+        // TODO(webrtc:360058654): This is not according to the specification,
+        // which says we should only include codecs valid for the negotiated
+        // direction. We include all supported codecs to match legacy behavior.
+        // Make this more restrictive in the future.
+        const std::vector<CodecConfiguration>& send_configs =
+            (media_description_options.type == MediaType::AUDIO)
+                ? audio_send_codecs_.configurations()
+                : video_send_codecs_.configurations();
+        const std::vector<CodecConfiguration>& recv_configs =
+            (media_description_options.type == MediaType::AUDIO)
+                ? audio_recv_codecs_.configurations()
+                : video_recv_codecs_.configurations();
+
+        MergeCodecsFromConfigurations(send_configs, mid, filtered_codecs,
+                                      pt_suggester, trials_,
+                                      /*pick_from_top_of_range=*/false);
+        MergeCodecsFromConfigurations(recv_configs, mid, filtered_codecs,
+                                      pt_suggester, trials_,
+                                      /*pick_from_top_of_range=*/false);
       } else {
         // Merge other_codecs into filtered_codecs, resolving PT conflicts.
         MergeCodecsLegacy(supported_codecs, mid, filtered_codecs, pt_suggester);
