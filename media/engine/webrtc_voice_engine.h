@@ -120,10 +120,14 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
     return decoder_factory_;
   }
 
-  // Every option that is "set" will be applied. Every option not "set" will be
-  // ignored. This allows us to selectively turn on and off different options
-  // easily at any time.
+  // Applies global audio processing options to engine. Internal helper
+  // called by Init() and ApplyGlobalOptions().
   void ApplyOptions(const AudioOptions& options);
+  // Applies global engine-level processing options (e.g. APM settings like AEC,
+  // AGC, NS). Global options govern all processing; local channel-level
+  // settings for these fields are ignored and do not override the global
+  // configuration.
+  void ApplyGlobalOptions(const AudioOptions& options) override;
 
   AudioDeviceModule* adm();
   AudioProcessing* apm() const;

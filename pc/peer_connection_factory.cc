@@ -185,6 +185,12 @@ RtpCapabilities PeerConnectionFactory::GetRtpReceiverCapabilities(
 scoped_refptr<AudioSourceInterface> PeerConnectionFactory::CreateAudioSource(
     const AudioOptions& options) {
   RTC_DCHECK(signaling_thread()->IsCurrent());
+#if !defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_WEBKIT_BUILD)
+  if (context_->media_engine() != nullptr) {
+    worker_thread()->BlockingCall(
+        [&] { context_->ApplyGlobalAudioOptions(options); });
+  }
+#endif
   scoped_refptr<LocalAudioSource> source(LocalAudioSource::Create(&options));
   return source;
 }

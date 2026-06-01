@@ -14,6 +14,7 @@
 #include <memory>
 #include <utility>
 
+#include "api/audio_options.h"
 #include "api/environment/environment.h"
 #include "api/packet_socket_factory.h"
 #include "api/peer_connection_interface.h"
@@ -119,6 +120,9 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
   // For use by tests.
   void set_use_rtx(bool use_rtx) { use_rtx_ = use_rtx; }
 
+  // Apply global audio options. Must be called on the worker thread.
+  void ApplyGlobalAudioOptions(const AudioOptions& options);
+
  protected:
   friend class MediaEngineReference;
   // Registers a media engine usage. Calls Init() to initialize the media engine
@@ -176,6 +180,10 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
   // Controls whether to announce support for the the rfc4588 payload format
   // for retransmitted video packets.
   bool use_rtx_;
+
+  // Stored global audio options applied to the media engine upon
+  // initialization.
+  AudioOptions global_audio_options_ RTC_GUARDED_BY(worker_thread());
 };
 
 }  // namespace webrtc
