@@ -630,11 +630,12 @@ class ChannelTest : public ::testing::Test {
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &remote);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
-        RtpExtension(RtpExtension::kVideoRotationUri, 2),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(1)),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(2)),
     });
     remote.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kVideoRotationUri, 2),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(2)),
     });
 
     CreateChannels(0, 0);
@@ -658,11 +659,12 @@ class ChannelTest : public ::testing::Test {
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &remote);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(1)),
     });
     remote.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 2),
-        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(2)),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(1)),
     });
 
     CreateChannels(0, 0);
@@ -685,8 +687,9 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
-        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(1)),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(1)),
     });
 
     CreateChannels(0, 0);
@@ -699,7 +702,8 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 256),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(256)),
     });
 
     CreateChannels(0, 0);
@@ -712,7 +716,8 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 0),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(0)),
     });
 
     CreateChannels(0, 0);
@@ -725,7 +730,8 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(1)),
     });
 
     CreateChannels(0, 0);
@@ -734,7 +740,7 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local_updated;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local_updated);
     local_updated.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(1)),
     });
     RTCError error =
         channel1_->SetLocalContent(&local_updated, SdpType::kOffer);
@@ -746,7 +752,8 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local);
     local.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1),
+        RtpExtension(RtpExtension::kTransportSequenceNumberUri,
+                     RtpHeaderExtensionId(1)),
     });
 
     CreateChannels(0, 0);
@@ -760,7 +767,7 @@ class ChannelTest : public ::testing::Test {
     typename T::Content local_updated;
     CreateContent(/*flags=*/0, kPcmuCodec, kH264Codec, &local_updated);
     local_updated.set_rtp_header_extensions({
-        RtpExtension(RtpExtension::kVideoRotationUri, 1),
+        RtpExtension(RtpExtension::kVideoRotationUri, RtpHeaderExtensionId(1)),
     });
     RTCError error =
         channel1_->SetLocalContent(&local_updated, SdpType::kOffer);

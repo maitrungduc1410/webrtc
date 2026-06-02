@@ -19,6 +19,7 @@
 
 #include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_parameters.h"
 #include "modules/include/module_fec_types.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -220,7 +221,7 @@ TEST(FlexfecSenderTest, RegisterAbsoluteSendTimeRtpHeaderExtension) {
   SimulatedClock clock(kInitialSimulatedClockTime);
   const Environment env = CreateEnvironment(&clock);
   const std::vector<RtpExtension> kRtpHeaderExtensions{
-      {RtpExtension::kAbsSendTimeUri, 1}};
+      {RtpExtension::kAbsSendTimeUri, RtpHeaderExtensionId(1)}};
   FlexfecSender sender(env, kFlexfecPayloadType, kFlexfecSsrc, kMediaSsrc,
                        kNoMid, kRtpHeaderExtensions, kNoRtpHeaderExtensionSizes,
                        nullptr /* rtp_state */);
