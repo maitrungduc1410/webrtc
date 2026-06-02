@@ -622,6 +622,7 @@ class PeerConnectionFactoryForTest : public PeerConnectionFactory {
     // Use fake audio device module since we're only testing the interface
     // level, and using a real one could make tests flaky when run in parallel.
     dependencies.adm = FakeAudioCaptureModule::Create();
+    dependencies.env = CreateTestEnvironment();
     EnableMediaWithDefaults(dependencies);
     dependencies.event_log_factory = std::make_unique<RtcEventLogFactory>();
 

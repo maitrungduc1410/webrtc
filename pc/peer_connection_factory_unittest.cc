@@ -70,6 +70,7 @@
 #include "rtc_base/socket_server.h"
 #include "rtc_base/thread.h"
 #include "test/create_test_environment.h"
+#include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/run_loop.h"
@@ -168,7 +169,8 @@ class PeerConnectionFactoryTest : public ::testing::Test {
         std::make_unique<VideoDecoderFactoryTemplate<
             LibvpxVp8DecoderTemplateAdapter, LibvpxVp9DecoderTemplateAdapter,
             OpenH264DecoderTemplateAdapter, Dav1dDecoderTemplateAdapter>>(),
-        nullptr /* audio_mixer */, nullptr /* audio_processing */);
+        nullptr /* audio_mixer */, nullptr /* audio_processing */,
+        nullptr /* audio_frame_processor */, CreateTestFieldTrialsPtr());
 
     ASSERT_TRUE(factory_.get() != nullptr);
     port_allocator_ = std::make_unique<FakePortAllocator>(
@@ -326,7 +328,8 @@ TEST(PeerConnectionFactoryTestInternal, DISABLED_CreatePCUsingInternalModules) {
           CreateBuiltinAudioDecoderFactory(),
           nullptr /* video_encoder_factory */,
           nullptr /* video_decoder_factory */, nullptr /* audio_mixer */,
-          nullptr /* audio_processing */));
+          nullptr /* audio_processing */, nullptr /* audio_frame_processor */,
+          CreateTestFieldTrialsPtr()));
 
   NullPeerConnectionObserver observer;
   PeerConnectionInterface::RTCConfiguration config;

@@ -62,6 +62,7 @@
 #include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 #include "system_wrappers/include/metrics.h"
+#include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/run_loop.h"
@@ -115,7 +116,9 @@ class PeerConnectionRtpBaseTest : public ::testing::Test {
                                             OpenH264DecoderTemplateAdapter,
                                             Dav1dDecoderTemplateAdapter>>(),
             nullptr /* audio_mixer */,
-            nullptr /* audio_processing */)) {
+            nullptr /* audio_processing */,
+            nullptr /* audio_frame_processor */,
+            CreateTestFieldTrialsPtr())) {
     metrics::Reset();
   }
 
