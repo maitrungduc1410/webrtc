@@ -42,6 +42,7 @@
 #include "api/payload_type.h"
 #include "api/priority.h"
 #include "api/rtc_error.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
@@ -871,7 +872,7 @@ WebRtcVideoEngine::GetRtpHeaderExtensions(
   std::vector<RtpHeaderExtensionCapability> result;
   // id is *not* incremented for non-default extensions. Conflicting IDs
   // need to be resolved.
-  int id = 1;
+  RtpHeaderExtensionId id(1);
   for (const auto& uri :
        {RtpExtension::kTimestampOffsetUri, RtpExtension::kAbsSendTimeUri,
         RtpExtension::kVideoRotationUri,
@@ -880,11 +881,13 @@ WebRtcVideoEngine::GetRtpHeaderExtensions(
         RtpExtension::kVideoTimingUri, RtpExtension::kColorSpaceUri,
         RtpExtension::kMidUri, RtpExtension::kRidUri,
         RtpExtension::kRepairedRidUri}) {
-    result.emplace_back(uri, id++, RtpTransceiverDirection::kSendRecv);
+    result.emplace_back(uri, id, RtpTransceiverDirection::kSendRecv);
+    id = RtpHeaderExtensionId(id.value() + 1);
   }
-  result.emplace_back(RtpExtension::kCorruptionDetectionUri, id++,
+  result.emplace_back(RtpExtension::kCorruptionDetectionUri, id,
                       /*preferred_encrypt=*/true,
                       RtpTransceiverDirection::kStopped);
+  id = RtpHeaderExtensionId(id.value() + 1);
   for (const auto& uri : {RtpExtension::kAbsoluteCaptureTimeUri}) {
     result.emplace_back(uri, id, RtpTransceiverDirection::kStopped);
   }

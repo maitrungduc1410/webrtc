@@ -1184,8 +1184,8 @@ TEST_F(SdpMungingTest, HeaderExtensionAdded) {
   auto* media_description = contents[0].media_description();
   ASSERT_THAT(media_description, Not(IsNull()));
   // VLA is off by default, id=42 should be unused.
-  media_description->AddRtpHeaderExtension(
-      {RtpExtension::kVideoLayersAllocationUri, 42});
+  media_description->AddRtpHeaderExtension(RtpExtension(
+      RtpExtension::kVideoLayersAllocationUri, RtpHeaderExtensionId(42)));
 
   RTCError error;
   EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));

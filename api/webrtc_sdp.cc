@@ -35,6 +35,7 @@
 #include "api/media_types.h"
 #include "api/payload_type.h"
 #include "api/rtc_error.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/sctp_transport_interface.h"
@@ -799,7 +800,7 @@ bool ParseExtmap(absl::string_view line,
     }
   }
 
-  *extmap = RtpExtension(uri, value, encrypted);
+  *extmap = RtpExtension(uri, RtpHeaderExtensionId(value), encrypted);
   return true;
 }
 

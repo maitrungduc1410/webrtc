@@ -153,7 +153,9 @@ TEST(RtpParametersConversionTest, ToRtpCapabilities) {
   Codec rtx2 = CreateVideoRtxCodec(105, 109);
 
   RtpCapabilities capabilities =
-      ToRtpCapabilities({vp8, ulpfec, rtx, rtx2}, {{"uri", 1}, {"uri2", 3}});
+      ToRtpCapabilities({vp8, ulpfec, rtx, rtx2},
+                        {RtpExtension("uri", RtpHeaderExtensionId(1)),
+                         RtpExtension("uri2", RtpHeaderExtensionId(3))});
   ASSERT_EQ(3u, capabilities.codecs.size());
   EXPECT_EQ("VP8", capabilities.codecs[0].name);
   EXPECT_EQ("ulpfec", capabilities.codecs[1].name);

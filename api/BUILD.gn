@@ -343,6 +343,7 @@ rtc_library("jsep") {
     ":payload_type",
     ":ref_count",
     ":rtc_error",
+    ":rtp_header_extension_id",
     ":rtp_parameters",
     ":rtp_transceiver_direction",
     ":sctp_transport_interface",

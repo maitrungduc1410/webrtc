@@ -606,6 +606,7 @@ rtc_library("rtc_audio_video") {
     "../api:payload_type",
     "../api:priority",
     "../api:rtc_error",
+    "../api:rtp_header_extension_id",
     "../api:rtp_headers",
     "../api:rtp_parameters",
     "../api:rtp_sender_interface",

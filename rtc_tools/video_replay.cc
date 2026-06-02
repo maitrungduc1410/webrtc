@@ -28,6 +28,7 @@
 #include "api/field_trials.h"
 #include "api/field_trials_view.h"
 #include "api/media_types.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_parameters.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
@@ -598,7 +599,8 @@ class RtpReplayer final {
       std::pair<std::string, std::string> ext = absl::StrSplit(extension, ':');
       if (auto it = kKnownExtensions.find(ext.first);
           it != kKnownExtensions.end()) {
-        res.RegisterByUri(std::stoi(ext.second), it->second);
+        res.RegisterByUri(RtpHeaderExtensionId(std::stoi(ext.second)),
+                          it->second);
       } else {
         RTC_DCHECK_NOTREACHED() << "Unknown extension \"" << ext.first << "\"";
       }
