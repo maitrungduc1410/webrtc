@@ -13,13 +13,9 @@
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "test/gtest.h"
 
+namespace webrtc {
 namespace {
 
-using ::webrtc::RtpExtensionSize;
-using ::webrtc::RtpHeaderExtensionMap;
-using ::webrtc::RtpHeaderExtensionSize;
-using ::webrtc::RtpMid;
-using ::webrtc::RtpStreamId;
 
 // id for 1-byte header extension. actual value is irrelevant for these tests.
 constexpr int kId = 1;
@@ -97,3 +93,5 @@ TEST(RtpHeaderExtensionSizeTest, LargeValueForce2BytesHeader) {
 }
 
 }  // namespace
+
+}  // namespace webrtc
