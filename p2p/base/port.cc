@@ -106,7 +106,7 @@ Port::Port(const PortParametersRef& args,
       timeout_delay_(kPortTimeoutDelay),
       enable_port_packets_(false),
       ice_role_(ICEROLE_UNKNOWN),
-      tiebreaker_(0),
+      ice_tiebreaker_(args.ice_tiebreaker),
       shared_socket_(shared_socket),
       network_cost_(args.network->GetCost(env_.field_trials())),
       role_conflict_callback_(nullptr),
@@ -164,12 +164,12 @@ void Port::SetIceRole(IceRole role) {
 
 void Port::SetIceTiebreaker(uint64_t tiebreaker) {
   RTC_DCHECK_RUN_ON(thread_);
-  tiebreaker_ = tiebreaker;
+  ice_tiebreaker_ = tiebreaker;
 }
 
 uint64_t Port::IceTiebreaker() const {
   RTC_DCHECK_RUN_ON(thread_);
-  return tiebreaker_;
+  return ice_tiebreaker_;
 }
 
 bool Port::SharedSocket() const {
@@ -230,8 +230,7 @@ void Port::AddAddress(const SocketAddress& address,
               type, generation_, "", network_->id(), network_cost_);
   // Set the relay protocol before computing the foundation field.
   c.set_relay_protocol(relay_protocol);
-  // TODO(bugs.webrtc.org/14605): ensure IceTiebreaker() is set.
-  c.ComputeFoundation(base_address, tiebreaker_);
+  c.ComputeFoundation(base_address, ice_tiebreaker_);
 
   c.set_priority(
       c.GetPriority(type_preference, network_->preference(), relay_preference,
@@ -707,7 +706,7 @@ bool Port::MaybeIceRoleConflict(const SocketAddress& addr,
   switch (ice_role_) {
     case ICEROLE_CONTROLLING:
       if (ICEROLE_CONTROLLING == remote_ice_role) {
-        if (remote_tiebreaker >= tiebreaker_) {
+        if (remote_tiebreaker >= ice_tiebreaker_) {
           NotifyRoleConflict();
         } else {
           // Send Role Conflict (487) error response.
@@ -719,7 +718,7 @@ bool Port::MaybeIceRoleConflict(const SocketAddress& addr,
       break;
     case ICEROLE_CONTROLLED:
       if (ICEROLE_CONTROLLED == remote_ice_role) {
-        if (remote_tiebreaker < tiebreaker_) {
+        if (remote_tiebreaker < ice_tiebreaker_) {
           NotifyRoleConflict();
         } else {
           // Send Role Conflict (487) error response.

@@ -292,6 +292,7 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
     args.server_address = &server_address;
     args.config = &config;
     args.turn_customizer = turn_customizer_.get();
+    args.ice_tiebreaker = kTiebreakerDefault;
 
     turn_port_ = TurnPort::Create(args, 0, 0);
     if (!turn_port_) {
@@ -299,7 +300,6 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
     }
     // This TURN port will be the controlling.
     turn_port_->SetIceRole(ICEROLE_CONTROLLING);
-    turn_port_->SetIceTiebreaker(kTiebreakerDefault);
     turn_port_->SetOption(Socket::OPT_RECV_ECN, 1);
     ConnectSignals();
 
@@ -339,10 +339,10 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
     args.server_address = &server_address;
     args.config = &config;
     args.turn_customizer = turn_customizer_.get();
+    args.ice_tiebreaker = kTiebreakerDefault;
     turn_port_ = TurnPort::Create(args, socket_.get());
     // This TURN port will be the controlling.
     turn_port_->SetIceRole(ICEROLE_CONTROLLING);
-    turn_port_->SetIceTiebreaker(kTiebreakerDefault);
     ConnectSignals();
   }
 
@@ -374,11 +374,11 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
                                  .socket_factory = socket_factory(),
                                  .network = MakeNetwork(address),
                                  .ice_username_fragment = kIceUfrag2,
-                                 .ice_password = kIcePwd2},
+                                 .ice_password = kIcePwd2,
+                                 .ice_tiebreaker = kTiebreakerDefault},
                                 0, 0, false, std::nullopt);
     // UDP port will be controlled.
     udp_port_->SetIceRole(ICEROLE_CONTROLLED);
-    udp_port_->SetIceTiebreaker(kTiebreakerDefault);
     udp_port_->SubscribePortComplete(
         this, [this](Port* port) { OnUdpPortComplete(port); });
     udp_port_->SetOption(Socket::OPT_RECV_ECN, 1);

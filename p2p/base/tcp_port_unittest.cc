@@ -97,29 +97,27 @@ class TCPPortTest : public ::testing::Test {
   std::unique_ptr<TCPPort> CreateTCPPort(const SocketAddress& addr,
                                          bool allow_listen = true,
                                          int port_number = 0) {
-    auto port = std::unique_ptr<TCPPort>(
+    return std::unique_ptr<TCPPort>(
         TCPPort::Create({.env = env_,
                          .network_thread = main_.task_queue(),
                          .socket_factory = &socket_factory_,
                          .network = MakeNetwork(addr),
                          .ice_username_fragment = username_,
-                         .ice_password = password_},
+                         .ice_password = password_,
+                         .ice_tiebreaker = kTiebreakerDefault},
                         port_number, port_number, allow_listen));
-    port->SetIceTiebreaker(kTiebreakerDefault);
-    return port;
   }
 
   std::unique_ptr<TCPPort> CreateTCPPort(const Network* network) {
-    auto port = std::unique_ptr<TCPPort>(
+    return std::unique_ptr<TCPPort>(
         TCPPort::Create({.env = env_,
                          .network_thread = main_.task_queue(),
                          .socket_factory = &socket_factory_,
                          .network = network,
                          .ice_username_fragment = username_,
-                         .ice_password = password_},
+                         .ice_password = password_,
+                         .ice_tiebreaker = kTiebreakerDefault},
                         0, 0, true));
-    port->SetIceTiebreaker(kTiebreakerDefault);
-    return port;
   }
 
  protected:

@@ -164,6 +164,7 @@ class RTC_EXPORT Port : public PortInterface {
     absl::string_view content_name;
     LocalNetworkAccessPermissionFactoryInterface* lna_permission_factory =
         nullptr;
+    uint64_t ice_tiebreaker;
   };
 
  protected:
@@ -197,7 +198,8 @@ class RTC_EXPORT Port : public PortInterface {
              bool payload) override = 0;
   */
 
-  void SetIceTiebreaker(uint64_t tiebreaker) override;
+  [[deprecated("Pass via PortParametersRef")]] void SetIceTiebreaker(
+      uint64_t tiebreaker) override;
   uint64_t IceTiebreaker() const override;
 
   bool SharedSocket() const override;
@@ -600,7 +602,8 @@ class RTC_EXPORT Port : public PortInterface {
   int timeout_delay_ RTC_GUARDED_BY(thread_);
   bool enable_port_packets_ RTC_GUARDED_BY(thread_);
   IceRole ice_role_ RTC_GUARDED_BY(thread_);
-  uint64_t tiebreaker_ RTC_GUARDED_BY(thread_);
+  // https://datatracker.ietf.org/doc/html/rfc5245#section-5.2
+  uint64_t ice_tiebreaker_ RTC_GUARDED_BY(thread_);
   bool shared_socket_ RTC_GUARDED_BY(thread_);
 
   // A virtual cost perceived by the user, usually based on the network type

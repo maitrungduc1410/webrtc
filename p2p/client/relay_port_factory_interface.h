@@ -11,6 +11,7 @@
 #ifndef P2P_CLIENT_RELAY_PORT_FACTORY_INTERFACE_H_
 #define P2P_CLIENT_RELAY_PORT_FACTORY_INTERFACE_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -48,6 +49,7 @@ struct CreateRelayPortArgs {
   int relative_priority = 0;
   LocalNetworkAccessPermissionFactoryInterface* lna_permission_factory =
       nullptr;
+  uint64_t ice_tiebreaker = 0;
 };
 
 // A factory for creating RelayPort's.
