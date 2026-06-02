@@ -229,7 +229,8 @@ TEST_F(ChannelSendTest, FrameTransformerGetsCorrectTimestamp) {
 TEST_F(ChannelSendTest, AudioLevelsAttachedToCorrectTransformedFrame) {
   channel_->SetSendAudioLevelIndicationStatus(RtpHeaderExtensionId(1));
   RtpPacketReceived::ExtensionManager extension_manager;
-  extension_manager.RegisterByType(1, kRtpExtensionAudioLevel);
+  extension_manager.RegisterByType(RtpHeaderExtensionId(1),
+                                   kRtpExtensionAudioLevel);
 
   scoped_refptr<MockFrameTransformer> mock_frame_transformer =
       make_ref_counted<MockFrameTransformer>();
@@ -293,7 +294,8 @@ TEST_F(ChannelSendTest, AudioLevelsAttachedToCorrectTransformedFrame) {
 TEST_F(ChannelSendTest, AudioLevelsAttachedToInsertedTransformedFrame) {
   channel_->SetSendAudioLevelIndicationStatus(RtpHeaderExtensionId(1));
   RtpPacketReceived::ExtensionManager extension_manager;
-  extension_manager.RegisterByType(1, kRtpExtensionAudioLevel);
+  extension_manager.RegisterByType(RtpHeaderExtensionId(1),
+                                   kRtpExtensionAudioLevel);
 
   scoped_refptr<MockFrameTransformer> mock_frame_transformer =
       make_ref_counted<MockFrameTransformer>();

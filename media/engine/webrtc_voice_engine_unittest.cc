@@ -589,8 +589,8 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
     EXPECT_EQ(0u, GetSendStreamConfig(kSsrcX).rtp.extensions.size());
 
     // Ensure unknown extensions won't cause an error.
-    send_parameters_.extensions.push_back(
-        RtpExtension("urn:ietf:params:unknownextention", 1));
+    send_parameters_.extensions.push_back(RtpExtension(
+        "urn:ietf:params:unknownextention", RtpHeaderExtensionId(1)));
     SetSenderParameters(send_parameters_);
     EXPECT_EQ(0u, GetSendStreamConfig(kSsrcX).rtp.extensions.size());
 
@@ -633,8 +633,8 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
         IsEmpty());
 
     // Ensure unknown extensions won't cause an error.
-    recv_parameters_.extensions.push_back(
-        RtpExtension("urn:ietf:params:unknownextention", 1));
+    recv_parameters_.extensions.push_back(RtpExtension(
+        "urn:ietf:params:unknownextention", RtpHeaderExtensionId(1)));
     EXPECT_TRUE(receive_channel_->SetReceiverParameters(recv_parameters_));
     EXPECT_THAT(
         receive_channel_->GetRtpReceiverParameters(kSsrcX).header_extensions,
@@ -648,7 +648,7 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
         IsEmpty());
 
     // Ensure extension is set properly.
-    const int id = 2;
+    const RtpHeaderExtensionId id(2);
     recv_parameters_.extensions.push_back(RtpExtension(ext, id));
     EXPECT_TRUE(receive_channel_->SetReceiverParameters(recv_parameters_));
     EXPECT_EQ(
@@ -1599,7 +1599,7 @@ TEST_P(WebRtcVoiceEngineTestFake, OnPacketReceivedIdentifiesExtensions) {
   ASSERT_TRUE(SetupChannel());
   AudioReceiverParameters parameters = recv_parameters_;
   parameters.extensions.push_back(
-      RtpExtension(RtpExtension::kAudioLevelUri, /*id=*/1));
+      RtpExtension(RtpExtension::kAudioLevelUri, RtpHeaderExtensionId(1)));
   ASSERT_TRUE(receive_channel_->SetReceiverParameters(parameters));
   run_loop_.Flush();
   RtpHeaderExtensionMap extension_map(parameters.extensions);
@@ -2398,7 +2398,7 @@ TEST_P(WebRtcVoiceEngineTestFake, SendStateWhenStreamsAreRecreated) {
 
   // Changing RTP header extensions will recreate the AudioSendStream.
   send_parameters_.extensions.push_back(
-      RtpExtension(RtpExtension::kAudioLevelUri, 12));
+      RtpExtension(RtpExtension::kAudioLevelUri, RtpHeaderExtensionId(12)));
   SetSenderParameters(send_parameters_);
   EXPECT_TRUE(GetSendStream(kSsrcX).IsSending());
 
@@ -3554,7 +3554,7 @@ TEST_P(WebRtcVoiceEngineTestFake, PreservePlayoutWhenRecreateRecvStream) {
   // AudioReceiveStreamInterface.
   AudioReceiverParameters parameters;
   parameters.extensions.push_back(
-      RtpExtension(RtpExtension::kAudioLevelUri, 12));
+      RtpExtension(RtpExtension::kAudioLevelUri, RtpHeaderExtensionId(12)));
   receive_channel_->SetReceiverParameters(parameters);
 
   EXPECT_TRUE(GetRecvStream(kSsrcX).started());
@@ -3757,8 +3757,8 @@ TEST(WebRtcVoiceEngineTest, SetRtpSendParametersMaxBitrate) {
   {
     AudioSenderParameter params;
     params.codecs.push_back(CreateAudioCodec(1, "opus", 48000, 2));
-    params.extensions.push_back(
-        RtpExtension(RtpExtension::kTransportSequenceNumberUri, 1));
+    params.extensions.push_back(RtpExtension(
+        RtpExtension::kTransportSequenceNumberUri, RtpHeaderExtensionId(1)));
     EXPECT_TRUE(channel.SetSenderParameters(params));
   }
   constexpr int kSsrc = 1234;
