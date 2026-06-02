@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/strings/string_view.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/units/time_delta.h"
 #include "api/video/color_space.h"
@@ -50,14 +51,14 @@ constexpr uint16_t kSeqNum = 0x1234;
 constexpr uint8_t kSeqNumFirstByte = kSeqNum >> 8;
 constexpr uint8_t kSeqNumSecondByte = kSeqNum & 0xff;
 constexpr uint32_t kTimestamp = 0x65431278;
-constexpr uint8_t kTransmissionOffsetExtensionId = 1;
-constexpr uint8_t kDependencyDescriptorExtensionId = 2;
-constexpr uint8_t kAudioLevelExtensionId = 9;
-constexpr uint8_t kRtpStreamIdExtensionId = 0xa;
-constexpr uint8_t kRtpMidExtensionId = 0xb;
-constexpr uint8_t kVideoTimingExtensionId = 0xc;
+constexpr RtpHeaderExtensionId kTransmissionOffsetExtensionId(1);
+constexpr RtpHeaderExtensionId kDependencyDescriptorExtensionId(2);
+constexpr RtpHeaderExtensionId kAudioLevelExtensionId(9);
+constexpr RtpHeaderExtensionId kRtpStreamIdExtensionId(0xa);
+constexpr RtpHeaderExtensionId kRtpMidExtensionId(0xb);
+constexpr RtpHeaderExtensionId kVideoTimingExtensionId(0xc);
 // ID for two-bytes header extensions. See RFC8285 section 4.3.
-constexpr uint8_t kTwoByteExtensionId = 0xf0;
+constexpr RtpHeaderExtensionId kTwoByteExtensionId(0xf0);
 constexpr int32_t kTimeOffset = 0x56ce;
 constexpr bool kVoiceActive = true;
 constexpr uint8_t kAudioLevel = 0x5a;
@@ -211,7 +212,7 @@ constexpr uint8_t kPacketWithLegacyTimingExtension[] = {
 void TestCreateAndParseColorSpaceExtension(bool with_hdr_metadata) {
   // Create packet with extension.
   RtpPacket::ExtensionManager extensions(/*extmap_allow_mixed=*/true);
-  extensions.Register<ColorSpaceExtension>(1);
+  extensions.Register<ColorSpaceExtension>(RtpHeaderExtensionId(1));
   RtpPacket packet(&extensions);
   const ColorSpace kColorSpace = CreateTestColorSpace(with_hdr_metadata);
   EXPECT_TRUE(packet.SetExtension<ColorSpaceExtension>(kColorSpace));
@@ -372,8 +373,8 @@ TEST(RtpPacketTest, CreateTwoByteHeaderSupportedIfExtmapAllowMixed) {
 TEST(RtpPacketTest, CreateWithMaxSizeHeaderExtension) {
   const std::string kValue = "123456789abcdef";
   RtpPacket::ExtensionManager extensions;
-  extensions.Register<RtpMid>(1);
-  extensions.Register<RtpStreamId>(2);
+  extensions.Register<RtpMid>(RtpHeaderExtensionId(1));
+  extensions.Register<RtpStreamId>(RtpHeaderExtensionId(2));
 
   RtpPacket packet(&extensions);
   EXPECT_TRUE(packet.SetExtension<RtpMid>(kValue));
@@ -617,7 +618,7 @@ TEST(RtpPacketTest, ParseHeaderOnlyWithExtensionAndPadding) {
   // clang-format on
 
   RtpHeaderExtensionMap extensions;
-  extensions.Register<TransmissionOffset>(1);
+  extensions.Register<TransmissionOffset>(RtpHeaderExtensionId(1));
   RtpPacket packet(&extensions);
   EXPECT_TRUE(packet.Parse(CopyOnWriteBuffer(kPaddingHeader)));
   EXPECT_TRUE(packet.has_padding());
@@ -667,7 +668,7 @@ TEST(RtpPacketTest, GetRawExtensionWhenPresent) {
       0x12, 'm',  'i',  'd',   // 3-byte extension with id=1.
       'p',  'a',  'y',  'l',  'o', 'a', 'd'};
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register<RtpMid>(1);
+  extensions.Register<RtpMid>(RtpHeaderExtensionId(1));
   RtpPacket packet(&extensions);
   ASSERT_TRUE(packet.Parse(kRawPacket, sizeof(kRawPacket)));
   EXPECT_THAT(packet.GetRawExtension<RtpMid>(), ElementsAre('m', 'i', 'd'));
@@ -683,7 +684,7 @@ TEST(RtpPacketTest, GetRawExtensionWhenAbsent) {
       0x12, 'm',  'i',  'd',   // 3-byte extension with id=1.
       'p',  'a',  'y',  'l',  'o', 'a', 'd'};
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register<RtpMid>(2);
+  extensions.Register<RtpMid>(RtpHeaderExtensionId(2));
   RtpPacket packet(&extensions);
   ASSERT_TRUE(packet.Parse(kRawPacket, sizeof(kRawPacket)));
   EXPECT_THAT(packet.GetRawExtension<RtpMid>(), IsEmpty());
@@ -718,7 +719,7 @@ TEST(RtpPacketTest, ParseWithOverSizedExtension) {
   };
   // clang-format on
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register<TransmissionOffset>(1);
+  extensions.Register<TransmissionOffset>(RtpHeaderExtensionId(1));
   RtpPacketReceived packet(&extensions);
 
   // Parse should ignore bad extension and proceed.
@@ -880,8 +881,8 @@ TEST(RtpPacketTest, ParseDynamicSizeExtension) {
     0x00};  // Extension padding.
   // clang-format on
   RtpPacketReceived::ExtensionManager extensions;
-  extensions.Register<RtpStreamId>(1);
-  extensions.Register<RepairedRtpStreamId>(2);
+  extensions.Register<RtpStreamId>(RtpHeaderExtensionId(1));
+  extensions.Register<RepairedRtpStreamId>(RtpHeaderExtensionId(2));
   RtpPacketReceived packet(&extensions);
   ASSERT_TRUE(packet.Parse(kPacket1, sizeof(kPacket1)));
 
@@ -933,7 +934,7 @@ struct UncopyableExtension {
 
 TEST(RtpPacketTest, SetUncopyableExtension) {
   RtpPacket::ExtensionManager extensions;
-  extensions.Register<UncopyableExtension>(1);
+  extensions.Register<UncopyableExtension>(RtpHeaderExtensionId(1));
   RtpPacket rtp_packet(&extensions);
 
   UncopyableValue value;
@@ -942,7 +943,7 @@ TEST(RtpPacketTest, SetUncopyableExtension) {
 
 TEST(RtpPacketTest, GetUncopyableExtension) {
   RtpPacket::ExtensionManager extensions;
-  extensions.Register<UncopyableExtension>(1);
+  extensions.Register<UncopyableExtension>(RtpHeaderExtensionId(1));
   RtpPacket rtp_packet(&extensions);
   UncopyableValue value;
   rtp_packet.SetExtension<UncopyableExtension>(value);
@@ -974,7 +975,7 @@ struct ParseByReferenceExtension {
 
 TEST(RtpPacketTest, GetExtensionByReference) {
   RtpHeaderExtensionMap extensions;
-  extensions.Register<ParseByReferenceExtension>(1);
+  extensions.Register<ParseByReferenceExtension>(RtpHeaderExtensionId(1));
   RtpPacket rtp_packet(&extensions);
   rtp_packet.SetExtension<ParseByReferenceExtension>(13, 42);
 
@@ -1109,7 +1110,7 @@ TEST(RtpPacketTest,
 TEST(RtpPacketTest, CreateAndParseTransportSequenceNumber) {
   // Create a packet with transport sequence number extension populated.
   RtpPacketToSend::ExtensionManager extensions;
-  constexpr int kExtensionId = 1;
+  constexpr RtpHeaderExtensionId kExtensionId(1);
   extensions.Register<TransportSequenceNumber>(kExtensionId);
   RtpPacketToSend send_packet(&extensions);
   send_packet.SetPayloadType(kPayloadType);
@@ -1135,7 +1136,7 @@ TEST(RtpPacketTest, CreateAndParseTransportSequenceNumberV2) {
   // No feedback request means that the extension will be two bytes unless it's
   // pre-allocated.
   RtpPacketToSend::ExtensionManager extensions;
-  constexpr int kExtensionId = 1;
+  constexpr RtpHeaderExtensionId kExtensionId(1);
   extensions.Register<TransportSequenceNumberV2>(kExtensionId);
   RtpPacketToSend send_packet(&extensions);
   send_packet.SetPayloadType(kPayloadType);
@@ -1167,7 +1168,7 @@ TEST(RtpPacketTest, CreateAndParseTransportSequenceNumberV2Preallocated) {
   // it's pre-allocated we don't know if it is with or without feedback request
   // therefore the size is four bytes.
   RtpPacketToSend::ExtensionManager extensions;
-  constexpr int kExtensionId = 1;
+  constexpr RtpHeaderExtensionId kExtensionId(1);
   extensions.Register<TransportSequenceNumberV2>(kExtensionId);
   RtpPacketToSend send_packet(&extensions);
   send_packet.SetPayloadType(kPayloadType);
@@ -1200,7 +1201,7 @@ TEST(RtpPacketTest,
      CreateAndParseTransportSequenceNumberV2WithFeedbackRequest) {
   // Create a packet with TransportSequenceNumberV2 extension populated.
   RtpPacketToSend::ExtensionManager extensions;
-  constexpr int kExtensionId = 1;
+  constexpr RtpHeaderExtensionId kExtensionId(1);
   extensions.Register<TransportSequenceNumberV2>(kExtensionId);
   RtpPacketToSend send_packet(&extensions);
   send_packet.SetPayloadType(kPayloadType);
