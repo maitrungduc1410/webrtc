@@ -42,12 +42,14 @@ class RenderingSimulator {
  public:
   struct Config {
     using VideoTimingFactory =
-        std::function<std::unique_ptr<VCMTiming>(Environment)>;
+        std::function<std::unique_ptr<VCMTiming>(Environment, TimeDelta)>;
 
     std::string name = "";
     std::string field_trials_string = "";
-    VideoTimingFactory video_timing_factory = [](Environment env) {
-      return std::make_unique<VCMTiming>(&env.clock(), env.field_trials());
+    VideoTimingFactory video_timing_factory = [](Environment env,
+                                                 TimeDelta render_delay) {
+      return std::make_unique<VCMTiming>(&env.clock(), env.field_trials(),
+                                         render_delay);
     };
 
     // Whether or not to reset the stream state on newly logged streams with the

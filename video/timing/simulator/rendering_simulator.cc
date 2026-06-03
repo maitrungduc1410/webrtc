@@ -183,12 +183,13 @@ class RenderingSimulatorStream : public RtcEventLogDriver::StreamInterface {
                            uint32_t rtx_ssrc,
                            RenderingSimulator::Results* absl_nonnull results)
       : collector_(env, ssrc),
-        tracker_(env,
-                 RenderingTracker::Config{
-                     .ssrc = ssrc,
-                     .render_delay = RenderingSimulator::kRenderDelay},
-                 config.video_timing_factory(env),
-                 &collector_),
+        tracker_(
+            env,
+            RenderingTracker::Config{
+                .ssrc = ssrc,
+                .render_delay = RenderingSimulator::kRenderDelay},
+            config.video_timing_factory(env, RenderingSimulator::kRenderDelay),
+            &collector_),
         assembler_(env, ssrc, &collector_, &tracker_),
         receiver_(env, ssrc, rtx_ssrc, &assembler_),
         results_(*results) {

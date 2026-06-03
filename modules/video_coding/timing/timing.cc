@@ -75,23 +75,21 @@ bool VCMTiming::VideoDelayTimings::UseLowLatencyRendering() const {
          max_playout_delay <= kLowLatencyStreamMaxPlayoutDelayThreshold;
 }
 
-VCMTiming::VCMTiming(Clock* clock, const FieldTrialsView& field_trials)
+VCMTiming::VCMTiming(Clock* clock,
+                     const FieldTrialsView& field_trials,
+                     TimeDelta render_delay)
     : clock_(clock),
       ts_extrapolator_(
           std::make_unique<TimestampExtrapolator>(clock_->CurrentTime(),
                                                   field_trials)),
-      decode_time_filter_(std::make_unique<DecodeTimePercentileFilter>()) {}
+      decode_time_filter_(std::make_unique<DecodeTimePercentileFilter>()),
+      timings_({.render_delay = render_delay}) {}
 
 void VCMTiming::Reset() {
   MutexLock lock(&mutex_);
   ts_extrapolator_->Reset(clock_->CurrentTime());
   decode_time_filter_ = std::make_unique<DecodeTimePercentileFilter>();
   timings_.Reset();
-}
-
-void VCMTiming::set_render_delay(TimeDelta render_delay) {
-  MutexLock lock(&mutex_);
-  timings_.render_delay = render_delay;
 }
 
 TimeDelta VCMTiming::min_playout_delay() const {

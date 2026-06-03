@@ -1040,6 +1040,8 @@ webrtc::VideoReceiveStreamInterface* Call::CreateVideoReceiveStream(
   env_.event_log().Log(std::make_unique<RtcEventVideoReceiveStreamConfig>(
       CreateRtcLogStreamConfig(configuration)));
 
+  TimeDelta render_delay = TimeDelta::Millis(configuration.render_delay_ms);
+
   // TODO(bugs.webrtc.org/11993): Move the registration between `receive_stream`
   // and `video_receiver_controller_` out of VideoReceiveStream2 construction
   // and set it up asynchronously on the network thread (the registration and
@@ -1049,7 +1051,8 @@ webrtc::VideoReceiveStreamInterface* Call::CreateVideoReceiveStream(
   VideoReceiveStream2* receive_stream = new VideoReceiveStream2(
       env_, this, num_cpu_cores_, transport_send_->packet_router(),
       std::move(configuration), call_stats_.get(),
-      std::make_unique<VCMTiming>(&env_.clock(), env_.field_trials()),
+      std::make_unique<VCMTiming>(&env_.clock(), env_.field_trials(),
+                                  render_delay),
       &nack_periodic_processor_, decode_sync_.get());
   // TODO(bugs.webrtc.org/11993): Set this up asynchronously on the network
   // thread.
