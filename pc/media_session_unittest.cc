@@ -106,6 +106,10 @@ class CodecLookupHelperForTesting : public CodecLookupHelper {
     return &payload_type_suggester_;
   }
 
+  FakePayloadTypeSuggester* fake_payload_type_suggester() {
+    return &payload_type_suggester_;
+  }
+
   CodecVendor* GetCodecVendor() override {
     if (!codec_vendor_) {
       codec_vendor_.reset(
@@ -117,7 +121,7 @@ class CodecLookupHelperForTesting : public CodecLookupHelper {
   void RegisterExpectations(absl::string_view mid,
                             std::span<const Codec> codecs) {
     for (const Codec& c : codecs) {
-      if (c.id.IsSet()) {
+      if (c.id.IsSet() && !payload_type_suggester_.HasMapping(c.id)) {
         RTC_CHECK(payload_type_suggester_.AddLocalMapping(mid, c.id, c).ok());
       }
     }
@@ -1204,6 +1208,8 @@ TEST_F(MediaSessionDescriptionFactoryTest, TestBundleOfferWithSameCodecPlType) {
   MediaSessionOptions opts;
   AddAudioVideoSections(RtpTransceiverDirection::kRecvOnly, &opts);
   opts.bundle_enabled = true;
+  codec_lookup_helper_2_.fake_payload_type_suggester()->SetBundleGroups(
+      {{kAudioMid, kVideoMid}});
   std::unique_ptr<SessionDescription> offer =
       f2_.CreateOfferOrError(opts, nullptr).MoveValue();
   const VideoContentDescription* vcd =
@@ -5756,10 +5762,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -5819,10 +5825,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -5892,10 +5898,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -5955,10 +5961,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6018,10 +6024,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6078,10 +6084,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6138,10 +6144,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6198,10 +6204,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6258,10 +6264,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6318,10 +6324,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6378,10 +6384,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6438,10 +6444,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6498,10 +6504,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6558,10 +6564,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,
@@ -6614,10 +6620,10 @@ TEST_F(VideoCodecsOfferH265LevelIdTest,
                                               offerer_recv_codecs);
   codec_lookup_helper_answerer_.SetVideoCodecs(answerer_send_codecs,
                                                answerer_recv_codecs);
-  EXPECT_EQ(offerer_sendrecv_codecs,
-            codec_lookup_helper_offerer_.GetCodecVendor()
-                ->video_sendrecv_codecs()
-                .codecs());
+  EXPECT_THAT(codec_lookup_helper_offerer_.GetCodecVendor()
+                  ->video_sendrecv_codecs()
+                  .codecs(),
+              CodecListsMatch(offerer_sendrecv_codecs, &env_.field_trials()));
 
   MediaSessionOptions opts;
   AddMediaDescriptionOptions(MediaType::VIDEO, kVideoMid,

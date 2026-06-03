@@ -11,10 +11,12 @@
 #ifndef CALL_FAKE_PAYLOAD_TYPE_SUGGESTER_H_
 #define CALL_FAKE_PAYLOAD_TYPE_SUGGESTER_H_
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/payload_type.h"
@@ -77,6 +79,15 @@ class FakePayloadTypeSuggester : public PayloadTypeSuggester {
         suggestion;
   }
 
+  void SetBundleGroups(
+      const std::vector<std::vector<std::string>>& bundle_groups) {
+    bundle_groups_ = bundle_groups;
+  }
+
+  bool HasMapping(PayloadType payload_type) const {
+    return pt_picker_.LookupCodec(payload_type).has_value();
+  }
+
   RTCError AddLocalMapping(absl::string_view mid,
                            PayloadType payload_type,
                            const Codec& codec) override {
@@ -123,10 +134,17 @@ class FakePayloadTypeSuggester : public PayloadTypeSuggester {
 
   PayloadTypeRecorder& LookupRecorder(absl::string_view mid) {
     RTC_CHECK(!mid.empty());
-    auto it = recorders_.find(mid);
+    std::string transport_mapped_name = std::string(mid);
+    for (const std::vector<std::string>& group : bundle_groups_) {
+      if (std::find(group.begin(), group.end(), mid) != group.end()) {
+        transport_mapped_name = group[0];
+        break;
+      }
+    }
+    auto it = recorders_.find(transport_mapped_name);
     if (it == recorders_.end()) {
       it = recorders_
-               .emplace(std::string(mid),
+               .emplace(transport_mapped_name,
                         std::make_unique<PayloadTypeRecorder>(pt_picker_))
                .first;
     }
@@ -138,6 +156,7 @@ class FakePayloadTypeSuggester : public PayloadTypeSuggester {
   flat_map<std::pair<std::string, std::string>, PayloadType>
       fallback_suggestions_;
   flat_map<std::string, std::unique_ptr<PayloadTypeRecorder>> recorders_;
+  std::vector<std::vector<std::string>> bundle_groups_;
 };
 
 }  // namespace webrtc
