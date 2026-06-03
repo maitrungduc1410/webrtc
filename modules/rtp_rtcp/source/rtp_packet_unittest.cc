@@ -95,7 +95,7 @@ constexpr uint8_t kPacketWithTwoByteExtensionIdLast[] = {
     0x10, 0x00, 0x00, 0x04,
     0x01, 0x03, 0x00, 0x56,
     0xce, 0x09, 0x01, 0x80|kAudioLevel,
-    kTwoByteExtensionId, 0x03, 0x00, 0x30,  // => 0x00 0x30 0x22
+    kTwoByteExtensionId.value(), 0x03, 0x00, 0x30,  // => 0x00 0x30 0x22
     0x22, 0x00, 0x00, 0x00};                // => Playout delay.min_ms = 3*10
                                             // => Playout delay.max_ms = 34*10
 
@@ -104,7 +104,7 @@ constexpr uint8_t kPacketWithTwoByteExtensionIdFirst[] = {
     0x65, 0x43, 0x12, 0x78,
     0x12, 0x34, 0x56, 0x78,
     0x10, 0x00, 0x00, 0x04,
-    kTwoByteExtensionId, 0x03, 0x00, 0x30,  // => 0x00 0x30 0x22
+    kTwoByteExtensionId.value(), 0x03, 0x00, 0x30,  // => 0x00 0x30 0x22
     0x22, 0x01, 0x03, 0x00,                 // => Playout delay.min_ms = 3*10
     0x56, 0xce, 0x09, 0x01,                 // => Playout delay.max_ms = 34*10
     0x80|kAudioLevel, 0x00, 0x00, 0x00};
@@ -162,7 +162,7 @@ constexpr uint8_t kPacketWithTwoByteHeaderExtension[] = {
     0x65, 0x43, 0x12, 0x78,
     0x12, 0x34, 0x56, 0x78,
     0x10, 0x00, 0x00, 0x02,  // Two-byte header extension profile id + length.
-    kTwoByteExtensionId, 0x03, 0x00, 0x56,
+    kTwoByteExtensionId.value(), 0x03, 0x00, 0x56,
     0xce, 0x00, 0x00, 0x00};
 
 constexpr uint8_t kPacketWithLongTwoByteHeaderExtension[] = {
@@ -170,7 +170,7 @@ constexpr uint8_t kPacketWithLongTwoByteHeaderExtension[] = {
     0x65, 0x43, 0x12, 0x78,
     0x12, 0x34, 0x56, 0x78,
     0x10, 0x00, 0x00, 0x0B,  // Two-byte header extension profile id + length.
-    kTwoByteExtensionId, 0x29, 'e', 'x',
+    kTwoByteExtensionId.value(), 0x29, 'e', 'x',
     't', 'r', 'a', '-', 'l', 'o', 'n', 'g',
     ' ', 's', 't', 'r', 'i', 'n', 'g', ' ',
     't', 'o', ' ', 't', 'e', 's', 't', ' ',
@@ -182,18 +182,19 @@ constexpr uint8_t kPacketWithTwoByteHeaderExtensionWithPadding[] = {
     0x65, 0x43, 0x12, 0x78,
     0x12, 0x34, 0x56, 0x78,
     0x10, 0x00, 0x00, 0x03,  // Two-byte header extension profile id + length.
-    kTwoByteExtensionId, 0x03, 0x00, 0x56,
+    kTwoByteExtensionId.value(), 0x03, 0x00, 0x56,
     0xce, 0x00, 0x00, 0x00,  // Three padding bytes.
-    kAudioLevelExtensionId, 0x01, 0x80|kAudioLevel, 0x00};
+    kAudioLevelExtensionId.value(), 0x01, 0x80|kAudioLevel, 0x00};
 
 constexpr uint8_t kPacketWithInvalidExtension[] = {
     0x90, kPayloadType, kSeqNumFirstByte, kSeqNumSecondByte,
     0x65, 0x43, 0x12, 0x78,  // kTimestamp.
     0x12, 0x34, 0x56, 0x78,  // kSSrc.
     0xbe, 0xde, 0x00, 0x02,  // Extension block of size 2 x 32bit words.
-    (kTransmissionOffsetExtensionId << 4) | 6,  // (6+1)-byte extension, but
-           'e',  'x',  't',                     // Transmission Offset
-     'd',  'a',  't',  'a',                     // expected to be 3-bytes.
+    (kTransmissionOffsetExtensionId.value() << 4) | 6,
+    // (6+1)-byte extension, but TransmissionOffset expected to be 3-bytes.
+           'e',  'x',  't',
+     'd',  'a',  't',  'a',
      'p',  'a',  'y',  'l',  'o',  'a',  'd'};
 
 constexpr uint8_t kPacketWithLegacyTimingExtension[] = {
@@ -201,7 +202,7 @@ constexpr uint8_t kPacketWithLegacyTimingExtension[] = {
     0x65, 0x43, 0x12, 0x78,  // kTimestamp.
     0x12, 0x34, 0x56, 0x78,  // kSSrc.
     0xbe, 0xde, 0x00, 0x04,    // Extension block of size 4 x 32bit words.
-    (kVideoTimingExtensionId << 4)
+    (kVideoTimingExtensionId.value() << 4)
       | VideoTimingExtension::kValueSizeBytes - 2,  // Old format without flags.
           0x00, 0x01, 0x00,
     0x02, 0x00, 0x03, 0x00,

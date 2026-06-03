@@ -358,10 +358,12 @@ const std::vector<RtpExtension> RtpExtension::DeduplicateHeaderExtensions(
 
   // Sort the returned vector to make comparisons of header extensions reliable.
   // In order of priority, we sort by uri first, then encrypt and id last.
+  // .value() has to be used because tie compares using the <=> operator,
+  // which is defined for int, but not for RtpHeaderExtensionId.
   std::sort(filtered.begin(), filtered.end(),
             [](const RtpExtension& a, const RtpExtension& b) {
-              return std::tie(a.uri, a.encrypt, a.id) <
-                     std::tie(b.uri, b.encrypt, b.id);
+              return std::tie(a.uri, a.encrypt, a.id.value()) <
+                     std::tie(b.uri, b.encrypt, b.id.value());
             });
 
   return filtered;
