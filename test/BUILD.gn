@@ -990,28 +990,24 @@ rtc_library("direct_transport") {
     "../api:rtp_headers",
     "../api:rtp_parameters",
     "../api:sequence_checker",
-    "../api:simulated_network_api",
     "../api:transport_api",
     "../api/environment",
     "../api/task_queue",
     "../api/units:time_delta",
-    "../api/units:timestamp",
     "../call:call_interfaces",
+    "../call:fake_network",
     "../call:simulated_packet_receiver",
     "../modules/rtp_rtcp:rtp_rtcp_format",
     "../rtc_base:checks",
     "../rtc_base:copy_on_write_buffer",
     "../rtc_base:macromagic",
     "../rtc_base:task_queue_for_test",
-    "../rtc_base:threading",
-    "../rtc_base:timeutils",
     "../rtc_base/network:sent_packet",
     "../rtc_base/synchronization:mutex",
     "../rtc_base/task_utils:repeating_task",
     "../system_wrappers",
+    "//third_party/abseil-cpp/absl/base:nullability",
   ]
-  public_deps +=  # no-presubmit-check TODO(webrtc:8603)
-      [ "../call:fake_network" ]
 }
 
 rtc_library("fake_video_codecs") {
