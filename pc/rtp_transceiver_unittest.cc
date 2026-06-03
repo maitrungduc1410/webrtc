@@ -103,8 +103,7 @@ scoped_refptr<RtpTransceiver> CreateAudioTransceiverWithChannel(
   ScopedOperationsBatcher worker_tasks(context->worker_thread());
   ScopedOperationsBatcher network_tasks(context->network_thread());
   transceiver->CreateChannel("0", call, MediaConfig(), false, CryptoOptions(),
-                             audio_options, VideoOptions(), nullptr,
-                             std::move(transport_lookup), worker_tasks,
+                             nullptr, std::move(transport_lookup), worker_tasks,
                              network_tasks);
 
   RTC_CHECK(worker_tasks.Run().ok());
@@ -132,8 +131,7 @@ scoped_refptr<RtpTransceiver> CreateVideoTransceiverWithChannel(
   ScopedOperationsBatcher worker_tasks(context->worker_thread());
   ScopedOperationsBatcher network_tasks(context->network_thread());
   transceiver->CreateChannel("0", call, MediaConfig(), false, CryptoOptions(),
-                             AudioOptions(), video_options, nullptr,
-                             std::move(transport_lookup), worker_tasks,
+                             nullptr, std::move(transport_lookup), worker_tasks,
                              network_tasks);
 
   RTC_CHECK(worker_tasks.Run().ok());
@@ -254,7 +252,8 @@ class RtpTransceiverTestWithFakeCall : public RtpTransceiverTest {
 TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
   const std::string content_name("my_mid");
   auto transceiver = make_ref_counted<RtpTransceiver>(
-      env(), MediaType::AUDIO, context(), codec_lookup_helper(), nullptr);
+      env(), MediaType::AUDIO, context(), codec_lookup_helper(), nullptr,
+      AudioOptions(), VideoOptions());
   transceiver->set_mid(content_name);
   auto channel1 = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel1, media_type()).WillRepeatedly(Return(MediaType::AUDIO));
@@ -285,7 +284,8 @@ TEST_F(RtpTransceiverTest, CannotSetChannelOnStoppedTransceiver) {
 TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
   const std::string content_name("my_mid");
   auto transceiver = make_ref_counted<RtpTransceiver>(
-      env(), MediaType::VIDEO, context(), codec_lookup_helper(), nullptr);
+      env(), MediaType::VIDEO, context(), codec_lookup_helper(), nullptr,
+      AudioOptions(), VideoOptions());
   transceiver->set_mid(content_name);
   auto channel = std::make_unique<NiceMock<MockChannelInterface>>();
   EXPECT_CALL(*channel, media_type()).WillRepeatedly(Return(MediaType::VIDEO));
@@ -362,7 +362,7 @@ class RtpTransceiverUnifiedPlanTest : public RtpTransceiverTest {
             Thread::Current(), Thread::Current(), std::move(receiver)),
         context(), codec_lookup_helper(),
         media_engine()->voice().GetRtpHeaderExtensions(&env().field_trials()),
-        /* on_negotiation_needed= */ [] {});
+        /* on_negotiation_needed= */ [] {}, AudioOptions(), VideoOptions());
   }
 };
 
@@ -750,7 +750,9 @@ class RtpTransceiverTestForHeaderExtensions
             context(),
             codec_lookup_helper(),
             extensions_,
-            /* on_negotiation_needed= */ [] {})) {}
+            /* on_negotiation_needed= */ [] {},
+            AudioOptions(),
+            VideoOptions())) {}
 
   void ClearChannel() {
     EXPECT_CALL(*sender_.get(), SetMediaChannel(IsNull()))
@@ -1045,7 +1047,7 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
       RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
           Thread::Current(), Thread::Current(), receiver),
       context(), codec_lookup_helper(), extensions,
-      /* on_negotiation_needed= */ [] {});
+      /* on_negotiation_needed= */ [] {}, AudioOptions(), VideoOptions());
   ASSERT_EQ(sender->media_type(), MediaType::VIDEO);
   std::vector<RtpHeaderExtensionCapability> header_extensions =
       transceiver->GetHeaderExtensionsToNegotiate();
@@ -1068,7 +1070,7 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
       RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
           Thread::Current(), Thread::Current(), receiver),
       context(), codec_lookup_helper(), extensions,
-      /* on_negotiation_needed= */ [] {});
+      /* on_negotiation_needed= */ [] {}, AudioOptions(), VideoOptions());
   auto simulcast_extensions =
       simulcast_transceiver->GetHeaderExtensionsToNegotiate();
   ASSERT_EQ(simulcast_extensions.size(), 2u);
@@ -1096,7 +1098,7 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
       RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
           Thread::Current(), Thread::Current(), receiver),
       context(), codec_lookup_helper(), extensions,
-      /* on_negotiation_needed= */ [] {});
+      /* on_negotiation_needed= */ [] {}, AudioOptions(), VideoOptions());
   std::vector<RtpHeaderExtensionCapability> svc_extensions =
       svc_transceiver->GetHeaderExtensionsToNegotiate();
   ASSERT_EQ(svc_extensions.size(), 2u);

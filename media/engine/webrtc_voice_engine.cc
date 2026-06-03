@@ -2179,6 +2179,14 @@ WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel(
       crypto_options_(crypto_options) {
   RTC_LOG(LS_VERBOSE) << "WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel";
   RTC_DCHECK(call);
+  if (options.audio_jitter_buffer_max_packets.has_value()) {
+    audio_config_.audio_jitter_buffer_max_packets =
+        std::max(20, *options.audio_jitter_buffer_max_packets);
+  }
+  if (options.audio_jitter_buffer_fast_accelerate.has_value()) {
+    audio_config_.audio_jitter_buffer_fast_accelerate =
+        *options.audio_jitter_buffer_fast_accelerate;
+  }
 }
 
 WebRtcVoiceReceiveChannel::~WebRtcVoiceReceiveChannel() {

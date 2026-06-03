@@ -279,7 +279,9 @@ RtpTransceiver::RtpTransceiver(const Environment& env,
                                MediaType media_type,
                                ConnectionContext* context,
                                CodecLookupHelper* codec_lookup_helper,
-                               LegacyStatsCollectorInterface* legacy_stats)
+                               LegacyStatsCollectorInterface* legacy_stats,
+                               const AudioOptions& audio_options,
+                               const VideoOptions& video_options)
     : env_(env),
       thread_(context->signaling_thread()),
       unified_plan_(false),
@@ -292,7 +294,9 @@ RtpTransceiver::RtpTransceiver(const Environment& env,
           context->network_thread())),
       context_(context),
       codec_lookup_helper_(codec_lookup_helper),
-      legacy_stats_(legacy_stats) {
+      legacy_stats_(legacy_stats),
+      audio_options_(audio_options),
+      video_options_(video_options) {
   RTC_DCHECK(media_type == MediaType::AUDIO || media_type == MediaType::VIDEO);
   RTC_DCHECK(context_);
   RTC_DCHECK(context_->is_configured_for_media());
@@ -306,7 +310,9 @@ RtpTransceiver::RtpTransceiver(
     ConnectionContext* context,
     CodecLookupHelper* codec_lookup_helper,
     std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate,
-    absl::AnyInvocable<void()> on_negotiation_needed)
+    absl::AnyInvocable<void()> on_negotiation_needed,
+    const AudioOptions& audio_options,
+    const VideoOptions& video_options)
     : env_(env),
       thread_(context->signaling_thread()),
       unified_plan_(true),
@@ -322,7 +328,9 @@ RtpTransceiver::RtpTransceiver(
       legacy_stats_(nullptr),
       header_extensions_to_negotiate_(
           std::move(header_extensions_to_negotiate)),
-      on_negotiation_needed_(std::move(on_negotiation_needed)) {
+      on_negotiation_needed_(std::move(on_negotiation_needed)),
+      audio_options_(audio_options),
+      video_options_(video_options) {
   RTC_DCHECK(context_);
   RTC_DCHECK(context_->is_configured_for_media());
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
@@ -383,7 +391,9 @@ RtpTransceiver::RtpTransceiver(
       set_streams_observer_(set_streams_observer),
       header_extensions_to_negotiate_(
           std::move(header_extensions_to_negotiate)),
-      on_negotiation_needed_(std::move(on_negotiation_needed)) {
+      on_negotiation_needed_(std::move(on_negotiation_needed)),
+      audio_options_(audio_options),
+      video_options_(video_options) {
   RTC_DCHECK(context_);
   RTC_DCHECK(context_->is_configured_for_media());
   RTC_DCHECK(media_type_ == MediaType::AUDIO ||
@@ -443,8 +453,6 @@ void RtpTransceiver::CreateChannel(
     const MediaConfig& media_config,
     bool srtp_required,
     CryptoOptions crypto_options,
-    const AudioOptions& audio_options,
-    const VideoOptions& video_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
     absl::AnyInvocable<RtpTransportInternal*() &&> transport_lookup,
     ScopedOperationsBatcher& worker_tasks,
@@ -492,8 +500,7 @@ void RtpTransceiver::CreateChannel(
   // simply be on the worker thread and use `call_` (update upstream code).
   worker_tasks.AddWithFinalizer(
       [this, mid_str = std::string(mid), call_ptr, media_config, srtp_required,
-       crypto_options, audio_options, video_options,
-       video_bitrate_allocator_factory,
+       crypto_options, video_bitrate_allocator_factory,
        encoder_switch_callback = std::move(encoder_switch_callback),
        parameters_changed_callback = std::move(parameters_changed_callback),
        callbacks = std::move(callbacks)]() mutable
@@ -507,20 +514,11 @@ void RtpTransceiver::CreateChannel(
           RTC_DCHECK(owned_receive_channel_);
           media_send_channel = std::move(owned_send_channel_);
           media_receive_channel = std::move(owned_receive_channel_);
-          // Apply options to the voice receive channel for audio and send
-          // channel for video. Note that voice send channel options are
-          // deferred to SetSend.
-          if (media_type() == MediaType::AUDIO) {
-            media_receive_channel->AsVoiceReceiveChannel()->SetOptions(
-                audio_options);
-          } else if (media_type() == MediaType::VIDEO) {
-            media_send_channel->AsVideoSendChannel()->SetOptions(video_options);
-          }
         } else {
           auto channels = CreateMediaContentChannels(
               media_type(), env_, voice_channel_factory(),
-              video_channel_factory(), call_ptr, media_config, audio_options,
-              video_options, crypto_options, video_bitrate_allocator_factory,
+              video_channel_factory(), call_ptr, media_config, audio_options_,
+              video_options_, crypto_options, video_bitrate_allocator_factory,
               std::move(encoder_switch_callback),
               std::move(parameters_changed_callback));
           media_send_channel = std::move(channels.first);
