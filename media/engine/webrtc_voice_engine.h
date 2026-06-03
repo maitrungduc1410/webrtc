@@ -211,9 +211,6 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   void SetExtmapAllowMixed(bool extmap_allow_mixed) override {
     MediaChannelUtil::SetExtmapAllowMixed(extmap_allow_mixed);
   }
-  bool ExtmapAllowMixed() const override {
-    return MediaChannelUtil::ExtmapAllowMixed();
-  }
 
   const AudioOptions& options() const { return options_; }
 
@@ -253,7 +250,6 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   bool GetStats(VoiceMediaSendInfo* info) override;
   absl::AnyInvocable<std::optional<VoiceMediaSendInfo>()> GetStatsTask()
       override;
-  bool SetOptions(const AudioOptions& options) override;
 
   // Sets a frame transformer between encoder and packetizer, to transform
   // encoded frames before sending them out the network.
@@ -263,9 +259,9 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
 
   bool SenderNackEnabled() const override;
   bool SenderNonSenderRttEnabled() const override;
-  bool SendCodecHasNack() const override { return SenderNackEnabled(); }
 
  private:
+  bool SetOptions(const AudioOptions& options);
   bool SetSendCodecs(const std::vector<Codec>& codecs,
                      std::optional<Codec> preferred_codec);
   bool SetLocalSource(uint32_t ssrc, AudioSource* source);
@@ -403,13 +399,11 @@ class WebRtcVoiceReceiveChannel final
       uint32_t ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
-  enum RtcpMode RtcpMode() const override;
   void SetRtcpMode(enum RtcpMode mode) override;
   void SetReceiveNackEnabled(bool enabled) override;
   void SetReceiveNonSenderRttEnabled(bool enabled) override;
 
  private:
-  bool SetOptions(const AudioOptions& options) override;
   bool SetRecvCodecs(const std::vector<Codec>& codecs);
   bool SetLocalSource(uint32_t ssrc, AudioSource* source);
   bool MuteStream(uint32_t ssrc, bool mute);
@@ -436,7 +430,7 @@ class WebRtcVoiceReceiveChannel final
 
   std::map<int, SdpAudioFormat> decoder_map_ RTC_GUARDED_BY(worker_thread_);
 
-  AudioOptions options_ RTC_GUARDED_BY(worker_thread_);
+  const AudioOptions options_;
   bool recv_nack_enabled_ RTC_GUARDED_BY(worker_thread_) = false;
   enum RtcpMode recv_rtcp_mode_ RTC_GUARDED_BY(worker_thread_) =
       RtcpMode::kCompound;

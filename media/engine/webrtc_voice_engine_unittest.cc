@@ -391,7 +391,7 @@ class WebRtcVoiceEngineTestFake : public ::testing::TestWithParam<bool> {
                                         ? RtcpMode::kReducedSize
                                         : RtcpMode::kCompound);
       receive_channel_->SetReceiveNackEnabled(
-          send_channel_->SendCodecHasNack());
+          send_channel_->SenderNackEnabled());
       receive_channel_->SetReceiveNonSenderRttEnabled(
           send_channel_->SenderNonSenderRttEnabled());
     }

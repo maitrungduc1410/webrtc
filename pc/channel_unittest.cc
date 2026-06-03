@@ -810,7 +810,7 @@ class ChannelTest : public ::testing::Test {
     EXPECT_TRUE(channel1_->SetRemoteContent(&content, SdpType::kOffer).ok());
     content.set_extmap_allow_mixed_level(answer_enum);
     EXPECT_TRUE(channel1_->SetLocalContent(&content, SdpType::kAnswer).ok());
-    EXPECT_EQ(answer, channel1_->media_send_channel()->ExtmapAllowMixed());
+    EXPECT_EQ(answer, media_send_channel1_impl()->ExtmapAllowMixed());
   }
 
   // Test that SetLocalContent and SetRemoteContent properly deals

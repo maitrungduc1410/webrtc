@@ -251,7 +251,7 @@ CreateMediaContentChannels(
               std::move(video_encoder_switch_request_callback),
               std::move(parameters_changed_callback)),
           video_factory->CreateReceiveChannel(env, call, media_config,
-                                              video_options, crypto_options)};
+                                              crypto_options)};
 }
 
 std::vector<absl::AnyInvocable<void() &&>> DetachAndGetStopTasksForSenders(

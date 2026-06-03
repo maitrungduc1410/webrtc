@@ -143,7 +143,6 @@ class VideoChannelFactoryInterface {
   CreateReceiveChannel(const Environment& env,
                        Call* call,
                        const MediaConfig& config,
-                       const VideoOptions& options,
                        const CryptoOptions& crypto_options) = 0;
 };
 
@@ -234,7 +233,6 @@ class VideoEngineInterface : public RtpHeaderExtensionQueryInterface,
       const Environment& env,
       Call* call,
       const MediaConfig& config,
-      const VideoOptions& options,
       const CryptoOptions& crypto_options) override = 0;
 
   // Legacy: Retrieve list of supported codecs.
