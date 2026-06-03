@@ -160,6 +160,9 @@ class RenderingSimulator {
     // couple of frames with zero margin, and very few frames with
     // negative margin.
     // TODO: b/423646186 - Change this to be `DecodabilityMargin`.
+    //
+    // Note: calculations are done at the ms-level, since `render_timestamp`
+    // only has ms-level precision.
     TimeDelta AssembledMargin() const {
       if (!render_timestamp.IsFinite()) {
         return TimeDelta::PlusInfinity();
@@ -167,14 +170,16 @@ class RenderingSimulator {
       RTC_DCHECK(assembled_timestamp.IsFinite());
       // Subtract `kRenderDelay`, since that is what `VCMTiming` and
       // `VideoRenderFrames` also do.
-      return (render_timestamp - kRenderDelay) - assembled_timestamp;
+      int64_t margin_ms =
+          render_timestamp.ms() - kRenderDelay.ms() - assembled_timestamp.ms();
+      return TimeDelta::Millis(margin_ms);
     }
     std::optional<bool> AssembledInTime() const {
       TimeDelta assembled_margin = AssembledMargin();
       if (!assembled_margin.IsFinite()) {
         return std::nullopt;
       }
-      return assembled_margin > kInTimeMarginThreshold;
+      return assembled_margin >= TimeDelta::Zero();
     }
     std::optional<bool> AssembledLate() const {
       std::optional<bool> assembled_in_time = AssembledInTime();
@@ -215,6 +220,9 @@ class RenderingSimulator {
     //   * A frame that is rendered late w.r.t. the target has negative margin.
     // Frames with `render_timestamp` or `rendered_timestamp` unset are excluded
     // from all.
+    //
+    // Note: calculations are done at the ms-level, since `render_timestamp`
+    // only has ms-level precision.
     TimeDelta RenderedMargin() const {
       if (!render_timestamp.IsFinite()) {
         RTC_DCHECK(!rendered_timestamp.IsFinite());
@@ -223,14 +231,18 @@ class RenderingSimulator {
       if (!rendered_timestamp.IsFinite()) {
         return TimeDelta::PlusInfinity();
       }
-      return (render_timestamp - kRenderDelay) - rendered_timestamp;
+      // Subtract `kRenderDelay`, since that is what `VCMTiming` and
+      // `VideoRenderFrames` also do.
+      int64_t margin_ms =
+          render_timestamp.ms() - kRenderDelay.ms() - rendered_timestamp.ms();
+      return TimeDelta::Millis(margin_ms);
     }
     std::optional<bool> RenderedInTime() const {
       TimeDelta rendered_margin = RenderedMargin();
       if (!rendered_margin.IsFinite()) {
         return std::nullopt;
       }
-      return rendered_margin > kInTimeMarginThreshold;
+      return rendered_margin >= TimeDelta::Zero();
     }
     std::optional<bool> RenderedLate() const {
       std::optional<bool> rendered_in_time = RenderedInTime();
@@ -364,13 +376,6 @@ class RenderingSimulator {
   // render buffer. It is added and subtracted through the pipeline, so it is
   // important to have it set.
   static constexpr TimeDelta kRenderDelay = TimeDelta::Millis(10);
-  // The threshold used for "in time" calculations of assembled and rendered
-  // margins. A threshold of `TimeDelta::Zero()` wouldn't work well, because
-  // the recorded render timestamp of the frames have a loss of precision:
-  // the scheduling is done on a microsecond level, but the
-  // `EncodedFrame::RenderTimestamp()` returns values on a millisecond level.
-  // See https://g-issues.webrtc.org/issues/483303559.
-  static constexpr TimeDelta kInTimeMarginThreshold = TimeDelta::Micros(-500);
 
   explicit RenderingSimulator(Config config);
   ~RenderingSimulator();
