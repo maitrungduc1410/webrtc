@@ -51,7 +51,7 @@ class RenderedFrameCollector : public AssemblerEvents,
       : env_(env), ssrc_(ssrc) {
     RTC_DCHECK_NE(ssrc_, 0);
   }
-  ~RenderedFrameCollector() override = default;
+  ~RenderedFrameCollector() override { RTC_DCHECK_RUN_ON(&sequence_checker_); }
 
   RenderedFrameCollector(const RenderedFrameCollector&) = delete;
   RenderedFrameCollector& operator=(const RenderedFrameCollector&) = delete;
@@ -196,7 +196,9 @@ class RenderingSimulatorStream : public RtcEventLogDriver::StreamInterface {
     RTC_DCHECK_RUN_ON(&sequence_checker_);
     tracker_.SetDecodedFrameIdCallback(&assembler_);
   }
-  ~RenderingSimulatorStream() override = default;
+  ~RenderingSimulatorStream() override {
+    RTC_DCHECK_RUN_ON(&sequence_checker_);
+  }
 
   // Implements `RtcEventLogDriver::StreamInterface`.
   void InsertSimulatedPacket(
