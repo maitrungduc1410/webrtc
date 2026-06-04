@@ -28,6 +28,7 @@
 #include "api/media_types.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_header_extension_id.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/scoped_refptr.h"
@@ -727,16 +728,16 @@ class RtpTransceiverTestForHeaderExtensions
   RtpTransceiverTestForHeaderExtensions()
       : extensions_(
             {RtpHeaderExtensionCapability("uri1",
-                                          1,
+                                          RtpHeaderExtensionId(1),
                                           RtpTransceiverDirection::kSendOnly),
              RtpHeaderExtensionCapability("uri2",
-                                          2,
+                                          RtpHeaderExtensionId(2),
                                           RtpTransceiverDirection::kRecvOnly),
              RtpHeaderExtensionCapability(RtpExtension::kMidUri,
-                                          3,
+                                          RtpHeaderExtensionId(3),
                                           RtpTransceiverDirection::kSendRecv),
              RtpHeaderExtensionCapability(RtpExtension::kVideoRotationUri,
-                                          4,
+                                          RtpHeaderExtensionId(4),
                                           RtpTransceiverDirection::kSendRecv)}),
         transceiver_(make_ref_counted<RtpTransceiver>(
             env(),
@@ -895,8 +896,9 @@ TEST_F(RtpTransceiverTestForHeaderExtensions, ReturnsNegotiatedHdrExts) {
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
 
-  RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
-                                    RtpExtension("uri2", 2)};
+  RtpHeaderExtensions extensions = {
+      RtpExtension("uri1", RtpHeaderExtensionId(1)),
+      RtpExtension("uri2", RtpHeaderExtensionId(2))};
   AudioContentDescription description;
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kAnswer, &description);
@@ -928,8 +930,9 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   EXPECT_CALL(*mock_channel, mid()).WillRepeatedly(ReturnRef(content_name));
   EXPECT_CALL(*mock_channel, SetRtpTransport(_)).WillRepeatedly(Return(true));
 
-  RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
-                                    RtpExtension("uri2", 2)};
+  RtpHeaderExtensions extensions = {
+      RtpExtension("uri1", RtpHeaderExtensionId(1)),
+      RtpExtension("uri2", RtpHeaderExtensionId(2))};
   AudioContentDescription description;
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kPrAnswer, &description);
@@ -965,7 +968,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
   transceiver_->SetChannelForTest(std::move(mock_channel));
 
   AudioContentDescription description_pr_answer;
-  description_pr_answer.set_rtp_header_extensions({RtpExtension("uri1", 1)});
+  description_pr_answer.set_rtp_header_extensions(
+      {RtpExtension("uri1", RtpHeaderExtensionId(1))});
   transceiver_->OnNegotiationUpdate(SdpType::kPrAnswer, &description_pr_answer);
 
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
@@ -980,7 +984,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
 
   AudioContentDescription description_answer;
   description_answer.set_rtp_header_extensions(
-      {RtpExtension("uri1", 1), RtpExtension("uri2", 2)});
+      {RtpExtension("uri1", RtpHeaderExtensionId(1)),
+       RtpExtension("uri2", RtpHeaderExtensionId(2))});
   transceiver_->OnNegotiationUpdate(SdpType::kAnswer, &description_answer);
 
   EXPECT_THAT(transceiver_->GetNegotiatedHeaderExtensions(),
@@ -998,8 +1003,9 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
 
 TEST_F(RtpTransceiverTestForHeaderExtensions,
        ReturnsNegotiatedHdrExtsSecondTime) {
-  RtpHeaderExtensions extensions = {RtpExtension("uri1", 1),
-                                    RtpExtension("uri2", 2)};
+  RtpHeaderExtensions extensions = {
+      RtpExtension("uri1", RtpHeaderExtensionId(1)),
+      RtpExtension("uri2", RtpHeaderExtensionId(2))};
   AudioContentDescription description;
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kAnswer, &description);
@@ -1013,7 +1019,8 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
                                 RtpTransceiverDirection::kStopped),
                           Field(&RtpHeaderExtensionCapability::direction,
                                 RtpTransceiverDirection::kStopped)));
-  extensions = {RtpExtension("uri3", 4), RtpExtension("uri5", 6)};
+  extensions = {RtpExtension("uri3", RtpHeaderExtensionId(4)),
+                RtpExtension("uri5", RtpHeaderExtensionId(6))};
   description.set_rtp_header_extensions(extensions);
   transceiver_->OnNegotiationUpdate(SdpType::kAnswer, &description);
 
@@ -1031,9 +1038,9 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
 TEST_F(RtpTransceiverTestForHeaderExtensions,
        SimulcastOrSvcEnablesExtensionsByDefault) {
   std::vector<RtpHeaderExtensionCapability> extensions = {
-      {RtpExtension::kDependencyDescriptorUri, 1,
+      {RtpExtension::kDependencyDescriptorUri, RtpHeaderExtensionId(1),
        RtpTransceiverDirection::kStopped},
-      {RtpExtension::kVideoLayersAllocationUri, 2,
+      {RtpExtension::kVideoLayersAllocationUri, RtpHeaderExtensionId(2),
        RtpTransceiverDirection::kStopped},
   };
 
