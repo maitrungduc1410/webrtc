@@ -73,7 +73,7 @@ TEST_F(RtcEventLogAnalyzerBindingsTest, OutgoingBitrateChart) {
       absl::string_view(output.data(), static_cast<int>(output_size)));
   ASSERT_TRUE(success);
   ASSERT_EQ(collection.charts().size(), 1);
-  EXPECT_EQ(collection.charts(0).title(), "Outgoing RTP bitrate");
+  EXPECT_EQ(collection.charts(0).title(), "Outgoing RTP/RTCP bitrate");
   EXPECT_EQ(collection.charts(0).id(), "outgoing_bitrate");
 }
 
