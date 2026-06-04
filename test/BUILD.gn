@@ -1005,7 +1005,6 @@ rtc_library("direct_transport") {
     "../rtc_base/network:sent_packet",
     "../rtc_base/synchronization:mutex",
     "../rtc_base/task_utils:repeating_task",
-    "../system_wrappers",
     "//third_party/abseil-cpp/absl/base:nullability",
   ]
 }

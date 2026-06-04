@@ -61,27 +61,6 @@ MediaType Demuxer::GetMediaType(const uint8_t* packet_data,
 }
 
 DirectTransport::DirectTransport(
-    TaskQueueBase* task_queue,
-    std::unique_ptr<SimulatedPacketReceiverInterface> pipe,
-    Call* send_call,
-    const std::map<uint8_t, MediaType>& payload_type_map,
-    std::span<const RtpExtension> audio_extensions,
-    std::span<const RtpExtension> video_extensions)
-    : clock_(*Clock::GetRealTimeClock()),
-      send_call_(send_call),
-      network_thread_(*task_queue),
-      demuxer_(payload_type_map),
-      fake_network_(std::move(pipe)),
-      audio_extensions_(audio_extensions),
-      video_extensions_(video_extensions) {
-  RTC_DCHECK(task_queue != nullptr);
-  if (send_call != nullptr) {
-    RTC_DCHECK_EQ(task_queue, send_call->network_thread());
-  }
-  Start();
-}
-
-DirectTransport::DirectTransport(
     const Environment& env,
     TaskQueueBase* absl_nonnull network_thread,
     absl_nonnull std::unique_ptr<SimulatedPacketReceiverInterface> pipe,
@@ -90,7 +69,6 @@ DirectTransport::DirectTransport(
     std::span<const RtpExtension> audio_extensions,
     std::span<const RtpExtension> video_extensions)
     : env_(env),
-      clock_(env.clock()),
       send_call_(send_call),
       network_thread_(*network_thread),
       demuxer_(payload_type_map),
@@ -126,7 +104,8 @@ bool DirectTransport::SendRtp(std::span<const uint8_t> data,
   // constraints, as legacy out-of-tree pacing frameworks may trigger sending
   // media packets off-thread.
   if (send_call_) {
-    SentPacketInfo sent_packet(options.packet_id, clock_.TimeInMilliseconds());
+    SentPacketInfo sent_packet(options.packet_id,
+                               env_.clock().TimeInMilliseconds());
     sent_packet.info.included_in_feedback = options.included_in_feedback;
     sent_packet.info.included_in_allocation = options.included_in_allocation;
     sent_packet.info.packet_size_bytes = data.size();
@@ -147,7 +126,7 @@ bool DirectTransport::SendRtp(std::span<const uint8_t> data,
     default:
       RTC_CHECK_NOTREACHED();
   }
-  RtpPacketReceived packet(extensions, clock_.CurrentTime());
+  RtpPacketReceived packet(extensions, env_.clock().CurrentTime());
   if (media_type == MediaType::VIDEO) {
     packet.set_payload_type_frequency(kVideoPayloadTypeFrequency);
   }
