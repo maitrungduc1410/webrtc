@@ -134,7 +134,7 @@ class DataChannelControllerTest : public ::testing::Test {
     network_thread_.Stop();
   }
 
-  ScopedFakeClock clock_;
+  ScopedBaseFakeClock clock_;
   test::RunLoop run_loop_;
   Thread network_thread_;
   scoped_refptr<NiceMock<MockPeerConnectionInternal>> pc_;

@@ -59,7 +59,17 @@ class ThreadProcessingFakeClock : public ClockInterface {
 
 // Helper class that sets itself as the global clock in its constructor and
 // unsets it in its destructor.
-class ScopedFakeClock : public FakeClock {
+class ScopedBaseFakeClock : public FakeClock {
+ public:
+  ScopedBaseFakeClock();
+  ~ScopedBaseFakeClock() override;
+
+ private:
+  ClockInterface* prev_clock_;
+};
+
+// TODO(srte): Rename this to reflect that it also does thread processing.
+class ScopedFakeClock : public ThreadProcessingFakeClock {
  public:
   ScopedFakeClock();
   ~ScopedFakeClock() override;

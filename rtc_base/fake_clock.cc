@@ -50,6 +50,14 @@ void ThreadProcessingFakeClock::AdvanceTime(TimeDelta delta) {
   ThreadManager::ProcessAllMessageQueuesForTesting();
 }
 
+ScopedBaseFakeClock::ScopedBaseFakeClock() {
+  prev_clock_ = SetClockForTesting(this);
+}
+
+ScopedBaseFakeClock::~ScopedBaseFakeClock() {
+  SetClockForTesting(prev_clock_);
+}
+
 ScopedFakeClock::ScopedFakeClock() {
   prev_clock_ = SetClockForTesting(this);
 }
