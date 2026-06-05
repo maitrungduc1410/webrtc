@@ -76,8 +76,8 @@ std::unique_ptr<SSLFingerprint> SSLFingerprint::CreateFromCertificate(
   }
 
   std::unique_ptr<SSLFingerprint> fingerprint =
-      CreateUnique(digest_alg, *cert.identity());
-  if (!fingerprint) {
+      Create(digest_alg, *cert.identity());
+  if (fingerprint == nullptr) {
     RTC_LOG(LS_ERROR) << "Failed to create identity fingerprint, alg="
                       << digest_alg;
   }

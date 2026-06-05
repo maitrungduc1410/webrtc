@@ -1627,8 +1627,8 @@ bool ParseFingerprintAttribute(absl::string_view line,
   absl::c_transform(algorithm, algorithm.begin(), ::tolower);
 
   // The second field is the digest value. De-hexify it.
-  *fingerprint = SSLFingerprint::CreateUniqueFromRfc4572(algorithm, fields[1]);
-  if (!*fingerprint) {
+  *fingerprint = SSLFingerprint::CreateFromRfc4572(algorithm, fields[1]);
+  if (*fingerprint == nullptr) {
     return ParseFailed(line, "Failed to create fingerprint from the digest.",
                        error);
   }

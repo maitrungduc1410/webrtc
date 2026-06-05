@@ -4489,10 +4489,10 @@ int SetNewSsrcs(std::unique_ptr<SessionDescriptionInterface>& sdp) {
 
 void SetNewFingerprint(std::unique_ptr<SessionDescriptionInterface>& sdp) {
   auto identity = SSLIdentity::Create("NewIdentity", KT_DEFAULT);
-  auto new_fingerprint = SSLFingerprint::CreateUnique("sha-256", *identity);
+  auto new_fingerprint = SSLFingerprint::Create("sha-256", *identity);
   for (auto& transport_info : sdp->description()->transport_infos()) {
     transport_info.description.identity_fingerprint =
-        absl::WrapUnique(new SSLFingerprint(*new_fingerprint));
+        std::make_unique<SSLFingerprint>(*new_fingerprint);
   }
 }
 

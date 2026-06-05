@@ -47,17 +47,16 @@ struct RTC_EXPORT SSLFingerprint {
   static absl_nullable std::unique_ptr<SSLFingerprint> CreateFromCertificate(
       const RTCCertificate& cert);
 
-  ABSL_DEPRECATE_AND_INLINE()
-  static absl_nullable std::unique_ptr<SSLFingerprint> CreateUnique(
-      absl::string_view algorithm,
-      const SSLIdentity& identity) {
+  [[deprecated]] ABSL_REFACTOR_INLINE static absl_nullable
+      std::unique_ptr<SSLFingerprint>
+      CreateUnique(absl::string_view algorithm, const SSLIdentity& identity) {
     return Create(algorithm, identity);
   }
 
-  ABSL_DEPRECATE_AND_INLINE()
-  static absl_nullable std::unique_ptr<SSLFingerprint> CreateUniqueFromRfc4572(
-      absl::string_view algorithm,
-      absl::string_view fingerprint) {
+  [[deprecated]] ABSL_REFACTOR_INLINE static absl_nullable
+      std::unique_ptr<SSLFingerprint>
+      CreateUniqueFromRfc4572(absl::string_view algorithm,
+                              absl::string_view fingerprint) {
     return CreateFromRfc4572(algorithm, fingerprint);
   }
 
