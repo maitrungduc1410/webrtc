@@ -107,7 +107,9 @@ scoped_refptr<RtpTransceiver> CreateAudioTransceiverWithChannel(
                              nullptr, std::move(transport_lookup), worker_tasks,
                              network_tasks);
 
-  RTC_CHECK(worker_tasks.Run().ok());
+  // CreateChannel does not schedule any worker tasks when the transceiver is
+  // constructed with pre-allocated channels, so `worker_tasks` should be empty.
+  RTC_CHECK(worker_tasks.IsEmpty());
   RTC_CHECK(network_tasks.Run().ok());
 
   return transceiver;
@@ -135,7 +137,9 @@ scoped_refptr<RtpTransceiver> CreateVideoTransceiverWithChannel(
                              nullptr, std::move(transport_lookup), worker_tasks,
                              network_tasks);
 
-  RTC_CHECK(worker_tasks.Run().ok());
+  // CreateChannel does not schedule any worker tasks when the transceiver is
+  // constructed with pre-allocated channels, so `worker_tasks` should be empty.
+  RTC_CHECK(worker_tasks.IsEmpty());
   RTC_CHECK(network_tasks.Run().ok());
 
   return transceiver;

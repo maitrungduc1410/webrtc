@@ -495,53 +495,62 @@ void RtpTransceiver::CreateChannel(
   auto encoder_switch_callback = GetEncoderSwitchRequestCallback();
   auto parameters_changed_callback = GetParametersChangedCallback();
 
-  // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
-  // the worker thread. We shouldn't be using the `call_ptr_` hack here but
-  // simply be on the worker thread and use `call_` (update upstream code).
-  worker_tasks.AddWithFinalizer(
-      [this, mid_str = std::string(mid), call_ptr, media_config, srtp_required,
-       crypto_options, video_bitrate_allocator_factory,
-       encoder_switch_callback = std::move(encoder_switch_callback),
-       parameters_changed_callback = std::move(parameters_changed_callback),
-       callbacks = std::move(callbacks)]() mutable
-          -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
-        RTC_DCHECK_RUN_ON(context()->worker_thread());
+  std::unique_ptr<MediaSendChannelInterface> media_send_channel;
+  std::unique_ptr<MediaReceiveChannelInterface> media_receive_channel;
+  bool needs_set_media_channels = false;
 
-        std::unique_ptr<MediaSendChannelInterface> media_send_channel;
-        std::unique_ptr<MediaReceiveChannelInterface> media_receive_channel;
+  if (owned_send_channel_) {
+    RTC_DCHECK(owned_receive_channel_);
+    media_send_channel = std::move(owned_send_channel_);
+    media_receive_channel = std::move(owned_receive_channel_);
+  } else {
+    // TODO(bugs.webrtc.org/11992): CreateVideoChannel internally switches to
+    // the worker thread. We shouldn't be using the `call_ptr_` hack here but
+    // simply be on the worker thread and use `call_` (update upstream code).
+    auto channels = CreateMediaContentChannels(
+        media_type(), env_, voice_channel_factory(), video_channel_factory(),
+        call_ptr, media_config, audio_options_, video_options_, crypto_options,
+        video_bitrate_allocator_factory, std::move(encoder_switch_callback),
+        std::move(parameters_changed_callback));
+    media_send_channel = std::move(channels.first);
+    media_receive_channel = std::move(channels.second);
+    needs_set_media_channels = true;
+  }
 
-        if (owned_send_channel_) {
-          RTC_DCHECK(owned_receive_channel_);
-          media_send_channel = std::move(owned_send_channel_);
-          media_receive_channel = std::move(owned_receive_channel_);
-        } else {
-          auto channels = CreateMediaContentChannels(
-              media_type(), env_, voice_channel_factory(),
-              video_channel_factory(), call_ptr, media_config, audio_options_,
-              video_options_, crypto_options, video_bitrate_allocator_factory,
-              std::move(encoder_switch_callback),
-              std::move(parameters_changed_callback));
-          media_send_channel = std::move(channels.first);
-          media_receive_channel = std::move(channels.second);
+  auto construct_channel =
+      [this, srtp_required, crypto_options, callbacks = std::move(callbacks)](
+          std::unique_ptr<MediaSendChannelInterface> send,
+          std::unique_ptr<MediaReceiveChannelInterface> receive) mutable {
+        RTC_DCHECK_RUN_ON(thread_);
+        RTC_DCHECK(mid_.has_value());
+        channel_ = std::make_unique<BaseChannel>(
+            context()->worker_thread(), context()->network_thread(),
+            context()->signaling_thread(), std::move(send), std::move(receive),
+            *mid_, media_type(), srtp_required, crypto_options,
+            context()->ssrc_generator(), std::move(callbacks));
+        transport_name_ = std::nullopt;
+      };
+
+  if (needs_set_media_channels) {
+    worker_tasks.AddWithFinalizer(
+        [this, media_send_channel = std::move(media_send_channel),
+         media_receive_channel = std::move(media_receive_channel),
+         construct_channel = std::move(construct_channel)]() mutable
+            -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
+          RTC_DCHECK_RUN_ON(context()->worker_thread());
           SetMediaChannels(media_send_channel.get(),
                            media_receive_channel.get());
-        }
-
-        std::unique_ptr<ChannelInterface> new_channel =
-            std::make_unique<BaseChannel>(
-                context()->worker_thread(), context()->network_thread(),
-                context()->signaling_thread(), std::move(media_send_channel),
-                std::move(media_receive_channel), mid_str, media_type(),
-                srtp_required, crypto_options, context()->ssrc_generator(),
-                std::move(callbacks));
-
-        return ScopedOperationsBatcher::FinalizerTask(
-            [this, new_channel = std::move(new_channel)]() mutable {
-              RTC_DCHECK_RUN_ON(thread_);
-              channel_ = std::move(new_channel);
-              transport_name_ = std::nullopt;
-            });
-      });
+          return ScopedOperationsBatcher::FinalizerTask(
+              [send = std::move(media_send_channel),
+               recv = std::move(media_receive_channel),
+               construct_channel = std::move(construct_channel)]() mutable {
+                construct_channel(std::move(send), std::move(recv));
+              });
+        });
+  } else {
+    construct_channel(std::move(media_send_channel),
+                      std::move(media_receive_channel));
+  }
 
   network_tasks.AddWithFinalizer(
       [this, transport_lookup = std::move(transport_lookup)]() mutable
