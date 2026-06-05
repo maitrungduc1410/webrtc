@@ -80,7 +80,7 @@ void RtpReplayer::Replay(
     // Extensions are registered with an ID, which you signal to the
     // peer so they know what to expect. This code only cares about
     // parsing so the value of the ID isn't relevant.
-    extensions.RegisterByType(i, extension_type);
+    extensions.RegisterByType(RtpHeaderExtensionId(i), extension_type);
   }
 
   // Setup the video streams based on the configuration.

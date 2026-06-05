@@ -52,8 +52,9 @@ TEST(RtpHeaderExtensionTest, RegisterWithTrait) {
 }
 
 TEST(RtpHeaderExtensionTest, RegisterDuringContruction) {
-  const std::vector<RtpExtension> config = {{TransmissionOffset::Uri(), 1},
-                                            {AbsoluteSendTime::Uri(), 3}};
+  const std::vector<RtpExtension> config = {
+      {TransmissionOffset::Uri(), RtpHeaderExtensionId(1)},
+      {AbsoluteSendTime::Uri(), RtpHeaderExtensionId(3)}};
   const RtpHeaderExtensionMap map(config);
 
   EXPECT_EQ(RtpHeaderExtensionId(1), map.GetId(TransmissionOffset::kId));
