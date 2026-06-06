@@ -19,7 +19,6 @@
 # - sdp_utils
 # - media_stream_observer
 # - video_track_source
-# - libjingle_peerconnection
 #
 # Some targets are depended on by external users for historical reasons,
 # and are therefore marked with visibility "*". This is in the process
@@ -2170,22 +2169,6 @@ rtc_source_set("legacy_stats_collector_interface") {
   deps = [
     "../api:legacy_stats_types",
     "../api:media_stream_interface",
-  ]
-}
-
-# This target contains the libraries that are required in order to get an
-# usable peerconnection-using binary.
-rtc_source_set("libjingle_peerconnection") {
-  # TODO(bugs.webrtc.org/13661): Reduce visibility if possible
-  visibility = [ "*" ]  # Used by Chrome and others
-  allow_poison = [ "environment_construction" ]
-
-  deps = [
-    ":jsep_session_description",
-    ":peer_connection_factory",
-    ":rtc_stats_collector",
-    ":webrtc_sdp",
-    "../stats",
   ]
 }
 
