@@ -8,33 +8,29 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef API_SFRAME_SFRAME_ENCRYPTER_INTERFACE_H_
-#define API_SFRAME_SFRAME_ENCRYPTER_INTERFACE_H_
+#ifndef API_SFRAME_SFRAME_DECRYPTOR_INTERFACE_H_
+#define API_SFRAME_SFRAME_DECRYPTOR_INTERFACE_H_
 
 #include <cstdint>
 #include <span>
 
 #include "api/ref_count.h"
 #include "api/rtc_error.h"
-#include "api/sframe/sframe_types.h"
 
 namespace webrtc {
 
-struct SframeEncrypterInit {
-  SframeMode mode;
-  SframeCipherSuite cipher_suite;
-};
-
-// Key management handle for Sframe sender encryption.
-class SframeEncrypterInterface : public RefCountInterface {
+// Key management handle for Sframe receiver decryption.
+class SframeDecryptorInterface : public RefCountInterface {
  public:
-  virtual RTCError SetEncryptionKey(uint64_t key_id,
+  virtual RTCError AddDecryptionKey(uint64_t key_id,
                                     std::span<const uint8_t> key_material) = 0;
 
+  virtual RTCError RemoveDecryptionKey(uint64_t key_id) = 0;
+
  protected:
-  ~SframeEncrypterInterface() override = default;
+  ~SframeDecryptorInterface() override = default;
 };
 
 }  // namespace webrtc
 
-#endif  // API_SFRAME_SFRAME_ENCRYPTER_INTERFACE_H_
+#endif  // API_SFRAME_SFRAME_DECRYPTOR_INTERFACE_H_

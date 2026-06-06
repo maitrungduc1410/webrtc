@@ -266,9 +266,9 @@ rtc_library("sframe_types") {
   sources = [ "sframe/sframe_types.h" ]
 }
 
-rtc_library("sframe_encrypter_interface") {
+rtc_library("sframe_encryptor_interface") {
   visibility = [ "*" ]
-  sources = [ "sframe/sframe_encrypter_interface.h" ]
+  sources = [ "sframe/sframe_encryptor_interface.h" ]
   deps = [
     ":ref_count",
     ":rtc_error",
@@ -276,9 +276,9 @@ rtc_library("sframe_encrypter_interface") {
   ]
 }
 
-rtc_library("sframe_decrypter_interface") {
+rtc_library("sframe_decryptor_interface") {
   visibility = [ "*" ]
-  sources = [ "sframe/sframe_decrypter_interface.h" ]
+  sources = [ "sframe/sframe_decryptor_interface.h" ]
   deps = [
     ":ref_count",
     ":rtc_error",
@@ -302,7 +302,7 @@ rtc_library("rtp_sender_interface") {
     ":rtc_error",
     ":rtp_parameters",
     ":scoped_refptr",
-    ":sframe_encrypter_interface",
+    ":sframe_encryptor_interface",
     "../rtc_base:checks",
     "../rtc_base/system:rtc_export",
     "crypto:frame_encryptor_interface",
@@ -510,7 +510,7 @@ rtc_library("rtp_receiver_interface") {
     ":rtc_error",
     ":rtp_parameters",
     ":scoped_refptr",
-    ":sframe_decrypter_interface",
+    ":sframe_decryptor_interface",
     ":sframe_types",
     "../rtc_base:checks",
     "../rtc_base/system:rtc_export",
