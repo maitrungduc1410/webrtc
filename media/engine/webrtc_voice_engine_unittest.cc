@@ -3586,7 +3586,8 @@ TEST(WebRtcVoiceEngineTest, StartupShutdown) {
         env, adm, MockAudioEncoderFactory::CreateUnusedFactory(),
         MockAudioDecoderFactory::CreateUnusedFactory(), nullptr, apm, nullptr);
     AutoInitTerminate init_term(engine);
-    std::unique_ptr<Call> call = Call::Create(CallConfig(env));
+    std::unique_ptr<Call> call =
+        Call::Create(CallConfig::CreateSingleThreaded(env));
     std::unique_ptr<VoiceMediaSendChannelInterface> send_channel =
         engine.CreateSendChannel(env, call.get(), MediaConfig(), AudioOptions(),
                                  CryptoOptions());
@@ -3613,7 +3614,8 @@ TEST(WebRtcVoiceEngineTest, StartupShutdownWithExternalADM) {
                                MockAudioDecoderFactory::CreateUnusedFactory(),
                                nullptr, apm, nullptr);
       AutoInitTerminate init_term(engine);
-      std::unique_ptr<Call> call = Call::Create(CallConfig(env));
+      std::unique_ptr<Call> call =
+          Call::Create(CallConfig::CreateSingleThreaded(env));
       std::unique_ptr<VoiceMediaSendChannelInterface> send_channel =
           engine.CreateSendChannel(env, call.get(), MediaConfig(),
                                    AudioOptions(), CryptoOptions());
@@ -3688,7 +3690,8 @@ TEST(WebRtcVoiceEngineTest, Has32Channels) {
         env, adm, MockAudioEncoderFactory::CreateUnusedFactory(),
         MockAudioDecoderFactory::CreateUnusedFactory(), nullptr, apm, nullptr);
     AutoInitTerminate init_term(engine);
-    std::unique_ptr<Call> call = Call::Create(CallConfig(env));
+    std::unique_ptr<Call> call =
+        Call::Create(CallConfig::CreateSingleThreaded(env));
 
     std::vector<std::unique_ptr<VoiceMediaSendChannelInterface>> channels;
     while (channels.size() < 32) {
@@ -3724,7 +3727,8 @@ TEST(WebRtcVoiceEngineTest, SetRecvCodecs) {
         env, adm, MockAudioEncoderFactory::CreateUnusedFactory(),
         CreateBuiltinAudioDecoderFactory(), nullptr, apm, nullptr);
     AutoInitTerminate init_term(engine);
-    std::unique_ptr<Call> call = Call::Create(CallConfig(env));
+    std::unique_ptr<Call> call =
+        Call::Create(CallConfig::CreateSingleThreaded(env));
     WebRtcVoiceReceiveChannel channel(env, &engine, MediaConfig(),
                                       AudioOptions(), CryptoOptions(),
                                       call.get());
@@ -3744,7 +3748,7 @@ TEST(WebRtcVoiceEngineTest, SetRtpSendParametersMaxBitrate) {
                            CreateBuiltinAudioDecoderFactory(), nullptr, nullptr,
                            nullptr);
   AutoInitTerminate init_term(engine);
-  CallConfig call_config(env);
+  CallConfig call_config = CallConfig::CreateSingleThreaded(env);
   {
     AudioState::Config config;
     config.audio_mixer = AudioMixerImpl::Create();

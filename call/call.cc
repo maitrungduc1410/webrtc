@@ -85,7 +85,6 @@
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/task_utils/repeating_task.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/time_utils.h"
 #include "rtc_base/trace_event.h"
@@ -148,13 +147,6 @@ std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
   auto rtclog_config = std::make_unique<rtclog::StreamConfig>();
   rtclog_config->remote_ssrc = config.rtp.remote_ssrc;
   return rtclog_config;
-}
-
-TaskQueueBase* GetCurrentTaskQueueOrThread() {
-  TaskQueueBase* current = TaskQueueBase::Current();
-  if (!current)
-    current = ThreadManager::Instance()->CurrentThread();
-  return current;
 }
 
 }  // namespace
@@ -527,6 +519,8 @@ std::string Call::Stats::ToString(int64_t time_ms) const {
 }
 
 std::unique_ptr<Call> Call::Create(CallConfig config) {
+  RTC_CHECK(config.worker_task_queue != nullptr);
+  RTC_CHECK(config.network_task_queue_ != nullptr);
   auto transport_send = std::make_unique<RtpTransportControllerSend>(
       config.ExtractTransportConfig());
 
@@ -706,11 +700,8 @@ void Call::SendStats::SetMinAllocatableRate(BitrateAllocationLimits limits) {
 Call::Call(CallConfig config,
            std::unique_ptr<RtpTransportControllerSendInterface> transport_send)
     : env_(config.env),
-      worker_thread_(GetCurrentTaskQueueOrThread()),
-      // If `network_task_queue_` was set to nullptr, network related calls
-      // must be made on `worker_thread_` (i.e. they're one and the same).
-      network_thread_(config.network_task_queue_ ? config.network_task_queue_
-                                                 : worker_thread_),
+      worker_thread_(config.worker_task_queue),
+      network_thread_(config.network_task_queue_),
       decode_sync_(
           config.decode_metronome
               ? std::make_unique<DecodeSynchronizer>(&env_.clock(),

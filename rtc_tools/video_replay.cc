@@ -528,7 +528,8 @@ class RtpReplayer final {
         "worker_thread", TaskQueueFactory::Priority::kNormal);
     Event event;
     worker_thread_->PostTask([&]() {
-      call_ = Call::Create(CallConfig(env_));
+      call_ = Call::Create(CallConfig::CreateWithJoinedWorkerAndNetworkQueue(
+          env_, worker_thread_.get()));
 
       // Creation of the streams must happen inside a task queue because it is
       // resued as a worker thread.

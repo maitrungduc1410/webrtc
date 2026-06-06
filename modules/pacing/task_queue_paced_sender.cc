@@ -43,7 +43,8 @@ TaskQueuePacedSender::TaskQueuePacedSender(
     PacingController::PacketSender* packet_sender,
     const FieldTrialsView& field_trials,
     TimeDelta max_hold_back_window,
-    int max_hold_back_window_in_packets)
+    int max_hold_back_window_in_packets,
+    TaskQueueBase* task_queue)
     : clock_(clock),
       max_hold_back_window_(max_hold_back_window),
       max_hold_back_window_in_packets_(max_hold_back_window_in_packets),
@@ -53,7 +54,8 @@ TaskQueuePacedSender::TaskQueuePacedSender(
       is_shutdown_(false),
       packet_size_(/*alpha=*/0.95),
       include_overhead_(false),
-      task_queue_(TaskQueueBase::Current()) {
+      task_queue_(task_queue) {
+  RTC_DCHECK(task_queue_);
   RTC_DCHECK_GE(max_hold_back_window_, PacingController::kMinSleepTime);
 }
 

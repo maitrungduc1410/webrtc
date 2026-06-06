@@ -2104,7 +2104,7 @@ TEST_F(VideoSendStreamTest, CanReconfigureToUseStartBitrateAbovePreviousMax) {
     int start_bitrate_kbps_ RTC_GUARDED_BY(mutex_);
   };
 
-  CreateSenderCall();
+  CreateSenderCall(TaskQueueBase::Current());
 
   test::NullTransport transport;
   CreateSendConfig(1, 0, 0, &transport);
@@ -3584,7 +3584,7 @@ TEST_F(VideoSendStreamTest, MAYBE_Vp9FlexModeRefCount) {
 
 void VideoSendStreamTest::TestRequestSourceRotateVideo(
     bool support_orientation_ext) {
-  CreateSenderCall();
+  CreateSenderCall(TaskQueueBase::Current());
 
   test::NullTransport transport;
   CreateSendConfig(1, 0, 0, &transport);

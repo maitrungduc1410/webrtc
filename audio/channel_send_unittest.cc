@@ -33,6 +33,7 @@
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/test/mock_frame_transformer.h"
 #include "api/test/mock_transformable_audio_frame.h"
 #include "api/test/rtc_error_matchers.h"
@@ -85,7 +86,8 @@ class ChannelSendTest : public ::testing::Test {
             {.field_trials = &field_trials_, .time = &time_controller_})),
         transport_controller_(
             RtpTransportConfig{.env = env_,
-                               .bitrate_config = GetBitrateConfig()}) {
+                               .bitrate_config = GetBitrateConfig(),
+                               .worker_thread = TaskQueueBase::Current()}) {
     channel_ = voe::CreateChannelSend(env_, &transport_, nullptr, nullptr,
                                       crypto_options_, false, kRtcpIntervalMs,
                                       kSsrc, nullptr, &transport_controller_);

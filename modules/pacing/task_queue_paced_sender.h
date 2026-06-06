@@ -53,7 +53,8 @@ class TaskQueuePacedSender : public RtpPacketPacer, public RtpPacketSender {
                        PacingController::PacketSender* packet_sender,
                        const FieldTrialsView& field_trials,
                        TimeDelta max_hold_back_window,
-                       int max_hold_back_window_in_packets);
+                       int max_hold_back_window_in_packets,
+                       TaskQueueBase* task_queue);
 
   ~TaskQueuePacedSender() override;
 

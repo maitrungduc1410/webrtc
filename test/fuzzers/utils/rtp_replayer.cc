@@ -22,6 +22,7 @@
 #include "api/call/transport.h"
 #include "api/environment/environment.h"
 #include "api/media_types.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/test/time_controller.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -90,8 +91,8 @@ void RtpReplayer::Replay(
   // by chromium. To avoid blocking when running in chromium, real (default)
   // task queues are used, while `time_controller` is used only for the Clock.
   Environment env = CreateTestEnvironment({.time = time_controller.GetClock()});
-  CallConfig call_config(env);
-  std::unique_ptr<Call> call = Call::Create(std::move(call_config));
+  std::unique_ptr<Call> call =
+      Call::Create(CallConfig::CreateSingleThreaded(env));
   SetupVideoStreams(&receive_stream_configs, stream_state.get(), call.get());
 
   // Start replaying the provided stream now that it has been configured.

@@ -387,7 +387,7 @@ class WebRtcVideoEngineTest : public ::testing::Test {
         env_(CreateEnvironment(field_trials_.CreateCopy(),
                                time_controller_.CreateTaskQueueFactory(),
                                time_controller_.GetClock())),
-        call_(Call::Create(CallConfig(env_))),
+        call_(Call::Create(CallConfig::CreateSingleThreaded(env_))),
         encoder_factory_(new FakeWebRtcVideoEncoderFactory),
         decoder_factory_(new FakeWebRtcVideoDecoderFactory),
         video_bitrate_allocator_factory_(
@@ -1550,8 +1550,8 @@ TEST(WebRtcVideoEngineNewVideoCodecFactoryTest, Vp8) {
   // Create a call.
   GlobalSimulatedTimeController time_controller(Timestamp::Millis(4711));
   const Environment env = CreateTestEnvironment({.time = &time_controller});
-  CallConfig call_config(env);
-  const std::unique_ptr<Call> call = Call::Create(std::move(call_config));
+  const std::unique_ptr<Call> call =
+      Call::Create(CallConfig::CreateSingleThreaded(env));
 
   // Create send channel.
   const int send_ssrc = 123;
@@ -1683,7 +1683,7 @@ class WebRtcVideoChannelEncodedFrameCallbackTest : public ::testing::Test {
       : field_trials_(CreateTestFieldTrials()),
         env_(CreateTestEnvironment(
             {.field_trials = &field_trials_, .time = &time_controller_})),
-        call_(Call::Create(CallConfig(env_))),
+        call_(Call::Create(CallConfig::CreateSingleThreaded(env_))),
         video_bitrate_allocator_factory_(
             CreateBuiltinVideoBitrateAllocatorFactory()),
         engine_(
@@ -1873,7 +1873,7 @@ class WebRtcVideoChannelBaseTest : public ::testing::Test {
   void SetUp() override {
     // One testcase calls SetUp in a loop, only create call_ once.
     if (!call_) {
-      call_ = Call::Create(CallConfig(env_));
+      call_ = Call::Create(CallConfig::CreateSingleThreaded(env_));
     }
 
     MediaConfig media_config;
