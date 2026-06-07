@@ -127,17 +127,6 @@ RtpTransportControllerSend::RtpTransportControllerSend(
   initial_config_.default_pacing_time_window =
       config.default_pacing_time_window;
   RTC_DCHECK(config.bitrate_config.start_bitrate_bps > 0);
-
-  pacer_.SetConfig(PacerConfig::Create(
-      env_.clock().CurrentTime(),
-      DataRate::BitsPerSec(config.bitrate_config.start_bitrate_bps),
-      DataRate::Zero(), config.default_pacing_time_window));
-
-  packet_router_.RegisterNotifyBweCallback(
-      [this](const RtpPacketToSend& packet,
-             const PacedPacketInfo& pacing_info) {
-        return NotifyBweOfPacedSentPacket(packet, pacing_info);
-      });
 }
 
 RtpTransportControllerSend::~RtpTransportControllerSend() {
@@ -584,8 +573,17 @@ void RtpTransportControllerSend::IncludeOverheadInPacedSender() {
 void RtpTransportControllerSend::EnsureStarted() {
   RTC_DCHECK_RUN_ON(worker_thread_);
   if (!pacer_started_) {
-    pacer_started_ = true;
+    pacer_.SetConfig(PacerConfig::Create(
+        env_.clock().CurrentTime(),
+        initial_config_.constraints.starting_rate.value_or(DataRate::Zero()),
+        DataRate::Zero(), initial_config_.default_pacing_time_window));
+    packet_router_.RegisterNotifyBweCallback(
+        [this](const RtpPacketToSend& packet,
+               const PacedPacketInfo& pacing_info) {
+          return NotifyBweOfPacedSentPacket(packet, pacing_info);
+        });
     pacer_.EnsureStarted();
+    pacer_started_ = true;
   }
 }
 

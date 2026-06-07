@@ -120,10 +120,17 @@ PeerConnectionFactory::PeerConnectionFactory(
 
 PeerConnectionFactory::~PeerConnectionFactory() {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  worker_thread()->BlockingCall([this] {
+  // The metronomes must be destroyed on the worker thread. Since BlockingCall
+  // uses FunctionView, the lambda object is destroyed on the calling thread
+  // (signaling thread) after execution (together with its captures). We release
+  // them here and delete them inside the lambda body to ensure destruction on
+  // the worker thread.
+  worker_thread()->BlockingCall([decode_metronome = decode_metronome_.release(),
+                                 encode_metronome = encode_metronome_.release(),
+                                 this] {
     RTC_DCHECK_RUN_ON(worker_thread());
-    decode_metronome_ = nullptr;
-    encode_metronome_ = nullptr;
+    delete decode_metronome;
+    delete encode_metronome;
     StopAecDump();
   });
 }
@@ -314,10 +321,7 @@ PeerConnectionFactory::CreatePeerConnectionOrError(
   dependencies.allocator->SetNetworkIgnoreMask(options().network_ignore_mask);
   dependencies.allocator->SetVpnList(configuration.vpn_list);
 
-  std::unique_ptr<Call> call =
-      worker_thread()->BlockingCall([this, &env, &configuration] {
-        return CreateCall_w(env, std::move(configuration));
-      });
+  std::unique_ptr<Call> call = CreateCall_s(env, configuration);
 
   auto pc = PeerConnection::Create(env, context_, options_, std::move(call),
                                    configuration, dependencies, stun_servers,
@@ -357,10 +361,10 @@ scoped_refptr<AudioTrackInterface> PeerConnectionFactory::CreateAudioTrack(
   return AudioTrackProxy::Create(signaling_thread(), track);
 }
 
-std::unique_ptr<Call> PeerConnectionFactory::CreateCall_w(
+std::unique_ptr<Call> PeerConnectionFactory::CreateCall_s(
     const Environment& env,
     const PeerConnectionInterface::RTCConfiguration& configuration) {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(signaling_thread());
 
   CallConfig call_config(env, worker_thread(), network_thread());
   if (!context_->media_engine() || !context_->call_factory()) {

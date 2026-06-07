@@ -476,6 +476,28 @@ scoped_refptr<AudioDeviceModule> EnsureAudioDeviceModule(
   return std::move(adm);
 }
 
+scoped_refptr<AudioState> CreateAudioState(
+    const Environment& env,
+    scoped_refptr<AudioMixer> audio_mixer,
+    AudioProcessing* apm,
+    AudioDeviceModule* adm,
+    std::unique_ptr<AudioFrameProcessor> audio_frame_processor) {
+  AudioState::Config config;
+  if (audio_mixer) {
+    config.audio_mixer = std::move(audio_mixer);
+  } else {
+    config.audio_mixer = AudioMixerImpl::Create();
+  }
+  config.audio_processing = apm;
+  config.audio_device_module = adm;
+  if (audio_frame_processor) {
+    config.async_audio_processing_factory =
+        make_ref_counted<AsyncAudioProcessing::Factory>(
+            std::move(audio_frame_processor), env.task_queue_factory());
+  }
+  return AudioState::Create(config);
+}
+
 }  // namespace
 
 WebRtcVoiceEngine::WebRtcVoiceEngine(
@@ -496,6 +518,11 @@ WebRtcVoiceEngine::WebRtcVoiceEngine(
       encoder_factory_(std::move(encoder_factory)),
       decoder_factory_(std::move(decoder_factory)),
       apm_(std::move(audio_processing)),
+      audio_state_(CreateAudioState(env,
+                                    std::move(audio_mixer),
+                                    apm_.get(),
+                                    adm_.get(),
+                                    std::move(audio_frame_processor))),
       legacy_send_codecs_(
           LegacyCollectCodecs(encoder_factory_->GetSupportedEncoders(),
                               !payload_types_in_transport_trial_enabled_)),
@@ -506,24 +533,6 @@ WebRtcVoiceEngine::WebRtcVoiceEngine(
   RTC_CHECK(adm_);
   RTC_DCHECK(decoder_factory_);
   RTC_DCHECK(encoder_factory_);
-
-  // Set up AudioState.
-  {
-    AudioState::Config config;
-    if (audio_mixer) {
-      config.audio_mixer = std::move(audio_mixer);
-    } else {
-      config.audio_mixer = AudioMixerImpl::Create();
-    }
-    config.audio_processing = apm_;
-    config.audio_device_module = adm_;
-    if (audio_frame_processor) {
-      config.async_audio_processing_factory =
-          make_ref_counted<AsyncAudioProcessing::Factory>(
-              std::move(audio_frame_processor), env_.task_queue_factory());
-    }
-    audio_state_ = AudioState::Create(config);
-  }
 
   // The rest of our initialization will happen in Init.
 }
@@ -577,7 +586,6 @@ void WebRtcVoiceEngine::Terminate() {
 }
 
 scoped_refptr<AudioState> WebRtcVoiceEngine::GetAudioState() const {
-  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   return audio_state_;
 }
 

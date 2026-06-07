@@ -167,7 +167,7 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
   // The audio processing module.
   scoped_refptr<AudioProcessing> apm_ RTC_GUARDED_BY(worker_thread_checker_);
   // The primary instance of WebRtc VoiceEngine.
-  scoped_refptr<AudioState> audio_state_ RTC_GUARDED_BY(worker_thread_checker_);
+  const scoped_refptr<AudioState> audio_state_;
   const std::vector<Codec> legacy_send_codecs_;
   const std::vector<Codec> legacy_recv_codecs_;
   bool initialized_ RTC_GUARDED_BY(worker_thread_checker_) = false;

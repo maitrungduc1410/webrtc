@@ -107,7 +107,7 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
     return default_socket_factory_.get();
   }
   MediaFactory* call_factory() {
-    RTC_DCHECK_RUN_ON(worker_thread());
+    RTC_DCHECK_RUN_ON(signaling_thread_);
     return call_factory_.get();
   }
   UniqueRandomIdGenerator* ssrc_generator() { return &ssrc_generator_; }
@@ -171,7 +171,7 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
   std::unique_ptr<NetworkManager> default_network_manager_
       RTC_GUARDED_BY(signaling_thread_);
   std::unique_ptr<MediaFactory> const call_factory_
-      RTC_GUARDED_BY(worker_thread());
+      RTC_GUARDED_BY(signaling_thread_);
 
   std::unique_ptr<PacketSocketFactory> default_socket_factory_
       RTC_GUARDED_BY(signaling_thread_);

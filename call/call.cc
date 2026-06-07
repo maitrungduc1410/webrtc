@@ -731,14 +731,41 @@ Call::Call(CallConfig config,
       transport_send_ptr_(transport_send.get()),
       transport_send_(std::move(transport_send)) {
   RTC_DCHECK(network_thread_);
-  RTC_DCHECK(worker_thread_->IsCurrent());
-
   receive_11993_checker_.Detach();
   send_transport_sequence_checker_.Detach();
 
   // Do not remove this call; it is here to convince the compiler that the
   // WebRTC source timestamp string needs to be in the final binary.
   LoadWebRTCVersionInRegister();
+}
+
+Call::~Call() {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+
+  RTC_CHECK(audio_send_ssrcs_.empty());
+  RTC_CHECK(video_send_ssrcs_.empty());
+  RTC_CHECK(video_send_streams_.empty());
+  RTC_CHECK(audio_receive_streams_.empty());
+  RTC_CHECK(video_receive_streams_.empty());
+  RTC_CHECK(receive_sink_registry_.IsEmpty());
+
+  if (is_started_) {
+    receive_side_cc_periodic_task_.Stop();
+    elastic_bandwidth_allocation_task_.Stop();
+    call_stats_->DeregisterStatsObserver(&receive_side_cc_);
+  }
+  send_stats_.SetFirstPacketTime(transport_send_->GetFirstPacketTime());
+
+  RTC_HISTOGRAM_COUNTS_100000(
+      "WebRTC.Call.LifetimeInSeconds",
+      (env_.clock().CurrentTime() - start_of_call_).seconds());
+}
+
+void Call::EnsureStarted() {
+  if (is_started_) {
+    return;
+  }
+  is_started_ = true;
 
   call_stats_->RegisterStatsObserver(&receive_side_cc_);
 
@@ -763,33 +790,6 @@ Call::Call(CallConfig config,
         },
         TaskQueueBase::DelayPrecision::kLow, &env_.clock());
   }
-}
-
-Call::~Call() {
-  RTC_DCHECK_RUN_ON(worker_thread_);
-
-  RTC_CHECK(audio_send_ssrcs_.empty());
-  RTC_CHECK(video_send_ssrcs_.empty());
-  RTC_CHECK(video_send_streams_.empty());
-  RTC_CHECK(audio_receive_streams_.empty());
-  RTC_CHECK(video_receive_streams_.empty());
-  RTC_CHECK(receive_sink_registry_.IsEmpty());
-
-  receive_side_cc_periodic_task_.Stop();
-  elastic_bandwidth_allocation_task_.Stop();
-  call_stats_->DeregisterStatsObserver(&receive_side_cc_);
-  send_stats_.SetFirstPacketTime(transport_send_->GetFirstPacketTime());
-
-  RTC_HISTOGRAM_COUNTS_100000(
-      "WebRTC.Call.LifetimeInSeconds",
-      (env_.clock().CurrentTime() - start_of_call_).seconds());
-}
-
-void Call::EnsureStarted() {
-  if (is_started_) {
-    return;
-  }
-  is_started_ = true;
 
   call_stats_->EnsureStarted();
 
