@@ -173,12 +173,10 @@ TEST_F(SdpMungingTest, DISABLED_ReportUMAMetricsWithNoMunging) {
       metrics::Samples("WebRTC.PeerConnection.SdpMunging.Answer.Initial"),
       ElementsAre(Pair(SdpMungingType::kNoModification, 1)));
 
-  EXPECT_THAT(WaitUntil([&] { return caller->IsIceGatheringDone(); }, IsTrue(),
-                        {.timeout = kDefaultTimeout}),
-              IsRtcOk());
-  EXPECT_THAT(WaitUntil([&] { return callee->IsIceGatheringDone(); }, IsTrue(),
-                        {.timeout = kDefaultTimeout}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return caller->IsIceGatheringDone(); },
+                        {.timeout = kDefaultTimeout}));
+  EXPECT_TRUE(WaitUntil([&] { return callee->IsIceGatheringDone(); },
+                        {.timeout = kDefaultTimeout}));
   for (const auto& candidate : caller->observer()->GetAllCandidates()) {
     callee->pc()->AddIceCandidate(candidate);
   }

@@ -25,7 +25,6 @@
 #include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
 #include "api/rtc_error.h"
-#include "api/test/rtc_error_matchers.h"
 #include "api/transport/stun.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -284,10 +283,9 @@ TEST_F(ConnectionTest, SendReceiveGoogDelta) {
       [](RTCErrorOr<const StunUInt64Attribute*> error_or__ack) {});
 
   lconn->Ping(env().clock().CurrentTime(), std::move(delta));
-  ASSERT_THAT(WaitUntil([&] { return lport_->last_stun_msg(); }, IsTrue(),
+  ASSERT_TRUE(WaitUntil([&] { return lport_->last_stun_msg(); },
                         {.timeout = TimeDelta::Millis(kDefaultTimeout),
-                         .clock = &time_controller_}),
-              IsRtcOk());
+                         .clock = &time_controller_}));
   ASSERT_GT(lport_->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport_->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -326,19 +324,17 @@ TEST_F(ConnectionTest, SendGoogDeltaNoReply) {
       });
 
   lconn->Ping(env().clock().CurrentTime(), std::move(delta));
-  ASSERT_THAT(WaitUntil([&] { return lport_->last_stun_msg(); }, IsTrue(),
+  ASSERT_TRUE(WaitUntil([&] { return lport_->last_stun_msg(); },
                         {.timeout = TimeDelta::Millis(kDefaultTimeout),
-                         .clock = &time_controller_}),
-              IsRtcOk());
+                         .clock = &time_controller_}));
   ASSERT_GT(lport_->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport_->last_stun_buf(), SocketAddress(), std::nullopt));
 
   time_controller_.SkipForwardBy(TimeDelta::Millis(ms));
-  ASSERT_THAT(WaitUntil([&] { return rport_->last_stun_msg(); }, IsTrue(),
+  ASSERT_TRUE(WaitUntil([&] { return rport_->last_stun_msg(); },
                         {.timeout = TimeDelta::Millis(kDefaultTimeout),
-                         .clock = &time_controller_}),
-              IsRtcOk());
+                         .clock = &time_controller_}));
   ASSERT_GT(rport_->last_stun_buf().size(), 0u);
   lconn->OnReadPacket(
       ReceivedIpPacket(rport_->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -385,10 +381,9 @@ TEST_F(ConnectionTest, TooBigDeltaIsNotSent) {
       [](RTCErrorOr<const StunUInt64Attribute*> error_or__ack) {});
 
   lconn->Ping(env().clock().CurrentTime(), std::move(delta));
-  ASSERT_THAT(WaitUntil([&] { return lport_->last_stun_msg(); }, IsTrue(),
+  ASSERT_TRUE(WaitUntil([&] { return lport_->last_stun_msg(); },
                         {.timeout = TimeDelta::Millis(kDefaultTimeout),
-                         .clock = &time_controller_}),
-              IsRtcOk());
+                         .clock = &time_controller_}));
   ASSERT_GT(lport_->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport_->last_stun_buf(), SocketAddress(), std::nullopt));

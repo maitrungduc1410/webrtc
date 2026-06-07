@@ -222,7 +222,7 @@ TEST_F(ChannelSendTest, FrameTransformerGetsCorrectTimestamp) {
       WaitUntil([&] { return 0 + channel_->GetRtpRtcp()->StartTimestamp(); },
                 Eq(transformable_frame_timestamp)),
       IsRtcOk());
-  EXPECT_THAT(WaitUntil([&] { return sent_timestamp; }, IsTrue()), IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return sent_timestamp.has_value(); }));
   EXPECT_EQ(*sent_timestamp, transformable_frame_timestamp);
 }
 
@@ -329,14 +329,14 @@ TEST_F(ChannelSendTest, AudioLevelsAttachedToInsertedTransformedFrame) {
   uint8_t payload[10];
   ON_CALL(*mock_frame, GetData())
       .WillByDefault(Return(std::span<uint8_t>(&payload[0], 10)));
-  EXPECT_THAT(WaitUntil([&] { return callback; }, IsTrue()), IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return callback != nullptr; }));
   callback->OnTransformedFrame(std::move(mock_frame));
 
   // Allow things posted back to the encoder queue to run.
   time_controller_.AdvanceTime(TimeDelta::Millis(10));
 
   // Ensure the audio levels is set on the sent packet.
-  EXPECT_THAT(WaitUntil([&] { return sent_audio_level; }, IsTrue()), IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return sent_audio_level.has_value(); }));
   EXPECT_EQ(*sent_audio_level, audio_level);
 }
 

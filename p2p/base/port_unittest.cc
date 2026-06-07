@@ -145,19 +145,17 @@ void SendPingAndReceiveResponse(Connection* lconn,
                                 GlobalSimulatedTimeController& time_controller,
                                 int64_t ms) {
   lconn->Ping();
-  ASSERT_THAT(
-      WaitUntil([&] { return lport->last_stun_msg(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller}),
-      IsRtcOk());
+  ASSERT_TRUE(
+      WaitUntil([&] { return lport->last_stun_msg(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller}));
   ASSERT_GT(lport->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport->last_stun_buf(), SocketAddress(), std::nullopt));
 
   time_controller.AdvanceTime(TimeDelta::Millis(ms));
-  ASSERT_THAT(
-      WaitUntil([&] { return rport->last_stun_msg(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller}),
-      IsRtcOk());
+  ASSERT_TRUE(
+      WaitUntil([&] { return rport->last_stun_msg(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller}));
   ASSERT_GT(rport->last_stun_buf().size(), 0u);
   lconn->OnReadPacket(
       ReceivedIpPacket(rport->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -590,10 +588,9 @@ class PortTest : public ::testing::Test {
   // TCP reconnecting mechanism before entering this function.
   void ConnectStartedChannels(TestChannel* ch1, TestChannel* ch2) {
     ASSERT_TRUE(ch1->conn());
-    EXPECT_THAT(
-        WaitUntil([&] { return ch1->conn()->connected(); }, IsTrue(),
-                  {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-        IsRtcOk());  // for TCP connect
+    EXPECT_TRUE(WaitUntil([&] { return ch1->conn()->connected(); },
+                          {.timeout = kDefaultTimeout,
+                           .clock = &time_controller_}));  // for TCP connect
     ch1->Ping();
     EXPECT_TRUE(
         WaitUntil([&] { return !ch2->remote_address().IsNil(); },
@@ -635,14 +632,12 @@ class PortTest : public ::testing::Test {
                                  tcp_conn2->socket()->GetLocalAddress()));
 
     // Wait for both OnClose are delivered.
-    EXPECT_THAT(
-        WaitUntil([&] { return !ch1->conn()->connected(); }, IsTrue(),
-                  {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-        IsRtcOk());
-    EXPECT_THAT(
-        WaitUntil([&] { return !ch2->conn()->connected(); }, IsTrue(),
-                  {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-        IsRtcOk());
+    EXPECT_TRUE(
+        WaitUntil([&] { return !ch1->conn()->connected(); },
+                  {.timeout = kDefaultTimeout, .clock = &time_controller_}));
+    EXPECT_TRUE(
+        WaitUntil([&] { return !ch2->conn()->connected(); },
+                  {.timeout = kDefaultTimeout, .clock = &time_controller_}));
 
     // Ensure redundant SignalClose events on TcpConnection won't break tcp
     // reconnection. Chromium will fire SignalClose for all outstanding IPC
@@ -716,18 +711,15 @@ class PortTest : public ::testing::Test {
       }
 
       // Wait for channel's outgoing TCPConnection connected.
-      EXPECT_THAT(
-          WaitUntil([&] { return ch1.conn()->connected(); }, IsTrue(),
-                    {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-          IsRtcOk());
+      EXPECT_TRUE(
+          WaitUntil([&] { return ch1.conn()->connected(); },
+                    {.timeout = kDefaultTimeout, .clock = &time_controller_}));
 
       // Verify that we could still connect channels.
       ConnectStartedChannels(&ch1, &ch2);
-      EXPECT_THAT(
-          WaitUntil(
-              [&] { return ch1.connection_ready_to_send(); }, IsTrue(),
-              {.timeout = kTcpReconnectTimeout, .clock = &time_controller_}),
-          IsRtcOk());
+      EXPECT_TRUE(WaitUntil(
+          [&] { return ch1.connection_ready_to_send(); },
+          {.timeout = kTcpReconnectTimeout, .clock = &time_controller_}));
       // Channel2 is the passive one so a new connection is created during
       // reconnect. This new connection should never have issued ENOTCONN
       // hence the connection_ready_to_send() should be false.
@@ -736,10 +728,9 @@ class PortTest : public ::testing::Test {
       EXPECT_EQ(ch1.conn()->write_state(), Connection::STATE_WRITABLE);
       // Since the reconnection never happens, the connections should have been
       // destroyed after the timeout.
-      EXPECT_THAT(WaitUntil([&] { return !ch1.conn(); }, IsTrue(),
+      EXPECT_TRUE(WaitUntil([&] { return !ch1.conn(); },
                             {.timeout = kTcpReconnectTimeout + kDefaultTimeout,
-                             .clock = &time_controller_}),
-                  IsRtcOk());
+                             .clock = &time_controller_}));
       EXPECT_TRUE(!ch2.conn());
     }
 
@@ -894,16 +885,14 @@ void PortTest::TestConnectivity(absl::string_view name1,
   ch1.CreateConnection(GetCandidate(ch2.port()));
   ASSERT_TRUE(ch1.conn() != nullptr);
 
-  EXPECT_THAT(
-      WaitUntil([&] { return ch1.conn()->connected(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());  // for TCP connect
+  EXPECT_TRUE(WaitUntil([&] { return ch1.conn()->connected(); },
+                        {.timeout = kDefaultTimeout,
+                         .clock = &time_controller_}));  // for TCP connect
   ch1.Ping();
   if (accept) {
-    EXPECT_THAT(
-        WaitUntil([&] { return !ch2.remote_address().IsNil(); }, IsTrue(),
-                  {.timeout = kShortTimeout, .clock = &time_controller_}),
-        IsRtcOk());
+    EXPECT_TRUE(
+        WaitUntil([&] { return !ch2.remote_address().IsNil(); },
+                  {.timeout = kShortTimeout, .clock = &time_controller_}));
 
     // We are able to send a ping from src to dst. This is the case when
     // sending to UDP ports and cone NATs.
@@ -966,10 +955,9 @@ void PortTest::TestConnectivity(absl::string_view name1,
       // However, since we have now sent a ping to the source IP, we should be
       // able to get a ping from it. This gives us the real source address.
       ch1.Ping();
-      EXPECT_THAT(
-          WaitUntil([&] { return !ch2.remote_address().IsNil(); }, IsTrue(),
-                    {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-          IsRtcOk());
+      EXPECT_TRUE(
+          WaitUntil([&] { return !ch2.remote_address().IsNil(); },
+                    {.timeout = kDefaultTimeout, .clock = &time_controller_}));
       EXPECT_FALSE(ch2.conn()->receiving());
       EXPECT_TRUE(ch1.remote_address().IsNil());
 
@@ -1015,13 +1003,11 @@ void PortTest::TestConnectivity(absl::string_view name1,
   ASSERT_TRUE(ch1.conn() != nullptr);
   ASSERT_TRUE(ch2.conn() != nullptr);
   if (possible) {
-    EXPECT_THAT(WaitUntil([&] { return ch1.conn()->receiving(); }, IsTrue(),
-                          {.clock = &time_controller_}),
-                IsRtcOk());
+    EXPECT_TRUE(WaitUntil([&] { return ch1.conn()->receiving(); },
+                          {.clock = &time_controller_}));
     EXPECT_EQ(Connection::STATE_WRITABLE, ch1.conn()->write_state());
-    EXPECT_THAT(WaitUntil([&] { return ch2.conn()->receiving(); }, IsTrue(),
-                          {.clock = &time_controller_}),
-                IsRtcOk());
+    EXPECT_TRUE(WaitUntil([&] { return ch2.conn()->receiving(); },
+                          {.clock = &time_controller_}));
     EXPECT_EQ(Connection::STATE_WRITABLE, ch2.conn()->write_state());
   } else {
     EXPECT_FALSE(ch1.conn()->receiving());
@@ -1384,10 +1370,9 @@ TEST_F(PortTest, TestTcpNeverConnect) {
 
   ch1.CreateConnection(c);
   EXPECT_TRUE(ch1.conn());
-  EXPECT_THAT(
-      WaitUntil([&] { return !ch1.conn(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());  // for TCP connect
+  EXPECT_TRUE(WaitUntil([&] { return !ch1.conn(); },
+                        {.timeout = kDefaultTimeout,
+                         .clock = &time_controller_}));  // for TCP connect
 }
 
 /* TODO(?): Enable these once testrelayserver can accept external TCP.
@@ -1710,14 +1695,12 @@ TEST_F(PortTest, TestTcpNoDelay) {
   // Connect and send a ping from src to dst.
   ch1.CreateConnection(GetCandidate(ch2.port()));
   ASSERT_TRUE(ch1.conn() != nullptr);
-  EXPECT_THAT(
-      WaitUntil([&] { return ch1.conn()->connected(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());  // for TCP connect
+  EXPECT_TRUE(WaitUntil([&] { return ch1.conn()->connected(); },
+                        {.timeout = kDefaultTimeout,
+                         .clock = &time_controller_}));  // for TCP connect
   ch1.Ping();
-  EXPECT_THAT(WaitUntil([&] { return !ch2.remote_address().IsNil(); }, IsTrue(),
-                        {.clock = &time_controller_}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return !ch2.remote_address().IsNil(); },
+                        {.clock = &time_controller_}));
 
   // Accept the connection.
   ch2.AcceptConnection(GetCandidate(ch1.port()));
@@ -2152,10 +2135,9 @@ TEST_F(PortTest, TestNomination) {
   // Send ping (including the nomination value) from `lconn` to `rconn`. This
   // should set the remote nomination of `rconn`.
   lconn->Ping();
-  ASSERT_THAT(
-      WaitUntil([&] { return lport->last_stun_msg(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());
+  ASSERT_TRUE(
+      WaitUntil([&] { return lport->last_stun_msg(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller_}));
   ASSERT_GT(lport->last_stun_buf().size(), 0u);
   rconn->OnReadPacket(
       ReceivedIpPacket(lport->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -2168,10 +2150,9 @@ TEST_F(PortTest, TestNomination) {
 
   // This should result in an acknowledgment sent back from `rconn` to `lconn`,
   // updating the acknowledged nomination of `lconn`.
-  ASSERT_THAT(
-      WaitUntil([&] { return rport->last_stun_msg(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());
+  ASSERT_TRUE(
+      WaitUntil([&] { return rport->last_stun_msg(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller_}));
   ASSERT_GT(rport->last_stun_buf().size(), 0u);
   lconn->OnReadPacket(
       ReceivedIpPacket(rport->last_stun_buf(), SocketAddress(), std::nullopt));
@@ -3084,14 +3065,12 @@ TEST_F(PortTest, TestWritableState) {
   ASSERT_TRUE(ch1.conn() != nullptr);
   EXPECT_EQ(Connection::STATE_WRITE_INIT, ch1.conn()->write_state());
   // for TCP connect
-  EXPECT_THAT(
-      WaitUntil([&] { return ch1.conn()->connected(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());
+  EXPECT_TRUE(
+      WaitUntil([&] { return ch1.conn()->connected(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller_}));
   ch1.Ping();
-  EXPECT_THAT(WaitUntil([&] { return !ch2.remote_address().IsNil(); }, IsTrue(),
-                        {.clock = &time_controller_}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return !ch2.remote_address().IsNil(); },
+                        {.clock = &time_controller_}));
 
   // Data should be sendable before the connection is accepted.
   auto data = std::to_array<uint8_t>({'a', 'b', 'c', 'd', '\0'});
@@ -3176,9 +3155,8 @@ TEST_F(PortTest, TestWritableStateWithConfiguredThreshold) {
   ch1.CreateConnection(GetCandidate(ch2.port()));
   ASSERT_TRUE(ch1.conn() != nullptr);
   ch1.Ping();
-  EXPECT_THAT(WaitUntil([&] { return !ch2.remote_address().IsNil(); }, IsTrue(),
-                        {.clock = &time_controller_}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return !ch2.remote_address().IsNil(); },
+                        {.clock = &time_controller_}));
 
   // Accept the connection to return the binding response, transition to
   // writable, and allow data to be sent.
@@ -3306,10 +3284,9 @@ TEST_F(PortTest, TestIceLiteConnectivity) {
                 Eq(Connection::STATE_WRITABLE),
                 {.timeout = kDefaultTimeout, .clock = &time_controller_}),
       IsRtcOk());
-  EXPECT_THAT(
-      WaitUntil([&] { return ch1.nominated(); }, IsTrue(),
-                {.timeout = kDefaultTimeout, .clock = &time_controller_}),
-      IsRtcOk());
+  EXPECT_TRUE(
+      WaitUntil([&] { return ch1.nominated(); },
+                {.timeout = kDefaultTimeout, .clock = &time_controller_}));
 
   // Clear existing stun messsages. Otherwise we will process old stun
   // message right after we send ping.

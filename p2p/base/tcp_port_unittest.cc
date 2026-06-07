@@ -144,9 +144,8 @@ TEST_F(TCPPortTest, TestTCPPortWithLocalhostAddress) {
   remote_port->PrepareAddress();
   Connection* conn = local_port->CreateConnection(remote_port->Candidates()[0],
                                                   Port::ORIGIN_MESSAGE);
-  EXPECT_THAT(WaitUntil([&] { return conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
   // Verify that the socket actually used localhost, otherwise this test isn't
   // doing what it meant to.
   ASSERT_EQ(local_address.ipaddr(),
@@ -175,9 +174,8 @@ TEST_F(TCPPortTest, TCPPortDiscardedIfBoundAddressDoesNotMatchNetwork) {
   Connection* conn = local_port->CreateConnection(remote_port->Candidates()[0],
                                                   Port::ORIGIN_MESSAGE);
   ConnectionObserver observer(conn);
-  EXPECT_THAT(WaitUntil([&] { return observer.connection_destroyed(); },
-                        IsTrue(), {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return observer.connection_destroyed(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 }
 
 // A caveat for the above logic: if the socket ends up bound to one of the IPs
@@ -202,9 +200,8 @@ TEST_F(TCPPortTest, TCPPortNotDiscardedIfNotBoundToBestIP) {
   // Expect connection to succeed.
   Connection* conn = local_port->CreateConnection(remote_port->Candidates()[0],
                                                   Port::ORIGIN_MESSAGE);
-  EXPECT_THAT(WaitUntil([&] { return conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   // Verify that the socket actually used the alternate address, otherwise this
   // test isn't doing what it meant to.
@@ -228,9 +225,8 @@ TEST_F(TCPPortTest, TCPPortNotDiscardedIfBoundToTemporaryIP) {
   Connection* conn = local_port->CreateConnection(remote_port->Candidates()[0],
                                                   Port::ORIGIN_MESSAGE);
   ASSERT_NE(nullptr, conn);
-  EXPECT_THAT(WaitUntil([&] { return conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  EXPECT_TRUE(WaitUntil([&] { return conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 }
 
 class SentPacketCounter {
@@ -261,9 +257,8 @@ TEST_F(TCPPortTest, SignalSentPacket) {
   Connection* client_conn =
       client->CreateConnection(server->Candidates()[0], Port::ORIGIN_MESSAGE);
   ASSERT_NE(nullptr, client_conn);
-  ASSERT_THAT(WaitUntil([&] { return client_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return client_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   // Need to get the port of the actual outgoing socket, not the server socket..
   Candidate client_candidate = client->Candidates()[0];
@@ -272,18 +267,15 @@ TEST_F(TCPPortTest, SignalSentPacket) {
   Connection* server_conn =
       server->CreateConnection(client_candidate, Port::ORIGIN_THIS_PORT);
   ASSERT_NE(nullptr, server_conn);
-  ASSERT_THAT(WaitUntil([&] { return server_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return server_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   client_conn->Ping(env_.clock().CurrentTime());
   server_conn->Ping(env_.clock().CurrentTime());
-  ASSERT_THAT(WaitUntil([&] { return client_conn->writable(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
-  ASSERT_THAT(WaitUntil([&] { return server_conn->writable(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return client_conn->writable(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
+  ASSERT_TRUE(WaitUntil([&] { return server_conn->writable(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   SentPacketCounter client_counter(client.get());
   SentPacketCounter server_counter(server.get());
@@ -316,9 +308,8 @@ TEST_F(TCPPortTest, SignalSentPacketAfterReconnect) {
   Connection* client_conn =
       client->CreateConnection(server->Candidates()[0], Port::ORIGIN_MESSAGE);
   ASSERT_NE(nullptr, client_conn);
-  ASSERT_THAT(WaitUntil([&] { return client_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return client_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   // Need to get the port of the actual outgoing socket.
   Candidate client_candidate = client->Candidates()[0];
@@ -327,14 +318,12 @@ TEST_F(TCPPortTest, SignalSentPacketAfterReconnect) {
   client_candidate.set_tcptype("");
   Connection* server_conn =
       server->CreateConnection(client_candidate, Port::ORIGIN_THIS_PORT);
-  ASSERT_THAT(WaitUntil([&] { return server_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return server_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
   EXPECT_FALSE(client_conn->writable());
   client_conn->Ping(env_.clock().CurrentTime());
-  ASSERT_THAT(WaitUntil([&] { return client_conn->writable(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return client_conn->writable(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   SentPacketCounter client_counter(client.get());
   static constexpr uint8_t kData[] = {'h', 'e', 'l', 'l', 'o', '\0'};
@@ -344,9 +333,8 @@ TEST_F(TCPPortTest, SignalSentPacketAfterReconnect) {
   // Deleting the server port should break the current connection.
   server = nullptr;
   server_conn = nullptr;
-  ASSERT_THAT(WaitUntil([&] { return !client_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return !client_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
 
   // Recreate the server port with the same port number.
   server = CreateTCPPort(kRemoteAddr, /*allow_listen=*/true, kServerPort);
@@ -357,9 +345,8 @@ TEST_F(TCPPortTest, SignalSentPacketAfterReconnect) {
   // packet will be discarded.
   result = client_conn->Send(kData, AsyncSocketPacketOptions());
   EXPECT_EQ(result, SOCKET_ERROR);
-  ASSERT_THAT(WaitUntil([&] { return client_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return client_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
   // For unknown reasons, connection is still supposed to be writable....
   EXPECT_TRUE(client_conn->writable());
   for (int i = 0; i < 10; ++i) {
@@ -381,9 +368,8 @@ TEST_F(TCPPortTest, SignalSentPacketAfterReconnect) {
   client_candidate.set_tcptype("");
   server_conn =
       server->CreateConnection(client_candidate, Port::ORIGIN_THIS_PORT);
-  ASSERT_THAT(WaitUntil([&] { return server_conn->connected(); }, IsTrue(),
-                        {.timeout = TimeDelta::Millis(kTimeout)}),
-              IsRtcOk());
+  ASSERT_TRUE(WaitUntil([&] { return server_conn->connected(); },
+                        {.timeout = TimeDelta::Millis(kTimeout)}));
   EXPECT_THAT(WaitUntil([&] { return client_counter.sent_packets(); }, Eq(1),
                         {.timeout = TimeDelta::Millis(kTimeout)}),
               IsRtcOk());

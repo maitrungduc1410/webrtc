@@ -408,9 +408,7 @@ TEST_P(PeerConnectionCryptoDtlsCertGenTest, TestCertificateGeneration) {
     }
   }
   for (auto& observer : observers) {
-    EXPECT_THAT(
-        WaitUntil([&] { return observer->called(); }, ::testing::IsTrue()),
-        IsRtcOk());
+    EXPECT_TRUE(WaitUntil([&] { return observer->called(); }));
     if (cert_gen_result_ == CertGenResult::kSucceed) {
       EXPECT_TRUE(observer->result());
     } else {
