@@ -252,11 +252,6 @@ void IceTransportInternal::RemoveGatheringStateCallback(
 }
 
 void IceTransportInternal::SubscribeCandidateGathered(
-    absl::AnyInvocable<void(IceTransportInternal*, const Candidate&)>
-        callback) {
-  candidate_gathered_callbacks_.AddReceiver(std::move(callback));
-}
-void IceTransportInternal::SubscribeCandidateGathered(
     void* tag,
     absl::AnyInvocable<void(IceTransportInternal*, const Candidate&)>
         callback) {

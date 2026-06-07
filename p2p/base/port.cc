@@ -329,7 +329,7 @@ void Port::SendCandidateError(const IceCandidateErrorEvent& event) {
   candidate_error_callback_list_.Send(this, event);
 }
 
-[[deprecated]] void Port::SubscribeCandidateReadyCallback(
+void Port::SubscribeCandidateReadyCallback(
     absl::AnyInvocable<void(Port*, const Candidate&)> callback) {
   RTC_DCHECK_RUN_ON(thread_);
   candidate_ready_callback_list_.AddReceiver(std::move(callback));

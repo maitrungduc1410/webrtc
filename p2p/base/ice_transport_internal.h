@@ -325,10 +325,6 @@ class RTC_EXPORT IceTransportInternal : public PacketTransportInternal {
                                const Candidate& candidate) {
     candidate_gathered_callbacks_.Send(transport, candidate);
   }
-  [[deprecated("Use SubscribeCandidateGathered(void* tag, ...)")]]
-  void SubscribeCandidateGathered(
-      absl::AnyInvocable<void(IceTransportInternal*, const Candidate&)>
-          callback);
 
   void SubscribeCandidateGathered(
       void* tag,
