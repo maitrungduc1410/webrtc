@@ -121,7 +121,8 @@ class CodecLookupHelperForTesting : public CodecLookupHelper {
   void RegisterExpectations(absl::string_view mid,
                             std::span<const Codec> codecs) {
     for (const Codec& c : codecs) {
-      if (c.id.IsSet() && !payload_type_suggester_.HasMapping(c.id)) {
+      if (c.id.IsSet() && !payload_type_suggester_.HasMapping(mid, c.id) &&
+          !payload_type_suggester_.IsPayloadTypeConflict(mid, c.id, c)) {
         RTC_CHECK(payload_type_suggester_.AddLocalMapping(mid, c.id, c).ok());
       }
     }
@@ -569,6 +570,16 @@ RtpTransceiverDirection GetMediaDirection(const ContentInfo* content) {
 void AddRtxCodec(const Codec& rtx_codec, std::vector<Codec>* codecs) {
   RTC_LOG(LS_VERBOSE) << "Adding RTX codec " << FullMimeType(rtx_codec);
   ASSERT_FALSE(FindCodecById(*codecs, rtx_codec.id));
+  auto apt_it = rtx_codec.params.find(kCodecParamAssociatedPayloadType);
+  if (apt_it != rtx_codec.params.end()) {
+    int apt = FromString<int>(apt_it->second);
+    auto it =
+        absl::c_find_if(*codecs, [apt](const Codec& c) { return c.id == apt; });
+    if (it != codecs->end()) {
+      codecs->insert(it + 1, rtx_codec);
+      return;
+    }
+  }
   codecs->push_back(rtx_codec);
 }
 
@@ -3696,8 +3707,15 @@ TEST_F(MediaSessionDescriptionFactoryTest,
       GetFirstVideoContentDescription(updated_offer.get());
 
   // New offer should attempt to add H263, and RTX for H264.
-  expected_codecs.push_back(kVideoCodecs2[1]);
-  AddRtxCodec(CreateVideoRtxCodec(125, kVideoCodecs1[1].id), &expected_codecs);
+  if (env_.field_trials().IsEnabled("WebRTC-PayloadTypesInTransport")) {
+    AddRtxCodec(CreateVideoRtxCodec(125, kVideoCodecs1[1].id),
+                &expected_codecs);
+    expected_codecs.push_back(kVideoCodecs2[1]);
+  } else {
+    expected_codecs.push_back(kVideoCodecs2[1]);
+    AddRtxCodec(CreateVideoRtxCodec(125, kVideoCodecs1[1].id),
+                &expected_codecs);
+  }
   EXPECT_THAT(updated_vcd->codecs(),
               CodecListsMatch(expected_codecs, &env_.field_trials()));
 }
@@ -3846,7 +3864,7 @@ TEST_F(MediaSessionDescriptionFactoryTest, AddSecondRtxInNewOffer) {
   ASSERT_TRUE(updated_offer);
   vcd = GetFirstVideoContentDescription(updated_offer.get());
 
-  AddRtxCodec(CreateVideoRtxCodec(125, kVideoCodecs1[0].id), &expected_codecs);
+  expected_codecs.push_back(CreateVideoRtxCodec(125, kVideoCodecs1[0].id));
   EXPECT_THAT(vcd->codecs(),
               CodecListsMatch(expected_codecs, &env_.field_trials()));
 }
