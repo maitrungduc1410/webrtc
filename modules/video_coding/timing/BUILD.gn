@@ -115,8 +115,9 @@ rtc_library("timing_module") {
   ]
   deps = [
     ":decode_time_percentile_filter",
-    ":timestamp_extrapolator",
+    ":default_video_jitter_timing",
     "../../../api:field_trials_view",
+    "../../../api:sequence_checker",
     "../../../api/units:time_delta",
     "../../../api/units:timestamp",
     "../../../api/video:video_frame",
@@ -125,6 +126,7 @@ rtc_library("timing_module") {
     "../../../rtc_base:logging",
     "../../../rtc_base:macromagic",
     "../../../rtc_base/synchronization:mutex",
+    "../../../rtc_base/system:no_unique_address",
     "../../../system_wrappers",
   ]
 }

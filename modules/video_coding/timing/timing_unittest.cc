@@ -358,6 +358,25 @@ TEST(VCMTimingTest, RenderTimeRespectsMaxPlayoutDelay) {
             clock.CurrentTime() + TimeDelta::Millis(200));
 }
 
+TEST(VCMTimingTest, ResetClearsTimestampExtrapolator) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  SimulatedClock clock(Timestamp::Millis(55));
+  VCMTiming timing(&clock, field_trials, kRenderDelay);
+
+  // Current delay is initialized to minimum delay.
+  timing.SetMinimumDelay(TimeDelta::Millis(123));
+  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/0, clock.CurrentTime());
+  EXPECT_EQ(timing.RenderTime(/*rtp_timestamp=*/0, kUnusedTimestamp),
+            clock.CurrentTime() + TimeDelta::Millis(123));
+
+  timing.Reset();
+
+  // Extrapolator should be reset and current time returned.
+  timing.SetMinimumDelay(TimeDelta::Millis(123));
+  EXPECT_EQ(timing.RenderTime(/*rtp_timestamp=*/0, Timestamp::Millis(789)),
+            Timestamp::Millis(789));
+}
+
 TEST(VCMTimingTest, IncreasesCurrentDelayWhenFrameIsLate) {
   FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(0);
