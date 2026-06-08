@@ -162,11 +162,6 @@ void Port::SetIceRole(IceRole role) {
   ice_role_ = role;
 }
 
-void Port::SetIceTiebreaker(uint64_t tiebreaker) {
-  RTC_DCHECK_RUN_ON(thread_);
-  ice_tiebreaker_ = tiebreaker;
-}
-
 uint64_t Port::IceTiebreaker() const {
   RTC_DCHECK_RUN_ON(thread_);
   return ice_tiebreaker_;
