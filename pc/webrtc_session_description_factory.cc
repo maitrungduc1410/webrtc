@@ -12,7 +12,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -111,7 +110,7 @@ WebRtcSessionDescriptionFactory::WebRtcSessionDescriptionFactory(
     bool dtls_enabled,
     std::unique_ptr<RTCCertificateGeneratorInterface> cert_generator,
     scoped_refptr<RTCCertificate> certificate,
-    std::function<void(const scoped_refptr<RTCCertificate>&)>
+    absl::AnyInvocable<void(scoped_refptr<RTCCertificate>) &&>
         on_certificate_ready,
     CodecLookupHelper* codec_lookup_helper,
     const Environment& env)
@@ -133,8 +132,7 @@ WebRtcSessionDescriptionFactory::WebRtcSessionDescriptionFactory(
       sdp_info_(sdp_info),
       session_id_(session_id),
       env_(env),
-      certificate_request_state_(CERTIFICATE_NOT_NEEDED),
-      on_certificate_ready_(on_certificate_ready) {
+      certificate_request_state_(CERTIFICATE_NOT_NEEDED) {
   RTC_DCHECK(signaling_thread_);
 
   if (!dtls_enabled) {
@@ -142,12 +140,14 @@ WebRtcSessionDescriptionFactory::WebRtcSessionDescriptionFactory(
     transport_desc_factory_.SetInsecureForTesting();
     return;
   }
+  RTC_DCHECK(on_certificate_ready);
   if (certificate) {
     // Use `certificate`.
     certificate_request_state_ = CERTIFICATE_WAITING;
 
     RTC_LOG(LS_VERBOSE) << "DTLS-SRTP enabled; has certificate parameter.";
     RTC_LOG(LS_INFO) << "Using certificate supplied to the constructor.";
+    std::move(on_certificate_ready)(certificate);
     SetCertificate(certificate);
     return;
   }
@@ -155,12 +155,14 @@ WebRtcSessionDescriptionFactory::WebRtcSessionDescriptionFactory(
   RTC_DCHECK(cert_generator_);
   certificate_request_state_ = CERTIFICATE_WAITING;
 
-  auto callback = [weak_ptr = weak_factory_.GetWeakPtr()](
-                      scoped_refptr<RTCCertificate> certificate) {
+  auto callback = [weak_ptr = weak_factory_.GetWeakPtr(),
+                   on_certificate_ready = std::move(on_certificate_ready)](
+                      scoped_refptr<RTCCertificate> certificate) mutable {
     if (!weak_ptr) {
       return;
     }
     if (certificate) {
+      std::move(on_certificate_ready)(certificate);
       weak_ptr->SetCertificate(std::move(certificate));
     } else {
       weak_ptr->OnCertificateRequestFailed();
@@ -189,9 +191,11 @@ WebRtcSessionDescriptionFactory::~WebRtcSessionDescriptionFactory() {
   // All tasks that suppose to run them are protected with weak_factory_ and
   // will be cancelled. If we don't protect them, they might trigger after peer
   // connection is destroyed, which might be surprising.
-  while (!callbacks_.empty()) {
-    std::move(callbacks_.front())();
-    callbacks_.pop();
+  std::queue<absl::AnyInvocable<void() &&>> callbacks = std::move(callbacks_);
+  while (!callbacks.empty()) {
+    auto callback = std::move(callbacks.front());
+    callbacks.pop();
+    std::move(callback)();
   }
 }
 
@@ -425,12 +429,10 @@ void WebRtcSessionDescriptionFactory::Post(
   callbacks_.push(std::move(callback));
   signaling_thread_->PostTask([weak_ptr = weak_factory_.GetWeakPtr()] {
     if (weak_ptr) {
-      auto& callbacks = weak_ptr->callbacks_;
-      // Callbacks are pushed from the same thread, thus this task should
-      // corresond to the first entry in the queue.
-      RTC_DCHECK(!callbacks.empty());
-      std::move(callbacks.front())();
-      callbacks.pop();
+      RTC_DCHECK(!weak_ptr->callbacks_.empty());
+      auto callback = std::move(weak_ptr->callbacks_.front());
+      weak_ptr->callbacks_.pop();
+      std::move(callback)();
     }
   });
 }
@@ -450,8 +452,6 @@ void WebRtcSessionDescriptionFactory::SetCertificate(
   RTC_LOG(LS_VERBOSE) << "Setting new certificate.";
 
   certificate_request_state_ = CERTIFICATE_SUCCEEDED;
-
-  on_certificate_ready_(certificate);
 
   transport_desc_factory_.set_certificate(std::move(certificate));
 

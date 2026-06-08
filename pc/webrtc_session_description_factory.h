@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 
-#include <functional>
 #include <memory>
 #include <queue>
 #include <string>
@@ -54,7 +53,7 @@ class WebRtcSessionDescriptionFactory {
       bool dtls_enabled,
       std::unique_ptr<RTCCertificateGeneratorInterface> cert_generator,
       scoped_refptr<RTCCertificate> certificate,
-      std::function<void(const scoped_refptr<RTCCertificate>&)>
+      absl::AnyInvocable<void(scoped_refptr<RTCCertificate>) &&>
           on_certificate_ready,
       CodecLookupHelper* codec_lookup_helper,
       const Environment& env);
@@ -146,9 +145,6 @@ class WebRtcSessionDescriptionFactory {
   const Environment env_;
   CertificateRequestState certificate_request_state_;
   std::queue<absl::AnyInvocable<void() &&>> callbacks_;
-
-  std::function<void(const scoped_refptr<RTCCertificate>&)>
-      on_certificate_ready_;
 
   WeakPtrFactory<WebRtcSessionDescriptionFactory> weak_factory_{this};
 };
