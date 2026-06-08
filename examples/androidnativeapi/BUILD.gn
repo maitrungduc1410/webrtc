@@ -73,6 +73,7 @@ if (is_android) {
       "//media:rtc_audio_video",
       "//media:rtc_internal_video_codecs",
       "//modules/utility",
+      "//pc:libjingle_peerconnection",
       "//pc:webrtc_sdp",
       "//sdk/android:native_api_base",
       "//sdk/android:native_api_jni",

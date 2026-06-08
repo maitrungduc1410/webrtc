@@ -562,10 +562,8 @@ if (!build_with_chromium) {
       "media",
       "modules",
       "modules/video_capture:video_capture_internal_impl",
-      "pc:peer_connection_factory",
+      "pc:libjingle_peerconnection",
       "pc:rtc_pc",
-      "pc:webrtc_sdp",
-      "stats",
       "video",
     ]
 
