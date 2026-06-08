@@ -29,6 +29,7 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "pc/codec_vendor.h"
 #include "pc/connection_context.h"
 #include "pc/media_options.h"
@@ -155,17 +156,17 @@ WebRtcSessionDescriptionFactory::WebRtcSessionDescriptionFactory(
   RTC_DCHECK(cert_generator_);
   certificate_request_state_ = CERTIFICATE_WAITING;
 
-  auto callback = [weak_ptr = weak_factory_.GetWeakPtr(),
+  auto callback = [this, flag = safety_.flag(),
                    on_certificate_ready = std::move(on_certificate_ready)](
                       scoped_refptr<RTCCertificate> certificate) mutable {
-    if (!weak_ptr) {
+    if (!flag->alive()) {
       return;
     }
     if (certificate) {
       std::move(on_certificate_ready)(certificate);
-      weak_ptr->SetCertificate(std::move(certificate));
+      SetCertificate(std::move(certificate));
     } else {
-      weak_ptr->OnCertificateRequestFailed();
+      OnCertificateRequestFailed();
     }
   };
 
@@ -427,14 +428,12 @@ void WebRtcSessionDescriptionFactory::Post(
     absl::AnyInvocable<void() &&> callback) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   callbacks_.push(std::move(callback));
-  signaling_thread_->PostTask([weak_ptr = weak_factory_.GetWeakPtr()] {
-    if (weak_ptr) {
-      RTC_DCHECK(!weak_ptr->callbacks_.empty());
-      auto callback = std::move(weak_ptr->callbacks_.front());
-      weak_ptr->callbacks_.pop();
-      std::move(callback)();
-    }
-  });
+  signaling_thread_->PostTask(SafeTask(safety_.flag(), [this] {
+    RTC_DCHECK(!callbacks_.empty());
+    auto callback = std::move(callbacks_.front());
+    callbacks_.pop();
+    std::move(callback)();
+  }));
 }
 
 void WebRtcSessionDescriptionFactory::OnCertificateRequestFailed() {
