@@ -305,6 +305,11 @@ struct RTC_EXPORT RtpHeaderExtensionCapability {
   RtpHeaderExtensionCapability();
   explicit RtpHeaderExtensionCapability(absl::string_view uri);
   RtpHeaderExtensionCapability(absl::string_view uri,
+                               RtpTransceiverDirection direction);
+  RtpHeaderExtensionCapability(absl::string_view uri,
+                               bool preferred_encrypt,
+                               RtpTransceiverDirection direction);
+  RtpHeaderExtensionCapability(absl::string_view uri,
                                RtpHeaderExtensionId preferred_id);
   RtpHeaderExtensionCapability(absl::string_view uri,
                                RtpHeaderExtensionId preferred_id,
@@ -315,17 +320,13 @@ struct RTC_EXPORT RtpHeaderExtensionCapability {
                                RtpTransceiverDirection direction);
   // Backwards compatibility overloads.
   // TODO: bugs.webrtc.org/514817938 - Remove when downstream is updated.
+  // Note: the "uri, preferred id(int), direction" cannot be overloaded
+  // because compilers can't tell the difference between that one
+  // and "uri, preferred_encrypt(bool), direction".
   [[deprecated]] ABSL_REFACTOR_INLINE RtpHeaderExtensionCapability(
       absl::string_view uri,
       int preferred_id)
       : RtpHeaderExtensionCapability(uri, RtpHeaderExtensionId(preferred_id)) {}
-  [[deprecated]] ABSL_REFACTOR_INLINE RtpHeaderExtensionCapability(
-      absl::string_view uri,
-      int preferred_id,
-      RtpTransceiverDirection direction)
-      : RtpHeaderExtensionCapability(uri,
-                                     RtpHeaderExtensionId(preferred_id),
-                                     direction) {}
   [[deprecated]] ABSL_REFACTOR_INLINE RtpHeaderExtensionCapability(
       absl::string_view uri,
       int preferred_id,

@@ -313,6 +313,11 @@ std::vector<RtpExtension> GetDefaultEnabledRtpHeaderExtensions(
     const RtpHeaderExtensionQueryInterface& query_interface,
     const FieldTrialsView* field_trials);
 
+std::vector<RtpHeaderExtensionCapability>
+GetDefaultEnabledRtpHeaderCapabilities(
+    const RtpHeaderExtensionQueryInterface& query_interface,
+    const FieldTrialsView* field_trials);
+
 }  //  namespace webrtc
 
 

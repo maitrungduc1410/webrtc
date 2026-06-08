@@ -148,20 +148,33 @@ RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     : uri(uri) {}
 RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     absl::string_view uri,
+    RtpTransceiverDirection direction)
+    : uri(uri), direction(direction) {}
+RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
+    absl::string_view uri,
+    bool preferred_encrypt,
+    RtpTransceiverDirection direction)
+    : uri(uri), preferred_encrypt(preferred_encrypt), direction(direction) {}
+RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
+    absl::string_view uri,
     RtpHeaderExtensionId preferred_id)
     : uri(uri), preferred_id(preferred_id) {}
 RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     absl::string_view uri,
     RtpHeaderExtensionId preferred_id,
     RtpTransceiverDirection direction)
-    : uri(uri), preferred_id(preferred_id), direction(direction) {}
+    : uri(uri),
+      preferred_id(preferred_id.IsSet() ? std::optional(preferred_id)
+                                        : std::nullopt),
+      direction(direction) {}
 RtpHeaderExtensionCapability::RtpHeaderExtensionCapability(
     absl::string_view uri,
     RtpHeaderExtensionId preferred_id,
     bool preferred_encrypt,
     RtpTransceiverDirection direction)
     : uri(uri),
-      preferred_id(preferred_id),
+      preferred_id(preferred_id.IsSet() ? std::optional(preferred_id)
+                                        : std::nullopt),
       preferred_encrypt(preferred_encrypt),
       direction(direction) {}
 

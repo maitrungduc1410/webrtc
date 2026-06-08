@@ -732,16 +732,12 @@ class RtpTransceiverTestForHeaderExtensions
   RtpTransceiverTestForHeaderExtensions()
       : extensions_(
             {RtpHeaderExtensionCapability("uri1",
-                                          RtpHeaderExtensionId(1),
                                           RtpTransceiverDirection::kSendOnly),
              RtpHeaderExtensionCapability("uri2",
-                                          RtpHeaderExtensionId(2),
                                           RtpTransceiverDirection::kRecvOnly),
              RtpHeaderExtensionCapability(RtpExtension::kMidUri,
-                                          RtpHeaderExtensionId(3),
                                           RtpTransceiverDirection::kSendRecv),
              RtpHeaderExtensionCapability(RtpExtension::kVideoRotationUri,
-                                          RtpHeaderExtensionId(4),
                                           RtpTransceiverDirection::kSendRecv)}),
         transceiver_(make_ref_counted<RtpTransceiver>(
             env(),
@@ -1042,9 +1038,9 @@ TEST_F(RtpTransceiverTestForHeaderExtensions,
 TEST_F(RtpTransceiverTestForHeaderExtensions,
        SimulcastOrSvcEnablesExtensionsByDefault) {
   std::vector<RtpHeaderExtensionCapability> extensions = {
-      {RtpExtension::kDependencyDescriptorUri, RtpHeaderExtensionId(1),
+      {RtpExtension::kDependencyDescriptorUri,
        RtpTransceiverDirection::kStopped},
-      {RtpExtension::kVideoLayersAllocationUri, RtpHeaderExtensionId(2),
+      {RtpExtension::kVideoLayersAllocationUri,
        RtpTransceiverDirection::kStopped},
   };
 
