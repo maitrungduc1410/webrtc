@@ -106,7 +106,13 @@ RtpTransportControllerSend::RtpTransportControllerSend(
              env_.field_trials(),
              TimeDelta::Millis(5),
              3,
-             worker_thread_),
+             worker_thread_,
+             PacerConfig::Create(
+                 config.env.clock().CurrentTime(),
+                 ConvertConstraints(config.bitrate_config, &config.env.clock())
+                     .starting_rate.value_or(DataRate::Zero()),
+                 DataRate::Zero(),
+                 config.default_pacing_time_window)),
       observer_(nullptr),
       controller_factory_override_(config.network_controller_factory),
       process_interval_(TimeDelta::PlusInfinity()),
@@ -573,10 +579,6 @@ void RtpTransportControllerSend::IncludeOverheadInPacedSender() {
 void RtpTransportControllerSend::EnsureStarted() {
   RTC_DCHECK_RUN_ON(worker_thread_);
   if (!pacer_started_) {
-    pacer_.SetConfig(PacerConfig::Create(
-        env_.clock().CurrentTime(),
-        initial_config_.constraints.starting_rate.value_or(DataRate::Zero()),
-        DataRate::Zero(), initial_config_.default_pacing_time_window));
     packet_router_.RegisterNotifyBweCallback(
         [this](const RtpPacketToSend& packet,
                const PacedPacketInfo& pacing_info) {
