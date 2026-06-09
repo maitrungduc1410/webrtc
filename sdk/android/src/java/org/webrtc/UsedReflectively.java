@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 The WebRTC project authors. All Rights Reserved.
+ *  Copyright 2026 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -16,15 +16,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @CalledByNative is used by the JNI generator to create the necessary JNI
- * bindings and expose this method to native code.
+ * For internal use only.
+ *
+ * <p>This is meant for errorprone to understand that our {@link CalledByNative} and similar
+ * annotations mean that the element they are annotating is called/accessed using JNI/reflection.
+ * Errorprone only cares that those annotations are themselves meta-annotated with an annotation
+ * with the simple name "UsedReflectively" hence this annotation.
  */
-@Target({ElementType.CONSTRUCTOR, ElementType.METHOD})
+@Target({ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.CLASS)
-@UsedReflectively
-public @interface CalledByNative {
-  /*
-   *  If present, tells which inner class the method belongs to.
-   */
-  public String value() default "";
-}
+@interface UsedReflectively {}

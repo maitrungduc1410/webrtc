@@ -193,5 +193,7 @@ if (is_android) {
     configs += [ "//build/config/android:hide_all_but_jni" ]
 
     output_extension = "so"
+
+    java_targets = [ ":NetworkTesterMobile" ]
   }
 }
