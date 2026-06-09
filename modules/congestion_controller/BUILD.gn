@@ -23,6 +23,7 @@ rtc_library("congestion_controller") {
     "../../api:sequence_checker",
     "../../api/environment",
     "../../api/units:data_rate",
+    "../../api/units:data_size",
     "../../api/units:time_delta",
     "../../api/units:timestamp",
     "../../rtc_base:logging",

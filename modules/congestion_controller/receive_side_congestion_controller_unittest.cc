@@ -265,6 +265,28 @@ TEST(ReceiveSideCongestionControllerTest, IsFairToTCP) {
   // fixed and a lower bound should be added to the test.
   EXPECT_LT(client->send_bandwidth().kbps(), 750);
 }
+
+TEST(ReceiveSideCongestionControllerTest, OnBitrateChangedDeprecatedAndNew) {
+  MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
+      feedback_sender;
+  MockFunction<void(uint64_t, std::vector<uint32_t>)> remb_sender;
+  SimulatedClock clock(123456);
+
+  ReceiveSideCongestionController controller(CreateEnvironment(&clock),
+                                             feedback_sender.AsStdFunction(),
+                                             remb_sender.AsStdFunction());
+
+  // Test new overload.
+  controller.OnBitrateChanged(DataRate::BitsPerSec(500'000),
+                              /*is_bandwidth_limited=*/true,
+                              DataSize::Bytes(42));
+
+  // Test deprecated overload.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  controller.OnBitrateChanged(500'000);
+#pragma clang diagnostic pop
+}
 }  // namespace
 }  // namespace test
 }  // namespace webrtc
