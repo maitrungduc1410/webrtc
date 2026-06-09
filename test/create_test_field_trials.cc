@@ -14,6 +14,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/strings/string_view.h"
+#include "api/environment/force_test_environment.h"
 #include "api/field_trials.h"
 
 ABSL_FLAG(std::string,
@@ -26,6 +27,7 @@ ABSL_FLAG(std::string,
 namespace webrtc {
 
 FieldTrials CreateTestFieldTrials(absl::string_view s) {
+  AutoBypassTestEnvironmentCheck bypass;
   FieldTrials result(absl::GetFlag(FLAGS_force_fieldtrials));
   result.Merge(FieldTrials(s));
   return result;

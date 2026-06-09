@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "absl/strings/str_cat.h"
+#include "api/environment/force_test_environment.h"
 #include "api/field_trials_view.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/containers/flat_set.h"
@@ -187,6 +188,26 @@ TEST(FieldTrials, Immutable) {
   EXPECT_DEATH(f.Set("Audio", "Enabled"), "");
 #endif
 }
+
+#if GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+TEST(FieldTrialsDeathTest, CreateCrashesWhenForced) {
+  EXPECT_DEATH(
+      {
+        SetForceTestEnvironment(true);
+        FieldTrials::Create("");
+      },
+      "FieldTrials::Create is not allowed in tests");
+}
+
+TEST(FieldTrialsDeathTest, ConstructorCrashesWhenForced) {
+  EXPECT_DEATH(
+      {
+        SetForceTestEnvironment(true);
+        FieldTrials f("");
+      },
+      "FieldTrials constructor is not allowed in tests");
+}
+#endif
 
 }  // namespace
 }  // namespace webrtc

@@ -17,6 +17,7 @@
 #include "absl/base/nullability.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "api/environment/force_test_environment.h"
 #include "api/field_trials_registry.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/containers/flat_map.h"
@@ -57,6 +58,10 @@ bool Parse(absl::string_view s,
 
 absl_nullable std::unique_ptr<FieldTrials> FieldTrials::Create(
     absl::string_view s) {
+  RTC_CHECK(!IsForceTestEnvironmentEnabled() ||
+            IsTestEnvironmentCheckBypassed())
+      << "FieldTrials::Create is not allowed in tests. Use "
+         "CreateTestFieldTrials.";
   flat_map<std::string, std::string> key_value_map;
   if (!Parse(s, key_value_map)) {
     return nullptr;
@@ -66,6 +71,10 @@ absl_nullable std::unique_ptr<FieldTrials> FieldTrials::Create(
 }
 
 FieldTrials::FieldTrials(absl::string_view s) {
+  RTC_CHECK(!IsForceTestEnvironmentEnabled() ||
+            IsTestEnvironmentCheckBypassed())
+      << "FieldTrials constructor is not allowed in tests. Use "
+         "CreateTestFieldTrials.";
   RTC_CHECK(Parse(s, key_value_map_));
 }
 

@@ -19,6 +19,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/environment/environment_factory.h"
+#include "api/environment/force_test_environment.h"
 #include "api/field_trials_view.h"
 #include "api/rtc_event_log/rtc_event.h"
 #include "api/rtc_event_log/rtc_event_log.h"
@@ -26,6 +27,7 @@
 #include "api/task_queue/task_queue_factory.h"
 #include "api/units/timestamp.h"
 #include "system_wrappers/include/clock.h"
+#include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -279,6 +281,37 @@ TEST(EnvironmentTest, DestroysUtilitiesInReverseProvidedOrder) {
   env = std::nullopt;
   EXPECT_THAT(destroyed, ElementsAre("task_queue_factory", "field_trials"));
 }
+
+TEST(EnvironmentTest, CreateTestEnvironmentWorksWhenForced) {
+  struct ScopedForce {
+    ScopedForce() {
+      old_value = IsForceTestEnvironmentEnabled();
+      SetForceTestEnvironment(true);
+    }
+    ~ScopedForce() { SetForceTestEnvironment(old_value); }
+    bool old_value;
+  } force;
+
+  Environment env = CreateTestEnvironment();
+  env.clock().CurrentTime();
+  EXPECT_THAT(env.task_queue_factory().CreateTaskQueue(
+                  "test", TaskQueueFactory::Priority::kNormal),
+              NotNull());
+  env.event_log().Log(std::make_unique<FakeEvent>());
+  env.field_trials().Lookup("WebRTC-Debugging-RtpDump");
+}
+
+#if GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+TEST(EnvironmentDeathTest, CreateEnvironmentCrashesWhenForced) {
+  EXPECT_DEATH(
+      {
+        SetForceTestEnvironment(true);
+        CreateEnvironment();
+      },
+      "Production Environment creation is not allowed in tests. Use "
+      "CreateTestEnvironment.");
+}
+#endif
 
 }  // namespace
 }  // namespace webrtc
