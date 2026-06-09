@@ -100,7 +100,8 @@ class FakeIceTransportFactory : public IceTransportFactory {
       int component,
       IceTransportInit init) override {
     return make_ref_counted<FakeIceTransport>(
-        std::make_unique<FakeIceTransportInternal>(transport_name, component));
+        std::make_unique<FakeIceTransportInternal>(init.env(), transport_name,
+                                                   component));
   }
 };
 

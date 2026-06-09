@@ -4494,6 +4494,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base/system:plan_b_only",
       "../rtc_base/task_utils:repeating_task",
       "../system_wrappers",
+      "../test:create_test_environment",
       "../test:frame_generator_capturer",
       "../test:run_loop",
       "../test:test_support",

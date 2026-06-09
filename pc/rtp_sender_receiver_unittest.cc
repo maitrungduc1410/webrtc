@@ -127,7 +127,7 @@ class RtpSenderReceiverTest
         fake_call_(env_, worker_thread_.get(), network_thread_.get()),
         local_stream_(MediaStream::Create(kStreamId1)) {
     rtp_dtls_transport_ = std::make_unique<FakeDtlsTransport>(
-        "fake_dtls_transport", ICE_CANDIDATE_COMPONENT_RTP);
+        env_, "fake_dtls_transport", ICE_CANDIDATE_COMPONENT_RTP);
     rtp_transport_ = CreateDtlsSrtpTransport();
 
     // Create the channels, discard the result; we get them later.

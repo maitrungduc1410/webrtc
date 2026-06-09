@@ -132,8 +132,8 @@ class DtlsTestClient {
     }
 
     auto fake_ice_transport = std::make_unique<FakeIceTransportInternal>(
-        absl::StrCat("fake-", name_), 0,
-        /* network_thread= */ nullptr, /* field_trials_string= */ "");
+        env, absl::StrCat("fake-", name_), 0,
+        /* network_thread= */ nullptr);
     if (rtt_estimate) {
       fake_ice_transport->set_rtt_estimate(
           async_delay_ms_ ? std::optional<int>(async_delay_ms_) : std::nullopt,

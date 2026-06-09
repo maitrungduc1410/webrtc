@@ -945,6 +945,7 @@ if (rtc_include_tests) {
       "../api:field_trials",
       "../api:ice_transport_interface",
       "../api:sequence_checker",
+      "../api/environment",
       "../api/task_queue",
       "../api/task_queue:pending_task_safety_flag",
       "../api/transport:enums",
