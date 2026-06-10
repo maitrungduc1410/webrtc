@@ -70,7 +70,8 @@ absl_nullable std::unique_ptr<FieldTrials> FieldTrials::Create(
   return absl::WrapUnique(new FieldTrials(std::move(key_value_map)));
 }
 
-FieldTrials::FieldTrials(absl::string_view s) {
+FieldTrials::FieldTrials(absl::string_view s, bool is_test)
+    : is_test_(is_test) {
   RTC_CHECK(!IsForceTestEnvironmentEnabled() ||
             IsTestEnvironmentCheckBypassed())
       << "FieldTrials constructor is not allowed in tests. Use "
@@ -79,11 +80,12 @@ FieldTrials::FieldTrials(absl::string_view s) {
 }
 
 FieldTrials::FieldTrials(const FieldTrials& other)
-    : FieldTrialsRegistry(other) {
+    : FieldTrialsRegistry(other), is_test_(other.is_test_) {
   key_value_map_ = other.key_value_map_;
 }
 
-FieldTrials::FieldTrials(FieldTrials&& other) : FieldTrialsRegistry(other) {
+FieldTrials::FieldTrials(FieldTrials&& other)
+    : FieldTrialsRegistry(other), is_test_(other.is_test_) {
   key_value_map_ = std::move(other.key_value_map_);
 }
 
@@ -92,6 +94,7 @@ FieldTrials& FieldTrials::operator=(const FieldTrials& other) {
     AssertGetValueNotCalled();
     FieldTrialsRegistry::operator=(other);
     key_value_map_ = other.key_value_map_;
+    is_test_ = other.is_test_;
   }
   return *this;
 }
@@ -101,6 +104,7 @@ FieldTrials& FieldTrials::operator=(FieldTrials&& other) {
     AssertGetValueNotCalled();
     FieldTrialsRegistry::operator=(other);
     key_value_map_ = std::move(other.key_value_map_);
+    is_test_ = other.is_test_;
   }
   return *this;
 }

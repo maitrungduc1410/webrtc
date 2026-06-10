@@ -28,7 +28,8 @@ namespace webrtc {
 
 FieldTrials CreateTestFieldTrials(absl::string_view s) {
   AutoBypassTestEnvironmentCheck bypass;
-  FieldTrials result(absl::GetFlag(FLAGS_force_fieldtrials));
+  FieldTrials result(absl::GetFlag(FLAGS_force_fieldtrials),
+                     /* is_test= */ true);
   result.Merge(FieldTrials(s));
   return result;
 }

@@ -100,7 +100,8 @@ void EnvironmentFactory::Set(
 }
 
 Environment EnvironmentFactory::CreateWithDefaults() && {
-  RTC_CHECK(!IsForceTestEnvironmentEnabled() ||
+  RTC_CHECK((field_trials_ != nullptr && field_trials_->IsTest()) ||
+            !IsForceTestEnvironmentEnabled() ||
             IsTestEnvironmentCheckBypassed())
       << "Production Environment creation is not allowed in tests. Use "
          "CreateTestEnvironment.";
