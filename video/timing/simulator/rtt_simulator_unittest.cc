@@ -163,7 +163,7 @@ TEST_F(RttSimulatorTest, SenderCalculatesRttFromIncomingSr) {
   Timestamp recv_timestamp = time_controller_.GetClock()->CurrentTime();
   uint32_t last_sr = CompactNtp(ntp);
   uint32_t delay_since_last_sr = SaturatedToCompactNtp(TimeDelta::Millis(50));
-  NtpTime ntp_incoming = env_.clock().ConvertTimestampToNtpTime(recv_timestamp);
+  NtpTime ntp_incoming;
   auto sr_incoming = CreateLoggedRtcpPacketSenderReportWithReportBlock(
       ntp_incoming, last_sr, delay_since_last_sr, recv_timestamp);
 

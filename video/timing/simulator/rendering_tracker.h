@@ -80,6 +80,8 @@ class RenderingTracker : public AssembledFrameCallback,
   // any rendered frames to the `observer_`.
   void OnAssembledFrame(std::unique_ptr<EncodedFrame> assembled_frame) override;
 
+  void UpdateMaxRtt(TimeDelta max_rtt);
+
  private:
   struct VideoStreamBufferControllerObserverDecodableStats {
     TimeDelta jitter_buffer_delay = TimeDelta::Zero();

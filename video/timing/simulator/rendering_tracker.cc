@@ -116,6 +116,11 @@ void RenderingTracker::OnAssembledFrame(
   }
 }
 
+void RenderingTracker::UpdateMaxRtt(TimeDelta max_rtt) {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  video_stream_buffer_controller_.UpdateRtt(max_rtt.ms());
+}
+
 void RenderingTracker::OnEncodedFrame(
     std::unique_ptr<EncodedFrame> encoded_frame) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
