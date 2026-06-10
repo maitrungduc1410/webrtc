@@ -8531,7 +8531,6 @@ TEST_F(VideoStreamEncoderTest, EncoderRatesPropagatedOnReconfigure) {
   video_stream_encoder_->Stop();
 }
 
-
 TEST_F(VideoStreamEncoderTest, EncoderSelectorCurrentEncoderIsSignaled) {
   constexpr int kDontCare = 100;
   StrictMock<MockEncoderSelector> encoder_selector;
@@ -10605,6 +10604,51 @@ TEST(VideoStreamEncoderFrameCadenceTest, ActivatesFrameCadenceOnContentType) {
   VideoEncoderConfig config2;
   test::FillEncoderConfiguration(kVideoCodecVP8, 1, &config2);
   config2.content_type = VideoEncoderConfig::ContentType::kRealtimeVideo;
+  video_stream_encoder->ConfigureEncoder(std::move(config2), 0);
+  PassAFrame(encoder_queue, video_stream_encoder_callback, /*ntp_time_ms=*/2);
+  factory.DepleteTaskQueues();
+}
+
+TEST(VideoStreamEncoderFrameCadenceTest,
+     AllowZeroHertzVideoEnablesFrameCadence) {
+  auto adapter = std::make_unique<MockFrameCadenceAdapter>();
+  auto* adapter_ptr = adapter.get();
+  SimpleVideoStreamEncoderFactory factory;
+  FrameCadenceAdapterInterface::Callback* video_stream_encoder_callback =
+      nullptr;
+  EXPECT_CALL(*adapter_ptr, Initialize)
+      .WillOnce([&](FrameCadenceAdapterInterface::Callback* callback) {
+        video_stream_encoder_callback = callback;
+      });
+  TaskQueueBase* encoder_queue = nullptr;
+  std::unique_ptr<SimpleVideoStreamEncoderFactory::AdaptedVideoStreamEncoder>
+      video_stream_encoder = factory.Create(std::move(adapter), &encoder_queue);
+
+  EXPECT_CALL(*adapter_ptr, SetZeroHertzModeEnabled(Optional(Field(
+                                &FrameCadenceAdapterInterface::
+                                    ZeroHertzModeParams::num_simulcast_layers,
+                                Eq(0u)))));
+  VideoEncoderConfig config;
+  test::FillEncoderConfiguration(kVideoCodecVP8, 1, &config);
+  config.content_type = VideoEncoderConfig::ContentType::kRealtimeVideo;
+  config.allow_zero_hertz_video = true;
+  video_stream_encoder->ConfigureEncoder(std::move(config), 0);
+  factory.DepleteTaskQueues();
+
+  EXPECT_CALL(*adapter_ptr, SetZeroHertzModeEnabled(Optional(Field(
+                                &FrameCadenceAdapterInterface::
+                                    ZeroHertzModeParams::num_simulcast_layers,
+                                Gt(0u)))));
+  PassAFrame(encoder_queue, video_stream_encoder_callback, /*ntp_time_ms=*/1);
+  factory.DepleteTaskQueues();
+
+  // Expect a disabled zero-hertz mode after passing realtime video without
+  // allow_zero_hertz_video.
+  EXPECT_CALL(*adapter_ptr, SetZeroHertzModeEnabled(Eq(std::nullopt)));
+  VideoEncoderConfig config2;
+  test::FillEncoderConfiguration(kVideoCodecVP8, 1, &config2);
+  config2.content_type = VideoEncoderConfig::ContentType::kRealtimeVideo;
+  config2.allow_zero_hertz_video = false;
   video_stream_encoder->ConfigureEncoder(std::move(config2), 0);
   PassAFrame(encoder_queue, video_stream_encoder_callback, /*ntp_time_ms=*/2);
   factory.DepleteTaskQueues();

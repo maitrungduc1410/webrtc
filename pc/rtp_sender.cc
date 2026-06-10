@@ -1425,6 +1425,7 @@ void VideoRtpSender::SetSend() {
   if (source) {
     options.is_screencast = source->is_screencast();
     options.video_noise_reduction = source->needs_denoising();
+    options.allow_zero_hertz_video = source->allow_zero_hertz_video();
   }
   options.content_hint = cached_track_content_hint_;
   switch (cached_track_content_hint_) {
