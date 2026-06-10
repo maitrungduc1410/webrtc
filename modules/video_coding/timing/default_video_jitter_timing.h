@@ -15,7 +15,11 @@
 #include <optional>
 
 #include "api/field_trials_view.h"
+#include "api/units/data_size.h"
+#include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "modules/video_coding/timing/inter_frame_delay_variation_calculator.h"
+#include "modules/video_coding/timing/jitter_estimator.h"
 #include "modules/video_coding/timing/timestamp_extrapolator.h"
 #include "system_wrappers/include/clock.h"
 
@@ -36,9 +40,21 @@ class DefaultVideoJitterTiming {
   // Returns the extrapolated local time for a given RTP timestamp.
   std::optional<Timestamp> ExtrapolateLocalTime(uint32_t rtp_timestamp) const;
 
+  // Updates the jitter estimator with the information of a decodable temporal
+  // unit. Returns the current jitter estimate if available.
+  std::optional<TimeDelta> OnDecodableTemporalUnit(uint32_t rtp_timestamp,
+                                                   DataSize superframe_size,
+                                                   Timestamp max_receive_time,
+                                                   bool was_retransmitted);
+
+  // Updates the jitter estimator with the current RTT.
+  void UpdateRtt(TimeDelta rtt);
+
  private:
   Clock* const clock_;
   TimestampExtrapolator ts_extrapolator_;
+  JitterEstimator jitter_estimator_;
+  InterFrameDelayVariationCalculator ifdv_calculator_;
 };
 
 }  // namespace webrtc

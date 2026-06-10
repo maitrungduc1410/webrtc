@@ -101,8 +101,12 @@ rtc_library("default_video_jitter_timing") {
     "default_video_jitter_timing.h",
   ]
   deps = [
+    ":inter_frame_delay_variation_calculator",
+    ":jitter_estimator",
     ":timestamp_extrapolator",
     "../../../api:field_trials_view",
+    "../../../api/units:data_size",
+    "../../../api/units:time_delta",
     "../../../api/units:timestamp",
     "../../../system_wrappers",
   ]

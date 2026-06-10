@@ -14,6 +14,8 @@
 #include <optional>
 
 #include "api/field_trials.h"
+#include "api/units/data_size.h"
+#include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "system_wrappers/include/clock.h"
 #include "test/create_test_field_trials.h"
@@ -24,6 +26,8 @@ namespace {
 
 constexpr uint32_t kRtpTimestamp = 12345;
 constexpr Timestamp kInitialTime = Timestamp::Millis(789);
+constexpr DataSize kFrameSize = DataSize::Bytes(1000);
+constexpr TimeDelta kRtt = TimeDelta::Millis(100);
 
 TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsNulloptInitially) {
   FieldTrials field_trials = CreateTestFieldTrials();
@@ -52,6 +56,89 @@ TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsNulloptAfterReset) {
 
   timing.Reset();
   EXPECT_EQ(timing.ExtrapolateLocalTime(kRtpTimestamp), std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest, OnDecodableTemporalUnitReturnsEstimate) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  SimulatedClock clock(kInitialTime);
+  DefaultVideoJitterTiming timing(&clock, field_trials);
+
+  EXPECT_NE(timing.OnDecodableTemporalUnit(kRtpTimestamp, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/false),
+            std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest,
+     OnDecodableTemporalUnitReturnsNulloptOnRetransmission) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  SimulatedClock clock(kInitialTime);
+  DefaultVideoJitterTiming timing(&clock, field_trials);
+
+  EXPECT_EQ(timing.OnDecodableTemporalUnit(kRtpTimestamp, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/true),
+            std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest, EstimateIncludesRttAfterRetransmission) {
+  constexpr double kMargin = 0.8;
+  FieldTrials field_trials =
+      CreateTestFieldTrials("WebRTC-JitterEstimatorConfig/nack_limit:1/");
+  SimulatedClock clock(kInitialTime);
+  DefaultVideoJitterTiming timing(&clock, field_trials);
+
+  timing.UpdateRtt(kRtt);
+
+  std::optional<TimeDelta> initial_estimate = timing.OnDecodableTemporalUnit(
+      /*rtp_timestamp=*/3000, kFrameSize, clock.CurrentTime(),
+      /*was_retransmitted=*/false);
+  ASSERT_TRUE(initial_estimate.has_value());
+
+  // Retransmitted frame.
+  clock.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_EQ(timing.OnDecodableTemporalUnit(/*rtp_timestamp=*/6000, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/true),
+            std::nullopt);
+
+  // Get estimate after retransmission.
+  clock.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_GT(timing.OnDecodableTemporalUnit(/*rtp_timestamp=*/9000, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/false),
+            *initial_estimate + kMargin * kRtt);
+}
+
+TEST(DefaultVideoJitterTimingTest, ResetClearsJitterEstimator) {
+  constexpr double kMargin = 0.5;
+  FieldTrials field_trials =
+      CreateTestFieldTrials("WebRTC-JitterEstimatorConfig/nack_limit:1/");
+  SimulatedClock clock(kInitialTime);
+  DefaultVideoJitterTiming timing(&clock, field_trials);
+
+  timing.UpdateRtt(kRtt);
+
+  std::optional<TimeDelta> initial_estimate = timing.OnDecodableTemporalUnit(
+      /*rtp_timestamp=*/3000, kFrameSize, clock.CurrentTime(),
+      /*was_retransmitted=*/false);
+  ASSERT_TRUE(initial_estimate.has_value());
+
+  // Retransmitted frame.
+  clock.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_EQ(timing.OnDecodableTemporalUnit(/*rtp_timestamp=*/6000, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/true),
+            std::nullopt);
+
+  timing.Reset();
+
+  // Get estimate after retransmission and reset, should not include RTT.
+  clock.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_LT(timing.OnDecodableTemporalUnit(/*rtp_timestamp=*/9000, kFrameSize,
+                                           clock.CurrentTime(),
+                                           /*was_retransmitted=*/false),
+            *initial_estimate + kMargin * kRtt);
 }
 
 }  // namespace
