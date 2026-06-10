@@ -138,6 +138,7 @@ void RtcEventLogDriver::OnLoggedVideoRecvConfig(
     RTC_DCHECK_RUN_ON(simulator_queue_.get());
 
     all_known_ssrcs_.insert(ssrc);
+    all_known_ssrcs_.insert(rtx_ssrc);
 
     // Skip setting up stream if not included in the filter.
     if (!config_.ssrc_filter.empty() && !config_.ssrc_filter.contains(ssrc)) {
