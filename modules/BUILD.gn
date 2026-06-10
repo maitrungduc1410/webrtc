@@ -62,12 +62,6 @@ if (rtc_include_tests && !build_with_chromium) {
 
     if (is_android) {
       use_default_launcher = false
-      deps += [
-        # NOTE(brandtr): Including Java classes seems only to be possible from
-        # rtc_test targets. Therefore we include this target here, instead of
-        # in video_coding_modules_tests, where it is actually used.
-        "../sdk/android:libjingle_peerconnection_java",
-      ]
       shard_timeout = 900
     }
 

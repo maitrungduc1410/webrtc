@@ -590,6 +590,28 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
+        "module_name": "//modules/video_coding:videocodec_test_mediacodec",
+        "name": "videocodec_test_mediacodec",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_os": "AP2A.240705.004",
+            "device_type": "panther",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "videocodec_test_mediacodec",
+        "test_id_prefix": "ninja://modules/video_coding:videocodec_test_mediacodec/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
         "module_name": "//:voip_unittests",
         "name": "voip_unittests",
         "resultdb": {
@@ -1323,6 +1345,28 @@
         "merge": {
           "script": "//testing/merge_scripts/standard_gtest_merge.py"
         },
+        "module_name": "//modules/video_coding:videocodec_test_mediacodec",
+        "name": "videocodec_test_mediacodec",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "android_devices": "1",
+            "device_os": "AP2A.240705.004",
+            "device_type": "panther",
+            "os": "Android"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "videocodec_test_mediacodec",
+        "test_id_prefix": "ninja://modules/video_coding:videocodec_test_mediacodec/"
+      },
+      {
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
         "module_name": "//:voip_unittests",
         "name": "voip_unittests",
         "resultdb": {
@@ -1839,7 +1883,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -1858,7 +1902,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -1871,7 +1915,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -1889,7 +1933,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -1908,7 +1952,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -1921,7 +1965,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -1938,7 +1982,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -1957,7 +2001,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -1970,7 +2014,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -1987,7 +2031,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2006,7 +2050,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2019,7 +2063,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2036,7 +2080,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2055,7 +2099,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2068,7 +2112,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2085,7 +2129,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2104,7 +2148,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2117,7 +2161,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2134,7 +2178,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2153,7 +2197,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2166,7 +2210,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2183,7 +2227,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2202,7 +2246,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2215,7 +2259,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2232,7 +2276,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2251,7 +2295,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2264,7 +2308,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2281,7 +2325,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2300,7 +2344,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2313,7 +2357,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2330,7 +2374,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2349,7 +2393,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2362,7 +2406,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2379,7 +2423,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2398,7 +2442,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2411,7 +2455,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2428,7 +2472,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2447,7 +2491,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2460,7 +2504,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2477,7 +2521,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2496,7 +2540,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2509,7 +2553,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2526,7 +2570,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2545,7 +2589,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2558,7 +2602,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2576,7 +2620,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2595,7 +2639,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2608,7 +2652,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2626,7 +2670,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2645,7 +2689,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2659,7 +2703,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2677,7 +2721,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2696,7 +2740,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2710,7 +2754,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2728,7 +2772,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2747,7 +2791,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2760,7 +2804,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2777,7 +2821,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2796,7 +2840,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2809,7 +2853,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2826,7 +2870,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2845,7 +2889,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2858,7 +2902,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2875,7 +2919,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2894,7 +2938,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2907,7 +2951,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2924,7 +2968,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2943,7 +2987,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -2956,7 +3000,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -2973,7 +3017,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -2992,7 +3036,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3005,7 +3049,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3022,7 +3066,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3041,7 +3085,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3054,7 +3098,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3071,7 +3115,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3090,7 +3134,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3103,7 +3147,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3120,7 +3164,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3139,7 +3183,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3152,7 +3196,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3169,7 +3213,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3188,7 +3232,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3201,7 +3245,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3219,7 +3263,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3238,7 +3282,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3251,7 +3295,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3269,7 +3313,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3288,7 +3332,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3301,7 +3345,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3319,7 +3363,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3338,7 +3382,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3351,7 +3395,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3369,7 +3413,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3388,7 +3432,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3401,7 +3445,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3418,7 +3462,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3437,7 +3481,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3451,7 +3495,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3469,7 +3513,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3488,7 +3532,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3502,7 +3546,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3520,7 +3564,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3539,7 +3583,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3552,7 +3596,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3569,7 +3613,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3588,7 +3632,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3601,7 +3645,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3618,7 +3662,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3637,7 +3681,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3650,7 +3694,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3667,7 +3711,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3686,7 +3730,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3699,7 +3743,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3716,7 +3760,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3735,7 +3779,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3748,7 +3792,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3765,7 +3809,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3784,7 +3828,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3797,7 +3841,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3814,7 +3858,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3833,7 +3877,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3846,7 +3890,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3863,7 +3907,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3882,7 +3926,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3895,7 +3939,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3912,7 +3956,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3931,7 +3975,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3944,7 +3988,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -3962,7 +4006,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -3981,7 +4025,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -3994,7 +4038,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4012,7 +4056,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4031,7 +4075,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4044,7 +4088,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4061,7 +4105,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4080,7 +4124,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4093,7 +4137,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4110,7 +4154,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4129,7 +4173,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4142,7 +4186,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4159,7 +4203,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4178,7 +4222,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4191,7 +4235,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4208,7 +4252,7 @@
           "--version",
           "17.5",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4227,7 +4271,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4240,7 +4284,7 @@
               "path": "Runtime-ios-17.5"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],
@@ -4257,7 +4301,7 @@
           "--version",
           "18.2",
           "--xcode-build-version",
-          "17a400",
+          "17f42",
           "--out-dir",
           "${ISOLATED_OUTDIR}",
           "--xctest"
@@ -4276,7 +4320,7 @@
             {
               "cipd_package": "infra/tools/mac_toolchain/${platform}",
               "location": ".",
-              "revision": "git_revision:4c7290150d1c360cecc6a93c0214dc531585c3ab"
+              "revision": "git_revision:07e67ff89ff11ed0e3071867ed6bb49319a91b05"
             }
           ],
           "dimensions": {
@@ -4289,7 +4333,7 @@
               "path": "Runtime-ios-18.2"
             },
             {
-              "name": "xcode_ios_17a400",
+              "name": "xcode_ios_17f42",
               "path": "Xcode.app"
             }
           ],

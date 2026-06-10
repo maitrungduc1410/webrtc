@@ -713,6 +713,37 @@ if (rtc_include_tests) {
         "../../sdk/android:native_api_jni",
       ]
     }
+
+    rtc_test("videocodec_test_mediacodec") {
+      sources = [ "codecs/test/videocodec_test_mediacodec.cc" ]
+      deps = [
+        ":android_codec_factory_helper",
+        ":video_codecs_test_framework",
+        ":videocodec_test_impl",
+        "../../api:create_videocodec_test_fixture_api",
+        "../../api:videocodec_test_fixture_api",
+        "../../api/video_codecs:video_codecs_api",
+        "../../media:media_constants",
+        "../../rtc_base:base_java",
+        "../../rtc_base:stringutils",
+        "../../sdk/android:base_java",
+        "../../sdk/android:hwcodecs_java",
+        "../../sdk/android:video_api_java",
+        "../../sdk/android:video_java",
+        "../../test:fileutils",
+        "../../test:test_support",
+      ]
+      data = [
+        "../../resources/foreman_128x96.yuv",
+        "../../resources/foreman_160x120.yuv",
+        "../../resources/foreman_176x144.yuv",
+        "../../resources/foreman_240x136.yuv",
+        "../../resources/foreman_320x240.yuv",
+        "../../resources/foreman_480x272.yuv",
+      ]
+      data_deps = [ "../../resources:modules_tests_data" ]
+      use_default_launcher = false
+    }
   }
 
   if (is_ios || is_mac) {
@@ -837,16 +868,6 @@ if (rtc_include_tests) {
   }
 
   video_coding_modules_tests_resources = []
-  if (is_android) {
-    video_coding_modules_tests_resources += [
-      "../../resources/foreman_128x96.yuv",
-      "../../resources/foreman_160x120.yuv",
-      "../../resources/foreman_176x144.yuv",
-      "../../resources/foreman_240x136.yuv",
-      "../../resources/foreman_320x240.yuv",
-      "../../resources/foreman_480x272.yuv",
-    ]
-  }
   if (!is_android) {
     video_coding_modules_tests_resources += [
       "../../resources/ConferenceMotion_1280_720_50.yuv",
@@ -1076,12 +1097,7 @@ if (rtc_include_tests) {
     }
 
     if (is_android) {
-      sources += [ "codecs/test/videocodec_test_mediacodec.cc" ]
-
-      deps += [
-        ":android_codec_factory_helper",
-        "../../rtc_base:stringutils",
-      ]
+      deps += [ ":android_codec_factory_helper" ]
     }
 
     if (is_ios || is_mac) {

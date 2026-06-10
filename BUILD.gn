@@ -113,6 +113,7 @@ if (!build_with_chromium) {
       if (is_android) {
         deps += [
           "examples:android_examples_junit_tests",
+          "modules/video_coding:videocodec_test_mediacodec",
           "sdk/android:android_instrumentation_test_apk",
           "sdk/android:android_sdk_junit_tests",
         ]
