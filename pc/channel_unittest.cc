@@ -214,11 +214,11 @@ class ChannelTest : public ::testing::Test {
       // Based on flags, create fake DTLS or raw packet transports.
 
       if (flags1 & RAW_PACKET_TRANSPORT) {
-        fake_rtp_packet_transport1_.reset(
-            new FakePacketTransport("channel1_rtp"));
+        fake_rtp_packet_transport1_ =
+            std::make_unique<FakePacketTransport>(env_, "channel1_rtp");
         if (!(flags1 & RTCP_MUX)) {
-          fake_rtcp_packet_transport1_.reset(
-              new FakePacketTransport("channel1_rtcp"));
+          fake_rtcp_packet_transport1_ =
+              std::make_unique<FakePacketTransport>(env_, "channel1_rtcp");
         }
       } else {
         // Confirmed to work with KT_RSA and KT_ECDSA.
@@ -239,11 +239,11 @@ class ChannelTest : public ::testing::Test {
       }
       // Based on flags, create fake DTLS or raw packet transports.
       if (flags2 & RAW_PACKET_TRANSPORT) {
-        fake_rtp_packet_transport2_.reset(
-            new FakePacketTransport("channel2_rtp"));
+        fake_rtp_packet_transport2_ =
+            std::make_unique<FakePacketTransport>(env_, "channel2_rtp");
         if (!(flags2 & RTCP_MUX)) {
-          fake_rtcp_packet_transport2_.reset(
-              new FakePacketTransport("channel2_rtcp"));
+          fake_rtcp_packet_transport2_ =
+              std::make_unique<FakePacketTransport>(env_, "channel2_rtcp");
         }
       } else {
         // Confirmed to work with KT_RSA and KT_ECDSA.
