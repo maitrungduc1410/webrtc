@@ -806,6 +806,7 @@ if (rtc_include_tests) {
       "../../api/video:video_rtp_headers",
       "../../api/video_codecs:video_codecs_api",
       "../../rtc_base:checks",
+      "../../test:create_test_environment",
       "../../test:test_support",
     ]
   }
