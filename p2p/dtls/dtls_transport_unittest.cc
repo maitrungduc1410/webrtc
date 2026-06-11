@@ -59,6 +59,7 @@
 #include "rtc_base/stream.h"
 #include "system_wrappers/include/metrics.h"
 #include "test/create_test_environment.h"
+#include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/time_controller/simulated_time_controller.h"
@@ -127,7 +128,8 @@ class DtlsTestClient {
 
     CryptoOptions crypto_options;
     if (pqc_) {
-      FieldTrials field_trials("WebRTC-EnableDtlsPqc/Enabled/");
+      FieldTrials field_trials =
+          CreateTestFieldTrials("WebRTC-EnableDtlsPqc/Enabled/");
       crypto_options.ephemeral_key_exchange_cipher_groups.Update(&field_trials);
     }
 
