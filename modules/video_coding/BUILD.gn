@@ -724,12 +724,8 @@ if (rtc_include_tests) {
         "../../api:videocodec_test_fixture_api",
         "../../api/video_codecs:video_codecs_api",
         "../../media:media_constants",
-        "../../rtc_base:base_java",
         "../../rtc_base:stringutils",
-        "../../sdk/android:base_java",
-        "../../sdk/android:hwcodecs_java",
-        "../../sdk/android:video_api_java",
-        "../../sdk/android:video_java",
+        "../../sdk/android:libjingle_peerconnection_java",
         "../../test:fileutils",
         "../../test:test_support",
       ]
