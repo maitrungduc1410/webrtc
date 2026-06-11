@@ -132,6 +132,10 @@ const char kAttributeInactive[] = "inactive";
 const char kAttributeSctpPort[] = "sctp-port";
 const char kAttributeMaxMessageSize[] = "max-message-size";
 const int kDefaultSctpMaxMessageSize = 65536;
+// 32 is a safe upper bound. Standard groups (FID, FEC-FR, SIM) use <= 3 SSRCs.
+// This allows a buffer for custom semantics while preventing resource
+// exhaustion.
+constexpr size_t kMaxSsrcsPerGroup = 32;
 
 // draft-hancke-tsvwg-snap
 const char kAttributeSctpSnap[] = "sctp-init";
@@ -2188,6 +2192,10 @@ bool ParseSsrcGroupAttribute(absl::string_view line,
   const size_t expected_min_fields = 2;
   if (fields.size() < expected_min_fields) {
     return ParseFailedExpectMinFieldNum(line, expected_min_fields, error);
+  }
+  // fields[0] is semantics, remaining fields are SSRCs.
+  if (fields.size() - 1 > kMaxSsrcsPerGroup) {
+    return ParseFailed(line, "Too many SSRCs in ssrc-group", error);
   }
   std::string semantics;
   if (!GetValue(fields[0], kAttributeSsrcGroup, &semantics, error)) {
