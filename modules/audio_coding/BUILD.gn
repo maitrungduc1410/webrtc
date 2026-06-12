@@ -1109,6 +1109,7 @@ if (rtc_include_tests) {
       "../../api/units:timestamp",
       "../../rtc_base:checks",
       "../../system_wrappers",
+      "../../test:create_test_environment",
       "../../test:fileutils",
       "//testing/gtest",
     ]
@@ -1137,6 +1138,7 @@ if (rtc_include_tests) {
         "../../rtc_base:buffer",
         "../../rtc_base:checks",
         "../../rtc_base:stringutils",
+        "../../test:create_test_environment",
         "../../test:fileutils",
         "../../test:test_support",
         "//testing/gtest",

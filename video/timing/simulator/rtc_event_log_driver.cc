@@ -22,6 +22,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
 #include "api/environment/environment_factory.h"
+#include "api/environment/force_test_environment.h"
 #include "api/field_trials.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/task_queue_factory.h"
@@ -38,6 +39,15 @@
 #include "video/timing/simulator/rtt_simulator.h"
 
 namespace webrtc::video_timing_simulator {
+namespace {
+// Creates FieldTrials that are acceptable both in unittests and in production.
+// Note: This will not capture the command line --force_fieldtrials flag,
+// as it bypasses the test environment check without merging the flag.
+std::unique_ptr<FieldTrials> CreateFieldTrials(absl::string_view s) {
+  AutoBypassTestEnvironmentCheck bypass;
+  return std::make_unique<FieldTrials>(s, /*is_test=*/true);
+}
+}  // namespace
 
 RtcEventLogDriver::RtcEventLogDriver(
     const Config& config,
@@ -46,10 +56,9 @@ RtcEventLogDriver::RtcEventLogDriver(
     RtcEventLogDriver::StreamInterfaceFactory stream_factory)
     : config_(config),
       time_controller_(Timestamp::Zero()),
-      env_(CreateEnvironment(
-          std::make_unique<webrtc::FieldTrials>(field_trials_string),
-          time_controller_.GetClock(),
-          time_controller_.GetTaskQueueFactory())),
+      env_(CreateEnvironment(CreateFieldTrials(field_trials_string),
+                             time_controller_.GetClock(),
+                             time_controller_.GetTaskQueueFactory())),
       parsed_log_(*parsed_log),
       stream_factory_(std::move(stream_factory)),
       prev_log_timestamp_(std::nullopt),

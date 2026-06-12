@@ -11,6 +11,7 @@ import("test/test_resources.gni")
 
 if (rtc_enable_protobuf) {
   rtc_library("simulator") {
+    # Cannot be testonly because it is used in downstream production code.
     sources = [
       "assembler.cc",
       "assembler.h",
@@ -48,6 +49,7 @@ if (rtc_enable_protobuf) {
       "../../../api:transport_api",
       "../../../api/environment",
       "../../../api/environment:environment_factory",
+      "../../../api/environment:force_test_environment",
       "../../../api/numerics",
       "../../../api/task_queue",
       "../../../api/task_queue:pending_task_safety_flag",

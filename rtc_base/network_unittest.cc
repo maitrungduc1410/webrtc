@@ -1415,13 +1415,13 @@ TEST_F(NetworkTest, IgnoresMACBasedIPv6Address) {
 }
 
 TEST_F(NetworkTest, WebRTC_AllowMACBasedIPv6Address) {
-  FieldTrials field_trials =
-      CreateTestFieldTrials("WebRTC-AllowMACBasedIPv6/Enabled/");
   std::string ipv6_address = "2607:fc20:f340:1dc8:214:22ff:fe01:2345";
   std::string ipv6_mask = "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF";
   PhysicalSocketServer socket_server;
   BasicNetworkManager manager(
-      CreateTestEnvironment({.field_trials = &field_trials}), &socket_server);
+      CreateTestEnvironment(
+          {.field_trials = "WebRTC-AllowMACBasedIPv6/Enabled/"}),
+      &socket_server);
   manager.StartUpdating();
 
   // IPSec interface; name is in form "ipsec<index>".

@@ -4564,6 +4564,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base:logging",
       "../rtc_base/containers:flat_map",
       "../system_wrappers",
+      "../test:create_test_field_trials",
       "../test:run_loop",
       "../test:test_support",
       "../test/pc/e2e/analyzer/video:default_video_quality_analyzer",
