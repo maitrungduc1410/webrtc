@@ -274,6 +274,7 @@ if (rtc_include_tests) {
       "../rtc_base:logging",
       "../rtc_base:stringutils",
       "../system_wrappers",
+      "../test:create_test_environment",
       "../test:mock_transport",
       "../test:test_support",
       "../test/time_controller",
