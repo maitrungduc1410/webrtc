@@ -1264,6 +1264,10 @@ if (rtc_include_tests) {
       "timing:timing_module",
       "//third_party/abseil-cpp/absl/container:inlined_vector",
     ]
+    if (rtc_libvpx_build_vp9) {
+      sources += [ "codecs/vp9/vp9_frame_buffer_pool_unittest.cc" ]
+      deps += [ ":webrtc_vp9" ]
+    }
     if (rtc_build_libvpx) {
       deps += [ rtc_libvpx_dir ]
     }
