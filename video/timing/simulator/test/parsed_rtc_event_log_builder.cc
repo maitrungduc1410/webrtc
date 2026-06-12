@@ -71,8 +71,8 @@ ParsedRtcEventLogBuilder::ParsedRtcEventLogBuilder()
     : log_clock_(Timestamp::Seconds(10000)),
       log_env_(CreateTestEnvironment(
           CreateTestEnvironmentOptions{.time = &log_clock_})),
-      log_(RtcEventLogFactory().Create(log_env_)),
-      parsed_log_(nullptr) {
+      parsed_log_(nullptr),
+      log_(RtcEventLogFactory().Create(log_env_)) {
   log_->StartLogging(std::make_unique<ParsingRtcEventLogOutput>(
                          [this](std::unique_ptr<ParsedRtcEventLog> parsed_log) {
                            parsed_log_ = std::move(parsed_log);

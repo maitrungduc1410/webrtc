@@ -64,8 +64,8 @@ class ParsedRtcEventLogBuilder {
   // the simulation.
   SimulatedClock log_clock_;
   const Environment log_env_;
-  std::unique_ptr<RtcEventLog> log_;
   std::unique_ptr<ParsedRtcEventLog> parsed_log_;
+  std::unique_ptr<RtcEventLog> log_;
 };
 
 }  // namespace webrtc::video_timing_simulator
