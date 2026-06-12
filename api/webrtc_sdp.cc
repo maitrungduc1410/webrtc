@@ -54,6 +54,7 @@
 #include "pc/simulcast_sdp_serializer.h"
 #include "rtc_base/base64.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_set.h"
 #include "rtc_base/crypto_random.h"
 #include "rtc_base/ip_address.h"
 #include "rtc_base/logging.h"
@@ -1918,13 +1919,13 @@ void RemoveDuplicateRidDescriptions(const std::vector<int>& payload_types,
 // If a group of alternatives is empty after removing layers, the group should
 // be removed altogether.
 SimulcastLayerList RemoveRidsFromSimulcastLayerList(
-    const std::set<std::string>& to_remove,
+    const flat_set<absl::string_view>& to_remove,
     const SimulcastLayerList& layers) {
   SimulcastLayerList result;
   for (const std::vector<SimulcastLayer>& vector : layers) {
     std::vector<SimulcastLayer> new_layers;
     for (const SimulcastLayer& layer : vector) {
-      if (to_remove.find(layer.rid) == to_remove.end()) {
+      if (!to_remove.contains(layer.rid)) {
         new_layers.push_back(layer);
       }
     }
@@ -1942,13 +1943,14 @@ SimulcastLayerList RemoveRidsFromSimulcastLayerList(
 // 2. They do not appear in the list of `valid_rids`.
 void RemoveInvalidRidsFromSimulcast(
     const std::vector<RidDescription>& valid_rids,
-    SimulcastDescription* simulcast) {
+    SimulcastDescription* absl_nonnull simulcast) {
   RTC_DCHECK(simulcast);
-  std::set<std::string> to_remove;
   std::vector<SimulcastLayer> all_send_layers =
       simulcast->send_layers().GetAllLayers();
   std::vector<SimulcastLayer> all_receive_layers =
       simulcast->receive_layers().GetAllLayers();
+  // `to_remove` must be declared after the vectors because it holds views.
+  flat_set<absl::string_view> to_remove;
 
   // If a rid appears in both send and receive directions, remove it from both.
   // This algorithm runs in O(n^2) time, but for small n (as is the case with

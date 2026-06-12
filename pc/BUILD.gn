@@ -1415,6 +1415,7 @@ rtc_library("simulcast_sdp_serializer") {
   visibility = [
     ":*",
     "../api:jsep",
+    "../test/fuzzers:*",
   ]
 
   sources = [
@@ -3735,6 +3736,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":session_description",
       ":simulcast_description",
       ":simulcast_sdp_serializer",
+      "../api:rtc_error",
       "../media:codec",
       "../media:rid_description",
       "../test:test_support",
