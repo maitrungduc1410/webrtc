@@ -724,6 +724,7 @@ rtc_library("audio_coding_modules_tests_shared") {
     "../../rtc_base:digest",
     "../../rtc_base:stringutils",
     "../../system_wrappers",
+    "../../test:create_test_environment",
     "../../test:fileutils",
     "../../test:test_support",
     "../rtp_rtcp:rtp_rtcp_format",

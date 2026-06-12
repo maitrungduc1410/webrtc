@@ -853,6 +853,7 @@ if (rtc_include_tests) {
       "../../rtc_base:timeutils",
       "../../rtc_base/synchronization:mutex",
       "../../rtc_base/system:no_unique_address",
+      "../../test:create_test_environment",
       "../../test:create_test_field_trials",
       "../../test:test_support",
       "../../test:video_frame_writer",
