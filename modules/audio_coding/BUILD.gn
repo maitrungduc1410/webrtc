@@ -980,7 +980,6 @@ if (rtc_include_tests) {
       data = audio_decoder_unittests_resources
 
       if (is_android) {
-        use_default_launcher = false
         deps += [ "//build/android/gtest_apk:native_test_instrumentation_test_runner_java" ]
         shard_timeout = 900
       }
@@ -1069,7 +1068,6 @@ if (rtc_include_tests) {
       data = audio_codec_speed_tests_resources
 
       if (is_android) {
-        use_default_launcher = false
         deps += [ "//build/android/gtest_apk:native_test_instrumentation_test_runner_java" ]
         shard_timeout = 900
       }

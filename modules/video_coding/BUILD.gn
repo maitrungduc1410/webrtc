@@ -738,7 +738,6 @@ if (rtc_include_tests) {
         "../../resources/foreman_480x272.yuv",
       ]
       data_deps = [ "../../resources:modules_tests_data" ]
-      use_default_launcher = false
     }
   }
 
@@ -1002,7 +1001,6 @@ if (rtc_include_tests) {
     ]
 
     if (is_android) {
-      use_default_launcher = false
       deps += [
         ":android_codec_factory_helper",
         "../../sdk/android:hwcodecs_java",

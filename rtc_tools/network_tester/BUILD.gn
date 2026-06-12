@@ -168,10 +168,6 @@ if (is_android) {
       "androidapp/res/values/dimens.xml",
       "androidapp/res/values/strings.xml",
     ]
-
-    # Needed for Bazel converter.
-    resource_dirs = [ "androidapp/res" ]
-    assert(resource_dirs != [])  # Mark as used.
   }
 
   rtc_shared_library("network_tester_so") {

@@ -130,14 +130,15 @@ declare_args() {
   # supported Ubuntu and Debian distributions.
   rtc_use_pipewire = is_linux && use_sysroot
 
-  # Set this to link PipeWire and required libraries directly instead of using the dlopen.
+  # Set this to link PipeWire and required libraries directly instead of using
+  # the dlopen.
   rtc_link_pipewire = false
 
   # Enable to use the Mozilla internal settings.
   build_with_mozilla = false
 
-  # Experimental: enable use of Android AAudio which requires Android SDK 26 or above
-  # and NDK r16 or above.
+  # Experimental: enable use of Android AAudio which requires Android SDK 26 or
+  # above and NDK r16 or above.
   rtc_enable_android_aaudio = false
 
   # Set to "func", "block", "edge" for coverage generation.
@@ -484,8 +485,8 @@ all_poison_types = [
 absl_include_config = "//third_party/abseil-cpp:absl_include_config"
 absl_define_config = "//third_party/abseil-cpp:absl_define_config"
 
-# Abseil Flags are testonly, so this config will only be applied to WebRTC targets
-# that are testonly.
+# Abseil Flags are testonly, so this config will only be applied to WebRTC
+# targets that are testonly.
 absl_flags_config = webrtc_root + ":absl_flags_configs"
 
 # WebRTC wrapper of Chromium's test() template. This template just adds some
@@ -524,6 +525,8 @@ template("rtc_test") {
       public_configs += invoker.public_configs
     }
     if (!build_with_chromium && is_android) {
+      # Do not use Chromium's launcher. native_unittests defines its own
+      # JNI_OnLoad.
       use_default_launcher = false
       android_manifest = webrtc_root + "test/android/AndroidManifest.xml"
       use_raw_android_executable = false
@@ -555,7 +558,8 @@ template("rtc_test") {
         !defined(absl_deps),
         "`absl_deps` has been deprecated, add your Abseil dependencies to the `deps` variable.")
 
-    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl when build_with_chromium=true
+    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl
+    # when build_with_chromium=true
     if (build_with_chromium && defined(deps)) {
       absl_dependencies =
           filter_labels_include(deps, [ "//third_party/abseil-cpp/*" ])
@@ -678,7 +682,8 @@ template("rtc_source_set") {
         !defined(absl_deps),
         "`absl_deps` has been deprecated, add your Abseil dependencies to the `deps` variable.")
 
-    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl when build_with_chromium=true
+    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl
+    # when build_with_chromium=true
     if (build_with_chromium && defined(deps)) {
       absl_dependencies =
           filter_labels_include(deps, [ "//third_party/abseil-cpp/*" ])
@@ -770,7 +775,8 @@ template("rtc_static_library") {
         !defined(absl_deps),
         "`absl_deps` has been deprecated, add your Abseil dependencies to the `deps` variable.")
 
-    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl when build_with_chromium=true
+    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl
+    # when build_with_chromium=true
     if (build_with_chromium && defined(deps)) {
       absl_dependencies =
           filter_labels_include(deps, [ "//third_party/abseil-cpp/*" ])
@@ -913,7 +919,8 @@ template("rtc_library") {
         !defined(absl_deps),
         "`absl_deps` has been deprecated, add your Abseil dependencies to the `deps` variable.")
 
-    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl when build_with_chromium=true
+    # Abseil dependencies need to be converted to //third_party/abseil-cpp:absl
+    # when build_with_chromium=true
     if (build_with_chromium && defined(deps)) {
       absl_dependencies =
           filter_labels_include(deps, [ "//third_party/abseil-cpp/*" ])
@@ -1557,7 +1564,8 @@ template("rtc_rust_cxx_bridge") {
 
     # WebRTC and Abseil include paths/defines are explicitly populated so that
     # auto-generated bridge C++ source files (.cc) can safely locate required
-    # headers during compilation, and propagate header visibility cleanly via public_configs.
+    # headers during compilation, and propagate header visibility cleanly via
+    # public_configs.
     if (defined(invoker.configs)) {
       configs += invoker.configs
     }
