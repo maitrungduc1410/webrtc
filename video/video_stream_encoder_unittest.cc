@@ -108,6 +108,7 @@
 #include "rtc_base/time_utils.h"
 #include "system_wrappers/include/clock.h"
 #include "system_wrappers/include/metrics.h"
+#include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/encoder_settings.h"
 #include "test/fake_encoder.h"
@@ -822,10 +823,8 @@ class SimpleVideoStreamEncoderFactory {
 
   FieldTrials field_trials_ = CreateTestFieldTrials();
   GlobalSimulatedTimeController time_controller_{Timestamp::Zero()};
-  Environment env_ =
-      CreateEnvironment(&field_trials_,
-                        time_controller_.GetClock(),
-                        time_controller_.CreateTaskQueueFactory());
+  Environment env_ = CreateTestEnvironment(
+      {.field_trials = &field_trials_, .time = &time_controller_});
   std::unique_ptr<MockableSendStatisticsProxy> stats_proxy_ =
       std::make_unique<MockableSendStatisticsProxy>(
           time_controller_.GetClock(),
@@ -1767,9 +1766,8 @@ class VideoStreamEncoderTest : public ::testing::Test {
  protected:
   FieldTrials field_trials_ = CreateTestFieldTrials();
   GlobalSimulatedTimeController time_controller_{Timestamp::Micros(1234)};
-  Environment env_ = CreateEnvironment(&field_trials_,
-                                       time_controller_.GetClock(),
-                                       time_controller_.GetTaskQueueFactory());
+  Environment env_ = CreateTestEnvironment(
+      {.field_trials = &field_trials_, .time = &time_controller_});
   VideoSendStream::Config video_send_config_;
   VideoEncoderConfig video_encoder_config_;
   int codec_width_;
@@ -10527,7 +10525,7 @@ TEST(VideoStreamEncoderSimpleTest, CreateDestroy) {
 
   // Lots of boiler plate.
   GlobalSimulatedTimeController time_controller(Timestamp::Zero());
-  Environment env = CreateEnvironment(time_controller.GetClock());
+  Environment env = CreateTestEnvironment({.time = &time_controller});
   MockableSendStatisticsProxy stats_proxy(
       &env.clock(), VideoSendStream::Config(nullptr),
       VideoEncoderConfig::ContentType::kRealtimeVideo, env.field_trials());

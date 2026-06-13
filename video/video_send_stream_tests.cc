@@ -25,7 +25,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
-#include "api/environment/environment_factory.h"
 #include "api/fec_controller_override.h"
 #include "api/field_trials.h"
 #include "api/field_trials_view.h"
@@ -105,6 +104,7 @@
 #include "rtc_base/unique_id_generator.h"
 #include "test/call_test.h"
 #include "test/configurable_frame_size_encoder.h"
+#include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/encoder_settings.h"
 #include "test/fake_encoder.h"
@@ -1113,7 +1113,7 @@ void VideoSendStreamTest::TestNackRetransmission(
       EXPECT_TRUE(Wait()) << "Timed out while waiting for NACK retransmission.";
     }
 
-    const Environment env_ = CreateEnvironment();
+    const Environment env_ = CreateTestEnvironment();
     std::unique_ptr<internal::TransportAdapter> transport_adapter_;
     int retransmit_count_;
     const uint32_t media_ssrc_;
@@ -1346,7 +1346,7 @@ void VideoSendStreamTest::TestPacketFragmentationSize(TestVideoFormat format,
       EXPECT_TRUE(Wait()) << "Timed out while observing incoming RTP packets.";
     }
 
-    const Environment env_ = CreateEnvironment();
+    const Environment env_ = CreateTestEnvironment();
     std::unique_ptr<internal::TransportAdapter> transport_adapter_;
     test::ConfigurableFrameSizeEncoder encoder_;
     test::VideoEncoderProxyFactory encoder_factory_;
@@ -1642,7 +1642,7 @@ TEST_F(VideoSendStreamTest, MinTransmitBitrateRespectsRemb) {
     }
 
     TaskQueueBase* const task_queue_;
-    const Environment env_ = CreateEnvironment();
+    const Environment env_ = CreateTestEnvironment();
     std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
     std::unique_ptr<internal::TransportAdapter> feedback_transport_;
     RateLimiter retranmission_rate_limiter_;
