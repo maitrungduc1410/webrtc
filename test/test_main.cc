@@ -24,7 +24,7 @@
 
 ABSL_FLAG(bool,
           force_test_environment,
-          false,
+          true,
           "Crash if non-test Environment or FieldTrials are created.");
 
 namespace {
