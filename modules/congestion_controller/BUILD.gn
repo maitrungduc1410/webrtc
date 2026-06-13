@@ -64,6 +64,7 @@ if (rtc_include_tests) {
       "../../api/units:timestamp",
       "../../rtc_base:buffer",
       "../../system_wrappers",
+      "../../test:create_test_environment",
       "../../test:create_test_field_trials",
       "../../test:test_support",
       "../../test/scenario",

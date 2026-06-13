@@ -14,11 +14,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
 #include <vector>
 
-#include "api/environment/environment_factory.h"
-#include "api/field_trials.h"
 #include "api/transport/ecn_marking.h"
 #include "api/units/data_rate.h"
 #include "api/units/data_size.h"
@@ -30,6 +27,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/buffer.h"
 #include "system_wrappers/include/clock.h"
+#include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -63,8 +61,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
   MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
       rtcp_sender;
   SimulatedClock clock(123456);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   EXPECT_GT(generator.Process(clock.CurrentTime()), TimeDelta::Millis(10));
   clock.AdvanceTimeMilliseconds(10);
@@ -81,8 +79,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
   MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
       rtcp_sender;
   SimulatedClock clock(123456);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   TimeDelta time_to_next = generator.Process(clock.CurrentTime());
   EXPECT_EQ(time_to_next, TimeDelta::Millis(25));
@@ -108,8 +106,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
       rtcp_sender;
   constexpr TimeDelta kSmallTimeInterval = TimeDelta::Millis(2);
   SimulatedClock clock(123456);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   TimeDelta time_to_next_process = generator.Process(clock.CurrentTime());
   Timestamp expected_feedback_time = clock.CurrentTime();
@@ -137,8 +135,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
   MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
       rtcp_sender;
   SimulatedClock clock(123456);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   int number_of_feedback_packets = 0;
   DataSize total_feedback_size;
@@ -178,8 +176,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
   MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
       rtcp_sender;
   SimulatedClock clock(123456);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   int number_of_feedback_packets = 0;
   DataSize total_feedback_size = DataSize::Zero();
@@ -236,8 +234,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
       rtcp_sender;
   SimulatedClock clock(123456);
   constexpr TimeDelta kSmallTimeInterval = TimeDelta::Millis(2);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   TimeDelta time_to_next_process = generator.Process(clock.CurrentTime());
 
@@ -299,8 +297,8 @@ TEST(CongestionControlFeedbackGeneratorTest,
       rtcp_sender;
   SimulatedClock clock(123456);
   constexpr TimeDelta kSmallTimeInterval = TimeDelta::Millis(2);
-  CongestionControlFeedbackGenerator generator(CreateEnvironment(&clock),
-                                               rtcp_sender.AsStdFunction());
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   TimeDelta time_to_next_process = generator.Process(clock.CurrentTime());
   RtpPacketReceived packet_1 =
@@ -341,10 +339,11 @@ TEST(CongestionControlFeedbackGeneratorTest,
   SimulatedClock clock(123456);
 
   // Enable 5% feedback fraction limit via field trial
-  auto field_trials = std::make_unique<FieldTrials>(
-      "WebRTC-RFC8888CongestionControlFeedback/feedback_fraction:0.05/");
   CongestionControlFeedbackGenerator generator(
-      CreateEnvironment(&clock, std::move(field_trials)),
+      CreateTestEnvironment({.field_trials =
+                                 "WebRTC-RFC8888CongestionControlFeedback/"
+                                 "feedback_fraction:0.05/",
+                             .time = &clock}),
       rtcp_sender.AsStdFunction());
 
   // Notify the generator that send BWE is 100 kbps.
@@ -398,10 +397,11 @@ TEST(CongestionControlFeedbackGeneratorTest,
   SimulatedClock clock(123456);
 
   // Enable 5% feedback fraction limit via field trial
-  auto field_trials = std::make_unique<FieldTrials>(
-      "WebRTC-RFC8888CongestionControlFeedback/feedback_fraction:0.05/");
   CongestionControlFeedbackGenerator generator(
-      CreateEnvironment(&clock, std::move(field_trials)),
+      CreateTestEnvironment({.field_trials =
+                                 "WebRTC-RFC8888CongestionControlFeedback/"
+                                 "feedback_fraction:0.05/",
+                             .time = &clock}),
       rtcp_sender.AsStdFunction());
 
   // Notify the generator that send BWE is extremely low (10 kbps).
@@ -457,10 +457,11 @@ TEST(CongestionControlFeedbackGeneratorTest,
   SimulatedClock clock(123456);
 
   // Enable 5% feedback fraction limit via field trial
-  auto field_trials = std::make_unique<FieldTrials>(
-      "WebRTC-RFC8888CongestionControlFeedback/feedback_fraction:0.05/");
   CongestionControlFeedbackGenerator generator(
-      CreateEnvironment(&clock, std::move(field_trials)),
+      CreateTestEnvironment({.field_trials =
+                                 "WebRTC-RFC8888CongestionControlFeedback/"
+                                 "feedback_fraction:0.05/",
+                             .time = &clock}),
       rtcp_sender.AsStdFunction());
 
   // Notify the generator that send BWE is extremely low (10 kbps) but we are
