@@ -1907,7 +1907,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -1957,7 +1957,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2006,7 +2006,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2055,7 +2055,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2104,7 +2104,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2153,7 +2153,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2202,7 +2202,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2251,7 +2251,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2300,7 +2300,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2349,7 +2349,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2398,7 +2398,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2447,7 +2447,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2496,7 +2496,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2545,7 +2545,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2594,7 +2594,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2644,7 +2644,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2695,7 +2695,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2746,7 +2746,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2796,7 +2796,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2845,7 +2845,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2894,7 +2894,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2943,7 +2943,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -2992,7 +2992,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3041,7 +3041,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3090,7 +3090,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3139,7 +3139,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3188,7 +3188,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3237,7 +3237,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3287,7 +3287,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3337,7 +3337,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3387,7 +3387,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3437,7 +3437,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3487,7 +3487,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3500,7 +3500,7 @@
             }
           ],
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
-          "shards": 4
+          "shards": 8
         },
         "test": "svc_tests",
         "test_id_prefix": "ninja://pc:svc_tests/",
@@ -3538,7 +3538,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3551,7 +3551,7 @@
             }
           ],
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
-          "shards": 4
+          "shards": 8
         },
         "test": "svc_tests",
         "test_id_prefix": "ninja://pc:svc_tests/",
@@ -3588,7 +3588,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3637,7 +3637,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3686,7 +3686,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3735,7 +3735,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3784,7 +3784,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3833,7 +3833,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3882,7 +3882,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3931,7 +3931,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -3980,7 +3980,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4030,7 +4030,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4080,7 +4080,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4129,7 +4129,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4178,7 +4178,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4227,7 +4227,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4276,7 +4276,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -4325,7 +4325,7 @@
           ],
           "dimensions": {
             "cpu": "arm64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "named_caches": [
             {
@@ -10449,7 +10449,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_decoder_unittests",
@@ -10467,7 +10467,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_engine_tests",
@@ -10485,7 +10485,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "call_tests",
@@ -10503,7 +10503,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_audio_unittests",
@@ -10521,7 +10521,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_video_unittests",
@@ -10539,7 +10539,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "dcsctp_unittests",
@@ -10557,7 +10557,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -10576,7 +10576,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -10595,7 +10595,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -10614,7 +10614,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "resource_adaptation_tests",
@@ -10632,7 +10632,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_media_unittests",
@@ -10650,7 +10650,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_p2p_unittests",
@@ -10668,7 +10668,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_pc_unittests",
@@ -10686,7 +10686,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_stats_unittests",
@@ -10704,7 +10704,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -10723,7 +10723,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rust_tests",
@@ -10741,7 +10741,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "slow_peer_connection_unittests",
@@ -10759,7 +10759,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -10778,7 +10778,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "system_wrappers_unittests",
@@ -10796,7 +10796,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -10815,7 +10815,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "tools_unittests",
@@ -10833,7 +10833,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_adaptation_tests",
@@ -10851,7 +10851,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_tests",
@@ -10869,7 +10869,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_timing_tests",
@@ -10887,7 +10887,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "voip_unittests",
@@ -10905,7 +10905,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_nonparallel_tests",
@@ -11453,7 +11453,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_decoder_unittests",
@@ -11471,7 +11471,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_engine_tests",
@@ -11489,7 +11489,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "call_tests",
@@ -11507,7 +11507,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_audio_unittests",
@@ -11525,7 +11525,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_video_unittests",
@@ -11543,7 +11543,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "dcsctp_unittests",
@@ -11561,7 +11561,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -11580,7 +11580,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -11599,7 +11599,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -11618,7 +11618,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "resource_adaptation_tests",
@@ -11636,7 +11636,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_media_unittests",
@@ -11654,7 +11654,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_p2p_unittests",
@@ -11672,7 +11672,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_pc_unittests",
@@ -11690,7 +11690,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_stats_unittests",
@@ -11708,7 +11708,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -11727,7 +11727,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rust_tests",
@@ -11745,7 +11745,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "slow_peer_connection_unittests",
@@ -11763,7 +11763,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -11782,7 +11782,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "system_wrappers_unittests",
@@ -11800,7 +11800,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -11819,7 +11819,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "tools_unittests",
@@ -11837,7 +11837,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_adaptation_tests",
@@ -11855,7 +11855,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_tests",
@@ -11873,7 +11873,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_timing_tests",
@@ -11891,7 +11891,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "voip_unittests",
@@ -11909,7 +11909,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "arm64-64-Apple_M1",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_nonparallel_tests",
