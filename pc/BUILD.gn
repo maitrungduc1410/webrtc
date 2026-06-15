@@ -4181,9 +4181,6 @@ if (rtc_include_tests && !build_with_chromium) {
       ":rtc_stats_integrationtest",
       ":peer_connection_field_trial_tests",
     ]
-    if (is_android) {
-      shard_timeout = 900
-    }
   }
 
   rtc_cc_test("data_channel_controller_unittest") {
@@ -4570,10 +4567,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../test/pc/e2e/analyzer/video:default_video_quality_analyzer_shared",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
-
-    if (is_android) {
-      shard_timeout = 900
-    }
 
     if (is_ios) {
       deps += [ ":svc_tests_bundle_data" ]

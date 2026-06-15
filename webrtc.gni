@@ -528,6 +528,10 @@ template("rtc_test") {
       # Do not use Chromium's launcher. native_unittests defines its own
       # JNI_OnLoad.
       use_default_launcher = false
+
+      # Without this setting some tests only succeed after the first retry.
+      # Value is high enough for webrtc_perf_tests to complete.
+      shard_timeout = 4500
       android_manifest = webrtc_root + "test/android/AndroidManifest.xml"
       use_raw_android_executable = false
       min_sdk_version = 23
@@ -1370,9 +1374,6 @@ template("rtc_cc_test") {
     if (defined(invoker.data_deps)) {
       data_deps = invoker.data_deps
     }
-    if (defined(invoker.shard_timeout)) {
-      shard_timeout = invoker.shard_timeout
-    }
   }
 }
 
@@ -1443,15 +1444,10 @@ template("rtc_test_suite") {
 
   assert(!defined(invoker.deps), "rtc_test_suite does not allow deps")
 
-  # TODO(webrtc:498394143): Infer shard_timeout for the suite based on the
-  # individual test timeouts if shard_timeouts are still required.
   rtc_test(_suite_name) {
     testonly = true
     deps = invoker.tests
     deps += [ ":${_suite_name}_verify_metadata" ]
-    if (defined(invoker.shard_timeout)) {
-      shard_timeout = invoker.shard_timeout
-    }
   }
 }
 

@@ -1005,7 +1005,6 @@ if (rtc_include_tests) {
         ":android_codec_factory_helper",
         "../../sdk/android:hwcodecs_java",
       ]
-      shard_timeout = 900
     }
 
     data = [ "../../resources/FourPeople_1280x720_30.yuv" ]

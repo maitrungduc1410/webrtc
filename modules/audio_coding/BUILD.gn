@@ -979,7 +979,6 @@ if (rtc_include_tests) {
 
       if (is_android) {
         deps += [ "//build/android/gtest_apk:native_test_instrumentation_test_runner_java" ]
-        shard_timeout = 900
       }
       if (is_ios) {
         deps += [ ":audio_decoder_unittests_bundle_data" ]
@@ -1067,7 +1066,6 @@ if (rtc_include_tests) {
 
       if (is_android) {
         deps += [ "//build/android/gtest_apk:native_test_instrumentation_test_runner_java" ]
-        shard_timeout = 900
       }
 
       if (is_ios) {

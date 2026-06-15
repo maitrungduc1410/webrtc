@@ -60,10 +60,6 @@ if (rtc_include_tests && !build_with_chromium) {
 
     data_deps = [ "../resources:modules_tests_data" ]
 
-    if (is_android) {
-      shard_timeout = 900
-    }
-
     if (is_ios) {
       deps += [ "../resources:modules_tests_bundle_data" ]
     }
@@ -103,7 +99,6 @@ if (rtc_include_tests && !build_with_chromium) {
 
     if (is_android) {
       deps += [ "../sdk/android:libjingle_peerconnection_java" ]
-      shard_timeout = 900
     }
     if (is_ios) {
       info_plist = "../test/ios/Info.plist"
