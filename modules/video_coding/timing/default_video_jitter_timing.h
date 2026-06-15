@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
@@ -27,7 +28,8 @@ namespace webrtc {
 
 class DefaultVideoJitterTiming {
  public:
-  // TODO(b/493549134): Use Environment.
+  explicit DefaultVideoJitterTiming(const Environment& env);
+  // TODO(b/493549134): Remove once no longer used.
   DefaultVideoJitterTiming(Clock* clock, const FieldTrialsView& field_trials);
   ~DefaultVideoJitterTiming() = default;
 

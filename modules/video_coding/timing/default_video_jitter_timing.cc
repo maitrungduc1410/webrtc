@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
@@ -23,6 +24,9 @@
 #include "system_wrappers/include/clock.h"
 
 namespace webrtc {
+
+DefaultVideoJitterTiming::DefaultVideoJitterTiming(const Environment& env)
+    : DefaultVideoJitterTiming(&env.clock(), env.field_trials()) {}
 
 DefaultVideoJitterTiming::DefaultVideoJitterTiming(
     Clock* clock,

@@ -13,11 +13,13 @@
 #include <cstdint>
 #include <optional>
 
+#include "api/environment/environment.h"
 #include "api/field_trials.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "system_wrappers/include/clock.h"
+#include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/gtest.h"
 
@@ -30,26 +32,26 @@ constexpr DataSize kFrameSize = DataSize::Bytes(1000);
 constexpr TimeDelta kRtt = TimeDelta::Millis(100);
 
 TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsNulloptInitially) {
-  FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   EXPECT_EQ(timing.ExtrapolateLocalTime(kRtpTimestamp), std::nullopt);
 }
 
 TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsTimeAfterUpdate) {
-  FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   timing.OnCompleteTemporalUnit(kRtpTimestamp, clock.CurrentTime());
   EXPECT_EQ(timing.ExtrapolateLocalTime(kRtpTimestamp), clock.CurrentTime());
 }
 
 TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsNulloptAfterReset) {
-  FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   timing.OnCompleteTemporalUnit(kRtpTimestamp, clock.CurrentTime());
   EXPECT_EQ(timing.ExtrapolateLocalTime(kRtpTimestamp), clock.CurrentTime());
@@ -59,9 +61,9 @@ TEST(DefaultVideoJitterTimingTest, ExtrapolatorReturnsNulloptAfterReset) {
 }
 
 TEST(DefaultVideoJitterTimingTest, OnDecodableTemporalUnitReturnsEstimate) {
-  FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   EXPECT_NE(timing.OnDecodableTemporalUnit(kRtpTimestamp, kFrameSize,
                                            clock.CurrentTime(),
@@ -71,9 +73,9 @@ TEST(DefaultVideoJitterTimingTest, OnDecodableTemporalUnitReturnsEstimate) {
 
 TEST(DefaultVideoJitterTimingTest,
      OnDecodableTemporalUnitReturnsNulloptOnRetransmission) {
-  FieldTrials field_trials = CreateTestFieldTrials();
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   EXPECT_EQ(timing.OnDecodableTemporalUnit(kRtpTimestamp, kFrameSize,
                                            clock.CurrentTime(),
@@ -86,7 +88,9 @@ TEST(DefaultVideoJitterTimingTest, EstimateIncludesRttAfterRetransmission) {
   FieldTrials field_trials =
       CreateTestFieldTrials("WebRTC-JitterEstimatorConfig/nack_limit:1/");
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env =
+      CreateTestEnvironment({.field_trials = field_trials, .time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   timing.UpdateRtt(kRtt);
 
@@ -115,7 +119,9 @@ TEST(DefaultVideoJitterTimingTest, ResetClearsJitterEstimator) {
   FieldTrials field_trials =
       CreateTestFieldTrials("WebRTC-JitterEstimatorConfig/nack_limit:1/");
   SimulatedClock clock(kInitialTime);
-  DefaultVideoJitterTiming timing(&clock, field_trials);
+  Environment env =
+      CreateTestEnvironment({.field_trials = field_trials, .time = &clock});
+  DefaultVideoJitterTiming timing(env);
 
   timing.UpdateRtt(kRtt);
 

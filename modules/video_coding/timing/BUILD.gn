@@ -105,6 +105,7 @@ rtc_library("default_video_jitter_timing") {
     ":jitter_estimator",
     ":timestamp_extrapolator",
     "../../../api:field_trials_view",
+    "../../../api/environment",
     "../../../api/units:data_size",
     "../../../api/units:time_delta",
     "../../../api/units:timestamp",
@@ -158,6 +159,7 @@ rtc_library("timing_unittests") {
     ":timestamp_extrapolator",
     ":timing_module",
     "../../../api:field_trials",
+    "../../../api/environment",
     "../../../api/units:data_size",
     "../../../api/units:frequency",
     "../../../api/units:time_delta",
@@ -165,6 +167,7 @@ rtc_library("timing_unittests") {
     "../../../rtc_base:histogram_percentile_counter",
     "../../../system_wrappers",
     "../../../system_wrappers:metrics",
+    "../../../test:create_test_environment",
     "../../../test:create_test_field_trials",
     "../../../test:test_support",
   ]
