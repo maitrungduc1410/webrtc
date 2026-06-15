@@ -688,6 +688,7 @@ if (rtc_include_tests) {
         "../api/units:time_delta",
         "../api/video_codecs:video_codecs_api",
         "../media:media_constants",
+        "../test:create_test_field_trials",
         "../test:fileutils",
         "../test:test_support",
         "../test/pc/e2e:network_quality_metrics_reporter",
