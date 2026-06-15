@@ -797,7 +797,6 @@ if (rtc_include_tests) {
       "../../api:scoped_refptr",
       "../../api:simulcast_test_fixture_api",
       "../../api/environment",
-      "../../api/environment:environment_factory",
       "../../api/video:encoded_image",
       "../../api/video:video_bitrate_allocator",
       "../../api/video:video_frame",
@@ -979,7 +978,6 @@ if (rtc_include_tests) {
 
     deps = [
       "../../api/environment",
-      "../../api/environment:environment_factory",
       "../../api/test/metrics:global_metrics_logger_and_exporter",
       "../../api/units:data_rate",
       "../../api/units:frequency",

@@ -2320,7 +2320,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/audio_codecs:audio_codecs_api",
       "../api/crypto:options",
       "../api/environment",
-      "../api/environment:environment_factory",
       "../api/task_queue",
       "../api/task_queue:pending_task_safety_flag",
       "../api/transport:datagram_transport_interface",

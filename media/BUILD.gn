@@ -1004,7 +1004,6 @@ if (rtc_include_tests) {
         "../api/audio_codecs:builtin_audio_encoder_factory",
         "../api/crypto:options",
         "../api/environment",
-        "../api/environment:environment_factory",
         "../api/task_queue",
         "../api/test/video:function_video_factory",
         "../api/transport:bitrate_settings",

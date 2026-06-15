@@ -48,7 +48,6 @@ if (rtc_include_tests) {
       "../../../test:test_support",
       "../../../test:video_test_common",
       "../../environment",
-      "../../environment:environment_factory",
       "../../video:encoded_image",
       "../../video:resolution",
       "../../video:video_bitrate_allocator",
@@ -77,7 +76,6 @@ if (rtc_include_tests) {
       "../../../test:create_test_environment",
       "../../../test:test_support",
       "../../environment",
-      "../../environment:environment_factory",
       "//testing/gtest",
     ]
   }
@@ -97,7 +95,6 @@ if (rtc_include_tests) {
       "../../../test:create_test_environment",
       "../../../test:test_support",
       "../../environment",
-      "../../environment:environment_factory",
       "//testing/gtest",
     ]
   }

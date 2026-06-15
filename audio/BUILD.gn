@@ -263,7 +263,6 @@ if (rtc_include_tests) {
       "../api/audio_codecs:audio_codecs_api",
       "../api/audio_codecs:builtin_audio_decoder_factory",
       "../api/crypto:options",
-      "../api/environment:environment_factory",
       "../api/units:time_delta",
       "../api/units:timestamp",
       "../logging:mocks",
