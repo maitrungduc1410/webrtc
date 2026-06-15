@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -26,6 +27,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -763,6 +765,29 @@ void WriteSctpInit(const std::vector<uint8_t>& cookie, StringBuilder* os) {
   *os << kSdpDelimiterColon << Base64Encode(cookie);
 }
 
+bool IsValidAbsoluteUri(absl::string_view uri) {
+  for (size_t i = 0; i < uri.size(); ++i) {
+    char c = uri[i];
+    if (absl::ascii_iscntrl(c)) {
+      return false;
+    }
+    if (c == '%') {
+      if (i + 2 >= uri.size()) {
+        return false;
+      }
+      char decoded[1];
+      if (hex_decode(decoded, uri.substr(i + 1, 2)) != 1) {
+        return false;
+      }
+      if (absl::ascii_iscntrl(decoded[0])) {
+        return false;
+      }
+      i += 2;
+    }
+  }
+  return true;
+}
+
 bool ParseExtmap(absl::string_view line,
                  RtpExtension* extmap,
                  SdpParseError* error) {
@@ -803,6 +828,10 @@ bool ParseExtmap(absl::string_view line,
     if (uri == RtpExtension::kEncryptHeaderExtensionsUri) {
       return ParseFailed(line, "Recursive encrypted header.", error);
     }
+  }
+
+  if (!IsValidAbsoluteUri(uri)) {
+    return ParseFailed(line, "URI contains invalid characters.", error);
   }
 
   *extmap = RtpExtension(uri, RtpHeaderExtensionId(value), encrypted);
