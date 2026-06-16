@@ -122,9 +122,9 @@ class RenderingTracker : public AssembledFrameCallback,
   // Stats state. This is needed since the stats and the decodable frame are
   // provided by the VSBC on different callbacks, but we want to log the
   // the corresponding information simultaneously to our callback.
-  std::optional<int> vsbc_frames_dropped_;
+  std::optional<int> vsbc_frames_dropped_ RTC_GUARDED_BY(sequence_checker_);
   std::optional<VideoStreamBufferControllerObserverDecodableStats>
-      vsbc_decodable_stats_;
+      vsbc_decodable_stats_ RTC_GUARDED_BY(sequence_checker_);
 
   // Outputs.
   RenderingTrackerEvents& observer_;
