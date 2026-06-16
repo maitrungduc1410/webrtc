@@ -11,6 +11,9 @@
 #ifndef API_RTP_HEADER_EXTENSION_ID_H_
 #define API_RTP_HEADER_EXTENSION_ID_H_
 
+#include <concepts>
+#include <cstdint>
+
 #include "absl/base/macros.h"
 #include "absl/strings/str_format.h"
 #include "rtc_base/strong_alias.h"
@@ -39,16 +42,24 @@ class RtpHeaderExtensionId
 
   // The default constructor makes a NotSet.
   constexpr RtpHeaderExtensionId() : StrongAlias(0) {}
-  // Implicit conversion from and to int, required for downstream
-  // during conversion.
-  // TODO: bugs.webrtc.org/514817938 - make explicit when downstream fixed.
-  constexpr RtpHeaderExtensionId(int id)  // NOLINT: explicit
-      : StrongAlias(id) {
+  explicit constexpr RtpHeaderExtensionId(int id) : StrongAlias(id) {
     // TODO: bugs.webrtc.org/514817938 - enable these checks when tests fixed.
     // RTC_DCHECK_GE(id, kMinId.value());
     // RTC_DCHECK_LE(id, kMaxId.value());
   }
-  // TODO: bugs.webrtc.org/514817938 - RTC_DCHECK(id is valid).
+  explicit constexpr RtpHeaderExtensionId(uint8_t id) : StrongAlias(id) {}
+  // Deprecated template constructor to allow implicit conversion from
+  // int in downstream code.
+  // TODO: bugs.webrtc.org/514817938 - remove when downstream fixed.
+  template <typename T>
+  [[deprecated("Use explicit constructor")]]
+  constexpr RtpHeaderExtensionId(T id)  // NOLINT: explicit
+    requires std::integral<T>
+
+      : StrongAlias(static_cast<int>(id)) {}
+  // Deprecated operator to allow implicit conversion to int in
+  // downstream code.
+  // TODO: bugs.webrtc.org/514817938 - remove when downstream fixed.
   [[deprecated]] ABSL_REFACTOR_INLINE  //
       constexpr
       operator int() const& {  // NOLINT: explicit
