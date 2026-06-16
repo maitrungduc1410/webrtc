@@ -1174,100 +1174,6 @@ bool WildcardHostPrefixMatch(absl::string_view host,
   return host.size() == wildcard_host.size();
 }
 
-#if RTC_DCHECK_IS_ON
-bool SessionDescriptionStructureEquals(
-    const SessionDescriptionInterface& desc_a,
-    const SessionDescriptionInterface& desc_b) {
-  const SessionDescription* a = desc_a.description();
-  const SessionDescription* b = desc_b.description();
-  if (a == nullptr || b == nullptr) {
-    return a == b;
-  }
-  if (a->contents().size() != b->contents().size()) {
-    return false;
-  }
-  for (size_t i = 0; i < a->contents().size(); ++i) {
-    const auto& content_a = a->contents()[i];
-    const auto& content_b = b->contents()[i];
-    if (content_a.media_description()->type() !=
-        content_b.media_description()->type()) {
-      return false;
-    }
-    if (content_a.media_description()->protocol() !=
-        content_b.media_description()->protocol()) {
-      return false;
-    }
-    if (content_a.media_description()->direction() !=
-        content_b.media_description()->direction()) {
-      return false;
-    }
-    if (content_a.media_description()->has_codecs() !=
-        content_b.media_description()->has_codecs()) {
-      return false;
-    }
-    if (content_a.media_description()->has_codecs() &&
-        content_a.media_description()->codecs() !=
-            content_b.media_description()->codecs()) {
-      return false;
-    }
-    if (content_a.media_description()->rtp_header_extensions() !=
-        content_b.media_description()->rtp_header_extensions()) {
-      return false;
-    }
-  }
-  if (a->groups().size() != b->groups().size()) {
-    return false;
-  }
-  for (size_t i = 0; i < a->groups().size(); ++i) {
-    if (a->groups()[i].semantics() != b->groups()[i].semantics()) {
-      return false;
-    }
-    if (a->groups()[i].content_names().size() !=
-        b->groups()[i].content_names().size()) {
-      return false;
-    }
-  }
-  if (a->transport_infos().size() != b->transport_infos().size()) {
-    return false;
-  }
-  for (size_t i = 0; i < a->transport_infos().size(); ++i) {
-    const auto& transport_a = a->transport_infos()[i];
-    const auto& transport_b = b->transport_infos()[i];
-    if (transport_a.description.connection_role !=
-        transport_b.description.connection_role) {
-      return false;
-    }
-    const auto& fp_a = transport_a.description.identity_fingerprint;
-    const auto& fp_b = transport_b.description.identity_fingerprint;
-    if ((fp_a == nullptr) != (fp_b == nullptr)) {
-      return false;
-    }
-    if (fp_a != nullptr && *fp_a != *fp_b) {
-      return false;
-    }
-  }
-  return true;
-}
-
-class CreateSessionDescriptionObserverVerify
-    : public CreateSessionDescriptionObserver {
- public:
-  explicit CreateSessionDescriptionObserverVerify(
-      std::unique_ptr<SessionDescriptionInterface> expected)
-      : expected_(std::move(expected)) {}
-  void OnSuccess(SessionDescriptionInterface* desc) override {
-    std::unique_ptr<SessionDescriptionInterface> generated(desc);
-    RTC_DCHECK(SessionDescriptionStructureEquals(*expected_, *generated));
-  }
-  void OnFailure(RTCError error) override {
-    RTC_DCHECK_NOTREACHED() << "Cache verification failed: " << error.message();
-  }
-
- private:
-  std::unique_ptr<SessionDescriptionInterface> expected_;
-};
-#endif
-
 }  // namespace
 
 void UpdateRtpHeaderExtensionPreferencesFromSdpMunging(
@@ -2098,49 +2004,31 @@ void SdpOfferAnswerHandler::SetLocalDescription(
             std::move(operations_chain_callback));
         // Abort early if `this_weak_ptr` is no longer valid. This triggers the
         // same code path as if DoCreateOffer() or DoCreateAnswer() failed.
-        SdpOfferAnswerHandler* handler = this_weak_ptr.get();
-        if (handler == nullptr) {
+        if (!this_weak_ptr) {
           create_sdp_observer->OnFailure(RTCError(
               RTCErrorType::INTERNAL_ERROR,
               "SetLocalDescription failed because the session was shut down"));
           return;
         }
-        RTC_DCHECK_RUN_ON(handler->signaling_thread());
-        switch (handler->signaling_state()) {
+        switch (this_weak_ptr->signaling_state()) {
           case PeerConnectionInterface::kStable:
           case PeerConnectionInterface::kHaveLocalOffer:
           case PeerConnectionInterface::kHaveRemotePrAnswer:
-            if (handler->last_created_offer_ != nullptr &&
-                handler->last_created_offer_version_ ==
-                    handler->state_version_) {
-#if RTC_DCHECK_IS_ON
-              handler->VerifyCachedOffer();
-#endif
-              std::unique_ptr<SessionDescriptionInterface> desc_copy =
-                  handler->last_created_offer_->Clone();
-              create_sdp_observer->OnSuccess(desc_copy.release());
-            } else {
-              handler->DoCreateOffer(
-                  PeerConnectionInterface::RTCOfferAnswerOptions(),
-                  create_sdp_observer);
-            }
+            // TODO(hbos): If [LastCreatedOffer] exists and still represents the
+            // current state of the system, use that instead of creating another
+            // offer.
+            this_weak_ptr->DoCreateOffer(
+                PeerConnectionInterface::RTCOfferAnswerOptions(),
+                create_sdp_observer);
             break;
           case PeerConnectionInterface::kHaveLocalPrAnswer:
           case PeerConnectionInterface::kHaveRemoteOffer:
-            if (handler->last_created_answer_ != nullptr &&
-                handler->last_created_answer_version_ ==
-                    handler->state_version_) {
-#if RTC_DCHECK_IS_ON
-              handler->VerifyCachedAnswer();
-#endif
-              std::unique_ptr<SessionDescriptionInterface> desc_copy =
-                  handler->last_created_answer_->Clone();
-              create_sdp_observer->OnSuccess(desc_copy.release());
-            } else {
-              handler->DoCreateAnswer(
-                  PeerConnectionInterface::RTCOfferAnswerOptions(),
-                  create_sdp_observer);
-            }
+            // TODO(hbos): If [LastCreatedAnswer] exists and still represents
+            // the current state of the system, use that instead of creating
+            // another answer.
+            this_weak_ptr->DoCreateAnswer(
+                PeerConnectionInterface::RTCOfferAnswerOptions(),
+                create_sdp_observer);
             break;
           case PeerConnectionInterface::kClosed:
             create_sdp_observer->OnFailure(RTCError(
@@ -3128,11 +3016,9 @@ void SdpOfferAnswerHandler::DoCreateOffer(
   GetOptionsForOffer(options, &session_options);
   auto observer_wrapper =
       make_ref_counted<CreateDescriptionObserverWrapperWithCreationCallback>(
-          [this, state_version = state_version_](
-              std::unique_ptr<SessionDescriptionInterface> desc) {
+          [this](std::unique_ptr<SessionDescriptionInterface> desc) {
             RTC_DCHECK_RUN_ON(signaling_thread());
             last_created_offer_ = std::move(desc);
-            last_created_offer_version_ = state_version;
           },
           std::move(observer));
   webrtc_session_desc_factory_->CreateOffer(observer_wrapper.get(), options,
@@ -3225,11 +3111,9 @@ void SdpOfferAnswerHandler::DoCreateAnswer(
   GetOptionsForAnswer(options, &session_options);
   auto observer_wrapper =
       make_ref_counted<CreateDescriptionObserverWrapperWithCreationCallback>(
-          [this, state_version = state_version_](
-              std::unique_ptr<SessionDescriptionInterface> desc) {
+          [this](std::unique_ptr<SessionDescriptionInterface> desc) {
             RTC_DCHECK_RUN_ON(signaling_thread());
             last_created_answer_ = std::move(desc);
-            last_created_answer_version_ = state_version;
           },
           std::move(observer));
   webrtc_session_desc_factory_->CreateAnswer(observer_wrapper.get(),
@@ -3952,38 +3836,8 @@ std::optional<SSLRole> SdpOfferAnswerHandler::GetDtlsRole(
   return transport_controller_s()->GetDtlsRole(mid);
 }
 
-#if RTC_DCHECK_IS_ON
-void SdpOfferAnswerHandler::VerifyCachedOffer() {
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(last_created_offer_);
-  auto verify_observer =
-      make_ref_counted<CreateSessionDescriptionObserverVerify>(
-          last_created_offer_->Clone());
-  MediaSessionOptions session_options;
-  GetOptionsForOffer(PeerConnectionInterface::RTCOfferAnswerOptions(),
-                     &session_options);
-  webrtc_session_desc_factory_->CreateOffer(
-      verify_observer.get(), PeerConnectionInterface::RTCOfferAnswerOptions(),
-      session_options);
-}
-
-void SdpOfferAnswerHandler::VerifyCachedAnswer() {
-  RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(last_created_answer_);
-  auto verify_observer =
-      make_ref_counted<CreateSessionDescriptionObserverVerify>(
-          last_created_answer_->Clone());
-  MediaSessionOptions session_options;
-  GetOptionsForAnswer(PeerConnectionInterface::RTCOfferAnswerOptions(),
-                      &session_options);
-  webrtc_session_desc_factory_->CreateAnswer(verify_observer.get(),
-                                             session_options);
-}
-#endif
-
 void SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  ++state_version_;
   if (!IsUnifiedPlan()) {
     pc_->RunWithObserver(
         [&](auto observer) { observer->OnRenegotiationNeeded(); });

@@ -1141,7 +1141,6 @@ RtpTransceiver::GetStopTransceiverProcedure() {
 RTCError RtpTransceiver::SetCodecPreferences(
     std::span<RtpCodecCapability> codec_capabilities) {
   RTC_DCHECK(unified_plan_);
-  RTCError error = RTCError::OK();
   // 3. If codecs is an empty list, set transceiver's [[PreferredCodecs]] slot
   // to codecs and abort these steps.
   if (codec_capabilities.empty()) {
@@ -1149,21 +1148,17 @@ RTCError RtpTransceiver::SetCodecPreferences(
     sendrecv_codec_preferences_.clear();
     sendonly_codec_preferences_.clear();
     recvonly_codec_preferences_.clear();
-  } else {
-    // 4. Remove any duplicate values in codecs.
-    std::vector<RtpCodecCapability> codecs;
-    absl::c_remove_copy_if(codec_capabilities, std::back_inserter(codecs),
-                           [&codecs](const RtpCodecCapability& codec) {
-                             return absl::c_linear_search(codecs, codec);
-                           });
-    // TODO(https://crbug.com/webrtc/391530822): Move logic in
-    // MediaSessionDescriptionFactory to this level.
-    error = UpdateCodecPreferencesCaches(codecs);
+    return RTCError::OK();
   }
-  if (error.ok() && on_negotiation_needed_) {
-    on_negotiation_needed_();
-  }
-  return error;
+  // 4. Remove any duplicate values in codecs.
+  std::vector<RtpCodecCapability> codecs;
+  absl::c_remove_copy_if(codec_capabilities, std::back_inserter(codecs),
+                         [&codecs](const RtpCodecCapability& codec) {
+                           return absl::c_linear_search(codecs, codec);
+                         });
+  // TODO(https://crbug.com/webrtc/391530822): Move logic in
+  // MediaSessionDescriptionFactory to this level.
+  return UpdateCodecPreferencesCaches(codecs);
 }
 
 RTCError RtpTransceiver::UpdateCodecPreferencesCaches(
@@ -1336,10 +1331,6 @@ RTCError RtpTransceiver::SetHeaderExtensionsToNegotiate(
   for (size_t i = 0; i < header_extensions.size(); i++) {
     header_extensions_to_negotiate_[i].direction =
         header_extensions[i].direction;
-  }
-
-  if (on_negotiation_needed_) {
-    on_negotiation_needed_();
   }
 
   return RTCError::OK();
