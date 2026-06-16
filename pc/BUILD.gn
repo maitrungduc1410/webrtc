@@ -3831,6 +3831,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":integration_test_helpers",
       ":media_session",
       ":pc_test_utils",
+      ":sctp_transport",
       ":session_description",
       "../api:data_channel_interface",
       "../api:dtls_transport_interface",
