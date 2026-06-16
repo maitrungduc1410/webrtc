@@ -795,16 +795,16 @@ class CcFbSendRateAdaptation : public TestWithParam<TestVariant> {
     if (variant == TestVariant::kCcfbWithGoogCc) {
       caller_config.field_trials.Set(
           "WebRTC-RFC8888CongestionControlFeedback",
-          "Enabled,offer:true,feedback_fraction:0.05");
+          "Enabled,offer:true,feedback_fraction:0.1");
       callee_config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
-                                     "Enabled,feedback_fraction:0.05");
+                                     "Enabled,feedback_fraction:0.1");
     } else if (variant == TestVariant::kCcfbWithScreamV2) {
       caller_config.field_trials.Set(
           "WebRTC-RFC8888CongestionControlFeedback",
-          "Enabled,offer:true,feedback_fraction:0.05");
+          "Enabled,offer:true,feedback_fraction:0.1");
       caller_config.field_trials.Set("WebRTC-Bwe-ScreamV2", "Enabled");
       callee_config.field_trials.Set("WebRTC-RFC8888CongestionControlFeedback",
-                                     "Enabled,feedback_fraction:0.05");
+                                     "Enabled,feedback_fraction:0.1");
       callee_config.field_trials.Set("WebRTC-Bwe-ScreamV2", "Enabled");
     }
 
