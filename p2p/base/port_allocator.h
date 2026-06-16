@@ -331,12 +331,6 @@ class RTC_EXPORT PortAllocatorSession {
     candidates_allocation_done_callbacks_.Send(session);
   }
 
-  [[deprecated("Use SubscribeIceRegathering(void* tag, ...)")]]
-  void SubscribeIceRegathering(
-      absl::AnyInvocable<void(PortAllocatorSession*, IceRegatheringReason)>
-          callback) {
-    ice_regathering_callbacks_.AddReceiver(std::move(callback));
-  }
   void SubscribeIceRegathering(
       void* tag,
       absl::AnyInvocable<void(PortAllocatorSession*, IceRegatheringReason)>

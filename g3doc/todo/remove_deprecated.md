@@ -8,6 +8,8 @@ This document outlines the iterative process for identifying and removing
 deprecated symbols from the WebRTC codebase. The goal is to safely retire old
 APIs that have zero footprint in internal and external downstream projects.
 
+The tracking bug for this work is webrtc:42224904
+
 ## Removal Criteria
 
 A symbol is a candidate for removal only if it meets **all** of the following:

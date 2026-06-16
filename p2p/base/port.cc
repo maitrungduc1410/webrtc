@@ -49,7 +49,6 @@
 #include "rtc_base/network/received_packet.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/socket_address.h"
-#include "rtc_base/span_helpers.h"
 #include "rtc_base/string_encode.h"
 #include "rtc_base/string_utils.h"
 #include "rtc_base/strings/string_builder.h"
@@ -1074,16 +1073,6 @@ void Port::NotifyRoleConflict() {
   role_conflict_callback_();
 }
 
-[[deprecated]] void Port::SubscribeUnknownAddress(
-    absl::AnyInvocable<void(PortInterface*,
-                            const SocketAddress&,
-                            ProtocolType,
-                            IceMessage*,
-                            const std::string&,
-                            bool)> callback) {
-  unknown_address_callbacks_.AddReceiver(std::move(callback));
-}
-
 void Port::SubscribeUnknownAddress(const void* tag,
                                    absl::AnyInvocable<void(PortInterface*,
                                                            const SocketAddress&,
@@ -1103,19 +1092,6 @@ void Port::NotifyUnknownAddress(PortInterface* port,
   unknown_address_callbacks_.Send(port, address, proto, msg, rf, port_muxed);
 }
 
-// deprecated
-void Port::SubscribeReadPacket(
-    absl::AnyInvocable<
-        void(PortInterface*, const char*, size_t, const SocketAddress&)>
-        callback) {
-  SubscribeReadPacket(
-      nullptr, [cb = std::move(callback)](PortInterface* port,
-                                          std::span<const uint8_t> data,
-                                          const SocketAddress& addr) mutable {
-        cb(port, AsCharSpan(data).data(), data.size(), addr);
-      });
-}
-
 void Port::SubscribeReadPacket(
     const void* tag,
     absl::AnyInvocable<void(PortInterface*,
@@ -1128,12 +1104,6 @@ void Port::NotifyReadPacket(PortInterface* port,
                             std::span<const uint8_t> data,
                             const SocketAddress& remote_address) {
   read_packet_callbacks_.Send(port, data, remote_address);
-}
-
-[[deprecated]] void Port::SubscribeSentPacket(
-
-    absl::AnyInvocable<void(const SentPacketInfo&)> callback) {
-  sent_packet_callbacks_.AddReceiver(std::move(callback));
 }
 
 void Port::SubscribeSentPacket(

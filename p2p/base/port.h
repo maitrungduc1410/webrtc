@@ -417,14 +417,6 @@ class RTC_EXPORT Port : public PortInterface {
   void SubscribeRoleConflict(absl::AnyInvocable<void()> callback) override;
   void NotifyRoleConflict() override;
 
-  [[deprecated("Use SubscribeUnknownAddress(const void* tag, ...)")]]
-  void SubscribeUnknownAddress(
-      absl::AnyInvocable<void(PortInterface*,
-                              const SocketAddress&,
-                              ProtocolType,
-                              IceMessage*,
-                              const std::string&,
-                              bool)> callback) override;
   void SubscribeUnknownAddress(
       const void* tag,
       absl::AnyInvocable<void(PortInterface*,
@@ -442,11 +434,6 @@ class RTC_EXPORT Port : public PortInterface {
 
   // This function causes strange linker behavior if it's inlined,
   // otherwise it would have been ABSL_DEPRECATE_AND_INLINE.
-  [[deprecated("Use tagged version with span")]] void SubscribeReadPacket(
-      absl::AnyInvocable<
-          void(PortInterface*, const char*, size_t, const SocketAddress&)>
-          callback) override;
-
   void SubscribeReadPacket(
       const void* tag,
       absl::AnyInvocable<void(PortInterface*,
@@ -457,9 +444,6 @@ class RTC_EXPORT Port : public PortInterface {
                         std::span<const uint8_t> data,
                         const SocketAddress& remote_address) override;
 
-  [[deprecated("Use SubscribeSentPacket(const void* tag, ...)")]]
-  void SubscribeSentPacket(
-      absl::AnyInvocable<void(const SentPacketInfo&)> callback) override;
   void SubscribeSentPacket(
       const void* tag,
       absl::AnyInvocable<void(const SentPacketInfo&)> callback) override;
