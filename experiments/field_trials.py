@@ -561,7 +561,7 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
                date(2024, 4, 1)),
     FieldTrial('WebRTC-Audio-NetEqSmartFlushing',
                42222334,
-               date(2024, 4, 1)),
+               date(2027, 4, 1)),
     FieldTrial('WebRTC-Audio-OpusBitrateMultipliers',
                42221139,
                date(2024, 4, 1)),
