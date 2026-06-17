@@ -811,6 +811,9 @@ bool ParseExtmap(absl::string_view line,
   if (!GetValueFromString(line, sub_fields[0], &value, error)) {
     return false;
   }
+  if (!RtpHeaderExtensionId(value).Valid()) {
+    return ParseFailed(line, "Extension ID is not in valid range.", error);
+  }
 
   bool encrypted = false;
   if (uri == RtpExtension::kEncryptHeaderExtensionsUri) {

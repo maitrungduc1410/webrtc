@@ -5316,5 +5316,31 @@ TEST_F(WebRtcSdpTest, SframeAttributeRoundTrip) {
                   ->sframe_enabled());
 }
 
+TEST_F(WebRtcSdpTest, DeserializeSdpWithZeroExtmapId) {
+  std::string sdp = kSdpString;
+  std::string invalid_extmap =
+      "a=extmap:0 http://example.com/082005/ext.htm#ttime\r\n";
+  InjectAfter("a=mid:audio_content_name\r\n", invalid_extmap, &sdp);
+  SdpParseError error;
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp, &error);
+
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=extmap:0 http://example.com/082005/ext.htm#ttime");
+}
+
+TEST_F(WebRtcSdpTest, DeserializeSdpWithTooLargeExtmapId) {
+  std::string sdp = kSdpString;
+  std::string invalid_extmap =
+      "a=extmap:256 http://example.com/082005/ext.htm#ttime\r\n";
+  InjectAfter("a=mid:audio_content_name\r\n", invalid_extmap, &sdp);
+  SdpParseError error;
+  std::unique_ptr<SessionDescriptionInterface> output =
+      SdpDeserialize(sdp, &error);
+
+  ASSERT_THAT(output, IsNull());
+  EXPECT_EQ(error.line, "a=extmap:256 http://example.com/082005/ext.htm#ttime");
+}
+
 }  // namespace
 }  // namespace webrtc
