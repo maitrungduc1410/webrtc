@@ -1268,6 +1268,7 @@ RTCError MediaSessionDescriptionFactory::AddRtpContentForOffer(
   }
   // RFC 8888 support.
   content_description->set_rtcp_fb_ack_ccfb(offer_rfc_8888_);
+
   auto error = CreateMediaContentOffer(
       media_description_options, session_options, codecs_to_include,
       header_extensions, ssrc_generator(), current_streams,
