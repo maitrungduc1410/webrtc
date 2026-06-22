@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "media/base/video_adapter.h"
+#include "api/video/video_adapter.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -22,10 +22,10 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/resolution.h"
+#include "api/video/video_common.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_source_interface.h"
 #include "media/base/fake_frame_source.h"
-#include "media/base/video_common.h"
 #include "rtc_base/time_utils.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"

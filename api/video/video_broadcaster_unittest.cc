@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "media/base/video_broadcaster.h"
+#include "api/video/video_broadcaster.h"
 
 #include <limits>
 #include <optional>

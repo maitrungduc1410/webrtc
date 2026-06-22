@@ -57,7 +57,6 @@ rtc_library("rtc_media_base") {
     "base/video_common.h",  # Used downstream
   ]
   deps = [
-    ":adapted_video_track_source",
     ":codec",
     ":media_channel",
     ":media_channel_impl",
@@ -65,9 +64,6 @@ rtc_library("rtc_media_base") {
     ":rtc_media_config",
     ":rtp_utils",
     ":stream_params",
-    ":video_adapter",
-    ":video_broadcaster",
-    ":video_common",
     ":video_source_base",
     "../api:audio_options_api",
     "../api:call_api",
@@ -92,10 +88,14 @@ rtc_library("rtc_media_base") {
     "../api/transport:stun_types",
     "../api/transport/rtp:rtp_source",
     "../api/units:time_delta",
+    "../api/video:adapted_video_track_source",
     "../api/video:recordable_encoded_frame",
     "../api/video:resolution",
+    "../api/video:video_adapter",
     "../api/video:video_bitrate_allocation",
     "../api/video:video_bitrate_allocator_factory",
+    "../api/video:video_broadcaster",
+    "../api/video:video_common",
     "../api/video:video_frame",
     "../api/video:video_rtp_headers",
     "../api/video_codecs:scalability_mode",
@@ -129,50 +129,8 @@ rtc_library("rtc_media_base") {
   ]
 }
 
-rtc_library("adapted_video_track_source") {
-  sources = [
-    "base/adapted_video_track_source.cc",
-    "base/adapted_video_track_source.h",
-  ]
-  deps = [
-    ":video_adapter",
-    ":video_broadcaster",
-    "../api:media_stream_interface",
-    "../api:scoped_refptr",
-    "../api:video_track_source_constraints",
-    "../api/video:recordable_encoded_frame",
-    "../api/video:video_frame",
-    "../api/video:video_rtp_headers",
-    "../rtc_base:checks",
-    "../rtc_base:macromagic",
-    "../rtc_base:timeutils",
-    "../rtc_base/synchronization:mutex",
-    "../rtc_base/system:rtc_export",
-  ]
-}
-
 rtc_source_set("audio_source") {
   sources = [ "base/audio_source.h" ]
-}
-
-rtc_library("video_adapter") {
-  sources = [
-    "base/video_adapter.cc",
-    "base/video_adapter.h",
-  ]
-  deps = [
-    ":video_common",
-    "../api/video:resolution",
-    "../api/video:video_frame",
-    "../common_video",
-    "../rtc_base:checks",
-    "../rtc_base:logging",
-    "../rtc_base:macromagic",
-    "../rtc_base:stringutils",
-    "../rtc_base:timeutils",
-    "../rtc_base/synchronization:mutex",
-    "../rtc_base/system:rtc_export",
-  ]
 }
 
 rtc_library("video_source_base") {
@@ -190,39 +148,6 @@ rtc_library("video_source_base") {
   ]
 }
 
-rtc_library("video_broadcaster") {
-  sources = [
-    "base/video_broadcaster.cc",
-    "base/video_broadcaster.h",  # Used downstream
-  ]
-  deps = [
-    ":video_common",
-    ":video_source_base",
-    "../api:media_stream_interface",
-    "../api:scoped_refptr",
-    "../api:sequence_checker",
-    "../api:video_track_source_constraints",
-    "../api/video:video_frame",
-    "../api/video:video_rtp_headers",
-    "../rtc_base:checks",
-    "../rtc_base:logging",
-    "../rtc_base:macromagic",
-    "../rtc_base/synchronization:mutex",
-  ]
-}
-
-rtc_library("video_common") {
-  sources = [
-    "base/video_common.cc",
-    "base/video_common.h",
-  ]
-  deps = [
-    "../rtc_base:stringutils",
-    "../rtc_base:timeutils",
-    "../rtc_base/system:rtc_export",
-  ]
-}
-
 rtc_library("media_engine") {
   sources = [
     "base/media_engine.cc",
@@ -235,7 +160,6 @@ rtc_library("media_engine") {
     ":rid_description",
     ":rtc_media_config",
     ":stream_params",
-    ":video_common",
     "../api:audio_options_api",
     "../api:field_trials_view",
     "../api:rtc_error",
@@ -251,6 +175,7 @@ rtc_library("media_engine") {
     "../api/video:video_bitrate_allocation",
     "../api/video:video_bitrate_allocator_factory",
     "../api/video:video_codec_constants",
+    "../api/video:video_common",
     "../api/video_codecs:scalability_mode",
     "../api/video_codecs:scalability_mode_helper",
     "../api/video_codecs:video_codecs_api",
@@ -488,7 +413,6 @@ rtc_library("rtc_simulcast_encoder_adapter") {
   ]
   deps = [
     ":rtc_sdp_video_format_utils",
-    ":video_common",
     "../api:fec_controller_api",
     "../api:field_trials_view",
     "../api:scoped_refptr",
@@ -500,6 +424,7 @@ rtc_library("rtc_simulcast_encoder_adapter") {
     "../api/video:video_bitrate_allocation",
     "../api/video:video_bitrate_allocator",
     "../api/video:video_codec_constants",
+    "../api/video:video_common",
     "../api/video:video_frame",
     "../api/video:video_frame_type",
     "../api/video:video_rtp_headers",
@@ -826,7 +751,6 @@ if (rtc_include_tests) {
       ":rtc_simulcast_encoder_adapter",
       ":rtp_utils",
       ":stream_params",
-      ":video_common",
       "../api:audio_options_api",
       "../api:call_api",
       "../api:fec_controller_api",
@@ -860,6 +784,7 @@ if (rtc_include_tests) {
       "../api/video:resolution",
       "../api/video:video_bitrate_allocation",
       "../api/video:video_bitrate_allocator_factory",
+      "../api/video:video_common",
       "../api/video:video_frame",
       "../api/video:video_frame_type",
       "../api/video:video_rtp_headers",
@@ -971,7 +896,6 @@ if (rtc_include_tests) {
         ":rtp_utils",
         ":stream_params",
         ":turn_utils",
-        ":video_common",
         "../api:audio_options_api",
         "../api:call_api",
         "../api:create_simulcast_test_fixture_api",
@@ -1022,6 +946,7 @@ if (rtc_include_tests) {
         "../api/video:video_bitrate_allocator",
         "../api/video:video_bitrate_allocator_factory",
         "../api/video:video_codec_constants",
+        "../api/video:video_common",
         "../api/video:video_frame",
         "../api/video:video_frame_type",
         "../api/video:video_rtp_headers",
@@ -1104,9 +1029,6 @@ if (rtc_include_tests) {
         "base/sdp_video_format_utils_unittest.cc",
         "base/stream_params_unittest.cc",
         "base/turn_utils_unittest.cc",
-        "base/video_adapter_unittest.cc",
-        "base/video_broadcaster_unittest.cc",
-        "base/video_common_unittest.cc",
         "engine/internal_decoder_factory_unittest.cc",
         "engine/internal_encoder_factory_unittest.cc",
         "engine/simulcast_encoder_adapter_unittest.cc",

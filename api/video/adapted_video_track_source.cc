@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "media/base/adapted_video_track_source.h"
+#include "api/video/adapted_video_track_source.h"
 
 #include <cstdint>
 

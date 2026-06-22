@@ -38,7 +38,7 @@ rtc_library("primitives") {
 
   deps = [
     "../../api:scoped_refptr",
-    "../../media:video_common",
+    "../../api/video:video_common",
     "../../rtc_base:checks",
     "../../rtc_base:refcount",
     "../../rtc_base:stringutils",
@@ -289,7 +289,7 @@ rtc_library("desktop_capture") {
     "../../api/environment",
     "../../api/units:time_delta",
     "../../api/units:timestamp",
-    "../../media:video_common",
+    "../../api/video:video_common",
     "../../rtc_base/containers:flat_map",
     "../../rtc_base/containers:flat_set",
     "../../system_wrappers",

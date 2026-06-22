@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "media/base/video_adapter.h"
+#include "api/video/video_adapter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,8 +21,8 @@
 #include <utility>
 
 #include "api/video/resolution.h"
+#include "api/video/video_common.h"
 #include "api/video/video_source_interface.h"
-#include "media/base/video_common.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
