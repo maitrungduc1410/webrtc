@@ -2740,6 +2740,10 @@ void VideoStreamEncoder::ProcessDroppedFrame(
   accumulated_update_rect_is_valid_ &= frame.has_update_rect();
   stream_resource_manager_.OnFrameDropped(reason);
   encoder_stats_observer_->OnFrameDropped(reason);
+  if (reason == VideoStreamEncoderObserver::DropReason::kMediaOptimization &&
+      bitrate_adjuster_) {
+    bitrate_adjuster_->OnFrameDropped();
+  }
 }
 
 }  // namespace webrtc
