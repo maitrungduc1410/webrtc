@@ -1507,5 +1507,17 @@ TEST_F(VideoSendStreamImplTest, TestElasticityForScreenshare) {
   vss_impl->Stop();
 }
 
+TEST_F(VideoSendStreamImplTest, GenerateKeyFrameWithMismatchedRids) {
+  // Multiple RIDs available for simulcast.
+  config_.rtp.rids = {"a", "b", "c"};
+  // Single encoder config (no simulcast, or potentially SVC).
+  auto vss_impl = CreateVideoSendStreamImpl(
+      TestVideoEncoderConfig(VideoEncoderConfig::ContentType::kRealtimeVideo));
+  vss_impl->Start();
+  // Generating a keyframe on a RID that is not available should be a noop.
+  vss_impl->GenerateKeyFrame({"c"});
+  vss_impl->Stop();
+}
+
 }  // namespace internal
 }  // namespace webrtc

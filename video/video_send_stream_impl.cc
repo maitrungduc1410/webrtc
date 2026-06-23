@@ -665,6 +665,10 @@ void VideoSendStreamImpl::StopPermanentlyAndGetRtpStates(
 void VideoSendStreamImpl::GenerateKeyFrame(
     const std::vector<std::string>& rids) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
+  if (!video_stream_encoder_) {
+    return;
+  }
+
   // Map rids to layers. If rids is empty, generate a keyframe for all layers.
   std::vector<VideoFrameType> next_frames(config_.rtp.ssrcs.size(),
                                           VideoFrameType::kVideoFrameKey);
@@ -674,15 +678,16 @@ void VideoSendStreamImpl::GenerateKeyFrame(
     for (const auto& rid : rids) {
       for (size_t i = 0; i < config_.rtp.rids.size(); i++) {
         if (config_.rtp.rids[i] == rid) {
-          next_frames[i] = VideoFrameType::kVideoFrameKey;
+          if (i < next_frames.size()) {
+            next_frames[i] = VideoFrameType::kVideoFrameKey;
+          }
           break;
         }
       }
     }
   }
-  if (video_stream_encoder_) {
-    video_stream_encoder_->SendKeyFrame(next_frames);
-  }
+
+  video_stream_encoder_->SendKeyFrame(next_frames);
 }
 
 void VideoSendStreamImpl::DeliverRtcp(std::span<const uint8_t> packet) {
