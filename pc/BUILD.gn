@@ -1236,6 +1236,7 @@ rtc_library("sdp_offer_answer") {
     "../rtc_base/containers:flat_map",
     "../rtc_base/containers:flat_set",
     "../rtc_base/system:plan_b_only",
+    "../rtc_base/system:unused",
     "../system_wrappers:metrics",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/cleanup",
