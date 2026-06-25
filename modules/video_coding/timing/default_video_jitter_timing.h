@@ -36,8 +36,8 @@ class DefaultVideoJitterTiming : public VideoJitterTimingInterface {
   // Resets members to its initial state.
   void Reset() override;
 
-  // Updates the extrapolator with the timestamp of a complete frame.
-  void OnCompleteFrame(uint32_t rtp_timestamp, Timestamp receive_time) override;
+  // Updates the extrapolator with information of a complete frame.
+  void OnCompleteFrame(const FrameInfo& info) override;
 
   // Returns the extrapolated local time for a given RTP timestamp.
   std::optional<Timestamp> LocalTime(uint32_t rtp_timestamp) const override;
@@ -55,6 +55,7 @@ class DefaultVideoJitterTiming : public VideoJitterTimingInterface {
   TimestampExtrapolator ts_extrapolator_;
   JitterEstimator jitter_estimator_;
   InterFrameDelayVariationCalculator ifdv_calculator_;
+  const bool update_on_every_frame_;
 };
 
 }  // namespace webrtc

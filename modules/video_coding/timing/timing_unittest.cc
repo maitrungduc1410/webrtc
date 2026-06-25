@@ -30,16 +30,14 @@ namespace webrtc {
 namespace {
 
 using ::testing::_;
+using ::testing::Field;
 using ::testing::FieldsAre;
 using ::testing::Return;
 
 class MockVideoJitterTiming : public VideoJitterTimingInterface {
  public:
   MOCK_METHOD(void, Reset, (), (override));
-  MOCK_METHOD(void,
-              OnCompleteFrame,
-              (uint32_t rtp_timestamp, Timestamp receive_time),
-              (override));
+  MOCK_METHOD(void, OnCompleteFrame, (const FrameInfo& info), (override));
   MOCK_METHOD(std::optional<Timestamp>,
               LocalTime,
               (uint32_t rtp_timestamp),
@@ -131,7 +129,9 @@ TEST(VCMTimingTest, TimestampWrapAround) {
   constexpr uint32_t kRtpTicksPerFrame = k90kHz / k25Fps;
   uint32_t timestamp = 0xFFFFFFFFu - 3 * kRtpTicksPerFrame;
   for (int i = 0; i < 5; ++i) {
-    timing.OnCompleteTemporalUnit(timestamp, clock.CurrentTime());
+    timing.OnCompleteFrame({.rtp_timestamp = timestamp,
+                            .time = clock.CurrentTime(),
+                            .last_spatial_layer = true});
     clock.AdvanceTime(1 / k25Fps);
     timestamp += kRtpTicksPerFrame;
     EXPECT_EQ(kStartTime + 3 / k25Fps,
@@ -241,7 +241,9 @@ TEST(VCMTimingTest, GetTimings) {
   timing.set_playout_delay({min_playout_delay, max_playout_delay});
 
   // On complete.
-  timing.OnCompleteTemporalUnit(3000, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 3000,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
   clock.AdvanceTimeMilliseconds(1);
 
   // On decodable.
@@ -277,7 +279,9 @@ TEST(VCMTimingTest, Reset) {
   timing.set_playout_delay({min_playout_delay, max_playout_delay});
 
   // On complete.
-  timing.OnCompleteTemporalUnit(3000, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 3000,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
 
   // On decodable.
   Timestamp render_time = timing.RenderTime(3000, clock.CurrentTime());
@@ -324,14 +328,16 @@ TEST(VCMTimingTest, GetTimingsBeforeAndAfterValidRtpTimestamp) {
     rtp_ts += rtp_ts_delta_10fps;
 
     Timestamp render_time = timing.RenderTime(rtp_ts, clock.CurrentTime());
-    // Render time should be CurrentTime, because timing.OnCompleteTemporalUnit
+    // Render time should be CurrentTime, because timing.OnCompleteFrame
     // has not been called yet.
     EXPECT_EQ(render_time, clock.CurrentTime());
   }
 
   // On frame complete, which one not 'metadata.delayed_by_retransmission'
   Timestamp valid_frame_ts = clock.CurrentTime();
-  timing.OnCompleteTemporalUnit(rtp_ts, valid_frame_ts);
+  timing.OnCompleteFrame({.rtp_timestamp = rtp_ts,
+                          .time = valid_frame_ts,
+                          .last_spatial_layer = true});
 
   clock.AdvanceTimeMilliseconds(any_time_elapsed);
   rtp_ts += rtp_ts_delta_10fps;
@@ -404,7 +410,9 @@ TEST(VCMTimingTest, RenderTimeAccountsForCurrentDelay) {
   VCMTiming timing(&clock, field_trials, kRenderDelay);
 
   timing.set_playout_delay({TimeDelta::Millis(100), TimeDelta::Millis(200)});
-  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/0, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 0,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
   // Current delay is initialized to minimum delay.
   timing.SetMinimumDelay(TimeDelta::Millis(123));
 
@@ -418,7 +426,9 @@ TEST(VCMTimingTest, RenderTimeRespectsMinPlayoutDelay) {
   VCMTiming timing(&clock, field_trials, kRenderDelay);
 
   timing.set_playout_delay({TimeDelta::Millis(100), TimeDelta::Millis(200)});
-  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/0, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 0,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
   // Current delay is initialized to minimum delay.
   timing.SetMinimumDelay(TimeDelta::Millis(90));
 
@@ -432,7 +442,9 @@ TEST(VCMTimingTest, RenderTimeRespectsMaxPlayoutDelay) {
   VCMTiming timing(&clock, field_trials, kRenderDelay);
 
   timing.set_playout_delay({TimeDelta::Millis(100), TimeDelta::Millis(200)});
-  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/0, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 0,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
   // Current delay is initialized to minimum delay.
   timing.SetMinimumDelay(TimeDelta::Millis(210));
 
@@ -447,7 +459,9 @@ TEST(VCMTimingTest, ResetClearsTimestampExtrapolator) {
 
   // Current delay is initialized to minimum delay.
   timing.SetMinimumDelay(TimeDelta::Millis(123));
-  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/0, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = 0,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true});
   EXPECT_EQ(timing.RenderTime(/*rtp_timestamp=*/0, kUnusedTimestamp),
             clock.CurrentTime() + TimeDelta::Millis(123));
 
@@ -574,7 +588,7 @@ TEST(VCMTimingTest, MinPlayoutDelayUpdatesTargetDelay) {
 
 TEST(VCMTimingTest, DelegatesToVideoJitterTiming) {
   FieldTrials field_trials = CreateTestFieldTrials();
-  SimulatedClock clock(Timestamp::Millis(0));
+  SimulatedClock clock(Timestamp::Millis(11));
   auto mock_jitter_timing = std::make_unique<MockVideoJitterTiming>();
   MockVideoJitterTiming* mock_ptr = mock_jitter_timing.get();
 
@@ -587,8 +601,10 @@ TEST(VCMTimingTest, DelegatesToVideoJitterTiming) {
   EXPECT_CALL(*mock_ptr, Reset());
   timing.Reset();
 
-  EXPECT_CALL(*mock_ptr, OnCompleteFrame(123, clock.CurrentTime()));
-  timing.OnCompleteTemporalUnit(/*rtp_timestamp=*/123, clock.CurrentTime());
+  EXPECT_CALL(*mock_ptr,
+              OnCompleteFrame(Field(
+                  &VideoJitterTimingInterface::FrameInfo::rtp_timestamp, 123)));
+  timing.OnCompleteFrame({.rtp_timestamp = 123});
 }
 
 TEST(VCMTimingTest, RenderTimeReturnsEstimatedLocalTimeForRtpTimestamp) {

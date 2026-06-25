@@ -33,7 +33,9 @@ DefaultVideoJitterTiming::DefaultVideoJitterTiming(
     const FieldTrialsView& field_trials)
     : clock_(clock),
       ts_extrapolator_(clock_->CurrentTime(), field_trials),
-      jitter_estimator_(clock_, field_trials) {}
+      jitter_estimator_(clock_, field_trials),
+      update_on_every_frame_(
+          field_trials.IsDisabled("WebRTC-IncomingTimestampOnMarkerBitOnly")) {}
 
 DefaultVideoJitterTiming::~DefaultVideoJitterTiming() = default;
 
@@ -42,9 +44,11 @@ void DefaultVideoJitterTiming::Reset() {
   jitter_estimator_.Reset();
 }
 
-void DefaultVideoJitterTiming::OnCompleteFrame(uint32_t rtp_timestamp,
-                                               Timestamp receive_time) {
-  ts_extrapolator_.Update(receive_time, rtp_timestamp);
+void DefaultVideoJitterTiming::OnCompleteFrame(const FrameInfo& info) {
+  if (!info.was_retransmitted &&
+      (update_on_every_frame_ || info.last_spatial_layer)) {
+    ts_extrapolator_.Update(info.time, info.rtp_timestamp);
+  }
 }
 
 std::optional<Timestamp> DefaultVideoJitterTiming::LocalTime(

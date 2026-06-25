@@ -187,10 +187,10 @@ void VCMTiming::UpdateDecodeTimeEstimate(TimeDelta decode_time, Timestamp now) {
       TimeDelta::Millis(decode_time_filter_->GetPercentileMs());
 }
 
-void VCMTiming::OnCompleteTemporalUnit(uint32_t rtp_timestamp,
-                                       Timestamp receive_time) {
+void VCMTiming::OnCompleteFrame(
+    const VideoJitterTimingInterface::FrameInfo& info) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
-  video_jitter_timing_->OnCompleteFrame(rtp_timestamp, receive_time);
+  video_jitter_timing_->OnCompleteFrame(info);
 }
 
 Timestamp VCMTiming::RenderTime(uint32_t rtp_timestamp, Timestamp now) const {

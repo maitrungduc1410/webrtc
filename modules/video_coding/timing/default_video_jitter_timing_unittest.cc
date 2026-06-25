@@ -44,7 +44,10 @@ TEST(DefaultVideoJitterTimingTest, LocalTimeReturnsTimeAfterUpdate) {
   Environment env = CreateTestEnvironment({.time = &clock});
   DefaultVideoJitterTiming timing(env);
 
-  timing.OnCompleteFrame(kRtpTimestamp, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = kRtpTimestamp,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true,
+                          .was_retransmitted = false});
   EXPECT_EQ(timing.LocalTime(kRtpTimestamp), clock.CurrentTime());
 }
 
@@ -53,11 +56,54 @@ TEST(DefaultVideoJitterTimingTest, LocalTimeReturnsNulloptAfterReset) {
   Environment env = CreateTestEnvironment({.time = &clock});
   DefaultVideoJitterTiming timing(env);
 
-  timing.OnCompleteFrame(kRtpTimestamp, clock.CurrentTime());
+  timing.OnCompleteFrame({.rtp_timestamp = kRtpTimestamp,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true,
+                          .was_retransmitted = false});
   EXPECT_EQ(timing.LocalTime(kRtpTimestamp), clock.CurrentTime());
 
   timing.Reset();
   EXPECT_EQ(timing.LocalTime(kRtpTimestamp), std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest, LocalTimeNotUpdatedByRetransmittedFrame) {
+  SimulatedClock clock(kInitialTime);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
+
+  timing.OnCompleteFrame({.rtp_timestamp = kRtpTimestamp,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = true,
+                          .was_retransmitted = true});
+  EXPECT_EQ(timing.LocalTime(kRtpTimestamp), std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest, LocalTimeNotUpdatedByNonLastSpatialLayer) {
+  SimulatedClock clock(kInitialTime);
+  Environment env = CreateTestEnvironment({.time = &clock});
+  DefaultVideoJitterTiming timing(env);
+
+  timing.OnCompleteFrame({.rtp_timestamp = kRtpTimestamp,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = false,
+                          .was_retransmitted = false});
+  EXPECT_EQ(timing.LocalTime(kRtpTimestamp), std::nullopt);
+}
+
+TEST(DefaultVideoJitterTimingTest,
+     LocalTimeUpdatedByNonLastSpatialLayerWhenMarkerBitOnlyDisabled) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-IncomingTimestampOnMarkerBitOnly/Disabled/");
+  SimulatedClock clock(kInitialTime);
+  Environment env =
+      CreateTestEnvironment({.field_trials = field_trials, .time = &clock});
+  DefaultVideoJitterTiming timing(env);
+
+  timing.OnCompleteFrame({.rtp_timestamp = kRtpTimestamp,
+                          .time = clock.CurrentTime(),
+                          .last_spatial_layer = false,
+                          .was_retransmitted = false});
+  EXPECT_NE(timing.LocalTime(kRtpTimestamp), std::nullopt);
 }
 
 TEST(DefaultVideoJitterTimingTest, OnDecodableTemporalUnitReturnsEstimate) {
