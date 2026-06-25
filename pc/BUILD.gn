@@ -4209,9 +4209,13 @@ if (rtc_include_tests && !build_with_chromium) {
       ":sctp_utils",
       "../api:data_channel_event_observer_interface",
       "../api:data_channel_interface",
+      "../api:jsep",
       "../api:make_ref_counted",
+      "../api:media_stream_interface",
+      "../api:peer_connection_interface",
       "../api:priority",
       "../api:rtc_error",
+      "../api:rtp_receiver_interface",
       "../api:scoped_refptr",
       "../api:sctp_transport_interface",
       "../api/transport:datagram_transport_interface",
@@ -4223,6 +4227,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base:threading",
       "../test:run_loop",
       "../test:test_support",
+      "//third_party/abseil-cpp/absl/functional:any_invocable",
     ]
   }
 
