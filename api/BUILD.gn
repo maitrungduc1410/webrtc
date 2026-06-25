@@ -491,6 +491,7 @@ rtc_library("peer_connection_interface") {
     "transport:sctp_transport_factory_interface",
     "units:time_delta",
     "video:video_bitrate_allocator_factory",
+    "video/timing:video_jitter_timing_factory",
     "video_codecs:video_codecs_api",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/strings:string_view",

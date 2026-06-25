@@ -1655,6 +1655,7 @@ rtc_library("peer_connection_factory") {
     "../api/transport:network_control",
     "../api/transport:sctp_transport_factory_interface",
     "../api/units:data_rate",
+    "../api/video/timing:video_jitter_timing_factory",
     "../call:call_interfaces",
     "../media:codec",
     "../media:media_engine",
