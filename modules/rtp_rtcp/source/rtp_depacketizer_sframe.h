@@ -22,7 +22,7 @@ class RtpPacketReceived;
 
 // Parses the SFrame RTP payload descriptor from the given `packet`.
 // Consumes the first byte of the payload, returns a SframeRtpPacketReceived
-// carrying the parsed SFrameDescriptor and a copy of the packet whose payload
+// carrying the parsed SframeDescriptor and a copy of the packet whose payload
 // has had the descriptor byte stripped.  Returns an error if `packet` is not
 // a valid SFrame packet.
 RTCErrorOr<std::unique_ptr<SframeRtpPacketReceived>>

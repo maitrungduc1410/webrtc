@@ -38,7 +38,7 @@ enum class SframeEncryptionLevel {
 // E: End bit   — 1 if this is the last fragment of the SFrame frame.
 // T: Type bit  — 0 for raw (per-frame SFrame), 1 for packetized (per-packet).
 // x: Reserved, must be 0.
-struct SFrameDescriptor {
+struct SframeDescriptor {
   // Wire-format constants for the 1-byte descriptor.
   static constexpr size_t kSize = 1;
   // Bit indices within the sframe header descriptor byte.

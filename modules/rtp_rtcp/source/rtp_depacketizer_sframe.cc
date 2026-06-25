@@ -24,16 +24,16 @@ namespace webrtc {
 
 RTCErrorOr<std::unique_ptr<SframeRtpPacketReceived>>
 ParseSframeRtpPacketOrError(const RtpPacketReceived& packet) {
-  if (packet.payload_size() < SFrameDescriptor::kSize) {
+  if (packet.payload_size() < SframeDescriptor::kSize) {
     return RTCError::InvalidParameter(
         "RTP payload too short for Sframe descriptor");
   }
 
   const std::bitset<8> bits(packet.payload()[0]);
-  SFrameDescriptor descriptor;
-  descriptor.start = bits[SFrameDescriptor::kSBit];
-  descriptor.end = bits[SFrameDescriptor::kEBit];
-  descriptor.encryption_level = bits[SFrameDescriptor::kTBit]
+  SframeDescriptor descriptor;
+  descriptor.start = bits[SframeDescriptor::kSBit];
+  descriptor.end = bits[SframeDescriptor::kEBit];
+  descriptor.encryption_level = bits[SframeDescriptor::kTBit]
                                     ? SframeEncryptionLevel::kPacket
                                     : SframeEncryptionLevel::kFrame;
 
@@ -41,7 +41,7 @@ ParseSframeRtpPacketOrError(const RtpPacketReceived& packet) {
 
   const size_t padding_size = stripped->padding_size();
   stripped->SetPadding(0);
-  stripped->SetPayload(packet.payload().subspan(SFrameDescriptor::kSize));
+  stripped->SetPayload(packet.payload().subspan(SframeDescriptor::kSize));
   stripped->SetPadding(padding_size);
   return std::make_unique<SframeRtpPacketReceived>(std::move(stripped),
                                                    descriptor);
