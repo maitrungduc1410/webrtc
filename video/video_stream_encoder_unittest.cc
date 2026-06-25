@@ -8355,6 +8355,51 @@ TEST_F(VideoStreamEncoderTest, SetsFrameTypesSimulcast) {
   video_stream_encoder_->Stop();
 }
 
+TEST_F(VideoStreamEncoderTest, MergesKeyFrameRequestsForMultipleLayers) {
+  // Setup simulcast with three streams.
+  ResetEncoder("VP8", 3, 1, 1, false);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kSimulcastTargetBitrate, kSimulcastTargetBitrate, 0, 0, 0);
+  sink_.SetNumExpectedLayers(3);
+
+  // First frame is always keyframe.
+  video_source_.IncomingCapturedFrame(CreateFrame(1, nullptr));
+  WaitForEncodedFrame(1);
+  EXPECT_THAT(fake_encoder_.LastFrameTypes(),
+              ::testing::ElementsAreArray({VideoFrameType::kVideoFrameKey,
+                                           VideoFrameType::kVideoFrameKey,
+                                           VideoFrameType::kVideoFrameKey}));
+
+  // Insert delta frame.
+  video_source_.IncomingCapturedFrame(CreateFrame(2, nullptr));
+  WaitForEncodedFrame(2);
+  EXPECT_THAT(fake_encoder_.LastFrameTypes(),
+              ::testing::ElementsAreArray({VideoFrameType::kVideoFrameDelta,
+                                           VideoFrameType::kVideoFrameDelta,
+                                           VideoFrameType::kVideoFrameDelta}));
+
+  // Request next frame be a keyframe on first and third layers by calling
+  // SendKeyFrame twice.
+  video_stream_encoder_->SendKeyFrame({VideoFrameType::kVideoFrameKey,
+                                       VideoFrameType::kVideoFrameDelta,
+                                       VideoFrameType::kVideoFrameDelta});
+  video_stream_encoder_->SendKeyFrame({VideoFrameType::kVideoFrameDelta,
+                                       VideoFrameType::kVideoFrameDelta,
+                                       VideoFrameType::kVideoFrameKey});
+
+  video_source_.IncomingCapturedFrame(CreateFrame(3, nullptr));
+  WaitForEncodedFrame(3);
+
+  // Verify that both requests are merged, producing keyframes on 1st and 3rd
+  // streams.
+  EXPECT_THAT(fake_encoder_.LastFrameTypes(),
+              ::testing::ElementsAreArray({VideoFrameType::kVideoFrameKey,
+                                           VideoFrameType::kVideoFrameDelta,
+                                           VideoFrameType::kVideoFrameKey}));
+
+  video_stream_encoder_->Stop();
+}
+
 TEST_F(VideoStreamEncoderTest, DoesNotRewriteH264BitstreamWithOptimalSps) {
   // SPS contains VUI with restrictions on the maximum number of reordered
   // pictures, there is no need to rewrite the bitstream to enable faster

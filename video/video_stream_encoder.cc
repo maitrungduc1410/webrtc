@@ -2253,7 +2253,9 @@ void VideoStreamEncoder::SendKeyFrame(
   if (!layers.empty()) {
     RTC_DCHECK_EQ(layers.size(), next_frame_types_.size());
     for (size_t i = 0; i < layers.size() && i < next_frame_types_.size(); i++) {
-      next_frame_types_[i] = layers[i];
+      if (layers[i] == VideoFrameType::kVideoFrameKey) {
+        next_frame_types_[i] = VideoFrameType::kVideoFrameKey;
+      }
     }
   } else {
     std::fill(next_frame_types_.begin(), next_frame_types_.end(),

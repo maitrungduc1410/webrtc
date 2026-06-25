@@ -479,7 +479,8 @@ VideoSendStreamImpl::VideoSendStreamImpl(
       encoder_feedback_(
           env_,
           SupportsPerLayerPictureLossIndication(
-              encoder_config.video_format.parameters),
+              encoder_config.video_format.parameters) ||
+              env_.field_trials().IsEnabled("WebRTC-Video-PerSsrcKeyframes"),
           config_.rtp.ssrcs,
           video_stream_encoder_.get(),
           [this](uint32_t ssrc, const std::vector<uint16_t>& seq_nums) {
