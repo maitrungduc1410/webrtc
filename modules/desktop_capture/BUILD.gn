@@ -373,8 +373,7 @@ if (rtc_include_tests) {
       }
     }
 
-    rtc_library("screen_capturer_unittest") {
-      testonly = true
+    rtc_cc_test("screen_capturer_unittest") {
       sources = [ "screen_capturer_unittest.cc" ]
       deps = [
         ":desktop_capture",
@@ -388,8 +387,7 @@ if (rtc_include_tests) {
       }
     }
 
-    rtc_library("window_capturer_unittest") {
-      testonly = true
+    rtc_cc_test("window_capturer_unittest") {
       sources = [ "window_capturer_unittest.cc" ]
       deps = [
         ":desktop_capture",
@@ -451,6 +449,13 @@ if (rtc_include_tests) {
     }
   }
 
+  rtc_test_suite("xvfb_capture_tests") {
+    tests = [
+      ":screen_capturer_unittest",
+      ":window_capturer_unittest",
+    ]
+  }
+
   rtc_library("desktop_capture_unittests") {
     testonly = true
 
@@ -481,11 +486,7 @@ if (rtc_include_tests) {
     }
 
     if (rtc_desktop_capture_supported) {
-      deps += [
-        ":screen_capturer_helper_unittest",
-        ":screen_capturer_unittest",
-        ":window_capturer_unittest",
-      ]
+      deps += [ ":screen_capturer_helper_unittest" ]
       if (is_mac) {
         deps += [ ":screen_capturer_mac_unittest" ]
       }
