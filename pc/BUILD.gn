@@ -1097,7 +1097,6 @@ rtc_library("rtc_stats_traversal") {
     "../api:rtc_stats_api",
     "../api:scoped_refptr",
     "../rtc_base:checks",
-    "../stats:rtc_stats",
   ]
 }
 
