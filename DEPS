@@ -15,7 +15,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '870545d8b5afa59336ab67343a45fba5357bd4c6',
+  'chromium_revision': 'dd0492b0df7ac617ea5d1990f28dee80c73a62d1',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -80,13 +80,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@a8fedc366e0a8067413fc5bc3ae1a8b0dab385d3',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@3ef95a15fd45592389a3f8a1e072ff3675df7ace',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@46ea232cf15f7f5ea9f84c8845633a4b2a9f13ec',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@fcb91f2aa14961a65b8314c3b00ab3a1a933dc69',
+    'https://chromium.googlesource.com/chromium/src/third_party@2b4f0f92b6b55a991956c1722f54a41d51fb4f35',
 
   'src/buildtools/third_party/mold/cipd': {
       'packages': [
@@ -605,7 +605,7 @@ deps = {
   'src/third_party/libFuzzer/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/compiler-rt/lib/fuzzer.git@4b46c0ed586f91aa1ad9b5ebbcad907c9dd956e5',
   'src/third_party/fuzztest/src':
-    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@5fcf844190b0a1d9fc0d4ada09e797763616737a',
+    'https://chromium.googlesource.com/external/github.com/google/fuzztest.git@1a18c86d947c25ff2b73562a90d41a2207e8cba9',
   'src/third_party/libprotobuf-mutator/src':
     Var('chromium_git') + '/external/github.com/google/libprotobuf-mutator.git@c1c950eae0440c3808f2b8bd7c57d0c6a42c1a90',
   'src/third_party/libjpeg_turbo':
@@ -685,7 +685,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@0c3c3e55f9f4a73f703d36591260006e8031a7b3',
+    'https://chromium.googlesource.com/chromium/src/tools@de178ee18b325d422dca41c6a0874dbd9a065b31',
 
   'src/third_party/espresso': {
       'packages': [
@@ -881,7 +881,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + 'ea6b9f1bb6e1001d8b21574d5bc78ddef62e499d',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '18ddcf4bb95b00c71f32911989f437a6f1c94dbc',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + 'e478052efd1422f38629f4994d0a27b16b8fd86d',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '782eea126dc5c755827be751a099eb01826175cf',
