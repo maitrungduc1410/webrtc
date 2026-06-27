@@ -163,7 +163,8 @@ std::vector<SdpVideoFormat> GetDefaultSupportedFormats(
     // is microseconds.) This parameter MUST be present in the SDP, but
     // we never use the actual value anywhere in our code however.
     // TODO(brandtr): Consider honouring this value in the sender and receiver.
-    flexfec_format.parameters = {{kFlexfecFmtpRepairWindow, "10000000"}};
+    flexfec_format.parameters = {
+        {std::string(kFlexfecFmtpRepairWindow), "10000000"}};
     supported_formats.push_back(flexfec_format);
   }
   return supported_formats;

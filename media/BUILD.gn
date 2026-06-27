@@ -377,7 +377,10 @@ rtc_library("media_constants") {
     "base/media_constants.cc",
     "base/media_constants.h",
   ]
-  deps = [ "../rtc_base/system:rtc_export" ]
+  deps = [
+    "../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
 }
 
 rtc_library("turn_utils") {

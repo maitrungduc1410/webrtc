@@ -1059,10 +1059,10 @@ bool GetMinValue(const std::vector<int>& values, int* value) {
   return true;
 }
 
-bool GetParameter(const std::string& name,
+bool GetParameter(absl::string_view name,
                   const CodecParameterMap& params,
                   int* value) {
-  std::map<std::string, std::string>::const_iterator found = params.find(name);
+  CodecParameterMap::const_iterator found = params.find(std::string(name));
   if (found == params.end()) {
     return false;
   }
@@ -2615,7 +2615,7 @@ void UpdateFromMediaSectionWideSettings(MediaContentDescription* desc) {
   }
 }
 
-void AddAudioAttribute(const std::string& name,
+void AddAudioAttribute(absl::string_view name,
                        absl::string_view value,
                        MediaContentDescription* desc) {
   RTC_DCHECK(desc);
@@ -2624,7 +2624,7 @@ void AddAudioAttribute(const std::string& name,
   }
   std::vector<Codec> codecs = desc->codecs();
   for (Codec& codec : codecs) {
-    codec.params[name] = std::string(value);
+    codec.SetParam(name, value);
   }
   desc->set_codecs(codecs);
 }
