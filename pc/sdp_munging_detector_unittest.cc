@@ -667,7 +667,7 @@ TEST_F(SdpMungingTest, IceOptionsRenomination) {
       ElementsAre(Pair(SdpMungingType::kIceOptionsRenomination, 1)));
 }
 
-TEST_F(SdpMungingTest, IceOptionsTrickle) {
+TEST_F(SdpMungingTest, IceOptionsRemovedEmpty) {
   auto pc = CreatePeerConnection();
   pc->AddAudioTrack("audio_track", {});
 
@@ -677,6 +677,24 @@ TEST_F(SdpMungingTest, IceOptionsTrickle) {
   ASSERT_THAT(transport_infos[0].description.transport_options,
               ElementsAre("trickle"));
   transport_infos[0].description.transport_options.clear();
+
+  RTCError error;
+  EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kIceOptionsRemoved, 1)));
+}
+
+TEST_F(SdpMungingTest, IceOptionsTrickle) {
+  auto pc = CreatePeerConnection();
+  pc->AddAudioTrack("audio_track", {});
+
+  auto offer = pc->CreateOffer();
+  auto& transport_infos = offer->description()->transport_infos();
+  ASSERT_EQ(transport_infos.size(), 1u);
+  ASSERT_THAT(transport_infos[0].description.transport_options,
+              ElementsAre("trickle"));
+  transport_infos[0].description.transport_options = {"unknown-ice-option"};
 
   RTCError error;
   EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
