@@ -2693,7 +2693,6 @@
             }
           ],
           "dimensions": {
-            "cores": "12",
             "cpu": "arm64",
             "os": "Mac-26"
           },
@@ -2744,7 +2743,6 @@
             }
           ],
           "dimensions": {
-            "cores": "12",
             "cpu": "arm64",
             "os": "Mac-26"
           },
@@ -3485,7 +3483,6 @@
             }
           ],
           "dimensions": {
-            "cores": "12",
             "cpu": "arm64",
             "os": "Mac-26"
           },
@@ -3536,7 +3533,6 @@
             }
           ],
           "dimensions": {
-            "cores": "12",
             "cpu": "arm64",
             "os": "Mac-26"
           },
@@ -9621,7 +9617,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_decoder_unittests",
@@ -9640,7 +9636,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_engine_tests",
@@ -9659,7 +9655,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "call_tests",
@@ -9678,7 +9674,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_audio_unittests",
@@ -9697,7 +9693,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_video_unittests",
@@ -9716,7 +9712,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "dcsctp_unittests",
@@ -9735,7 +9731,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -9755,7 +9751,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -9775,7 +9771,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -9795,7 +9791,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "resource_adaptation_tests",
@@ -9814,7 +9810,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_media_unittests",
@@ -9833,7 +9829,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_p2p_unittests",
@@ -9852,7 +9848,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_pc_unittests",
@@ -9871,7 +9867,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_stats_unittests",
@@ -9890,7 +9886,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -9910,7 +9906,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rust_tests",
@@ -9929,7 +9925,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "slow_peer_connection_unittests",
@@ -9948,7 +9944,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -9968,7 +9964,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "system_wrappers_unittests",
@@ -9987,7 +9983,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -10007,7 +10003,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "tools_unittests",
@@ -10026,7 +10022,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_adaptation_tests",
@@ -10045,7 +10041,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_tests",
@@ -10064,7 +10060,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_timing_tests",
@@ -10083,7 +10079,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "voip_unittests",
@@ -10102,7 +10098,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_nonparallel_tests",
@@ -10121,7 +10117,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "xvfb_capture_tests",
@@ -10146,7 +10142,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_decoder_unittests",
@@ -10165,7 +10161,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_engine_tests",
@@ -10184,7 +10180,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "call_tests",
@@ -10203,7 +10199,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_audio_unittests",
@@ -10222,7 +10218,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_video_unittests",
@@ -10241,7 +10237,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "dcsctp_unittests",
@@ -10260,7 +10256,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -10280,7 +10276,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -10300,7 +10296,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -10320,7 +10316,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "resource_adaptation_tests",
@@ -10339,7 +10335,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_media_unittests",
@@ -10358,7 +10354,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_p2p_unittests",
@@ -10377,7 +10373,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_pc_unittests",
@@ -10396,7 +10392,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_stats_unittests",
@@ -10415,7 +10411,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -10435,7 +10431,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rust_tests",
@@ -10454,7 +10450,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "slow_peer_connection_unittests",
@@ -10473,7 +10469,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -10493,7 +10489,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "system_wrappers_unittests",
@@ -10512,7 +10508,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -10532,7 +10528,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "tools_unittests",
@@ -10551,7 +10547,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_adaptation_tests",
@@ -10570,7 +10566,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_tests",
@@ -10589,7 +10585,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_timing_tests",
@@ -10608,7 +10604,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "voip_unittests",
@@ -10627,7 +10623,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_nonparallel_tests",
@@ -10646,7 +10642,7 @@
           "dimensions": {
             "cores": "12",
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "xvfb_capture_tests",
@@ -11164,7 +11160,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_decoder_unittests",
@@ -11182,7 +11178,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "audio_engine_tests",
@@ -11200,7 +11196,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "call_tests",
@@ -11218,7 +11214,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_audio_unittests",
@@ -11236,7 +11232,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "common_video_unittests",
@@ -11254,7 +11250,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "dcsctp_unittests",
@@ -11272,7 +11268,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -11291,7 +11287,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -11310,7 +11306,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -11329,7 +11325,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "resource_adaptation_tests",
@@ -11347,7 +11343,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_media_unittests",
@@ -11365,7 +11361,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_p2p_unittests",
@@ -11383,7 +11379,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_pc_unittests",
@@ -11401,7 +11397,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rtc_stats_unittests",
@@ -11419,7 +11415,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 6
         },
@@ -11438,7 +11434,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "rust_tests",
@@ -11456,7 +11452,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "slow_peer_connection_unittests",
@@ -11474,7 +11470,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 4
         },
@@ -11493,7 +11489,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "system_wrappers_unittests",
@@ -11511,7 +11507,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           },
           "shards": 2
         },
@@ -11530,7 +11526,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "tools_unittests",
@@ -11548,7 +11544,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_adaptation_tests",
@@ -11572,7 +11568,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_codec_perf_tests",
@@ -11590,7 +11586,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_tests",
@@ -11608,7 +11604,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "video_timing_tests",
@@ -11626,7 +11622,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "voip_unittests",
@@ -11644,7 +11640,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_nonparallel_tests",
@@ -11668,7 +11664,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "webrtc_perf_tests",
@@ -11686,7 +11682,7 @@
         "swarming": {
           "dimensions": {
             "cpu": "x86-64",
-            "os": "Mac-15"
+            "os": "Mac-26"
           }
         },
         "test": "xvfb_capture_tests",
