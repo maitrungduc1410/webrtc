@@ -15,7 +15,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': 'de9ca05d59085e724da8cdc2cbcb88d542219cfd',
+  'chromium_revision': 'e5b192ff6e09c71827e55b75cc1367f2e0fea1c2',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -71,7 +71,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@8edf031b7f329916f82f99e0b27e8e265760cbae',
+    'https://chromium.googlesource.com/chromium/src/build@6bb98d0865c859a763b390c583fe7670516ce08d',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@0d39be5a3f129cf1f35e7812108a2184e2193315',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -84,9 +84,9 @@ deps = {
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@46ea232cf15f7f5ea9f84c8845633a4b2a9f13ec',
+    'https://chromium.googlesource.com/chromium/src/testing@f18f6270fb4534885a6f2ca84a1fa0e79cdc62ee',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@f9be95e943a95f6a978e07ef6ef1439be99590aa',
+    'https://chromium.googlesource.com/chromium/src/third_party@16a5d2ccba1a44aa4fd517313c95aafccef43328',
 
   'src/buildtools/third_party/mold/cipd': {
       'packages': [
@@ -102,7 +102,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:ed2a73266f1d9a0aeeebc3e1e07045848a62254e',
+        'version': 'git_revision:e331ddb6e93389abfc75c611690bb82f5274029e',
       }
     ],
     'dep_type': 'cipd',
@@ -112,7 +112,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:ed2a73266f1d9a0aeeebc3e1e07045848a62254e',
+        'version': 'git_revision:e331ddb6e93389abfc75c611690bb82f5274029e',
       }
     ],
     'dep_type': 'cipd',
@@ -122,7 +122,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:ed2a73266f1d9a0aeeebc3e1e07045848a62254e',
+        'version': 'git_revision:e331ddb6e93389abfc75c611690bb82f5274029e',
       }
     ],
     'dep_type': 'cipd',
@@ -349,7 +349,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8f11bb1d4438d0239d0dfc1bd9456a9f31629dda',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@90c5d5ff8fd4729a0e17a0e516ba00f40a073217',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@265cc6a83652bac5cb8ceb59741bc288ebe6b312',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@9fe0a380ee56ac20c938cb0c0c35c9b4f7c73339',
 
@@ -523,7 +523,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@1c2fef52e7976d59e3fee7e8ed306f1e10924318',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@5ccdab32010f762634e1082d19be53cf60458456',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -685,7 +685,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@38e7450b95eaad2b581aac90ccdb6e4b4ffec2dc',
+    'https://chromium.googlesource.com/chromium/src/tools@92b9d06e32fa60bdcde9cc1e60a1e4ca2b5c5812',
 
   'src/third_party/espresso': {
       'packages': [
@@ -881,7 +881,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + 'ea6b9f1bb6e1001d8b21574d5bc78ddef62e499d',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + 'e943ebae60acbc6247413840be6a0f67f2fb5147',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '3fccdcd589b11da58e5e5d87c9f1f537c7c642f6',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '782eea126dc5c755827be751a099eb01826175cf',
