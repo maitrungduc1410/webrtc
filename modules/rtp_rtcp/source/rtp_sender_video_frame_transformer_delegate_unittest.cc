@@ -18,6 +18,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "api/frame_transformer_interface.h"
@@ -211,7 +212,13 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest, CloneSenderVideoFrame) {
   EXPECT_EQ(clone->GetPayloadType(), video_frame.GetPayloadType());
   EXPECT_EQ(clone->GetMimeType(), video_frame.GetMimeType());
   EXPECT_EQ(clone->GetSsrc(), video_frame.GetSsrc());
-  EXPECT_EQ(clone->GetTimestamp(), video_frame.GetTimestamp());
+  EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
+      clone->GetRtpTimestampInfo()));
+  EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
+      video_frame.GetRtpTimestampInfo()));
+  EXPECT_EQ(
+      std::get<RtpTimestampWithOffset>(clone->GetRtpTimestampInfo()),
+      std::get<RtpTimestampWithOffset>(video_frame.GetRtpTimestampInfo()));
   EXPECT_EQ(clone->Metadata(), video_frame.Metadata());
   EXPECT_EQ(clone->Rid(), video_frame.Rid());
 }
@@ -234,7 +241,13 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest, CloneKeyFrame) {
   EXPECT_EQ(clone->GetPayloadType(), video_frame.GetPayloadType());
   EXPECT_EQ(clone->GetMimeType(), video_frame.GetMimeType());
   EXPECT_EQ(clone->GetSsrc(), video_frame.GetSsrc());
-  EXPECT_EQ(clone->GetTimestamp(), video_frame.GetTimestamp());
+  EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
+      clone->GetRtpTimestampInfo()));
+  EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
+      video_frame.GetRtpTimestampInfo()));
+  EXPECT_EQ(
+      std::get<RtpTimestampWithOffset>(clone->GetRtpTimestampInfo()),
+      std::get<RtpTimestampWithOffset>(video_frame.GetRtpTimestampInfo()));
   EXPECT_EQ(clone->Metadata(), video_frame.Metadata());
   EXPECT_EQ(clone->Rid(), video_frame.Rid());
 }

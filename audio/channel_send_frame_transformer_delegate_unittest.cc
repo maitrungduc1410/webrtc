@@ -15,6 +15,7 @@
 #include <optional>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/memory/memory.h"
@@ -362,6 +363,23 @@ TEST(ChannelSendFrameTransformerDelegateTest, SetAudioLevelIsClamped) {
   EXPECT_TRUE(frame->CanSetAudioLevel());
   frame->SetAudioLevel(128u);
   EXPECT_EQ(frame->AudioLevel(), 127u);
+}
+
+TEST(ChannelSendFrameTransformerDelegateTest, GetAndSetRtpTimestampInfo) {
+  std::unique_ptr<TransformableAudioFrameInterface> audio_frame = CreateFrame();
+  ASSERT_TRUE(audio_frame);
+
+  // Test the setter first
+  uint32_t new_timestamp = 789012u;
+  audio_frame->SetRTPTimestamp(new_timestamp);
+
+  // Test the getter after
+  EXPECT_EQ(audio_frame->GetTimestamp(), new_timestamp);
+  EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
+      audio_frame->GetRtpTimestampInfo()));
+  EXPECT_EQ(
+      std::get<RtpTimestampWithOffset>(audio_frame->GetRtpTimestampInfo()),
+      new_timestamp);
 }
 
 }  // namespace

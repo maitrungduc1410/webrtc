@@ -155,6 +155,10 @@ class TransformableOutgoingAudioFrame
     return std::nullopt;
   }
 
+  RtpTimestampInfo GetRtpTimestampInfo() const override {
+    return RtpTimestampWithOffset{rtp_timestamp_with_offset_};
+  }
+
  private:
   AudioFrameType frame_type_;
   uint8_t payload_type_;

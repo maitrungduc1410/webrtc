@@ -89,6 +89,9 @@ class TransformableVideoSenderFrame : public TransformableVideoFrameInterface {
   }
 
   uint32_t GetTimestamp() const override { return timestamp_; }
+  RtpTimestampInfo GetRtpTimestampInfo() const override {
+    return RtpTimestampWithOffset(timestamp_);
+  }
   void SetRTPTimestamp(uint32_t timestamp) override { timestamp_ = timestamp; }
 
   uint32_t GetSsrc() const override { return ssrc_; }
