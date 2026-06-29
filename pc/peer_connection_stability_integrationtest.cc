@@ -1062,7 +1062,7 @@ TEST_F(PeerConnectionIntegrationTest, BasicOfferAnswerPayloadTypesStable) {
             "2 [99:video/rtx/90000/0;apt=98]",
             "2 [116:video/red/90000/0]",
             "2 [117:video/rtx/90000/0;apt=116]",
-            "2 [119:video/ulpfec/90000/0]"},
+            "2 [118:video/ulpfec/90000/0]"},
        .callee_local =
            {"1 [111:audio/opus/48000/2;minptime=10;useinbandfec=1]",
             "1 [63:audio/red/48000/2;=111/111]",
