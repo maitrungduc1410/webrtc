@@ -16,6 +16,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/memory/memory.h"
@@ -237,6 +238,8 @@ void RtpVideoStreamReceiverFrameTransformerDelegate::ManageFrame(
     VideoSendTiming timing;
     std::span<const uint8_t> data = transformed_frame->GetData();
     Timestamp receive_time = clock_->CurrentTime();
+    RTC_CHECK(std::holds_alternative<RtpTimestampWithOffset>(
+        transformed_frame->GetRtpTimestampInfo()));
     receiver_->ManageFrame(std::make_unique<RtpFrameObject>(
         /*first_seq_num=*/metadata.GetFrameId().value_or(0),
         /*last_seq_num=*/metadata.GetFrameId().value_or(0),
@@ -244,7 +247,9 @@ void RtpVideoStreamReceiverFrameTransformerDelegate::ManageFrame(
         /*times_nacked=*/0,
         /*first_packet_received_time=*/receive_time,
         /*last_packet_received_time=*/receive_time,
-        /*rtp_timestamp=*/transformed_frame->GetTimestamp(),
+        /*rtp_timestamp=*/
+        std::get<RtpTimestampWithOffset>(
+            transformed_frame->GetRtpTimestampInfo()),
         /*ntp_time_ms=*/0, timing, transformed_frame->GetPayloadType(),
         metadata.GetCodec(), metadata.GetRotation(), metadata.GetContentType(),
         video_header, video_header.color_space,

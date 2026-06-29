@@ -388,7 +388,6 @@ TEST(ChannelReceiveFrameTransformerDelegateTest, GetAndSetRtpTimestampInfo) {
   // Test the SetRTPTimestamp setter
   uint32_t new_timestamp = 112233u;
   audio_frame->SetRTPTimestamp(new_timestamp);
-  EXPECT_EQ(audio_frame->GetTimestamp(), new_timestamp);
   EXPECT_TRUE(std::holds_alternative<RtpTimestampWithOffset>(
       audio_frame->GetRtpTimestampInfo()));
   EXPECT_EQ(
