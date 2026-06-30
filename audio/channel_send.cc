@@ -977,7 +977,10 @@ void ChannelSend::InitFrameTransformerDelegate(
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
   RTC_DCHECK_RUN_ON(&encoder_queue_checker_);
   RTC_DCHECK(frame_transformer);
-  RTC_DCHECK(!frame_transformer_delegate_);
+  if (frame_transformer_delegate_) {
+    frame_transformer_delegate_->Reset();
+    frame_transformer_delegate_ = nullptr;
+  }
 
   // Pass a callback to ChannelSend::SendRtpAudio, to be called by the delegate
   // to send the transformed audio.

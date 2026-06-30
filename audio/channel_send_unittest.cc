@@ -615,6 +615,22 @@ TEST_F(ChannelSendTest, CallbackOnFrameWithoutRtpOffset) {
   EXPECT_EQ(*sent_timestamp, 1234u + start_timestamp);
 }
 
+TEST_F(ChannelSendTest, ReassignFrameTransformerResetsPriorDelegate) {
+  scoped_refptr<MockFrameTransformer> mock_frame_transformer1 =
+      make_ref_counted<MockFrameTransformer>();
+  scoped_refptr<MockFrameTransformer> mock_frame_transformer2 =
+      make_ref_counted<MockFrameTransformer>();
+
+  EXPECT_CALL(*mock_frame_transformer1, RegisterTransformedFrameCallback);
+  EXPECT_CALL(*mock_frame_transformer1, UnregisterTransformedFrameCallback);
+
+  EXPECT_CALL(*mock_frame_transformer2, RegisterTransformedFrameCallback);
+  EXPECT_CALL(*mock_frame_transformer2, UnregisterTransformedFrameCallback);
+
+  channel_->SetEncoderToPacketizerFrameTransformer(mock_frame_transformer1);
+  channel_->SetEncoderToPacketizerFrameTransformer(mock_frame_transformer2);
+}
+
 }  // namespace
 }  // namespace voe
 }  // namespace webrtc
