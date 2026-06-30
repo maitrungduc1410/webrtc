@@ -177,7 +177,6 @@ class BitrateAllocator : public BitrateAllocatorInterface {
   uint32_t last_non_zero_bitrate_bps_ RTC_GUARDED_BY(&sequenced_checker_);
   uint8_t last_fraction_loss_ RTC_GUARDED_BY(&sequenced_checker_);
   int64_t last_rtt_ RTC_GUARDED_BY(&sequenced_checker_);
-  int64_t last_bwe_period_ms_ RTC_GUARDED_BY(&sequenced_checker_);
   // Number of mute events based on too low BWE, not network up/down.
   int num_pause_events_ RTC_GUARDED_BY(&sequenced_checker_);
   int64_t last_bwe_log_time_ RTC_GUARDED_BY(&sequenced_checker_);

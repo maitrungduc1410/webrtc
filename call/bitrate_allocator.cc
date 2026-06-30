@@ -465,7 +465,6 @@ BitrateAllocator::BitrateAllocator(LimitObserver* limit_observer,
       last_non_zero_bitrate_bps_(kDefaultBitrateBps),
       last_fraction_loss_(0),
       last_rtt_(0),
-      last_bwe_period_ms_(1000),
       num_pause_events_(0),
       last_bwe_log_time_(0),
       upper_elastic_rate_limit_(upper_elastic_rate_limit) {
@@ -492,7 +491,6 @@ void BitrateAllocator::OnNetworkEstimateChanged(TargetTransferRate msg) {
   last_fraction_loss_ =
       dchecked_cast<uint8_t>(SafeClamp(loss_ratio_255, 0, 255));
   last_rtt_ = msg.network_estimate.round_trip_time.ms();
-  last_bwe_period_ms_ = msg.network_estimate.bwe_period.ms();
 
   // Periodically log the incoming BWE.
   int64_t now = msg.at_time.ms();
@@ -510,7 +508,6 @@ void BitrateAllocator::OnNetworkEstimateChanged(TargetTransferRate msg) {
     update.target_bitrate = DataRate::BitsPerSec(allocated_bitrate);
     update.packet_loss_ratio = last_fraction_loss_ / 256.0;
     update.round_trip_time = TimeDelta::Millis(last_rtt_);
-    update.bwe_period = TimeDelta::Millis(last_bwe_period_ms_);
     update.cwnd_reduce_ratio = msg.cwnd_reduce_ratio;
     uint32_t protection_bitrate = track.observer->OnBitrateUpdated(update);
 
@@ -572,7 +569,6 @@ void BitrateAllocator::AddObserver(BitrateAllocatorObserver* observer,
       update.target_bitrate = DataRate::BitsPerSec(allocated_bitrate);
       update.packet_loss_ratio = last_fraction_loss_ / 256.0;
       update.round_trip_time = TimeDelta::Millis(last_rtt_);
-      update.bwe_period = TimeDelta::Millis(last_bwe_period_ms_);
       uint32_t protection_bitrate = track.observer->OnBitrateUpdated(update);
       track.allocated_bitrate_bps = allocated_bitrate;
       track.last_used_bitrate = track.observer->GetUsedRate();
@@ -588,7 +584,6 @@ void BitrateAllocator::AddObserver(BitrateAllocatorObserver* observer,
     update.target_bitrate = DataRate::Zero();
     update.packet_loss_ratio = last_fraction_loss_ / 256.0;
     update.round_trip_time = TimeDelta::Millis(last_rtt_);
-    update.bwe_period = TimeDelta::Millis(last_bwe_period_ms_);
     observer->OnBitrateUpdated(update);
   }
   UpdateAllocationLimits();
@@ -647,7 +642,6 @@ bool BitrateAllocator::RecomputeAllocationIfNeeded() {
       update.target_bitrate = allocated_bitrate;
       update.packet_loss_ratio = last_fraction_loss_ / 256.0;
       update.round_trip_time = TimeDelta::Millis(last_rtt_);
-      update.bwe_period = TimeDelta::Millis(last_bwe_period_ms_);
       DataRate protection_bitrate =
           DataRate::BitsPerSec(track.observer->OnBitrateUpdated(update));
       track.allocated_bitrate_bps = allocated_bitrate.bps();
