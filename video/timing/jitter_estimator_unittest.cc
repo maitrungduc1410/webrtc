@@ -7,7 +7,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/jitter_estimator.h"
+#include "video/timing/jitter_estimator.h"
 
 #include <cstdint>
 #include <optional>

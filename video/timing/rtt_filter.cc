@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/rtt_filter.h"
+#include "video/timing/rtt_filter.h"
 
 #include <algorithm>
 #include <cmath>

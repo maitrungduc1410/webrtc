@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/default_video_jitter_timing.h"
+#include "video/timing/default_video_jitter_timing.h"
 
 #include <cstdint>
 #include <optional>

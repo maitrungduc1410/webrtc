@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/default_video_jitter_timing.h"
+#include "video/timing/default_video_jitter_timing.h"
 
 #include <cstdint>
 #include <optional>
@@ -18,10 +18,10 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/timing/video_jitter_timing_interface.h"
-#include "modules/video_coding/timing/inter_frame_delay_variation_calculator.h"
-#include "modules/video_coding/timing/jitter_estimator.h"
-#include "modules/video_coding/timing/timestamp_extrapolator.h"
 #include "system_wrappers/include/clock.h"
+#include "video/timing/inter_frame_delay_variation_calculator.h"
+#include "video/timing/jitter_estimator.h"
+#include "video/timing/timestamp_extrapolator.h"
 
 namespace webrtc {
 

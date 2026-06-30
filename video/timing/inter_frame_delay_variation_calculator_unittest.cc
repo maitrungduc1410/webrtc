@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/inter_frame_delay_variation_calculator.h"
+#include "video/timing/inter_frame_delay_variation_calculator.h"
 
 #include <cstdint>
 #include <limits>

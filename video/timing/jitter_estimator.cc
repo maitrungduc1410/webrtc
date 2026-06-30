@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/jitter_estimator.h"
+#include "video/timing/jitter_estimator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,11 +21,11 @@
 #include "api/units/frequency.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
-#include "modules/video_coding/timing/frame_delay_variation_kalman_filter.h"
-#include "modules/video_coding/timing/rtt_filter.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "system_wrappers/include/clock.h"
+#include "video/timing/frame_delay_variation_kalman_filter.h"
+#include "video/timing/rtt_filter.h"
 
 namespace webrtc {
 namespace {

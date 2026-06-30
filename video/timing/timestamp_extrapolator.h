@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_VIDEO_CODING_TIMING_TIMESTAMP_EXTRAPOLATOR_H_
-#define MODULES_VIDEO_CODING_TIMING_TIMESTAMP_EXTRAPOLATOR_H_
+#ifndef VIDEO_TIMING_TIMESTAMP_EXTRAPOLATOR_H_
+#define VIDEO_TIMING_TIMESTAMP_EXTRAPOLATOR_H_
 
 #include <stdint.h>
 
@@ -171,4 +171,4 @@ class TimestampExtrapolator {
 
 }  // namespace webrtc
 
-#endif  // MODULES_VIDEO_CODING_TIMING_TIMESTAMP_EXTRAPOLATOR_H_
+#endif  // VIDEO_TIMING_TIMESTAMP_EXTRAPOLATOR_H_

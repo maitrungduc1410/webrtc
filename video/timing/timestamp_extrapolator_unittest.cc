@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/timing/timestamp_extrapolator.h"
+#include "video/timing/timestamp_extrapolator.h"
 
 #include <cstdint>
 #include <cstdlib>

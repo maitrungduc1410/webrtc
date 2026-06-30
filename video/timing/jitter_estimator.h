@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_VIDEO_CODING_TIMING_JITTER_ESTIMATOR_H_
-#define MODULES_VIDEO_CODING_TIMING_JITTER_ESTIMATOR_H_
+#ifndef VIDEO_TIMING_JITTER_ESTIMATOR_H_
+#define VIDEO_TIMING_JITTER_ESTIMATOR_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -22,11 +22,11 @@
 #include "api/units/frequency.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
-#include "modules/video_coding/timing/frame_delay_variation_kalman_filter.h"
-#include "modules/video_coding/timing/rtt_filter.h"
 #include "rtc_base/experiments/struct_parameters_parser.h"
 #include "rtc_base/numerics/moving_percentile_filter.h"
 #include "rtc_base/rolling_accumulator.h"
+#include "video/timing/frame_delay_variation_kalman_filter.h"
+#include "video/timing/rtt_filter.h"
 
 namespace webrtc {
 
@@ -219,4 +219,4 @@ class JitterEstimator {
 
 }  // namespace webrtc
 
-#endif  // MODULES_VIDEO_CODING_TIMING_JITTER_ESTIMATOR_H_
+#endif  // VIDEO_TIMING_JITTER_ESTIMATOR_H_

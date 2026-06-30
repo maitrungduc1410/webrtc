@@ -24,11 +24,11 @@
 #include "api/video/video_frame.h"
 #include "api/video/video_timing.h"
 #include "modules/video_coding/timing/decode_time_percentile_filter.h"
-#include "modules/video_coding/timing/default_video_jitter_timing.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "system_wrappers/include/clock.h"
+#include "video/timing/default_video_jitter_timing.h"
 
 namespace webrtc {
 namespace {
