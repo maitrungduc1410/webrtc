@@ -369,8 +369,6 @@ TEST_F(ChannelSendTest, UsedRateIsLargerofLastTwoFrames) {
   DataRate lowrate = DataRate::BitsPerSec(40000);
   DataRate highrate = DataRate::BitsPerSec(80000);
   BitrateAllocationUpdate update;
-  update.bwe_period = TimeDelta::Millis(100);
-
   update.target_bitrate = lowrate;
   channel_->OnBitrateAllocation(update);
   EXPECT_CALL(transport_, SendRtp).Times(1);

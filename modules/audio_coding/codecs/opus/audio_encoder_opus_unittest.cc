@@ -294,9 +294,10 @@ TEST_P(AudioEncoderOpusTest,
 
   BitrateAllocationUpdate update;
   update.target_bitrate = DataRate::BitsPerSec(30000);
-  update.bwe_period = TimeDelta::Millis(200);
   EXPECT_CALL(*states->mock_audio_network_adaptor,
               SetTargetAudioBitrate(update.target_bitrate.bps()));
+  EXPECT_CALL(*states->mock_bitrate_smoother,
+              AddSample(update.target_bitrate.bps(), _));
 
   states->encoder->OnReceivedUplinkAllocation(update);
 

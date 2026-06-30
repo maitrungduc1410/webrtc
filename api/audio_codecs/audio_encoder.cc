@@ -110,10 +110,7 @@ void AudioEncoder::OnReceivedUplinkBandwidth(
 void AudioEncoder::OnReceivedUplinkAllocation(BitrateAllocationUpdate update) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  OnReceivedUplinkBandwidth(update.target_bitrate.bps(),
-                            update.bwe_period.IsFinite()
-                                ? std::make_optional(update.bwe_period.ms())
-                                : std::nullopt);
+  OnReceivedUplinkBandwidth(update.target_bitrate.bps(), std::nullopt);
 #pragma clang diagnostic pop
 }
 

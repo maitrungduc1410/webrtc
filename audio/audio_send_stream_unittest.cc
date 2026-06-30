@@ -643,7 +643,6 @@ TEST(AudioSendStreamTest, DoesNotPassHigherBitrateThanMaxBitrate) {
         DataRate::BitsPerSec(helper.config().max_bitrate_bps + 5000);
     update.packet_loss_ratio = 0;
     update.round_trip_time = TimeDelta::Millis(50);
-    update.bwe_period = TimeDelta::Millis(6000);
     send_stream->OnBitrateUpdated(update);
   }
 }
@@ -756,23 +755,6 @@ TEST(AudioSendStreamTest, SSBweWithOverheadMaxRespected) {
   }
 }
 
-TEST(AudioSendStreamTest, ProbingIntervalOnBitrateUpdated) {
-  for (bool use_null_audio_processing : {false, true}) {
-    ConfigHelper helper(false, true, use_null_audio_processing);
-    auto send_stream = helper.CreateAudioSendStream();
-
-    EXPECT_CALL(*helper.channel_send(),
-                OnBitrateAllocation(Field(&BitrateAllocationUpdate::bwe_period,
-                                          Eq(TimeDelta::Millis(5000)))));
-    BitrateAllocationUpdate update;
-    update.target_bitrate =
-        DataRate::BitsPerSec(helper.config().max_bitrate_bps + 5000);
-    update.packet_loss_ratio = 0;
-    update.round_trip_time = TimeDelta::Millis(50);
-    update.bwe_period = TimeDelta::Millis(5000);
-    send_stream->OnBitrateUpdated(update);
-  }
-}
 
 // Test that AudioSendStream doesn't recreate the encoder unnecessarily.
 TEST(AudioSendStreamTest, DontRecreateEncoder) {
