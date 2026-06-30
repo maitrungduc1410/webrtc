@@ -504,9 +504,12 @@ void AudioEncoderOpusImpl::OnReceivedTargetAudioBitrate(
   SetTargetBitrate(target_audio_bitrate_bps);
 }
 
-void AudioEncoderOpusImpl::OnReceivedUplinkBandwidthImpl(
-    int target_audio_bitrate_bps,
-    std::optional<int64_t> bwe_period_ms) {
+void AudioEncoderOpusImpl::OnReceivedUplinkAllocation(
+    BitrateAllocationUpdate update) {
+  int target_audio_bitrate_bps = update.target_bitrate.bps();
+  std::optional<int64_t> bwe_period_ms =
+      update.bwe_period.IsFinite() ? std::make_optional(update.bwe_period.ms())
+                                   : std::nullopt;
   if (audio_network_adaptor_) {
     audio_network_adaptor_->SetTargetAudioBitrate(target_audio_bitrate_bps);
     // We give smoothed bitrate allocation to audio network adaptor as
@@ -540,17 +543,6 @@ void AudioEncoderOpusImpl::OnReceivedUplinkBandwidthImpl(
                  std::max(AudioEncoderOpusConfig::kMinBitrateBps,
                           target_audio_bitrate_bps - overhead_bps)));
   }
-}
-void AudioEncoderOpusImpl::OnReceivedUplinkBandwidth(
-    int target_audio_bitrate_bps,
-    std::optional<int64_t> bwe_period_ms) {
-  OnReceivedUplinkBandwidthImpl(target_audio_bitrate_bps, bwe_period_ms);
-}
-
-void AudioEncoderOpusImpl::OnReceivedUplinkAllocation(
-    BitrateAllocationUpdate update) {
-  OnReceivedUplinkBandwidthImpl(update.target_bitrate.bps(),
-                                update.bwe_period.ms());
 }
 
 void AudioEncoderOpusImpl::OnReceivedRtt(int rtt_ms) {

@@ -1662,6 +1662,7 @@ rtc_library("audio_codec_mocks") {
 
   deps = [
     ":test_support",
+    "../api:bitrate_allocation",
     "../api:make_ref_counted",
     "../api:scoped_refptr",
     "../api/audio_codecs:audio_codecs_api",
