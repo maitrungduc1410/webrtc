@@ -313,8 +313,8 @@ std::unique_ptr<TransformableVideoFrameInterface> CloneSenderVideoFrame(
       original->GetRtpTimestampInfo()));
   return std::make_unique<TransformableVideoSenderFrame>(
       encoded_image, new_header, original->GetPayloadType(), new_header.codec,
-      std::get<RtpTimestampWithOffset>(original->GetRtpTimestampInfo()),
-      kDefaultRetransmissionsTime, original->GetSsrc(), metadata.GetCsrcs(),
+      original->GetTimestamp(), kDefaultRetransmissionsTime,
+      original->GetSsrc(), metadata.GetCsrcs(),
       original->Rid().value_or(std::string()));
 }
 

@@ -297,7 +297,7 @@ std::unique_ptr<TransformableAudioFrameInterface> CloneSenderAudioFrame(
                original->GetContributingSources().end());
   return std::make_unique<TransformableOutgoingAudioFrame>(
       InterfaceFrameTypeToInternalFrameType(original->Type()),
-      original->GetPayloadType(), original->GetRtpTimestampInfo(),
+      original->GetPayloadType(), original->GetTimestamp(),
       original->GetData().data(), original->GetData().size(),
       original->AbsoluteCaptureTimestamp(), original->GetSsrc(),
       std::move(csrcs), original->GetMimeType(), original->SequenceNumber(),
