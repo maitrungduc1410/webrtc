@@ -12,6 +12,8 @@
 
 #import "sdk/objc/base/RTCMacros.h"
 
+@class RTC_OBJC_TYPE(RTCDtlsFingerprint);
+
 NS_ASSUME_NONNULL_BEGIN
 
 RTC_OBJC_EXPORT
@@ -32,6 +34,14 @@ RTC_OBJC_EXPORT
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
+
+/**
+ * The fingerprints of the certificate, one per digest algorithm, derived from
+ * its PEM representation. Mirrors the WebIDL RTCCertificate.getFingerprints().
+ * Returns an empty array if the fingerprints cannot be computed. See
+ * https://w3c.github.io/webrtc-pc/#dom-rtccertificate-getfingerprints
+ */
+- (NSArray<RTC_OBJC_TYPE(RTCDtlsFingerprint) *> *)getFingerprints;
 
 /** Generate a new certificate for 're' use.
  *
