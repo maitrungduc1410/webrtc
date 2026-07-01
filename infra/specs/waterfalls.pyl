@@ -135,21 +135,21 @@
       'Linux64 Release (Libfuzzer)': {},
       'Mac Asan': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'cores-12', 'resultdb-json-format'],
+        'mixins': ['mac_15_x64', 'cores-12', 'resultdb-json-format'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests',
         },
       },
       'Mac64 Debug': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'cores-12', 'resultdb-json-format'],
+        'mixins': ['mac_15_x64', 'cores-12', 'resultdb-json-format'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests',
         },
       },
       'Mac64 Release': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'resultdb-json-format'],
+        'mixins': ['mac_15_x64', 'resultdb-json-format'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests',
         },
@@ -431,7 +431,7 @@
       },
       'mac_asan': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'resultdb-json-format', 'cores-12'],
+        'mixins': ['mac_15_x64', 'resultdb-json-format', 'cores-12'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests',
         },
@@ -440,7 +440,7 @@
       'mac_compile_rel': {},
       'mac_dbg': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'resultdb-json-format', 'cores-12'],
+        'mixins': ['mac_15_x64', 'resultdb-json-format', 'cores-12'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests',
         },
@@ -454,7 +454,7 @@
       },
       'mac_rel': {
         'os_type': 'mac',
-        'mixins': ['mac_26_x64', 'resultdb-json-format'],
+        'mixins': ['mac_15_x64', 'resultdb-json-format'],
         'test_suites': {
           'isolated_scripts': 'desktop_tests_tryserver',
         },
