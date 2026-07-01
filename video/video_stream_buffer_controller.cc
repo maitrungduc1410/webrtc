@@ -260,7 +260,12 @@ void VideoStreamBufferController::OnFrameReady(
   decode_timing_.SetLastDecodeScheduledTimestamp(now);
 
   decoder_ready_for_new_frame_ = false;
-  receiver_->OnEncodedFrame(std::move(frame));
+  if (frame) {
+    receiver_->OnEncodedFrame(std::move(frame));
+  } else {
+    // Failed to assemble frame - request an immediate keyframe.
+    receiver_->OnDecodableFrameTimeout(TimeDelta::Zero());
+  }
 }
 
 void VideoStreamBufferController::OnTimeout(TimeDelta delay) {
