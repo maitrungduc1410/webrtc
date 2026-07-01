@@ -20,10 +20,10 @@ RTC_OBJC_EXPORT
 @interface RTC_OBJC_TYPE (RTCCertificate) : NSObject <NSCopying>
 
 /** Private key in PEM. */
-@property(nonatomic, readonly, copy) NSString *private_key;
+@property(nonatomic, readonly) NSString *private_key;
 
 /** Public key in an x509 cert encoded in PEM. */
-@property(nonatomic, readonly, copy) NSString *certificate;
+@property(nonatomic, readonly) NSString *certificate;
 
 /**
  * Initialize an RTCCertificate with PEM strings for private_key and
