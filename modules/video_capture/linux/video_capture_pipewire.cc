@@ -477,6 +477,14 @@ void VideoCaptureModulePipeWire::ProcessBuffers() {
       continue;
     }
 
+    if (static_cast<uint64_t>(spaBuffer->datas[0].chunk->offset) +
+            spaBuffer->datas[0].chunk->size >
+        spaBuffer->datas[0].maxsize) {
+      RTC_LOG(LS_ERROR) << "Dropping frame with invalid size";
+      pw_stream_queue_buffer(stream_, buffer);
+      continue;
+    }
+
     if (spaBuffer->datas[0].type == SPA_DATA_DmaBuf ||
         spaBuffer->datas[0].type == SPA_DATA_MemFd) {
       ScopedBuf frame;
