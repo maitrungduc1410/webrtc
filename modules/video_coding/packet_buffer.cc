@@ -339,6 +339,8 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
         // See: https://bugs.chromium.org/p/webrtc/issues/detail?id=7106
         if (is_h264_descriptor &&
             (buffer_[start_index] == nullptr ||
+             buffer_[start_index]->seq_num() !=
+                 static_cast<uint16_t>(start_seq_num - 1) ||
              buffer_[start_index]->timestamp != frame_timestamp)) {
           break;
         }

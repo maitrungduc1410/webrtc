@@ -709,6 +709,14 @@ TEST_P(PacketBufferH264ParameterizedTest, InsertTooOldPackets) {
   InsertH264(4662, kKeyFrame, kFirst, kLast, 1000);
 }
 
+TEST_P(PacketBufferH264ParameterizedTest, InsertMisOrderedPackets) {
+  InsertH264(4660, kKeyFrame, kFirst, kNotLast, 1000);
+  // packet (4661 + kStartSize) can use the same buffer slot as packet 4661,
+  // PacketBuffer need to be careful to detect they are not the same packet.
+  InsertH264(4661 + kStartSize, kDeltaFrame, kFirst, kNotLast, 1000);
+  InsertH264(4662, kKeyFrame, kFirst, kLast, 1000);
+}
+
 TEST_P(PacketBufferH264ParameterizedTest, ClearMissingPacketsOnKeyframe) {
   InsertH264(0, kKeyFrame, kFirst, kLast, 1000);
   InsertH264(2, kKeyFrame, kFirst, kLast, 3000);
