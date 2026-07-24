@@ -159,6 +159,11 @@ struct ScreamV2Parameters {
 
   // Window over which received rate is calculated.
   FieldTrialParameter<TimeDelta> received_rate_window;
+
+  // Minimum pacing delay before starting cwnd pushback reduction.
+  FieldTrialParameter<TimeDelta> min_pacing_delay_for_pushback;
+  // Maximum pacing delay for full cwnd pushback reduction.
+  FieldTrialParameter<TimeDelta> max_pacing_delay_for_pushback;
 };
 
 }  // namespace webrtc
