@@ -135,6 +135,8 @@ struct ScreamV2Parameters {
 
   // Factor multiplied by the current target rate to decide the pacing rate.
   FieldTrialParameter<double> pacing_factor;
+  // Minimum pacing rate relative to received_rate.
+  FieldTrialParameter<double> pacing_rate_received_factor;
 
   // Exponentially Weighted Moving Average (EWMA) factor for calculating average
   // time feedback is delayed by the receiver. I.e the time from a packet is
