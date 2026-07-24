@@ -38,7 +38,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::AtLeast;
-using ::testing::InvokeWithoutArgs;
 using ::testing::IsNull;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
@@ -69,9 +68,9 @@ TEST(RtcpTransceiverTest, SendsRtcpOnTaskQueueWhenCreatedOffTaskQueue) {
   config.clock = &clock;
   config.rtcp_transport = outgoing_transport.AsStdFunction();
   config.task_queue = queue.Get();
-  EXPECT_CALL(outgoing_transport, Call).WillRepeatedly(InvokeWithoutArgs([&] {
+  EXPECT_CALL(outgoing_transport, Call).WillRepeatedly([&] {
     EXPECT_TRUE(queue.IsCurrent());
-  }));
+  });
 
   RtcpTransceiver rtcp_transceiver(config);
   rtcp_transceiver.SendCompoundPacket();
@@ -86,9 +85,9 @@ TEST(RtcpTransceiverTest, SendsRtcpOnTaskQueueWhenCreatedOnTaskQueue) {
   config.clock = &clock;
   config.rtcp_transport = outgoing_transport.AsStdFunction();
   config.task_queue = queue.Get();
-  EXPECT_CALL(outgoing_transport, Call).WillRepeatedly(InvokeWithoutArgs([&] {
+  EXPECT_CALL(outgoing_transport, Call).WillRepeatedly([&] {
     EXPECT_TRUE(queue.IsCurrent());
-  }));
+  });
 
   std::unique_ptr<RtcpTransceiver> rtcp_transceiver;
   queue.PostTask([&] {
@@ -234,8 +233,7 @@ TEST(RtcpTransceiverTest, CanCallSendCompoundPacketFromAnyThread) {
   EXPECT_CALL(outgoing_transport, Call)
       // If test is slow, a periodic task may send an extra packet.
       .Times(AtLeast(3))
-      .WillRepeatedly(
-          InvokeWithoutArgs([&] { EXPECT_TRUE(queue.IsCurrent()); }));
+      .WillRepeatedly([&] { EXPECT_TRUE(queue.IsCurrent()); });
 
   RtcpTransceiver rtcp_transceiver(config);
 
