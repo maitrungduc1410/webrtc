@@ -103,6 +103,7 @@ if (rtc_include_tests) {
         ":neural_residual_echo_estimator_proto",
         "..:aec3_block",
         "..:aec3_common",
+        "../..:echo_canceller_test_tools",
         "../../../../rtc_base:checks",
         "../../../../rtc_base:random",
         "../../../../test:fileutils",
@@ -117,7 +118,6 @@ if (rtc_include_tests) {
         ]
       } else {
         deps += [
-          "../..:audio_processing_unittests",
           "//third_party/tflite:tflite_builtin_op_resolver_standalone",
           "//third_party/tflite:tflite_standalone",
         ]

@@ -407,6 +407,7 @@ if (rtc_include_tests) {
           ":audioproc_protobuf_utils",
           ":audioproc_test_utils",
           ":audioproc_unittest_proto",
+          ":echo_canceller_test_tools",
           ":residual_echo_detector",
           ":rms_level",
           ":runtime_settings_protobuf_utils",
@@ -436,8 +437,6 @@ if (rtc_include_tests) {
           "test/debug_dump_replayer.cc",
           "test/debug_dump_replayer.h",
           "test/debug_dump_test.cc",
-          "test/echo_canceller_test_tools.cc",
-          "test/echo_canceller_test_tools.h",
           "test/echo_canceller_test_tools_unittest.cc",
           "test/echo_control_mock.h",
         ]
@@ -626,5 +625,18 @@ rtc_library("aec3_config_json") {
     "../../rtc_base:rtc_json",
     "../../rtc_base:stringutils",
     "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
+rtc_library("echo_canceller_test_tools") {
+  visibility = [ "*" ]
+  testonly = true
+  sources = [
+    "test/echo_canceller_test_tools.cc",
+    "test/echo_canceller_test_tools.h",
+  ]
+  deps = [
+    "../../rtc_base:checks",
+    "../../rtc_base:random",
   ]
 }
