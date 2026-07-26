@@ -1994,10 +1994,11 @@ rtc_library("video_track") {
     "../api:scoped_refptr",
     "../api:sequence_checker",
     "../api/video:video_frame",
-    "../media:video_source_base",
+    "../rtc_base:checks",
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base/system:no_unique_address",
+    "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
