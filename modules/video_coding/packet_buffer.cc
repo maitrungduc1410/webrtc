@@ -68,7 +68,7 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
   PacketBuffer::InsertResult result;
 
   uint16_t seq_num = packet->seq_num();
-  size_t index = seq_num % buffer_.size();
+  size_t index = Index(seq_num);
 
   if (!first_packet_received_) {
     first_seq_num_ = seq_num;
@@ -98,9 +98,11 @@ PacketBuffer::InsertResult PacketBuffer::InsertPacket(
     }
 
     // The packet buffer is full, try to expand the buffer.
-    while (ExpandBufferSize() && buffer_[seq_num % buffer_.size()] != nullptr) {
+    // Note that `ExpandBufferSize` changes `buffer_.size()` and thus `Index`
+    // has to be recalculated after it.
+    while (ExpandBufferSize() && buffer_[Index(seq_num)] != nullptr) {
     }
-    index = seq_num % buffer_.size();
+    index = Index(seq_num);
 
     // Packet buffer is still full since we were unable to expand the buffer.
     if (buffer_[index] != nullptr) {
@@ -142,7 +144,7 @@ void PacketBuffer::ClearTo(uint16_t seq_num) {
   size_t diff = ForwardDiff<uint16_t>(first_seq_num_, seq_num);
   size_t iterations = std::min(diff, buffer_.size());
   for (size_t i = 0; i < iterations; ++i) {
-    auto& stored = buffer_[first_seq_num_ % buffer_.size()];
+    auto& stored = buffer_[Index(first_seq_num_)];
     if (stored != nullptr && AheadOf<uint16_t>(seq_num, stored->seq_num())) {
       stored = nullptr;
     }
@@ -204,7 +206,7 @@ bool PacketBuffer::ExpandBufferSize() {
   std::vector<std::unique_ptr<Packet>> new_buffer(new_size);
   for (std::unique_ptr<Packet>& entry : buffer_) {
     if (entry != nullptr) {
-      new_buffer[entry->seq_num() % new_size] = std::move(entry);
+      new_buffer[Index(entry->seq_num(), new_size)] = std::move(entry);
     }
   }
   buffer_ = std::move(new_buffer);
@@ -213,10 +215,8 @@ bool PacketBuffer::ExpandBufferSize() {
 }
 
 bool PacketBuffer::PotentialNewFrame(uint16_t seq_num) const {
-  size_t index = seq_num % buffer_.size();
-  int prev_index = index > 0 ? index - 1 : buffer_.size() - 1;
-  const auto& entry = buffer_[index];
-  const auto& prev_entry = buffer_[prev_index];
+  const auto& entry = buffer_[Index(seq_num)];
+  const auto& prev_entry = buffer_[Index(seq_num - 1)];
 
   if (entry == nullptr)
     return false;
@@ -251,7 +251,7 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
       break;
     }
 
-    size_t index = seq_num % buffer_.size();
+    size_t index = Index(seq_num);
     buffer_[index]->continuous = true;
 
     // If all packets of the frame is continuous, find the first packet of the
@@ -363,7 +363,7 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
         // Now that we have decided whether to treat this frame as a key frame
         // or delta frame in the frame buffer, we update the field that
         // determines if the RtpFrameObject is a key frame or delta frame.
-        const size_t first_packet_index = start_seq_num % buffer_.size();
+        const size_t first_packet_index = Index(start_seq_num);
         if (is_h264_keyframe) {
           buffer_[first_packet_index]->video_header.frame_type =
               VideoFrameType::kVideoFrameKey;
@@ -392,7 +392,7 @@ std::vector<std::unique_ptr<PacketBuffer::Packet>> PacketBuffer::FindFrames(
         uint16_t num_packets = end_seq_num - start_seq_num;
         found_frames.reserve(found_frames.size() + num_packets);
         for (uint16_t j = start_seq_num; j != end_seq_num; ++j) {
-          std::unique_ptr<Packet>& packet = buffer_[j % buffer_.size()];
+          std::unique_ptr<Packet>& packet = buffer_[Index(j)];
           RTC_DCHECK(packet);
           RTC_DCHECK_EQ(j, packet->seq_num());
           // Ensure frame boundary flags are properly set.

@@ -11,6 +11,7 @@
 #ifndef MODULES_VIDEO_CODING_PACKET_BUFFER_H_
 #define MODULES_VIDEO_CODING_PACKET_BUFFER_H_
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -22,6 +23,7 @@
 #include "api/video/video_codec_type.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/rtp_video_header.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/numerics/sequence_number_util.h"
 
@@ -99,6 +101,16 @@ class PacketBuffer {
   std::vector<std::unique_ptr<Packet>> FindFrames(uint16_t seq_num);
 
   void UpdateMissingPackets(uint16_t seq_num);
+
+  static size_t Index(uint16_t seq_num, size_t buffer_size) {
+    RTC_DCHECK(std::has_single_bit(buffer_size));
+    size_t mask = buffer_size - 1;
+    return seq_num & mask;
+  }
+
+  size_t Index(uint16_t seq_num) const {
+    return Index(seq_num, buffer_.size());
+  }
 
   // buffer_.size() and max_size_ must always be a power of two.
   const size_t max_size_;
