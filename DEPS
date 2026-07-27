@@ -818,7 +818,6 @@ deps = {
 
   'src/third_party/zstd/src': {
     'url': Var('chromium_git') + '/external/github.com/facebook/zstd.git' + '@' + '5233c58e6ca0b1c4c6b353ad79649191ed195bdc',
-    'condition': 'checkout_android',
   },
 
   'src/tools/luci-go': {
