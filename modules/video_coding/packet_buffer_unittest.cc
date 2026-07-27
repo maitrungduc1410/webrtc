@@ -54,7 +54,7 @@ std::vector<uint16_t> StartSeqNums(
   for (const auto& packet : packets) {
     EXPECT_EQ(frame_boundary, packet->is_first_packet_in_frame());
     if (packet->is_first_packet_in_frame()) {
-      result.push_back(packet->seq_num());
+      result.push_back(static_cast<uint16_t>(packet->seq_num()));
     }
     frame_boundary = packet->is_last_packet_in_frame();
   }
