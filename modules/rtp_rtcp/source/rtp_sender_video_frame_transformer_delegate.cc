@@ -194,10 +194,11 @@ bool RTPSenderVideoFrameTransformerDelegate::TransformFrame(
   {
     MutexLock lock(&sender_lock_);
     if (short_circuit_) {
-      sender_->SendVideo(payload_type, codec_type, rtp_timestamp,
-                         encoded_image.CaptureTime(),
-                         *encoded_image.GetEncodedData(), encoded_image.size(),
-                         video_header, expected_retransmission_time, csrcs);
+      sender_->SendVideoFrame(
+          payload_type, codec_type, RtpTimestampWithOffset{rtp_timestamp},
+          encoded_image.CaptureTime(), *encoded_image.GetEncodedData(),
+          encoded_image.size(), video_header, expected_retransmission_time,
+          csrcs);
       return true;
     }
   }
@@ -238,18 +239,16 @@ void RTPSenderVideoFrameTransformerDelegate::SendVideo(
     auto* transformed_video_frame =
         static_cast<TransformableVideoSenderFrame*>(transformed_frame.get());
     RTC_CHECK(transformed_video_frame->CaptureTime().has_value());
-    RTC_CHECK(std::holds_alternative<RtpTimestampWithOffset>(
-        transformed_video_frame->GetRtpTimestampInfo()));
-    sender_->SendVideo(transformed_video_frame->GetPayloadType(),
-                       transformed_video_frame->GetCodecType(),
-                       std::get<RtpTimestampWithOffset>(
-                           transformed_video_frame->GetRtpTimestampInfo()),
-                       *transformed_video_frame->CaptureTime(),
-                       transformed_video_frame->GetData(),
-                       transformed_video_frame->GetPreTransformPayloadSize(),
-                       transformed_video_frame->GetHeader(),
-                       transformed_video_frame->GetExpectedRetransmissionTime(),
-                       transformed_video_frame->Metadata().GetCsrcs());
+    sender_->SendVideoFrame(
+        transformed_video_frame->GetPayloadType(),
+        transformed_video_frame->GetCodecType(),
+        transformed_video_frame->GetRtpTimestampInfo(),
+        *transformed_video_frame->CaptureTime(),
+        transformed_video_frame->GetData(),
+        transformed_video_frame->GetPreTransformPayloadSize(),
+        transformed_video_frame->GetHeader(),
+        transformed_video_frame->GetExpectedRetransmissionTime(),
+        transformed_video_frame->Metadata().GetCsrcs());
   } else {
     auto* transformed_video_frame =
         static_cast<TransformableVideoFrameInterface*>(transformed_frame.get());
@@ -257,17 +256,14 @@ void RTPSenderVideoFrameTransformerDelegate::SendVideo(
     // TODO(bugs.webrtc.org/14708): Use an actual RTT estimate for the
     // retransmission time instead of a const default, in the same way as a
     // locally encoded frame.
-    RTC_CHECK(std::holds_alternative<RtpTimestampWithOffset>(
-        transformed_video_frame->GetRtpTimestampInfo()));
-    sender_->SendVideo(transformed_video_frame->GetPayloadType(),
-                       metadata.GetCodec(),
-                       std::get<RtpTimestampWithOffset>(
-                           transformed_video_frame->GetRtpTimestampInfo()),
-                       /*capture_time=*/Timestamp::MinusInfinity(),
-                       transformed_video_frame->GetData(),
-                       transformed_video_frame->GetData().size(),
-                       RTPVideoHeader::FromMetadata(metadata),
-                       kDefaultRetransmissionsTime, metadata.GetCsrcs());
+    sender_->SendVideoFrame(transformed_video_frame->GetPayloadType(),
+                            metadata.GetCodec(),
+                            transformed_video_frame->GetRtpTimestampInfo(),
+                            /*capture_time=*/Timestamp::MinusInfinity(),
+                            transformed_video_frame->GetData(),
+                            transformed_video_frame->GetData().size(),
+                            RTPVideoHeader::FromMetadata(metadata),
+                            kDefaultRetransmissionsTime, metadata.GetCsrcs());
   }
 }
 

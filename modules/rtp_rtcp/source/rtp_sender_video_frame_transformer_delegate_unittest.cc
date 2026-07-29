@@ -66,6 +66,19 @@ class MockRTPVideoFrameSenderInterface : public RTPVideoFrameSenderInterface {
                std::vector<uint32_t> csrcs),
               (override));
 
+  MOCK_METHOD(bool,
+              SendVideoFrame,
+              (int payload_type,
+               VideoCodecType codec_type,
+               RtpTimestampInfo rtp_timestamp_info,
+               Timestamp capture_time,
+               std::span<const uint8_t> payload,
+               size_t encoder_output_size,
+               RTPVideoHeader video_header,
+               TimeDelta expected_retransmission_time,
+               std::vector<uint32_t> csrcs),
+              (override));
+
   MOCK_METHOD(void,
               SetVideoStructureAfterTransformation,
               (const FrameDependencyStructure* video_structure),
@@ -184,7 +197,7 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
   EXPECT_STRCASEEQ("video/VP8", frame->GetMimeType().c_str());
 
   Event event;
-  EXPECT_CALL(test_sender_, SendVideo).WillOnce(WithoutArgs([&] {
+  EXPECT_CALL(test_sender_, SendVideoFrame).WillOnce(WithoutArgs([&] {
     event.Set();
     return true;
   }));
@@ -288,7 +301,7 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
       time_controller_.CreateTaskQueueFactory().get());
 
   const uint8_t payload_type = 1;
-  const uint32_t timestamp = 2;
+  const RtpTimestampInfo timestamp = RtpTimestampWithOffset{2};
   const std::vector<uint32_t> frame_csrcs = {123, 456, 789};
   const std::array<uint8_t, 3> buffer = {3, 2, 1};
 
@@ -305,8 +318,7 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
   ON_CALL(*mock_receiver_frame, GetPayloadType)
       .WillByDefault(Return(payload_type));
   ON_CALL(*mock_receiver_frame, GetRtpTimestampInfo)
-      .WillByDefault(
-          Return(RtpTimestampInfo{RtpTimestampWithOffset{timestamp}}));
+      .WillByDefault(Return(timestamp));
 
   scoped_refptr<TransformedFrameCallback> callback;
   EXPECT_CALL(*frame_transformer_, RegisterTransformedFrameSinkCallback)
@@ -315,12 +327,13 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
   ASSERT_TRUE(callback);
 
   Event event;
-  EXPECT_CALL(test_sender_,
-              SendVideo(payload_type, kVideoCodecVP8, timestamp,
-                        /*capture_time=*/Timestamp::MinusInfinity(),
-                        ElementsAreArray(buffer), _, _,
-                        /*expected_retransmission_time=*/TimeDelta::Millis(10),
-                        frame_csrcs))
+  EXPECT_CALL(
+      test_sender_,
+      SendVideoFrame(payload_type, kVideoCodecVP8, timestamp,
+                     /*capture_time=*/Timestamp::MinusInfinity(),
+                     ElementsAreArray(buffer), _, _,
+                     /*expected_retransmission_time=*/TimeDelta::Millis(10),
+                     frame_csrcs))
       .WillOnce(WithoutArgs([&] {
         event.Set();
         return true;
@@ -372,7 +385,7 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
   EXPECT_CALL(*frame_transformer_, Transform).Times(0);
   // Will pass the frame straight to the reciever.
   EXPECT_CALL(test_sender_,
-              SendVideo(_, _, _, _, _, _, _, _, ElementsAreArray(csrcs)));
+              SendVideoFrame(_, _, _, _, _, _, _, _, ElementsAreArray(csrcs)));
 
   EncodedImage encoded_image;
   encoded_image.SetEncodedData(EncodedImageBuffer::Create(1));
