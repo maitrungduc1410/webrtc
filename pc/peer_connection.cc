@@ -1743,9 +1743,6 @@ bool PeerConnection::StartRtcEventLog(std::unique_ptr<RtcEventLogOutput> output,
 bool PeerConnection::StartRtcEventLog(
     std::unique_ptr<RtcEventLogOutput> output) {
   int64_t output_period_ms = 5000;
-  if (trials().IsDisabled("WebRTC-RtcEventLogNewFormat")) {
-    output_period_ms = RtcEventLog::kImmediateOutput;
-  }
   return StartRtcEventLog(std::move(output), output_period_ms);
 }
 
