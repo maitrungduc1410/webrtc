@@ -47,7 +47,6 @@ class FrameEncryptorInterface;
 class RateLimiter;
 class RTPSender;
 class Transport;
-class VideoBitrateAllocationObserver;
 
 class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
  public:
@@ -75,7 +74,6 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
 
     NetworkStateEstimateObserver* network_state_estimate_observer = nullptr;
 
-    VideoBitrateAllocationObserver* bitrate_allocation_observer = nullptr;
     RtcpRttStats* rtt_stats = nullptr;
     RtcpPacketTypeCounterObserver* rtcp_packet_type_counter_observer = nullptr;
     // Called on receipt of RTCP report block from remote side.

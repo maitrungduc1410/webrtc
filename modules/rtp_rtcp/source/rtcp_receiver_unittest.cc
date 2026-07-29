@@ -26,9 +26,6 @@
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
-#include "api/video/video_bitrate_allocation.h"
-#include "api/video/video_bitrate_allocator.h"
-#include "api/video/video_codec_constants.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -130,15 +127,6 @@ class MockModuleRtpRtcp : public RTCPReceiver::ModuleRtpRtcp {
               (override));
 };
 
-class MockVideoBitrateAllocationObserver
-    : public VideoBitrateAllocationObserver {
- public:
-  MOCK_METHOD(void,
-              OnBitrateAllocationUpdated,
-              (const VideoBitrateAllocation& allocation),
-              (override));
-};
-
 // SSRC of remote peer, that sends rtcp packet to the rtcp receiver under test.
 constexpr uint32_t kSenderSsrc = 0x10203;
 // SSRCs of local peer, that rtcp packet addressed to.
@@ -161,7 +149,6 @@ struct ReceiverMocks {
   NiceMock<MockRtcpPacketTypeCounterObserver> packet_type_counter_observer;
   StrictMock<MockRtcpIntraFrameObserver> intra_frame_observer;
   StrictMock<MockRtcpLossNotificationObserver> rtcp_loss_notification_observer;
-  StrictMock<MockVideoBitrateAllocationObserver> bitrate_allocation_observer;
   StrictMock<MockModuleRtpRtcp> rtp_rtcp_impl;
   NiceMock<MockNetworkLinkRtcpObserver> network_link_rtcp_observer;
   NiceMock<MockNetworkStateEstimateObserver> network_state_estimate_observer;
@@ -172,7 +159,6 @@ struct ReceiverMocks {
       .rtcp_loss_notification_observer = &rtcp_loss_notification_observer,
       .network_link_rtcp_observer = &network_link_rtcp_observer,
       .network_state_estimate_observer = &network_state_estimate_observer,
-      .bitrate_allocation_observer = &bitrate_allocation_observer,
       .rtcp_packet_type_counter_observer = &packet_type_counter_observer,
       .rtcp_report_interval_ms = kRtcpIntervalMs,
       .local_media_ssrc = kReceiverMainSsrc,
@@ -1940,62 +1926,6 @@ TEST(RtcpReceiverTest, ForceSenderReport) {
 
   EXPECT_CALL(mocks.rtp_rtcp_impl, OnRequestSendReport());
   receiver.IncomingPacket(rr.Build());
-}
-
-TEST(RtcpReceiverTest, ReceivesTargetBitrate) {
-  ReceiverMocks mocks;
-  RTCPReceiver receiver = Create(mocks);
-  receiver.SetRemoteSSRC(kSenderSsrc);
-
-  VideoBitrateAllocation expected_allocation;
-  expected_allocation.SetBitrate(0, 0, 10000);
-  expected_allocation.SetBitrate(0, 1, 20000);
-  expected_allocation.SetBitrate(1, 0, 40000);
-  expected_allocation.SetBitrate(1, 1, 80000);
-
-  rtcp::TargetBitrate bitrate;
-  bitrate.AddTargetBitrate(0, 0, expected_allocation.GetBitrate(0, 0) / 1000);
-  bitrate.AddTargetBitrate(0, 1, expected_allocation.GetBitrate(0, 1) / 1000);
-  bitrate.AddTargetBitrate(1, 0, expected_allocation.GetBitrate(1, 0) / 1000);
-  bitrate.AddTargetBitrate(1, 1, expected_allocation.GetBitrate(1, 1) / 1000);
-
-  rtcp::ExtendedReports xr;
-  xr.SetTargetBitrate(bitrate);
-
-  // Wrong sender ssrc, target bitrate should be discarded.
-  xr.SetSenderSsrc(kSenderSsrc + 1);
-  EXPECT_CALL(mocks.bitrate_allocation_observer,
-              OnBitrateAllocationUpdated(expected_allocation))
-      .Times(0);
-  receiver.IncomingPacket(xr.Build());
-
-  // Set correct ssrc, callback should be called once.
-  xr.SetSenderSsrc(kSenderSsrc);
-  EXPECT_CALL(mocks.bitrate_allocation_observer,
-              OnBitrateAllocationUpdated(expected_allocation));
-  receiver.IncomingPacket(xr.Build());
-}
-
-TEST(RtcpReceiverTest, HandlesIncorrectTargetBitrate) {
-  ReceiverMocks mocks;
-  RTCPReceiver receiver = Create(mocks);
-  receiver.SetRemoteSSRC(kSenderSsrc);
-
-  VideoBitrateAllocation expected_allocation;
-  expected_allocation.SetBitrate(0, 0, 10000);
-
-  rtcp::TargetBitrate bitrate;
-  bitrate.AddTargetBitrate(0, 0, expected_allocation.GetBitrate(0, 0) / 1000);
-  bitrate.AddTargetBitrate(0, kMaxTemporalStreams, 20000);
-  bitrate.AddTargetBitrate(kMaxSpatialLayers, 0, 40000);
-
-  rtcp::ExtendedReports xr;
-  xr.SetTargetBitrate(bitrate);
-  xr.SetSenderSsrc(kSenderSsrc);
-
-  EXPECT_CALL(mocks.bitrate_allocation_observer,
-              OnBitrateAllocationUpdated(expected_allocation));
-  receiver.IncomingPacket(xr.Build());
 }
 
 TEST(RtcpReceiverTest, ChangeLocalMediaSsrc) {

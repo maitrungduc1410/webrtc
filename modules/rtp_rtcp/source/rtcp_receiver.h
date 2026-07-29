@@ -38,14 +38,10 @@
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
-
-class VideoBitrateAllocationObserver;
-
 namespace rtcp {
 class CommonHeader;
 class ReportBlock;
 class Rrtr;
-class TargetBitrate;
 class TmmbItem;
 }  // namespace rtcp
 
@@ -255,11 +251,6 @@ class RTCPReceiver final {
   void HandleXrDlrrReportBlock(uint32_t ssrc, const rtcp::ReceiveTimeInfo& rti)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
 
-  void HandleXrTargetBitrate(uint32_t ssrc,
-                             const rtcp::TargetBitrate& target_bitrate,
-                             PacketInformation* packet_information)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
-
   bool HandleNack(const rtcp::CommonHeader& rtcp_block,
                   PacketInformation* packet_information)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
@@ -319,7 +310,6 @@ class RTCPReceiver final {
   RtcpIntraFrameObserver* const rtcp_intra_frame_observer_;
   RtcpLossNotificationObserver* const rtcp_loss_notification_observer_;
   NetworkStateEstimateObserver* const network_state_estimate_observer_;
-  VideoBitrateAllocationObserver* const bitrate_allocation_observer_;
   const TimeDelta report_interval_;
 
   mutable Mutex rtcp_receiver_lock_;

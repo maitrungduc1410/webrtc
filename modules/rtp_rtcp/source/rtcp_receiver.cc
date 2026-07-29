@@ -32,8 +32,6 @@
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
-#include "api/video/video_bitrate_allocation.h"
-#include "api/video/video_bitrate_allocator.h"
 #include "api/video/video_codec_constants.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -147,7 +145,6 @@ struct RTCPReceiver::PacketInformation {
   uint32_t receiver_estimated_max_bitrate_bps = 0;
   std::unique_ptr<rtcp::TransportFeedback> transport_feedback;
   std::optional<rtcp::CongestionControlFeedback> congestion_control_feedback;
-  std::optional<VideoBitrateAllocation> target_bitrate_allocation;
   std::optional<NetworkStateEstimate> network_state_estimate;
   std::unique_ptr<rtcp::LossNotification> loss_notification;
 };
@@ -165,7 +162,6 @@ RTCPReceiver::RTCPReceiver(const Environment& env,
       rtcp_intra_frame_observer_(config.intra_frame_callback),
       rtcp_loss_notification_observer_(config.rtcp_loss_notification_observer),
       network_state_estimate_observer_(config.network_state_estimate_observer),
-      bitrate_allocation_observer_(config.bitrate_allocation_observer),
       report_interval_(config.rtcp_report_interval_ms > 0
                            ? TimeDelta::Millis(config.rtcp_report_interval_ms)
                            : (config.audio ? kDefaultAudioReportInterval
@@ -724,10 +720,6 @@ bool RTCPReceiver::HandleXr(const CommonHeader& rtcp_block,
   for (const rtcp::ReceiveTimeInfo& time_info : xr.dlrr().sub_blocks())
     HandleXrDlrrReportBlock(xr.sender_ssrc(), time_info);
 
-  if (xr.target_bitrate()) {
-    HandleXrTargetBitrate(xr.sender_ssrc(), *xr.target_bitrate(),
-                          packet_information);
-  }
   return true;
 }
 
@@ -782,30 +774,6 @@ void RTCPReceiver::HandleXrDlrrReportBlock(uint32_t sender_ssrc,
   xr_rr_rtt_ = rtt;
 
   non_sender_rtts_[sender_ssrc].Update(rtt);
-}
-
-void RTCPReceiver::HandleXrTargetBitrate(
-    uint32_t ssrc,
-    const rtcp::TargetBitrate& target_bitrate,
-    PacketInformation* packet_information) {
-  if (ssrc != remote_ssrc_) {
-    return;  // Not for us.
-  }
-
-  VideoBitrateAllocation bitrate_allocation;
-  for (const auto& item : target_bitrate.GetTargetBitrates()) {
-    if (item.spatial_layer >= kMaxSpatialLayers ||
-        item.temporal_layer >= kMaxTemporalStreams) {
-      RTC_LOG(LS_WARNING)
-          << "Invalid layer in XR target bitrate pack: spatial index "
-          << item.spatial_layer << ", temporal index " << item.temporal_layer
-          << ", dropping.";
-    } else {
-      bitrate_allocation.SetBitrate(item.spatial_layer, item.temporal_layer,
-                                    item.target_bitrate_kbps * 1000);
-    }
-  }
-  packet_information->target_bitrate_allocation.emplace(bitrate_allocation);
 }
 
 bool RTCPReceiver::HandlePli(const CommonHeader& rtcp_block,
@@ -1090,12 +1058,6 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
       (packet_information.packet_type_flags & kRtcpRr)) {
     rtp_rtcp_->OnReceivedRtcpReportBlocks(
         packet_information.report_block_datas);
-  }
-
-  if (bitrate_allocation_observer_ &&
-      packet_information.target_bitrate_allocation) {
-    bitrate_allocation_observer_->OnBitrateAllocationUpdated(
-        *packet_information.target_bitrate_allocation);
   }
 
   if (!receiver_only_) {
