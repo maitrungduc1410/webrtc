@@ -506,6 +506,7 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
   pw_client_version_ = PipeWireVersion::Parse(pw_get_library_version());
   RTC_LOG(LS_INFO) << "PipeWire client version: "
                    << pw_client_version_.ToStringView();
+  RTC_LOG(LS_INFO) << "PipeWire headers version: " << pw_get_headers_version();
 
   // Initialize event handlers, remote end and stream-related.
   pw_core_events_.version = PW_VERSION_CORE_EVENTS;
