@@ -173,7 +173,6 @@ RTCPReceiver::RTCPReceiver(const Environment& env,
       // TODO(bugs.webrtc.org/10774): Remove fallback.
       remote_ssrc_(0),
       xr_rrtr_status_(config.non_sender_rtt_measurement),
-      oldest_tmmbr_info_(Timestamp::Zero()),
       cname_callback_(config.rtcp_cname_callback),
       report_block_data_observer_(config.report_block_data_observer),
       packet_type_counter_observer_(config.rtcp_packet_type_counter_observer),
@@ -196,13 +195,6 @@ void RTCPReceiver::IncomingPacket(std::span<const uint8_t> packet) {
   TriggerCallbacksFromRtcpPacket(packet_information);
 }
 
-// This method is only used by test and legacy code, so we should be able to
-// remove it soon.
-int64_t RTCPReceiver::LastReceivedReportBlockMs() const {
-  MutexLock lock(&rtcp_receiver_lock_);
-  return last_received_rb_.IsFinite() ? last_received_rb_.ms() : 0;
-}
-
 void RTCPReceiver::SetRemoteSSRC(uint32_t ssrc) {
   MutexLock lock(&rtcp_receiver_lock_);
   // New SSRC reset old reports.
@@ -216,11 +208,6 @@ void RTCPReceiver::set_local_media_ssrc(uint32_t ssrc) {
 
 uint32_t RTCPReceiver::local_media_ssrc() const {
   return registered_ssrcs_.media_ssrc();
-}
-
-uint32_t RTCPReceiver::RemoteSSRC() const {
-  MutexLock lock(&rtcp_receiver_lock_);
-  return remote_ssrc_;
 }
 
 void RTCPReceiver::RttStats::AddRtt(TimeDelta rtt) {
@@ -626,56 +613,6 @@ RTCPReceiver::TmmbrInformation* RTCPReceiver::GetTmmbrInformation(
   return &it->second;
 }
 
-// These two methods (RtcpRrTimeout and RtcpRrSequenceNumberTimeout) only exist
-// for tests and legacy code (rtp_rtcp_impl.cc). We should be able to to delete
-// the methods and require that access to the locked variables only happens on
-// the worker thread and thus no locking is needed.
-bool RTCPReceiver::RtcpRrTimeout() {
-  MutexLock lock(&rtcp_receiver_lock_);
-  return RtcpRrTimeoutLocked(env_.clock().CurrentTime());
-}
-
-bool RTCPReceiver::RtcpRrSequenceNumberTimeout() {
-  MutexLock lock(&rtcp_receiver_lock_);
-  return RtcpRrSequenceNumberTimeoutLocked(env_.clock().CurrentTime());
-}
-
-bool RTCPReceiver::UpdateTmmbrTimers() {
-  MutexLock lock(&rtcp_receiver_lock_);
-
-  Timestamp timeout = env_.clock().CurrentTime() - kTmmbrTimeoutInterval;
-
-  if (oldest_tmmbr_info_ >= timeout)
-    return false;
-
-  bool update_bounding_set = false;
-  oldest_tmmbr_info_ = Timestamp::MinusInfinity();
-  for (auto tmmbr_it = tmmbr_infos_.begin(); tmmbr_it != tmmbr_infos_.end();) {
-    TmmbrInformation* tmmbr_info = &tmmbr_it->second;
-    if (tmmbr_info->last_time_received > Timestamp::Zero()) {
-      if (tmmbr_info->last_time_received < timeout) {
-        // No rtcp packet for the last 5 regular intervals, reset limitations.
-        tmmbr_info->tmmbr.clear();
-        // Prevent that we call this over and over again.
-        tmmbr_info->last_time_received = Timestamp::Zero();
-        // Send new TMMBN to all channels using the default codec.
-        update_bounding_set = true;
-      } else if (oldest_tmmbr_info_ == Timestamp::MinusInfinity() ||
-                 tmmbr_info->last_time_received < oldest_tmmbr_info_) {
-        oldest_tmmbr_info_ = tmmbr_info->last_time_received;
-      }
-      ++tmmbr_it;
-    } else if (tmmbr_info->ready_for_delete) {
-      // When we dont have a `last_time_received` and the object is marked
-      // ready_for_delete it's removed from the map.
-      tmmbr_it = tmmbr_infos_.erase(tmmbr_it);
-    } else {
-      ++tmmbr_it;
-    }
-  }
-  return update_bounding_set;
-}
-
 std::vector<rtcp::TmmbItem> RTCPReceiver::BoundingSet(bool* tmmbr_owner) {
   MutexLock lock(&rtcp_receiver_lock_);
   TmmbrInformation* tmmbr_info = GetTmmbrInformation(remote_ssrc_);
@@ -759,10 +696,6 @@ bool RTCPReceiver::HandleBye(const CommonHeader& rtcp_block) {
   EraseIf(received_report_blocks_, [&](const auto& elem) {
     return elem.second.sender_ssrc() == bye.sender_ssrc();
   });
-
-  TmmbrInformation* tmmbr_info = GetTmmbrInformation(bye.sender_ssrc());
-  if (tmmbr_info)
-    tmmbr_info->ready_for_delete = true;
 
   last_fir_.erase(bye.sender_ssrc());
   auto it = received_rrtrs_ssrc_it_.find(bye.sender_ssrc());

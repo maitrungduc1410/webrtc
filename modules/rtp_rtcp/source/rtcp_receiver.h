@@ -101,15 +101,10 @@ class RTCPReceiver final {
 
   void IncomingPacket(std::span<const uint8_t> packet);
 
-  int64_t LastReceivedReportBlockMs() const;
-
   void set_local_media_ssrc(uint32_t ssrc);
   uint32_t local_media_ssrc() const;
 
   void SetRemoteSSRC(uint32_t ssrc);
-  uint32_t RemoteSSRC() const;
-
-  bool receiver_only() const { return receiver_only_; }
 
   // Returns stats based on the received RTCP Sender Reports.
   std::optional<RtpRtcpInterface::SenderReportStats> GetSenderReportStats()
@@ -136,19 +131,7 @@ class RTCPReceiver final {
   // the latest Report Block that was received for that SSRC.
   std::vector<ReportBlockData> GetLatestReportBlockData() const;
 
-  // Returns true if we haven't received an RTCP RR for several RTCP
-  // intervals, but only triggers true once.
-  bool RtcpRrTimeout();
-
-  // Returns true if we haven't received an RTCP RR telling the receive side
-  // has not received RTP packets for too long, i.e. extended highest sequence
-  // number hasn't increased for several RTCP intervals. The function only
-  // returns true once until a new RR is received.
-  bool RtcpRrSequenceNumberTimeout();
-
   std::vector<rtcp::TmmbItem> TmmbrReceived();
-  // Return true if new bandwidth should be set.
-  bool UpdateTmmbrTimers();
   std::vector<rtcp::TmmbItem> BoundingSet(bool* tmmbr_owner);
   // Set new bandwidth and notify remote clients about it.
   void NotifyTmmbrUpdated();
@@ -184,9 +167,6 @@ class RTCPReceiver final {
     };
 
     Timestamp last_time_received = Timestamp::Zero();
-
-    bool ready_for_delete = false;
-
     std::vector<rtcp::TmmbItem> tmmbn;
     std::map<uint32_t, TimedTmmbrItem> tmmbr;
   };
@@ -360,7 +340,6 @@ class RTCPReceiver final {
   bool xr_rrtr_status_ RTC_GUARDED_BY(rtcp_receiver_lock_);
   std::optional<TimeDelta> xr_rr_rtt_;
 
-  Timestamp oldest_tmmbr_info_ RTC_GUARDED_BY(rtcp_receiver_lock_);
   // Mapped by remote ssrc.
   flat_map<uint32_t, TmmbrInformation> tmmbr_infos_
       RTC_GUARDED_BY(rtcp_receiver_lock_);

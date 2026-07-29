@@ -356,7 +356,6 @@ TEST(RtcpReceiverTest, InjectRrPacketWithReportBlockNotToUsIgnored) {
   EXPECT_CALL(mocks.network_link_rtcp_observer, OnReport).Times(0);
   receiver.IncomingPacket(rr.Build());
 
-  EXPECT_EQ(0, receiver.LastReceivedReportBlockMs());
   EXPECT_THAT(receiver.GetLatestReportBlockData(), IsEmpty());
 }
 
@@ -377,7 +376,6 @@ TEST(RtcpReceiverTest, InjectRrPacketWithOneReportBlock) {
   EXPECT_CALL(mocks.network_link_rtcp_observer, OnReport(now, SizeIs(1)));
   receiver.IncomingPacket(rr.Build());
 
-  EXPECT_EQ(receiver.LastReceivedReportBlockMs(), now.ms());
   EXPECT_THAT(receiver.GetLatestReportBlockData(), SizeIs(1));
 }
 
@@ -398,7 +396,6 @@ TEST(RtcpReceiverTest, InjectSrPacketWithOneReportBlock) {
   EXPECT_CALL(mocks.network_link_rtcp_observer, OnReport(now, SizeIs(1)));
   receiver.IncomingPacket(sr.Build());
 
-  EXPECT_EQ(receiver.LastReceivedReportBlockMs(), now.ms());
   EXPECT_THAT(receiver.GetLatestReportBlockData(), SizeIs(1));
 }
 
@@ -431,7 +428,6 @@ TEST(RtcpReceiverTest, InjectRrPacketWithTwoReportBlocks) {
   EXPECT_CALL(mocks.network_link_rtcp_observer, OnReport(now, SizeIs(2)));
   receiver.IncomingPacket(rr1.Build());
 
-  EXPECT_EQ(receiver.LastReceivedReportBlockMs(), now.ms());
   EXPECT_THAT(
       receiver.GetLatestReportBlockData(),
       UnorderedElementsAre(Property(&ReportBlockData::fraction_lost_raw, 0),
@@ -497,12 +493,8 @@ TEST(RtcpReceiverTest,
   rr1.SetSenderSsrc(kSenderSsrc);
   rr1.AddReportBlock(rb1);
 
-  Timestamp now = mocks.clock.CurrentTime();
-
   EXPECT_CALL(mocks.rtp_rtcp_impl, OnReceivedRtcpReportBlocks(SizeIs(1)));
   receiver.IncomingPacket(rr1.Build());
-
-  EXPECT_EQ(receiver.LastReceivedReportBlockMs(), now.ms());
 
   EXPECT_THAT(receiver.GetLatestReportBlockData(),
               ElementsAre(AllOf(
@@ -594,7 +586,6 @@ TEST(RtcpReceiverTest, GetRtt) {
               OnRttUpdate(now, Gt(TimeDelta::Zero())));
   receiver.IncomingPacket(rr.Build());
 
-  EXPECT_EQ(receiver.LastReceivedReportBlockMs(), now.ms());
   EXPECT_NE(receiver.LastRtt(), std::nullopt);
   EXPECT_NE(receiver.AverageRtt(), std::nullopt);
 }
@@ -1327,78 +1318,6 @@ TEST(RtcpReceiverTest, StoresLastReceivedRrtrPerSsrc) {
 
   last_xr_rtis = receiver.ConsumeReceivedXrReferenceTimeInfo();
   ASSERT_THAT(last_xr_rtis, SizeIs(kNumBufferedReports));
-}
-
-TEST(RtcpReceiverTest, ReceiveReportTimeout) {
-  ReceiverMocks mocks;
-  RTCPReceiver receiver = Create(mocks);
-  receiver.SetRemoteSSRC(kSenderSsrc);
-
-  const uint16_t kSequenceNumber = 1234;
-  mocks.clock.AdvanceTimeMilliseconds(3 * kRtcpIntervalMs);
-
-  // No RR received, shouldn't trigger a timeout.
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_FALSE(receiver.RtcpRrSequenceNumberTimeout());
-
-  // Add a RR and advance the clock just enough to not trigger a timeout.
-  rtcp::ReportBlock rb1;
-  rb1.SetMediaSsrc(kReceiverMainSsrc);
-  rb1.SetExtHighestSeqNum(kSequenceNumber);
-  rtcp::ReceiverReport rr1;
-  rr1.SetSenderSsrc(kSenderSsrc);
-  rr1.AddReportBlock(rb1);
-
-  EXPECT_CALL(mocks.rtp_rtcp_impl, OnReceivedRtcpReportBlocks);
-  receiver.IncomingPacket(rr1.Build());
-
-  mocks.clock.AdvanceTimeMilliseconds(3 * kRtcpIntervalMs - 1);
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_FALSE(receiver.RtcpRrSequenceNumberTimeout());
-
-  // Add a RR with the same extended max as the previous RR to trigger a
-  // sequence number timeout, but not a RR timeout.
-  EXPECT_CALL(mocks.rtp_rtcp_impl, OnReceivedRtcpReportBlocks);
-  receiver.IncomingPacket(rr1.Build());
-
-  mocks.clock.AdvanceTimeMilliseconds(2);
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_TRUE(receiver.RtcpRrSequenceNumberTimeout());
-
-  // Advance clock enough to trigger an RR timeout too.
-  mocks.clock.AdvanceTimeMilliseconds(3 * kRtcpIntervalMs);
-  EXPECT_TRUE(receiver.RtcpRrTimeout());
-
-  // We should only get one timeout even though we still haven't received a new
-  // RR.
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_FALSE(receiver.RtcpRrSequenceNumberTimeout());
-
-  // Add a new RR with increase sequence number to reset timers.
-  rtcp::ReportBlock rb2;
-  rb2.SetMediaSsrc(kReceiverMainSsrc);
-  rb2.SetExtHighestSeqNum(kSequenceNumber + 1);
-  rtcp::ReceiverReport rr2;
-  rr2.SetSenderSsrc(kSenderSsrc);
-  rr2.AddReportBlock(rb2);
-
-  EXPECT_CALL(mocks.rtp_rtcp_impl, OnReceivedRtcpReportBlocks);
-  receiver.IncomingPacket(rr2.Build());
-
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_FALSE(receiver.RtcpRrSequenceNumberTimeout());
-
-  // Verify we can get a timeout again once we've received new RR.
-  mocks.clock.AdvanceTimeMilliseconds(2 * kRtcpIntervalMs);
-  EXPECT_CALL(mocks.rtp_rtcp_impl, OnReceivedRtcpReportBlocks);
-  receiver.IncomingPacket(rr2.Build());
-
-  mocks.clock.AdvanceTimeMilliseconds(kRtcpIntervalMs + 1);
-  EXPECT_FALSE(receiver.RtcpRrTimeout());
-  EXPECT_TRUE(receiver.RtcpRrSequenceNumberTimeout());
-
-  mocks.clock.AdvanceTimeMilliseconds(2 * kRtcpIntervalMs);
-  EXPECT_TRUE(receiver.RtcpRrTimeout());
 }
 
 TEST(RtcpReceiverTest, TmmbrReceivedWithNoIncomingPacket) {
