@@ -7,12 +7,3 @@
 # be found in the AUTHORS file in the root of the source tree.
 
 import("../../../webrtc.gni")
-
-rtc_library("mac_portaudio") {
-  visibility = [ "../../audio_device:*" ]
-  sources = [
-    "pa_memorybarrier.h",
-    "pa_ringbuffer.c",
-    "pa_ringbuffer.h",
-  ]
-}
