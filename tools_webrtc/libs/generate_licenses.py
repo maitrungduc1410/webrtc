@@ -80,10 +80,9 @@ LIB_TO_LICENSES_DICT = {
     'jni_zero': ['third_party/jni_zero/LICENSE'],
     'protobuf-javascript': ['third_party/protobuf-javascript/LICENSE'],
     'perfetto': ['third_party/perfetto/LICENSE'],
-    # TODO(bugs.webrtc.org/1110): Remove this hack. This is not a lib.
-    # For some reason it is listed as so in _get_third_party_libraries.
+
+    # These are not libraries but collections of libraries.
     'android_deps': [],
-    # This is not a library but a collection of libraries.
     'androidx': [],
 
     # Compile time dependencies, no license needed:
