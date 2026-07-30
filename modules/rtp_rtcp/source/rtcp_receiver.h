@@ -180,10 +180,10 @@ class RTCPReceiver final {
     uint32_t local_receive_mid_ntp_time;
   };
 
-  struct LastFirStatus {
-    LastFirStatus(Timestamp now, uint8_t sequence_number)
-        : request(now), sequence_number(sequence_number) {}
-    Timestamp request;
+  struct LastFir {
+    friend bool operator==(const LastFir&, const LastFir&) = default;
+
+    uint32_t ssrc;
     uint8_t sequence_number;
   };
 
@@ -334,8 +334,10 @@ class RTCPReceiver final {
   // Report blocks per local source ssrc.
   flat_map<uint32_t, ReportBlockData> received_report_blocks_
       RTC_GUARDED_BY(rtcp_receiver_lock_);
-  flat_map<uint32_t, LastFirStatus> last_fir_
-      RTC_GUARDED_BY(rtcp_receiver_lock_);
+
+  Timestamp last_key_frame_request_ RTC_GUARDED_BY(rtcp_receiver_lock_) =
+      Timestamp::MinusInfinity();
+  std::optional<LastFir> last_fir_ RTC_GUARDED_BY(rtcp_receiver_lock_);
 
   // The last time we received an RTCP Report block for this module.
   Timestamp last_received_rb_ RTC_GUARDED_BY(rtcp_receiver_lock_) =

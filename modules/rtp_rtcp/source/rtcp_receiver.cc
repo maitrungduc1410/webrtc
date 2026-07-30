@@ -656,7 +656,7 @@ bool RTCPReceiver::HandleBye(const CommonHeader& rtcp_block) {
     return elem.second.sender_ssrc() == bye.sender_ssrc();
   });
 
-  last_fir_.erase(bye.sender_ssrc());
+  last_fir_ = std::nullopt;
   auto it = received_rrtrs_ssrc_it_.find(bye.sender_ssrc());
   if (it != received_rrtrs_ssrc_it_.end()) {
     received_rrtrs_.erase(it->second);
@@ -749,6 +749,13 @@ bool RTCPReceiver::HandlePli(const CommonHeader& rtcp_block,
 
   if (local_media_ssrc() == pli.media_ssrc()) {
     ++packet_type_counter_.pli_packets;
+
+    Timestamp now = env_.clock().CurrentTime();
+    if (now - last_key_frame_request_ < kRtcpMinFrameLength) {
+      return true;
+    }
+    last_key_frame_request_ = now;
+
     // Received a signal that we need to send a new key frame.
     packet_information->packet_type_flags |= kRtcpPli;
   }
@@ -845,33 +852,29 @@ bool RTCPReceiver::HandleFir(const CommonHeader& rtcp_block,
     return false;
   }
 
-  if (fir.requests().empty())
-    return true;
-
   const Timestamp now = env_.clock().CurrentTime();
   for (const rtcp::Fir::Request& fir_request : fir.requests()) {
     // Is it our sender that is requested to generate a new keyframe.
-    if (local_media_ssrc() != fir_request.ssrc)
+    if (local_media_ssrc() != fir_request.ssrc) {
       continue;
+    }
 
     ++packet_type_counter_.fir_packets;
 
-    auto [it, inserted] =
-        last_fir_.try_emplace(fir.sender_ssrc(), now, fir_request.seq_nr);
-    if (!inserted) {  // There was already an entry.
-      LastFirStatus* last_fir = &it->second;
-
-      // Check if we have reported this FIRSequenceNumber before.
-      if (fir_request.seq_nr == last_fir->sequence_number)
-        continue;
-
-      // Sanity: don't go crazy with the callbacks.
-      if (now - last_fir->request < kRtcpMinFrameLength)
-        continue;
-
-      last_fir->request = now;
-      last_fir->sequence_number = fir_request.seq_nr;
+    // Check if we have reported this FIRSequenceNumber before.
+    LastFir fir_id = {.ssrc = fir.sender_ssrc(),
+                      .sequence_number = fir_request.seq_nr};
+    if (fir_id == last_fir_) {
+      continue;
     }
+
+    // Avoid requesting a fresh key frame too often.
+    if (now - last_key_frame_request_ < kRtcpMinFrameLength) {
+      continue;
+    }
+
+    last_fir_ = fir_id;
+    last_key_frame_request_ = now;
     // Received signal that we need to send a new key frame.
     packet_information->packet_type_flags |= kRtcpFir;
   }
