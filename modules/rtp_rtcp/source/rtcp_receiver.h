@@ -154,15 +154,13 @@ class RTCPReceiver final {
 
   struct PacketInformation;
 
-  // Structure for handing TMMBR and TMMBN rtcp messages (RFC5104,
-  // section 3.5.4).
+  // Structure for handling TMMBR rtcp messages (RFC5104, section 3.5.4).
   struct TmmbrInformation {
     struct TimedTmmbrItem {
       rtcp::TmmbItem tmmbr_item;
       Timestamp last_updated = Timestamp::Zero();
     };
 
-    std::vector<rtcp::TmmbItem> tmmbn;
     std::map<uint32_t, TimedTmmbrItem> tmmbr;
   };
 
@@ -211,9 +209,6 @@ class RTCPReceiver final {
 
   void TriggerCallbacksFromRtcpPacket(
       const PacketInformation& packet_information);
-
-  TmmbrInformation* GetTmmbrInformation(uint32_t remote_ssrc)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
 
   bool HandleSenderReport(const rtcp::CommonHeader& rtcp_block,
                           PacketInformation* packet_information)
@@ -327,6 +322,9 @@ class RTCPReceiver final {
   // Mapped by remote ssrc.
   flat_map<uint32_t, TmmbrInformation> tmmbr_infos_
       RTC_GUARDED_BY(rtcp_receiver_lock_);
+
+  // Last received timber notification rtcp messages (RFC5104, section 3.5.4).
+  std::vector<rtcp::TmmbItem> tmmbn_ RTC_GUARDED_BY(rtcp_receiver_lock_);
 
   // Round-Trip Time calculated from received report blocks (for RTP sender)
   RttStats rtts_ RTC_GUARDED_BY(rtcp_receiver_lock_);

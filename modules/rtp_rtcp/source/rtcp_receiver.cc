@@ -576,22 +576,10 @@ void RTCPReceiver::HandleReportBlock(const ReportBlock& report_block,
   packet_information->report_block_datas.push_back(*report_block_data);
 }
 
-RTCPReceiver::TmmbrInformation* RTCPReceiver::GetTmmbrInformation(
-    uint32_t remote_ssrc) {
-  auto it = tmmbr_infos_.find(remote_ssrc);
-  if (it == tmmbr_infos_.end())
-    return nullptr;
-  return &it->second;
-}
-
 std::vector<rtcp::TmmbItem> RTCPReceiver::BoundingSet(bool* tmmbr_owner) {
   MutexLock lock(&rtcp_receiver_lock_);
-  TmmbrInformation* tmmbr_info = GetTmmbrInformation(remote_ssrc_);
-  if (!tmmbr_info)
-    return std::vector<rtcp::TmmbItem>();
-
-  *tmmbr_owner = TMMBRHelp::IsOwner(tmmbr_info->tmmbn, local_media_ssrc());
-  return tmmbr_info->tmmbn;
+  *tmmbr_owner = TMMBRHelp::IsOwner(tmmbn_, local_media_ssrc());
+  return tmmbn_;
 }
 
 bool RTCPReceiver::HandleSdes(const CommonHeader& rtcp_block,
@@ -804,11 +792,11 @@ bool RTCPReceiver::HandleTmmbn(const CommonHeader& rtcp_block,
     return false;
   }
 
-  TmmbrInformation& tmmbr_info = tmmbr_infos_[tmmbn.sender_ssrc()];
+  if (tmmbn.sender_ssrc() == remote_ssrc_) {
+    tmmbn_ = tmmbn.items();
+  }
 
   packet_information->packet_type_flags |= kRtcpTmmbn;
-
-  tmmbr_info.tmmbn = tmmbn.items();
   return true;
 }
 
