@@ -193,8 +193,12 @@ void RTCPReceiver::IncomingPacket(std::span<const uint8_t> packet) {
 
 void RTCPReceiver::SetRemoteSSRC(uint32_t ssrc) {
   MutexLock lock(&rtcp_receiver_lock_);
+  if (remote_ssrc_ == ssrc) {
+    return;
+  }
   // New SSRC reset old reports.
   remote_sender_.last_arrival_ntp_timestamp.Reset();
+  non_sender_rtts_.Invalidate();
   remote_ssrc_ = ssrc;
 }
 
@@ -238,11 +242,7 @@ std::optional<TimeDelta> RTCPReceiver::LastRtt() const {
 
 RTCPReceiver::NonSenderRttStats RTCPReceiver::GetNonSenderRTT() const {
   MutexLock lock(&rtcp_receiver_lock_);
-  auto it = non_sender_rtts_.find(remote_ssrc_);
-  if (it == non_sender_rtts_.end()) {
-    return {};
-  }
-  return it->second;
+  return non_sender_rtts_;
 }
 
 void RTCPReceiver::SetNonSenderRttMeasurement(bool enabled) {
@@ -449,13 +449,10 @@ bool RTCPReceiver::ParseCompoundPacket(std::span<const uint8_t> packet,
     return false;
   }
 
-  for (const auto& rb : received_blocks) {
-    if (rb.second.sender_report && !rb.second.dlrr) {
-      auto rtt_stats = non_sender_rtts_.find(rb.first);
-      if (rtt_stats != non_sender_rtts_.end()) {
-        rtt_stats->second.Invalidate();
-      }
-    }
+  if (auto it = received_blocks.find(remote_ssrc_);
+      it != received_blocks.end() && it->second.sender_report &&
+      !it->second.dlrr) {
+    non_sender_rtts_.Invalidate();
   }
 
   if (packet_type_counter_observer_) {
@@ -737,9 +734,8 @@ void RTCPReceiver::HandleXrDlrrReportBlock(uint32_t sender_ssrc,
   // RFC3611, section 4.5, LRR field discription states:
   // If no such block has been received, the field is set to zero.
   if (send_time_ntp == 0) {
-    auto rtt_stats = non_sender_rtts_.find(sender_ssrc);
-    if (rtt_stats != non_sender_rtts_.end()) {
-      rtt_stats->second.Invalidate();
+    if (sender_ssrc == remote_ssrc_) {
+      non_sender_rtts_.Invalidate();
     }
     return;
   }
@@ -751,7 +747,9 @@ void RTCPReceiver::HandleXrDlrrReportBlock(uint32_t sender_ssrc,
   TimeDelta rtt = CompactNtpRttToTimeDelta(rtt_ntp);
   xr_rr_rtt_ = rtt;
 
-  non_sender_rtts_[sender_ssrc].Update(rtt);
+  if (sender_ssrc == remote_ssrc_) {
+    non_sender_rtts_.Update(rtt);
+  }
 }
 
 bool RTCPReceiver::HandlePli(const CommonHeader& rtcp_block,

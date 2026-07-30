@@ -1185,25 +1185,25 @@ TEST(RtcpReceiverTest, ReceiverRttWithMultipleRemoteSsrcs) {
   uint32_t sent_ntp2 = CompactNtp(now2);
   mocks.clock.AdvanceTime(kRtt2 + kDelay2);
 
-  rtcp::ExtendedReports xr2;
-  xr2.SetSenderSsrc(kSenderSsrc + 1);
-  xr2.AddDlrrItem(ReceiveTimeInfo(kReceiverMainSsrc, sent_ntp2, kDelayNtp2));
-
-  receiver.IncomingPacket(xr2.Build());
-
   // Check that the non-sender RTT stats match the first XR.
   RTCPReceiver::NonSenderRttStats non_sender_rtt_stats =
       receiver.GetNonSenderRTT();
-  EXPECT_TRUE(non_sender_rtt_stats.round_trip_time().has_value());
+  ASSERT_TRUE(non_sender_rtt_stats.round_trip_time().has_value());
   EXPECT_NEAR(non_sender_rtt_stats.round_trip_time()->ms(), kRtt.ms(), 1);
   EXPECT_FALSE(non_sender_rtt_stats.total_round_trip_time().IsZero());
   EXPECT_GT(non_sender_rtt_stats.round_trip_time_measurements(), 0);
 
   // Change the remote SSRC and check that the stats match the second XR.
   receiver.SetRemoteSSRC(kSenderSsrc + 1);
+
+  rtcp::ExtendedReports xr2;
+  xr2.SetSenderSsrc(kSenderSsrc + 1);
+  xr2.AddDlrrItem(ReceiveTimeInfo(kReceiverMainSsrc, sent_ntp2, kDelayNtp2));
+  receiver.IncomingPacket(xr2.Build());
+
   RTCPReceiver::NonSenderRttStats non_sender_rtt_stats2 =
       receiver.GetNonSenderRTT();
-  EXPECT_TRUE(non_sender_rtt_stats2.round_trip_time().has_value());
+  ASSERT_TRUE(non_sender_rtt_stats2.round_trip_time().has_value());
   EXPECT_NEAR(non_sender_rtt_stats2.round_trip_time()->ms(), kRtt2.ms(), 1);
   EXPECT_FALSE(non_sender_rtt_stats2.total_round_trip_time().IsZero());
   EXPECT_GT(non_sender_rtt_stats2.round_trip_time_measurements(), 0);

@@ -330,9 +330,8 @@ class RTCPReceiver final {
 
   // Round-Trip Time calculated from received report blocks (for RTP sender)
   RttStats rtts_ RTC_GUARDED_BY(rtcp_receiver_lock_);
-  // Non-sender Round-trip time per remote ssrc.
-  flat_map<uint32_t, NonSenderRttStats> non_sender_rtts_
-      RTC_GUARDED_BY(rtcp_receiver_lock_);
+  // Round-Trip Time calculated from received DLRR blocks (for RTP receiver)
+  NonSenderRttStats non_sender_rtts_ RTC_GUARDED_BY(rtcp_receiver_lock_);
 
   // Report blocks per local source ssrc.
   flat_map<uint32_t, ReportBlockData> received_report_blocks_
