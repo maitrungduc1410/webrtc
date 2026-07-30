@@ -197,8 +197,8 @@ class RTCPReceiver final {
 
     void AddRtt(TimeDelta rtt);
 
-    TimeDelta last_rtt() const { return last_rtt_; }
-    TimeDelta average_rtt() const { return sum_rtt_ / num_rtts_; }
+    std::optional<TimeDelta> last_rtt() const;
+    std::optional<TimeDelta> average_rtt() const;
 
    private:
     TimeDelta last_rtt_ = TimeDelta::Zero();
@@ -328,8 +328,8 @@ class RTCPReceiver final {
   flat_map<uint32_t, TmmbrInformation> tmmbr_infos_
       RTC_GUARDED_BY(rtcp_receiver_lock_);
 
-  // Round-Trip Time per remote sender ssrc.
-  flat_map<uint32_t, RttStats> rtts_ RTC_GUARDED_BY(rtcp_receiver_lock_);
+  // Round-Trip Time calculated from received report blocks (for RTP sender)
+  RttStats rtts_ RTC_GUARDED_BY(rtcp_receiver_lock_);
   // Non-sender Round-trip time per remote ssrc.
   flat_map<uint32_t, NonSenderRttStats> non_sender_rtts_
       RTC_GUARDED_BY(rtcp_receiver_lock_);

@@ -212,22 +212,28 @@ void RTCPReceiver::RttStats::AddRtt(TimeDelta rtt) {
   ++num_rtts_;
 }
 
-std::optional<TimeDelta> RTCPReceiver::AverageRtt() const {
-  MutexLock lock(&rtcp_receiver_lock_);
-  auto it = rtts_.find(remote_ssrc_);
-  if (it == rtts_.end()) {
+std::optional<TimeDelta> RTCPReceiver::RttStats::average_rtt() const {
+  if (num_rtts_ == 0) {
     return std::nullopt;
   }
-  return it->second.average_rtt();
+  return sum_rtt_ / num_rtts_;
+}
+
+std::optional<TimeDelta> RTCPReceiver::RttStats::last_rtt() const {
+  if (num_rtts_ == 0) {
+    return std::nullopt;
+  }
+  return last_rtt_;
+}
+
+std::optional<TimeDelta> RTCPReceiver::AverageRtt() const {
+  MutexLock lock(&rtcp_receiver_lock_);
+  return rtts_.average_rtt();
 }
 
 std::optional<TimeDelta> RTCPReceiver::LastRtt() const {
   MutexLock lock(&rtcp_receiver_lock_);
-  auto it = rtts_.find(remote_ssrc_);
-  if (it == rtts_.end()) {
-    return std::nullopt;
-  }
-  return it->second.last_rtt();
+  return rtts_.last_rtt();
 }
 
 RTCPReceiver::NonSenderRttStats RTCPReceiver::GetNonSenderRTT() const {
@@ -262,15 +268,7 @@ std::optional<TimeDelta> RTCPReceiver::OnPeriodicRttUpdate(Timestamp newer_than,
     // amount of time.
     MutexLock lock(&rtcp_receiver_lock_);
     if (last_received_rb_.IsInfinite() || last_received_rb_ > newer_than) {
-      TimeDelta max_rtt = TimeDelta::MinusInfinity();
-      for (const auto& rtt_stats : rtts_) {
-        if (rtt_stats.second.last_rtt() > max_rtt) {
-          max_rtt = rtt_stats.second.last_rtt();
-        }
-      }
-      if (max_rtt.IsFinite()) {
-        rtt = max_rtt;
-      }
+      rtt = rtts_.last_rtt();
     }
 
     // Check for expired timers and if so, log and reset.
@@ -572,7 +570,7 @@ void RTCPReceiver::HandleReportBlock(const ReportBlock& report_block,
     TimeDelta rtt = CompactNtpRttToTimeDelta(rtt_ntp);
     report_block_data->AddRoundTripTimeSample(rtt);
     if (report_block.source_ssrc() == local_media_ssrc()) {
-      rtts_[remote_ssrc].AddRtt(rtt);
+      rtts_.AddRtt(rtt);
     }
 
     packet_information->rtt = rtt;
@@ -668,7 +666,7 @@ bool RTCPReceiver::HandleBye(const CommonHeader& rtcp_block) {
   }
 
   // Clear our lists.
-  rtts_.erase(bye.sender_ssrc());
+  rtts_ = {};
   EraseIf(received_report_blocks_, [&](const auto& elem) {
     return elem.second.sender_ssrc() == bye.sender_ssrc();
   });
