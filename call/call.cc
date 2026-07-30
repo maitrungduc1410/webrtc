@@ -1052,7 +1052,7 @@ webrtc::VideoReceiveStreamInterface* Call::CreateVideoReceiveStream(
       env_, this, num_cpu_cores_, transport_send_->packet_router(),
       std::move(configuration), call_stats_.get(),
       std::make_unique<VCMTiming>(
-          &env_.clock(), env_.field_trials(), render_delay,
+          env_, render_delay,
           MaybeCreateVideoJitterTiming(env_,
                                        config_.video_jitter_timing_factory)),
       &nack_periodic_processor_, decode_sync_.get());

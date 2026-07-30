@@ -21,7 +21,7 @@
 #include <variant>
 #include <vector>
 
-#include "api/field_trials.h"
+#include "api/environment/environment.h"
 #include "api/metronome/test/fake_metronome.h"
 #include "api/units/frequency.h"
 #include "api/units/time_delta.h"
@@ -32,7 +32,7 @@
 #include "modules/video_coding/timing/timing.h"
 #include "rtc_base/checks.h"
 #include "system_wrappers/include/clock.h"
-#include "test/create_test_field_trials.h"
+#include "test/create_test_environment.h"
 #include "test/fake_encoded_frame.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -119,16 +119,16 @@ class VideoStreamBufferControllerFixture
  public:
   VideoStreamBufferControllerFixture()
       : sync_decoding_(std::get<0>(GetParam())),
-        field_trials_(CreateTestFieldTrials(std::get<1>(GetParam()))),
         time_controller_(kClockStart),
-        clock_(time_controller_.GetClock()),
+        env_(CreateTestEnvironment({.field_trials = std::get<1>(GetParam()),
+                                    .time = &time_controller_})),
         fake_metronome_(TimeDelta::Millis(16)),
-        decode_sync_(clock_,
+        decode_sync_(&env_.clock(),
                      &fake_metronome_,
                      time_controller_.GetMainThread()),
-        timing_(clock_, field_trials_, /*render_delay=*/TimeDelta::Millis(10)),
+        timing_(env_, /*render_delay=*/TimeDelta::Millis(10)),
         buffer_(std::make_unique<VideoStreamBufferController>(
-            clock_,
+            &env_.clock(),
             time_controller_.GetMainThread(),
             &timing_,
             &stats_callback_,
@@ -137,9 +137,9 @@ class VideoStreamBufferControllerFixture
             kMaxWaitForFrame,
             sync_decoding_ ? decode_sync_.CreateSynchronizedFrameScheduler()
                            : std::make_unique<TaskQueueFrameDecodeScheduler>(
-                                 clock_,
+                                 &env_.clock(),
                                  time_controller_.GetMainThread()),
-            field_trials_)) {
+            env_.field_trials())) {
     // Avoid starting with negative render times.
     timing_.set_min_playout_delay(TimeDelta::Millis(10));
 
@@ -176,7 +176,7 @@ class VideoStreamBufferControllerFixture
       return std::move(wait_result_);
     }
 
-    Timestamp now = clock_->CurrentTime();
+    Timestamp now = env_.clock().CurrentTime();
     // TODO(bugs.webrtc.org/13756): Remove this when Thread uses uses
     // Timestamp instead of an integer milliseconds. This extra wait is needed
     // for some tests that use the metronome. This is due to rounding
@@ -208,9 +208,8 @@ class VideoStreamBufferControllerFixture
 
  protected:
   const bool sync_decoding_;
-  FieldTrials field_trials_;
   GlobalSimulatedTimeController time_controller_;
-  Clock* const clock_;
+  Environment env_;
   test::FakeMetronome fake_metronome_;
   DecodeSynchronizer decode_sync_;
 
@@ -625,7 +624,8 @@ TEST_P(VideoStreamBufferControllerTest, TestStatsCallback) {
   EXPECT_CALL(stats_callback_, OnFrameBufferTimingsUpdated);
 
   // Fake timing having received decoded frame.
-  timing_.UpdateDecodeTimeEstimate(TimeDelta::Millis(1), clock_->CurrentTime());
+  timing_.UpdateDecodeTimeEstimate(TimeDelta::Millis(1),
+                                   env_.clock().CurrentTime());
   StartNextDecodeForceKeyframe();
   buffer_->InsertFrame(test::FakeFrameBuilder().Id(0).Time(0).AsLast().Build());
   EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Frame(test::WithId(0)));
@@ -713,7 +713,7 @@ TEST_P(VideoStreamBufferControllerTest, NextFrameWithOldTimestamp) {
   buffer_->InsertFrame(test::FakeFrameBuilder()
                            .Id(0)
                            .Time(kBaseRtp)
-                           .ReceivedTime(clock_->CurrentTime())
+                           .ReceivedTime(env_.clock().CurrentTime())
                            .AsLast()
                            .Build());
   EXPECT_THAT(WaitForFrameOrTimeout(kFps30Delay), Frame(test::WithId(0)));
@@ -723,7 +723,7 @@ TEST_P(VideoStreamBufferControllerTest, NextFrameWithOldTimestamp) {
   buffer_->InsertFrame(test::FakeFrameBuilder()
                            .Id(1)
                            .Time(kBaseRtp + kFps30Rtp)
-                           .ReceivedTime(clock_->CurrentTime())
+                           .ReceivedTime(env_.clock().CurrentTime())
                            .AsLast()
                            .Build());
   EXPECT_THAT(WaitForFrameOrTimeout(kFps30Delay), Frame(test::WithId(1)));
@@ -748,7 +748,7 @@ TEST_P(VideoStreamBufferControllerTest, NextFrameWithOldTimestamp) {
   buffer_->InsertFrame(test::FakeFrameBuilder()
                            .Id(2)
                            .Time(kRolloverRtp)
-                           .ReceivedTime(clock_->CurrentTime())
+                           .ReceivedTime(env_.clock().CurrentTime())
                            .AsLast()
                            .Build());
   // FrameBuffer2 drops the frame, while FrameBuffer3 will continue the stream.
