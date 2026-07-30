@@ -162,7 +162,6 @@ class RTCPReceiver final {
       Timestamp last_updated = Timestamp::Zero();
     };
 
-    Timestamp last_time_received = Timestamp::Zero();
     std::vector<rtcp::TmmbItem> tmmbn;
     std::map<uint32_t, TimedTmmbrItem> tmmbr;
   };
@@ -213,11 +212,6 @@ class RTCPReceiver final {
   void TriggerCallbacksFromRtcpPacket(
       const PacketInformation& packet_information);
 
-  TmmbrInformation* FindOrCreateTmmbrInfo(uint32_t remote_ssrc)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
-  // Update TmmbrInformation (if present) is alive.
-  void UpdateTmmbrRemoteIsAlive(uint32_t remote_ssrc)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
   TmmbrInformation* GetTmmbrInformation(uint32_t remote_ssrc)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
 
