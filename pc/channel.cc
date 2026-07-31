@@ -685,7 +685,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
       sb << "Failed to set local video description recv parameters for "
             "m-section with mid='"
          << mid() << "'.";
-      error = RTCError::InvalidParameter(sb.str());
+      error = RTCError::InvalidParameter(sb.Release());
       return error;
     }
     last_recv_params_ = recv_params;
@@ -695,7 +695,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
         StringBuilder sb;
         sb << "Failed to set send parameters for m-section with mid='" << mid()
            << "'.";
-        error = RTCError::InvalidParameter(sb.str());
+        error = RTCError::InvalidParameter(sb.Release());
         return error;
       }
       last_send_params_ = send_params;
@@ -720,7 +720,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
       sb << "Failed to set local audio description recv parameters for "
             "m-section with mid='"
          << mid() << "'.";
-      error = RTCError::InvalidParameter(sb.str());
+      error = RTCError::InvalidParameter(sb.Release());
       return error;
     }
     last_recv_params_ = recv_params;
@@ -730,7 +730,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
         StringBuilder sb;
         sb << "Failed to set send parameters for m-section with mid='" << mid()
            << "'.";
-        error = RTCError::InvalidParameter(sb.str());
+        error = RTCError::InvalidParameter(sb.Release());
         return error;
       }
       last_send_params_ = send_params;
@@ -791,7 +791,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
       sb << "Failed to set remote video description send parameters for "
             "m-section with mid='"
          << mid() << "'.";
-      return RTCError::InvalidParameter(sb.str());
+      return RTCError::InvalidParameter(sb.Release());
     }
     last_send_params_ = send_params;
 
@@ -800,7 +800,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
         StringBuilder sb;
         sb << "Failed to set recv parameters for m-section with mid='" << mid()
            << "'.";
-        return RTCError::InvalidParameter(sb.str());
+        return RTCError::InvalidParameter(sb.Release());
       }
       last_recv_params_ = recv_params;
     }
@@ -822,7 +822,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
       sb << "Failed to set remote audio description send parameters for "
             "m-section with mid='"
          << mid() << "'.";
-      return RTCError::InvalidParameter(sb.str());
+      return RTCError::InvalidParameter(sb.Release());
     }
     last_send_params_ = send_params;
 
@@ -831,7 +831,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
         StringBuilder sb;
         sb << "Failed to set recv parameters for m-section with mid='" << mid()
            << "'.";
-        return RTCError::InvalidParameter(sb.str());
+        return RTCError::InvalidParameter(sb.Release());
       }
       last_recv_params_ = recv_params;
     }

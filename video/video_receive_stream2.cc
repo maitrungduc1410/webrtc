@@ -573,8 +573,8 @@ void VideoReceiveStream2::CreateAndRegisterExternalDecoder(
     StringBuilder ssb;
     ssb << decoded_output_file << "/webrtc_receive_stream_" << remote_ssrc()
         << "-" << env_.clock().TimeInMicroseconds() << ".ivf";
-    video_decoder =
-        CreateFrameDumpingDecoderWrapper(std::move(video_decoder), ssb.str());
+    video_decoder = CreateFrameDumpingDecoderWrapper(std::move(video_decoder),
+                                                     ssb.Release());
   }
 
   video_receiver_.RegisterExternalDecoder(std::move(video_decoder),

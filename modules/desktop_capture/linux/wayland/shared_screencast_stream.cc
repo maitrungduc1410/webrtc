@@ -425,7 +425,7 @@ void SharedScreenCastStreamPrivate::OnStreamParamChanged(
        << that->spa_video_format_.size.height << "\n";
     sb << "    Framerate: " << that->spa_video_format_.framerate.num << "/"
        << that->spa_video_format_.framerate.denom;
-    RTC_LOG(LS_INFO) << sb.str();
+    RTC_LOG(LS_INFO) << sb.Release();
   }
 
   const int buffer_types = has_modifier
