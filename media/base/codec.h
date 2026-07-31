@@ -201,11 +201,11 @@ struct RTC_EXPORT Codec {
     if (c.packetization) {
       absl::Format(&sink, ",packetization=%s", *c.packetization);
     }
-    for (auto param : c.params) {
+    for (const auto& [key, value] : c.params) {
       sink.Append(";");
-      sink.Append(param.first);
+      sink.Append(key);
       sink.Append("=");
-      sink.Append(param.second);
+      sink.Append(value);
     }
     sink.Append("]");
   }
