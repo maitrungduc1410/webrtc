@@ -378,6 +378,7 @@ class Call final : public webrtc::Call,
       RTC_RUN_ON(network_thread_);
 
   void DeliverRtcpPacket_w(CopyOnWriteBuffer packet);
+  void OnSentPacket_w(const SentPacketInfo& sent_packet, Timestamp sent_time);
 
   void DeliverRtpPacket_w(MediaType media_type,
                           RtpPacketReceived packet,
@@ -1288,8 +1289,22 @@ void Call::OnSentPacket(const SentPacketInfo& sent_packet) {
     return;
   }
   last_sent_packet_ = sent_packet;
-  video_send_delay_stats_->OnSentPacket(sent_packet.packet_id,
-                                        env_.clock().CurrentTime());
+
+  Timestamp sent_time = env_.clock().CurrentTime();
+  if (!worker_thread_->IsCurrent()) {
+    worker_thread_->PostTask(
+        SafeTask(task_safety_.flag(), [this, sent_packet, sent_time]() {
+          OnSentPacket_w(sent_packet, sent_time);
+        }));
+  } else {
+    OnSentPacket_w(sent_packet, sent_time);
+  }
+}
+
+void Call::OnSentPacket_w(const SentPacketInfo& sent_packet,
+                          Timestamp sent_time) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  video_send_delay_stats_->OnSentPacket(sent_packet.packet_id, sent_time);
   transport_send_->OnSentPacket(sent_packet);
 }
 
