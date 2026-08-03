@@ -562,13 +562,8 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
   auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
       rtp_packet, unwrapped_rtp_seq_num, video);
 
-  RtpPacketInfo& packet_info =
-      packet_infos_
-          .emplace(unwrapped_rtp_seq_num,
-                   RtpPacketInfo(rtp_packet.Ssrc(), rtp_packet.Csrcs(),
-                                 rtp_packet.Timestamp(),
-                                 /*receive_time=*/env_.clock().CurrentTime()))
-          .first->second;
+  RtpPacketInfo& packet_info = packet->rtp_packet_info;
+  packet_info.set_receive_time(env_.clock().CurrentTime());
 
   // Try to extrapolate absolute capture time if it is missing.
   packet_info.set_absolute_capture_time(
@@ -839,19 +834,7 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
     }
     skip_frame = false;
 
-    // Every time `FrameDecoded` is called outdated information is cleaned up,
-    // and because of that `packet_infos_` might not contain any information
-    // about some of the packets in the assembled frame. To avoid creating a
-    // frame with missing `packet_infos_`, simply drop this (old/duplicate)
-    // frame.
-    int64_t unwrapped_rtp_seq_num = packet->sequence_number;
-    auto packet_info_it = packet_infos_.find(unwrapped_rtp_seq_num);
-    if (packet_info_it == packet_infos_.end()) {
-      skip_frame = true;
-      continue;
-    }
-
-    RtpPacketInfo& packet_info = packet_info_it->second;
+    const RtpPacketInfo& packet_info = packet->rtp_packet_info;
     if (packet->is_first_packet_in_frame()) {
       payloads.clear();
       packet_infos.clear();
@@ -919,7 +902,6 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
     last_received_rtp_system_time_.reset();
     last_received_keyframe_rtp_system_time_.reset();
     last_received_keyframe_rtp_timestamp_.reset();
-    packet_infos_.clear();
     RequestKeyFrame();
   }
 }
@@ -1364,8 +1346,6 @@ void RtpVideoStreamReceiver2::FrameDecoded(int64_t picture_id) {
 
   if (seq_num != -1) {
     int64_t unwrapped_rtp_seq_num = rtp_seq_num_unwrapper_.Unwrap(seq_num);
-    packet_infos_.erase(packet_infos_.begin(),
-                        packet_infos_.upper_bound(unwrapped_rtp_seq_num));
     packet_buffer_.ClearTo(unwrapped_rtp_seq_num);
     reference_finder_->ClearTo(seq_num, rtp_timestamp);
   }

@@ -89,6 +89,7 @@ rtc_library("packet_buffer") {
   ]
   deps = [
     ":codec_globals_headers",
+    "../../api:rtp_packet_info",
     "../../api/video:video_frame",
     "../../api/video:video_frame_type",
     "../../common_video",
