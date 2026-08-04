@@ -120,6 +120,10 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
 
   struct Config {
     Config();
+    Config(const Config&) = delete;
+    Config& operator=(const Config&) = delete;
+    Config(Config&&);
+    Config& operator=(Config&&);
     ~Config();
 
     std::string ToString() const;

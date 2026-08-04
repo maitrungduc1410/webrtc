@@ -117,9 +117,8 @@ class FakeAudioSendStream final : public AudioSendStream {
 
 class FakeAudioReceiveStream final : public AudioReceiveStreamInterface {
  public:
-  explicit FakeAudioReceiveStream(
-      int id,
-      const AudioReceiveStreamInterface::Config& config);
+  explicit FakeAudioReceiveStream(int id,
+                                  AudioReceiveStreamInterface::Config config);
 
   int id() const { return id_; }
   const AudioReceiveStreamInterface::Config& GetConfig() const;
@@ -443,7 +442,7 @@ class FakeCall final : public Call, public PacketReceiver {
   void DestroyAudioSendStream(AudioSendStream* send_stream) override;
 
   AudioReceiveStreamInterface* CreateAudioReceiveStream(
-      const AudioReceiveStreamInterface::Config& config) override;
+      AudioReceiveStreamInterface::Config config) override;
   void DestroyAudioReceiveStream(
       AudioReceiveStreamInterface* receive_stream) override;
 

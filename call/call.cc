@@ -249,7 +249,7 @@ class Call final : public webrtc::Call,
   void DestroyAudioSendStream(webrtc::AudioSendStream* send_stream) override;
 
   webrtc::AudioReceiveStreamInterface* CreateAudioReceiveStream(
-      const webrtc::AudioReceiveStreamInterface::Config& config) override;
+      webrtc::AudioReceiveStreamInterface::Config config) override;
   void DestroyAudioReceiveStream(
       webrtc::AudioReceiveStreamInterface* receive_stream) override;
 
@@ -839,7 +839,7 @@ void Call::DestroyAudioSendStream(webrtc::AudioSendStream* send_stream) {
 }
 
 webrtc::AudioReceiveStreamInterface* Call::CreateAudioReceiveStream(
-    const webrtc::AudioReceiveStreamInterface::Config& config) {
+    webrtc::AudioReceiveStreamInterface::Config config) {
   TRACE_EVENT0("webrtc", "Call::CreateAudioReceiveStream");
   RTC_DCHECK_RUN_ON(worker_thread_);
   EnsureStarted();
@@ -847,8 +847,8 @@ webrtc::AudioReceiveStreamInterface* Call::CreateAudioReceiveStream(
       CreateRtcLogStreamConfig(config)));
 
   AudioReceiveStreamImpl* receive_stream = new AudioReceiveStreamImpl(
-      env_, transport_send_->packet_router(), config_.neteq_factory, config,
-      config_.audio_state);
+      env_, transport_send_->packet_router(), config_.neteq_factory,
+      std::move(config), config_.audio_state);
   audio_receive_streams_.insert(receive_stream);
 
   // TODO(bugs.webrtc.org/11993): Make the registration on the network thread

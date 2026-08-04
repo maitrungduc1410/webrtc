@@ -56,16 +56,15 @@ class AudioReceiveStreamImpl final : public webrtc::AudioReceiveStreamInterface,
                                      public AudioMixer::Source,
                                      public Syncable {
  public:
-  AudioReceiveStreamImpl(
-      const Environment& env,
-      PacketRouter* absl_nonnull packet_router,
-      NetEqFactory* absl_nullable neteq_factory,
-      const webrtc::AudioReceiveStreamInterface::Config& config,
-      const scoped_refptr<webrtc::AudioState>& audio_state);
+  AudioReceiveStreamImpl(const Environment& env,
+                         PacketRouter* absl_nonnull packet_router,
+                         NetEqFactory* absl_nullable neteq_factory,
+                         webrtc::AudioReceiveStreamInterface::Config config,
+                         const scoped_refptr<webrtc::AudioState>& audio_state);
   // For unit tests, which need to supply a mock channel receive.
   AudioReceiveStreamImpl(
       const Environment& env,
-      const webrtc::AudioReceiveStreamInterface::Config& config,
+      webrtc::AudioReceiveStreamInterface::Config config,
       const scoped_refptr<webrtc::AudioState>& audio_state,
       absl_nonnull std::unique_ptr<voe::ChannelReceiveInterface>
           channel_receive);
@@ -140,6 +139,8 @@ class AudioReceiveStreamImpl final : public webrtc::AudioReceiveStreamInterface,
   const std::string& sync_group() const;
 
  private:
+  void Initialize();
+
   internal::AudioState* audio_state() const;
 
   const Environment env_;
