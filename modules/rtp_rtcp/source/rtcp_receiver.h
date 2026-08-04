@@ -14,7 +14,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <list>
-#include <map>
 #include <optional>
 #include <span>
 #include <vector>
@@ -155,13 +154,9 @@ class RTCPReceiver final {
   struct PacketInformation;
 
   // Structure for handling TMMBR rtcp messages (RFC5104, section 3.5.4).
-  struct TmmbrInformation {
-    struct TimedTmmbrItem {
-      rtcp::TmmbItem tmmbr_item;
-      Timestamp last_updated = Timestamp::Zero();
-    };
-
-    std::map<uint32_t, TimedTmmbrItem> tmmbr;
+  struct TimedTmmbrItem {
+    rtcp::TmmbItem tmmbr_item;
+    Timestamp last_updated;
   };
 
   // Structure for storing received RRTR RTCP messages (RFC3611, section 4.4).
@@ -319,9 +314,7 @@ class RTCPReceiver final {
   bool xr_rrtr_status_ RTC_GUARDED_BY(rtcp_receiver_lock_);
   std::optional<TimeDelta> xr_rr_rtt_;
 
-  // Mapped by remote ssrc.
-  flat_map<uint32_t, TmmbrInformation> tmmbr_infos_
-      RTC_GUARDED_BY(rtcp_receiver_lock_);
+  std::list<TimedTmmbrItem> tmmbr_ RTC_GUARDED_BY(rtcp_receiver_lock_);
 
   // Last received timber notification rtcp messages (RFC5104, section 3.5.4).
   std::vector<rtcp::TmmbItem> tmmbn_ RTC_GUARDED_BY(rtcp_receiver_lock_);

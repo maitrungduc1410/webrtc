@@ -16,7 +16,6 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
-#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -770,21 +769,24 @@ bool RTCPReceiver::HandleTmmbr(const CommonHeader& rtcp_block,
   }
 
   uint32_t sender_ssrc = tmmbr.sender_ssrc();
-  if (tmmbr.media_ssrc()) {
-    // media_ssrc() SHOULD be 0 if same as SenderSSRC.
-    // In relay mode this is a valid number.
-    sender_ssrc = tmmbr.media_ssrc();
-  }
 
   for (const rtcp::TmmbItem& request : tmmbr.requests()) {
     if (local_media_ssrc() != request.ssrc() || request.bitrate_bps() == 0)
       continue;
 
-    TmmbrInformation& tmmbr_info = tmmbr_infos_[tmmbr.sender_ssrc()];
-    auto* entry = &tmmbr_info.tmmbr[sender_ssrc];
-    entry->tmmbr_item = rtcp::TmmbItem(sender_ssrc, request.bitrate_bps(),
-                                       request.packet_overhead());
-    entry->last_updated = env_.clock().CurrentTime();
+    tmmbr_.remove_if([&](const TimedTmmbrItem& entry) {
+      return entry.tmmbr_item.ssrc() == sender_ssrc;
+    });
+
+    if (tmmbr_.size() >= 16) {
+      // Fresh entries are always added or moved to the back, so 1st entry
+      // is the oldest.
+      tmmbr_.pop_front();
+    }
+
+    tmmbr_.push_back({.tmmbr_item{sender_ssrc, request.bitrate_bps(),
+                                  request.packet_overhead()},
+                      .last_updated = env_.clock().CurrentTime()});
 
     packet_information->packet_type_flags |= kRtcpTmmbr;
     break;
@@ -1041,16 +1043,13 @@ std::vector<rtcp::TmmbItem> RTCPReceiver::TmmbrReceived() {
   std::vector<rtcp::TmmbItem> candidates;
 
   Timestamp now = env_.clock().CurrentTime();
-
-  for (auto& kv : tmmbr_infos_) {
-    for (auto it = kv.second.tmmbr.begin(); it != kv.second.tmmbr.end();) {
-      if (now - it->second.last_updated > kTmmbrTimeoutInterval) {
-        // Erase timeout entries.
-        it = kv.second.tmmbr.erase(it);
-      } else {
-        candidates.push_back(it->second.tmmbr_item);
-        ++it;
-      }
+  for (auto it = tmmbr_.begin(); it != tmmbr_.end();) {
+    if (now - it->last_updated > kTmmbrTimeoutInterval) {
+      // Erase timeout entries.
+      it = tmmbr_.erase(it);
+    } else {
+      candidates.push_back(it->tmmbr_item);
+      ++it;
     }
   }
   return candidates;
