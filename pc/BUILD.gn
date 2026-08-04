@@ -366,7 +366,6 @@ rtc_library("media_session") {
     "../call:payload_type",
     "../media:codec",
     "../media:media_constants",
-    "../media:media_engine",
     "../media:rid_description",
     "../media:stream_params",
     "../p2p:ice_credentials_iterator",
