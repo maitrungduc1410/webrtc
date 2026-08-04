@@ -11,7 +11,6 @@
 #include "call/call.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -354,24 +353,22 @@ class Call final : public webrtc::Call,
   class SendStats {
    public:
     explicit SendStats(Clock* clock);
-    ~SendStats();
 
-    void SetFirstPacketTime(std::optional<Timestamp> first_sent_packet_time);
+    void ReportStats(std::optional<Timestamp> first_sent_packet_time,
+                     Timestamp now);
     void PauseSendAndPacerBitrateCounters();
     void AddTargetBitrateSample(uint32_t target_bitrate_bps);
     void SetMinAllocatableRate(BitrateAllocationLimits limits);
 
    private:
-    RTC_NO_UNIQUE_ADDRESS SequenceChecker destructor_sequence_checker_;
-    RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
-    Clock* const clock_ RTC_GUARDED_BY(destructor_sequence_checker_);
+    RTC_NO_UNIQUE_ADDRESS SequenceChecker worker_thread_checker_{
+        SequenceChecker::kDetached};
     AvgCounter estimated_send_bitrate_kbps_counter_
-        RTC_GUARDED_BY(sequence_checker_);
-    AvgCounter pacer_bitrate_kbps_counter_ RTC_GUARDED_BY(sequence_checker_);
-    uint32_t min_allocated_send_bitrate_bps_ RTC_GUARDED_BY(sequence_checker_){
-        0};
-    std::optional<Timestamp> first_sent_packet_time_
-        RTC_GUARDED_BY(destructor_sequence_checker_);
+        RTC_GUARDED_BY(worker_thread_checker_);
+    AvgCounter pacer_bitrate_kbps_counter_
+        RTC_GUARDED_BY(worker_thread_checker_);
+    uint32_t min_allocated_send_bitrate_bps_
+        RTC_GUARDED_BY(worker_thread_checker_){0};
   };
 
   void DeliverRtcp(MediaType media_type, CopyOnWriteBuffer packet)
@@ -415,7 +412,6 @@ class Call final : public webrtc::Call,
   const ScopedTaskSafety task_safety_;
   ReceiveSinkRegistry receive_sink_registry_ RTC_GUARDED_BY(worker_thread_);
   const std::unique_ptr<DecodeSynchronizer> decode_sync_;
-  RTC_NO_UNIQUE_ADDRESS SequenceChecker send_transport_sequence_checker_;
 
   const int num_cpu_cores_;
   const std::unique_ptr<CallStats> call_stats_;
@@ -460,10 +456,6 @@ class Call final : public webrtc::Call,
       RTC_GUARDED_BY(worker_thread_);
   std::set<VideoSendStreamImpl*> video_send_streams_
       RTC_GUARDED_BY(worker_thread_);
-  // True if `video_send_streams_` is empty, false if not. The atomic variable
-  // is used to decide UMA send statistics behavior and enables avoiding a
-  // PostTask().
-  std::atomic<bool> video_send_streams_empty_{true};
 
   // Each forwarder wraps an adaptation resource that was added to the call.
   std::vector<std::unique_ptr<ResourceVideoSendStreamForwarder>>
@@ -478,13 +470,10 @@ class Call final : public webrtc::Call,
       RTC_GUARDED_BY(worker_thread_);
 
   ReceiveStats receive_stats_ RTC_GUARDED_BY(network_thread_);
-  // TODO(bugs.webrtc.org/11993) ready to move stats access to the network
-  // thread.
-  SendStats send_stats_ RTC_GUARDED_BY(send_transport_sequence_checker_);
-  // `last_bandwidth_bps_` and `configured_max_padding_bitrate_bps_` being
-  // atomic avoids a PostTask. The variables are used for stats gathering.
-  std::atomic<uint32_t> last_bandwidth_bps_{0};
-  std::atomic<uint32_t> configured_max_padding_bitrate_bps_{0};
+  SendStats send_stats_ RTC_GUARDED_BY(worker_thread_);
+  uint32_t last_bandwidth_bps_ RTC_GUARDED_BY(worker_thread_) = 0;
+  uint32_t configured_max_padding_bitrate_bps_ RTC_GUARDED_BY(worker_thread_) =
+      0;
 
   ReceiveSideCongestionController receive_side_cc_;
   RepeatingTaskHandle receive_side_cc_periodic_task_;
@@ -495,16 +484,6 @@ class Call final : public webrtc::Call,
 
   const std::unique_ptr<SendDelayStats> video_send_delay_stats_;
   const Timestamp start_of_call_;
-
-  // Caches transport_send_.get(), to avoid racing with destructor.
-  // Note that this is declared before transport_send_ to ensure that it is not
-  // invalidated until no more tasks can be running on the transport_send_ task
-  // queue.
-  // For more details on the background of this member variable, see:
-  // https://webrtc-review.googlesource.com/c/src/+/63023/9/call/call.cc
-  // https://bugs.chromium.org/p/chromium/issues/detail?id=992640
-  RtpTransportControllerSendInterface* const transport_send_ptr_
-      RTC_GUARDED_BY(send_transport_sequence_checker_);
 
   bool is_started_ RTC_GUARDED_BY(worker_thread_) = false;
 
@@ -645,19 +624,17 @@ Call::ReceiveStats::~ReceiveStats() {
 }
 
 Call::SendStats::SendStats(Clock* clock)
-    : clock_(clock),
-      estimated_send_bitrate_kbps_counter_(clock, nullptr, true),
-      pacer_bitrate_kbps_counter_(clock, nullptr, true) {
-  destructor_sequence_checker_.Detach();
-  sequence_checker_.Detach();
-}
+    : estimated_send_bitrate_kbps_counter_(clock, nullptr, true),
+      pacer_bitrate_kbps_counter_(clock, nullptr, true) {}
 
-Call::SendStats::~SendStats() {
-  RTC_DCHECK_RUN_ON(&destructor_sequence_checker_);
-  if (!first_sent_packet_time_)
+void Call::SendStats::ReportStats(
+    std::optional<Timestamp> first_sent_packet_time,
+    Timestamp now) {
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  if (!first_sent_packet_time)
     return;
 
-  TimeDelta elapsed = clock_->CurrentTime() - *first_sent_packet_time_;
+  TimeDelta elapsed = now - *first_sent_packet_time;
   if (elapsed < metrics::kMinRunTime)
     return;
 
@@ -680,20 +657,14 @@ Call::SendStats::~SendStats() {
   }
 }
 
-void Call::SendStats::SetFirstPacketTime(
-    std::optional<Timestamp> first_sent_packet_time) {
-  RTC_DCHECK_RUN_ON(&destructor_sequence_checker_);
-  first_sent_packet_time_ = first_sent_packet_time;
-}
-
 void Call::SendStats::PauseSendAndPacerBitrateCounters() {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   estimated_send_bitrate_kbps_counter_.ProcessAndPause();
   pacer_bitrate_kbps_counter_.ProcessAndPause();
 }
 
 void Call::SendStats::AddTargetBitrateSample(uint32_t target_bitrate_bps) {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   estimated_send_bitrate_kbps_counter_.Add(target_bitrate_bps / 1000);
   // Pacer bitrate may be higher than bitrate estimate if enforcing min
   // bitrate.
@@ -703,7 +674,7 @@ void Call::SendStats::AddTargetBitrateSample(uint32_t target_bitrate_bps) {
 }
 
 void Call::SendStats::SetMinAllocatableRate(BitrateAllocationLimits limits) {
-  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   min_allocated_send_bitrate_bps_ = limits.min_allocatable_rate.bps();
 }
 
@@ -738,11 +709,9 @@ Call::Call(CallConfig config,
           ReceiveTimeCalculator::CreateFromFieldTrial(env_.field_trials())),
       video_send_delay_stats_(new SendDelayStats(&env_.clock())),
       start_of_call_(env_.clock().CurrentTime()),
-      transport_send_ptr_(transport_send.get()),
       transport_send_(std::move(transport_send)) {
   RTC_DCHECK(network_thread_);
   receive_11993_checker_.Detach();
-  send_transport_sequence_checker_.Detach();
 
   // Do not remove this call; it is here to convince the compiler that the
   // WebRTC source timestamp string needs to be in the final binary.
@@ -764,11 +733,11 @@ Call::~Call() {
     elastic_bandwidth_allocation_task_.Stop();
     call_stats_->DeregisterStatsObserver(&receive_side_cc_);
   }
-  send_stats_.SetFirstPacketTime(transport_send_->GetFirstPacketTime());
+  Timestamp now = env_.clock().CurrentTime();
+  send_stats_.ReportStats(transport_send_->GetFirstPacketTime(), now);
 
-  RTC_HISTOGRAM_COUNTS_100000(
-      "WebRTC.Call.LifetimeInSeconds",
-      (env_.clock().CurrentTime() - start_of_call_).seconds());
+  RTC_HISTOGRAM_COUNTS_100000("WebRTC.Call.LifetimeInSeconds",
+                              (now - start_of_call_).seconds());
 }
 
 void Call::EnsureStarted() {
@@ -959,7 +928,6 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
     video_send_ssrcs_[ssrc] = send_stream;
   }
   video_send_streams_.insert(send_stream);
-  video_send_streams_empty_.store(false, std::memory_order_relaxed);
 
   // Forward resources that were previously added to the call to the new stream.
   for (const auto& resource_forwarder : adaptation_resource_forwarders_) {
@@ -1011,8 +979,6 @@ void Call::DestroyVideoSendStream(webrtc::VideoSendStream* send_stream) {
     resource_forwarder->OnDestroyVideoSendStream(send_stream_impl);
   }
   video_send_streams_.erase(send_stream_impl);
-  if (video_send_streams_.empty())
-    video_send_streams_empty_.store(true, std::memory_order_relaxed);
 
   VideoSendStreamImpl::RtpStateMap rtp_states;
   VideoSendStreamImpl::RtpPayloadStateMap rtp_payload_states;
@@ -1154,10 +1120,8 @@ Call::Stats Call::GetStats() const {
 
   // Fetch available send/receive bitrates.
   stats.recv_bandwidth_bps = receive_side_cc_.LatestReceiveSideEstimate().bps();
-  stats.send_bandwidth_bps =
-      last_bandwidth_bps_.load(std::memory_order_relaxed);
-  stats.max_padding_bitrate_bps =
-      configured_max_padding_bitrate_bps_.load(std::memory_order_relaxed);
+  stats.send_bandwidth_bps = last_bandwidth_bps_;
+  stats.max_padding_bitrate_bps = configured_max_padding_bitrate_bps_;
 
   // Congestion control feedback messages received.
   stats.ccfb_messages_received =
@@ -1309,47 +1273,39 @@ void Call::OnSentPacket_w(const SentPacketInfo& sent_packet,
 }
 
 void Call::OnStartRateUpdate(DataRate start_rate) {
-  RTC_DCHECK_RUN_ON(&send_transport_sequence_checker_);
+  RTC_DCHECK_RUN_ON(worker_thread_);
   bitrate_allocator_->UpdateStartRate(start_rate.bps<uint32_t>());
 }
 
 void Call::OnTransportOverheadChanged(DataSize transport_overhead) {
-  RTC_DCHECK_RUN_ON(&send_transport_sequence_checker_);
+  RTC_DCHECK_RUN_ON(worker_thread_);
   bitrate_allocator_->OnTransportOverheadChanged(transport_overhead);
 }
 
 void Call::OnTargetTransferRate(TargetTransferRate msg) {
-  RTC_DCHECK_RUN_ON(&send_transport_sequence_checker_);
+  RTC_DCHECK_RUN_ON(worker_thread_);
 
-  uint32_t target_bitrate_bps = msg.target_rate.bps();
+  last_bandwidth_bps_ = msg.target_rate.bps();
   // For controlling the rate of feedback messages.
-  receive_side_cc_.OnBitrateChanged(
-      msg.target_rate, msg.is_bandwidth_limited,
-      transport_send_ptr_->GetTransportOverhead());
+  receive_side_cc_.OnBitrateChanged(msg.target_rate, msg.is_bandwidth_limited,
+                                    transport_send_->GetTransportOverhead());
   bitrate_allocator_->OnNetworkEstimateChanged(msg);
-
-  last_bandwidth_bps_.store(target_bitrate_bps, std::memory_order_relaxed);
 
   // Ignore updates if bitrate is zero (the aggregate network state is
   // down) or if we're not sending video.
-  // Using `video_send_streams_empty_` is racy but as the caller can't
-  // reasonably expect synchronize with changes in `video_send_streams_` (being
-  // on `send_transport_sequence_checker`), we can avoid a PostTask this way.
-  if (target_bitrate_bps == 0 ||
-      video_send_streams_empty_.load(std::memory_order_relaxed)) {
+  if (last_bandwidth_bps_ == 0 || video_send_streams_.empty()) {
     send_stats_.PauseSendAndPacerBitrateCounters();
   } else {
-    send_stats_.AddTargetBitrateSample(target_bitrate_bps);
+    send_stats_.AddTargetBitrateSample(last_bandwidth_bps_);
   }
 }
 
 void Call::OnAllocationLimitsChanged(BitrateAllocationLimits limits) {
-  RTC_DCHECK_RUN_ON(&send_transport_sequence_checker_);
+  RTC_DCHECK_RUN_ON(worker_thread_);
 
-  transport_send_ptr_->SetAllocatedSendBitrateLimits(limits);
+  transport_send_->SetAllocatedSendBitrateLimits(limits);
   send_stats_.SetMinAllocatableRate(limits);
-  configured_max_padding_bitrate_bps_.store(limits.max_padding_rate.bps(),
-                                            std::memory_order_relaxed);
+  configured_max_padding_bitrate_bps_ = limits.max_padding_rate.bps();
 }
 
 AudioReceiveStreamImpl* Call::FindAudioStreamForSyncGroup(
