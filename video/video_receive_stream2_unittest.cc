@@ -69,7 +69,6 @@
 namespace webrtc {
 
 namespace {
-
 using test::video_frame_matchers::NtpTimestamp;
 using test::video_frame_matchers::PacketInfos;
 using test::video_frame_matchers::Rotation;
