@@ -1251,11 +1251,11 @@ bool WebRtcVideoSendChannel::SetSenderParameters(
 void WebRtcVideoSendChannel::RequestEncoderSwitch(
     std::optional<SdpVideoFormat> format,
     bool allow_default_fallback) {
-  auto task =
-      SafeTask(task_safety_.flag(), [this, format, allow_default_fallback] {
-        RTC_DCHECK_RUN_ON(worker_thread_);
-        ApplyEncoderSwitch(std::move(format), allow_default_fallback);
-      });
+  auto task = SafeTask(task_safety_.flag(), [this, format = std::move(format),
+                                             allow_default_fallback]() mutable {
+    RTC_DCHECK_RUN_ON(worker_thread_);
+    ApplyEncoderSwitch(std::move(format), allow_default_fallback);
+  });
   if (encoder_switch_request_callback_) {
     encoder_switch_request_callback_(std::move(task));
   } else {

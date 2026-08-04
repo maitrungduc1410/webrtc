@@ -1337,7 +1337,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   worker_queue_->PostTask(SafeTask(
       task_safety_.flag(),
       [this, alignment,
-       encoder_resolutions = std::move(encoder_resolutions)]() {
+       encoder_resolutions = std::move(encoder_resolutions)]() mutable {
         RTC_DCHECK_RUN_ON(worker_queue_);
         if (alignment != video_source_sink_controller_.resolution_alignment() ||
             encoder_resolutions !=
@@ -2619,7 +2619,8 @@ void VideoStreamEncoder::OnVideoSourceRestrictionsUpdated(
   }
 
   worker_queue_->PostTask(SafeTask(
-      task_safety_.flag(), [this, restrictions = std::move(restrictions)]() {
+      task_safety_.flag(),
+      [this, restrictions = std::move(restrictions)]() mutable {
         RTC_DCHECK_RUN_ON(worker_queue_);
         video_source_sink_controller_.SetRestrictions(std::move(restrictions));
         video_source_sink_controller_.PushSourceSinkSettings();

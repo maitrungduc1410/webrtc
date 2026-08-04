@@ -1191,7 +1191,7 @@ VideoReceiveStream2::SetAndGetRecordingState(RecordingState state,
 
   decode_queue_->PostTask(
       [this, &event, &old_state, callback = std::move(state.callback),
-       last_keyframe_request = std::move(last_keyframe_request)] {
+       last_keyframe_request = std::move(last_keyframe_request)]() mutable {
         RTC_DCHECK_RUN_ON(&decode_sequence_checker_);
         old_state.callback = std::move(encoded_frame_buffer_function_);
         encoded_frame_buffer_function_ = std::move(callback);
