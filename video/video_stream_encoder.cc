@@ -2247,10 +2247,20 @@ void VideoStreamEncoder::SendKeyFrame(
   }
 
   if (!layers.empty()) {
-    RTC_DCHECK_EQ(layers.size(), next_frame_types_.size());
-    for (size_t i = 0; i < layers.size() && i < next_frame_types_.size(); i++) {
-      if (layers[i] == VideoFrameType::kVideoFrameKey) {
-        next_frame_types_[i] = VideoFrameType::kVideoFrameKey;
+    // In single-stream or SVC configurations (`next_frame_types_.size() == 1`),
+    // the number of RTP SSRCs in `layers` can exceed the number of encoded
+    // streams. Any keyframe requested on any SSRC layer must trigger a keyframe
+    // on that single encoded stream.
+    if (next_frame_types_.size() == 1) {
+      if (absl::c_linear_search(layers, VideoFrameType::kVideoFrameKey)) {
+        next_frame_types_[0] = VideoFrameType::kVideoFrameKey;
+      }
+    } else {
+      for (size_t i = 0;
+           i < layers.size() && i < next_frame_types_.size(); i++) {
+        if (layers[i] == VideoFrameType::kVideoFrameKey) {
+          next_frame_types_[i] = VideoFrameType::kVideoFrameKey;
+        }
       }
     }
   } else {
