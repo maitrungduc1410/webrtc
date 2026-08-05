@@ -30,6 +30,7 @@
 #include "api/field_trials.h"
 #include "api/jsep.h"
 #include "api/media_types.h"
+#include "api/payload_type.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtp_header_extension_id.h"
@@ -82,6 +83,7 @@ namespace webrtc {
 
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Not;
 using ::testing::NotNull;
@@ -1493,6 +1495,44 @@ TEST_F(SdpMungingTest, AudioCodecsRtcpFbRrtr) {
       ElementsAre(Pair(SdpMungingType::kAudioCodecsRtcpFbRrtr, 1)));
 }
 
+// Same as above but munging the SDP text, which is how applications do it.
+// The legacy form must keep working since it is the only way to ask a peer
+// for non-sender RTT that predates a=rtcp-xr:rcvr-rtt.
+TEST_F(SdpMungingTest, AudioCodecsRtcpFbRrtrFromSdp) {
+  std::unique_ptr<PeerConnectionWrapper> pc = CreatePeerConnection();
+  pc->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = pc->CreateOffer();
+  ContentInfos& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  MediaContentDescription* media_description = contents[0].media_description();
+  ASSERT_THAT(media_description, NotNull());
+  ASSERT_THAT(media_description->codecs(), Not(IsEmpty()));
+  PayloadType payload_type = media_description->codecs()[0].id;
+
+  std::string sdp;
+  offer->ToString(&sdp);
+  sdp += "a=rtcp-fb:" + absl::StrCat(payload_type) + " rrtr\r\n";
+  std::unique_ptr<SessionDescriptionInterface> modified_offer =
+      CreateSessionDescription(SdpType::kOffer, sdp);
+  ASSERT_THAT(modified_offer, NotNull());
+  // The legacy form is kept as a codec feedback param, separate from the flag
+  // that a=rtcp-xr:rcvr-rtt maps to.
+  const MediaContentDescription* modified_media_description =
+      modified_offer->description()->contents()[0].media_description();
+  EXPECT_TRUE(modified_media_description->codecs()[0].HasFeedbackParam(
+      FeedbackParam(kRtcpFbParamRrtr, kParamValueEmpty)));
+
+  RTCError error;
+  EXPECT_TRUE(pc->SetLocalDescription(std::move(modified_offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kAudioCodecsRtcpFbRrtr, 1)));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Outcome"),
+      ElementsAre(Pair(static_cast<int>(SdpMungingOutcome::kAccepted), 1)));
+}
+
 TEST_F(SdpMungingTest, RtcpMux) {
   RTCConfiguration config;
   config.rtcp_mux_policy = PeerConnection::kRtcpMuxPolicyNegotiate;
@@ -1593,6 +1633,42 @@ TEST_F(SdpMungingTest, VideoCodecsRtcpReducedSize) {
   EXPECT_THAT(
       metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
       ElementsAre(Pair(SdpMungingType::kVideoCodecsRtcpReducedSize, 1)));
+}
+
+TEST_F(SdpMungingTest, RtcpXrRcvrRttRemoved) {
+  std::unique_ptr<PeerConnectionWrapper> pc = CreatePeerConnection();
+  pc->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = pc->CreateOffer();
+  ContentInfos& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  MediaContentDescription* media_description = contents[0].media_description();
+  ASSERT_THAT(media_description, NotNull());
+  EXPECT_TRUE(media_description->receive_non_sender_rtt());
+  media_description->set_receive_non_sender_rtt(false);
+
+  RTCError error;
+  EXPECT_FALSE(pc->SetLocalDescription(std::move(offer), &error));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Offer.Initial"),
+      ElementsAre(Pair(SdpMungingType::kRtcpXrRcvrRtt, 1)));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.SdpOutcome.Rejected"),
+      ElementsAre(Pair(SdpMungingType::kRtcpXrRcvrRtt, 1)));
+  EXPECT_THAT(
+      metrics::Samples("WebRTC.PeerConnection.SdpMunging.Outcome"),
+      ElementsAre(Pair(static_cast<int>(SdpMungingOutcome::kRejected), 1)));
+}
+
+TEST_F(SdpMungingTest, RtcpXrRcvrRttMungingIsAlwaysRejected) {
+  EXPECT_FALSE(IsSdpMungingAllowed(SdpMungingType::kRtcpXrRcvrRtt,
+                                   CreateTestFieldTrials()));
+  EXPECT_FALSE(IsSdpMungingAllowed(
+      SdpMungingType::kRtcpXrRcvrRtt,
+      CreateTestFieldTrials("WebRTC-NoSdpMangleReject/Enabled/")));
+  EXPECT_FALSE(IsSdpMungingAllowed(
+      SdpMungingType::kRtcpXrRcvrRtt,
+      CreateTestFieldTrials("WebRTC-NoSdpMangleAllowForTesting/Enabled,44/")));
 }
 
 TEST_F(SdpMungingTest, NumberOfCandidates) {

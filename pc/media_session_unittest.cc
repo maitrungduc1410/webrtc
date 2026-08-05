@@ -1035,8 +1035,8 @@ TEST_F(MediaSessionDescriptionFactoryTest, TestCreateAudioOffer) {
 }
 
 // With the RRTR field trial enabled (default), an offer enables non-sender
-// RTT on the negotiated description. The wire-format translation (rtcp-xr and
-// the legacy rtcp-fb rrtr) is covered in webrtc_sdp_unittest.
+// RTT on the negotiated description. Serialization to a=rtcp-xr:rcvr-rtt is
+// covered in webrtc_sdp_unittest.
 TEST_F(MediaSessionDescriptionFactoryTest,
        CreateAudioOfferEnablesReceiveNonSenderRtt) {
   std::unique_ptr<SessionDescription> offer =

@@ -837,26 +837,28 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
     }
   }
 
+  // Non-sender RTT (RRTR/DLRR) is signaled either by the standard
+  // a=rtcp-xr:rcvr-rtt or by the legacy non-standard a=rtcp-fb:<pt> rrtr.
+  const bool receive_non_sender_rtt =
+      content->receive_non_sender_rtt() ||
+      absl::c_any_of(content->codecs(),
+                     [](const Codec& codec) { return HasRrtr(codec); });
+
   if (media_type_ == MediaType::AUDIO) {
     voice_media_receive_channel()->SetRtcpMode(content->rtcp_reduced_size()
                                                    ? RtcpMode::kReducedSize
                                                    : RtcpMode::kCompound);
     voice_media_receive_channel()->SetReceiveNackEnabled(
         voice_media_send_channel()->SenderNackEnabled());
-    // Enable non-sender RTT (RRTR/DLRR) when negotiated. Both the standard
-    // a=rtcp-xr:rcvr-rtt and the legacy rtcp-fb rrtr are folded into
-    // receive_non_sender_rtt by the SDP layer.
     voice_media_receive_channel()->SetReceiveNonSenderRttEnabled(
-        content->receive_non_sender_rtt());
+        receive_non_sender_rtt);
   }
 
   RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(0);
 
   if (media_type_ == MediaType::VIDEO) {
-    // Enable non-sender RTT (RRTR/DLRR) when negotiated (both wire forms are
-    // folded into receive_non_sender_rtt by the SDP layer).
     video_media_receive_channel()->SetReceiveNonSenderRttEnabled(
-        content->receive_non_sender_rtt());
+        receive_non_sender_rtt);
   }
 
   error = UpdateRemoteStreams_w(content, type);

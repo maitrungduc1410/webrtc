@@ -3642,6 +3642,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:create_peerconnection_factory",
       "../api:field_trials",
       "../api:jsep",
+      "../api:payload_type",
       "../api:peer_connection_interface",
       "../api:rtc_error",
       "../api:rtc_error_matchers",
