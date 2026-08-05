@@ -53,7 +53,27 @@ class TransformableVideoSenderFrame : public TransformableVideoFrameInterface {
                                 const RTPVideoHeader& video_header,
                                 int payload_type,
                                 VideoCodecType codec_type,
-                                uint32_t rtp_timestamp,
+                                uint32_t rtp_timestamp_with_offset,
+                                TimeDelta expected_retransmission_time,
+                                uint32_t ssrc,
+                                std::vector<uint32_t> csrcs,
+                                std::string rid)
+      : TransformableVideoSenderFrame(
+            encoded_image,
+            video_header,
+            payload_type,
+            codec_type,
+            RtpTimestampInfo(RtpTimestampWithOffset{rtp_timestamp_with_offset}),
+            expected_retransmission_time,
+            ssrc,
+            std::move(csrcs),
+            std::move(rid)) {}
+
+  TransformableVideoSenderFrame(const EncodedImage& encoded_image,
+                                const RTPVideoHeader& video_header,
+                                int payload_type,
+                                VideoCodecType codec_type,
+                                RtpTimestampInfo rtp_timestamp_info,
                                 TimeDelta expected_retransmission_time,
                                 uint32_t ssrc,
                                 std::vector<uint32_t> csrcs,
@@ -65,7 +85,7 @@ class TransformableVideoSenderFrame : public TransformableVideoFrameInterface {
         frame_type_(encoded_image.frame_type()),
         payload_type_(payload_type),
         codec_type_(codec_type),
-        timestamp_(rtp_timestamp),
+        rtp_timestamp_info_(rtp_timestamp_info),
         capture_time_(encoded_image.CaptureTime()),
         presentation_timestamp_(encoded_image.PresentationTimestamp()),
         expected_retransmission_time_(expected_retransmission_time),
@@ -89,11 +109,18 @@ class TransformableVideoSenderFrame : public TransformableVideoFrameInterface {
     return pre_transform_payload_size_;
   }
 
-  uint32_t GetTimestamp() const override { return timestamp_; }
-  RtpTimestampInfo GetRtpTimestampInfo() const override {
-    return RtpTimestampWithOffset(timestamp_);
+  uint32_t GetTimestamp() const override {
+    if (std::holds_alternative<RtpTimestampWithOffset>(rtp_timestamp_info_)) {
+      return std::get<RtpTimestampWithOffset>(rtp_timestamp_info_);
+    }
+    return 0;
   }
-  void SetRTPTimestamp(uint32_t timestamp) override { timestamp_ = timestamp; }
+  RtpTimestampInfo GetRtpTimestampInfo() const override {
+    return rtp_timestamp_info_;
+  }
+  void SetRTPTimestamp(uint32_t timestamp) override {
+    rtp_timestamp_info_ = RtpTimestampWithOffset{timestamp};
+  }
 
   uint32_t GetSsrc() const override { return ssrc_; }
 
@@ -153,7 +180,7 @@ class TransformableVideoSenderFrame : public TransformableVideoFrameInterface {
   const VideoFrameType frame_type_;
   const uint8_t payload_type_;
   const VideoCodecType codec_type_;
-  uint32_t timestamp_;
+  RtpTimestampInfo rtp_timestamp_info_;
   const Timestamp capture_time_;
   const std::optional<Timestamp> presentation_timestamp_;
   const TimeDelta expected_retransmission_time_;
@@ -305,13 +332,23 @@ std::unique_ptr<TransformableVideoFrameInterface> CloneSenderVideoFrame(
   // locally encoded frame.
   VideoFrameMetadata metadata = original->Metadata();
   RTPVideoHeader new_header = RTPVideoHeader::FromMetadata(metadata);
-  RTC_CHECK(std::holds_alternative<RtpTimestampWithOffset>(
-      original->GetRtpTimestampInfo()));
   return std::make_unique<TransformableVideoSenderFrame>(
       encoded_image, new_header, original->GetPayloadType(), new_header.codec,
-      std::get<RtpTimestampWithOffset>(original->GetRtpTimestampInfo()),
-      kDefaultRetransmissionsTime, original->GetSsrc(), metadata.GetCsrcs(),
+      original->GetRtpTimestampInfo(), kDefaultRetransmissionsTime,
+      original->GetSsrc(), metadata.GetCsrcs(),
       original->Rid().value_or(std::string()));
+}
+
+std::unique_ptr<TransformableVideoFrameInterface> CreateSenderVideoFrame(
+    const EncodedImage& encoded_image,
+    const RTPVideoHeader& video_header,
+    uint8_t payload_type,
+    VideoCodecType codec_type,
+    RtpTimestampInfo rtp_timestamp_info,
+    const std::vector<uint32_t>& csrcs) {
+  return std::make_unique<TransformableVideoSenderFrame>(
+      encoded_image, video_header, payload_type, codec_type, rtp_timestamp_info,
+      kDefaultRetransmissionsTime, /*ssrc=*/0, csrcs, /*rid=*/"");
 }
 
 }  // namespace webrtc

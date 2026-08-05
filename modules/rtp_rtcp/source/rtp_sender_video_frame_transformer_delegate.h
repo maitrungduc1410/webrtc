@@ -139,6 +139,14 @@ class RTPSenderVideoFrameTransformerDelegate : public TransformedFrameCallback {
 std::unique_ptr<TransformableVideoFrameInterface> CloneSenderVideoFrame(
     TransformableVideoFrameInterface* original);
 
+std::unique_ptr<TransformableVideoFrameInterface> CreateSenderVideoFrame(
+    const EncodedImage& encoded_image,
+    const RTPVideoHeader& video_header,
+    uint8_t payload_type,
+    VideoCodecType codec_type,
+    RtpTimestampInfo rtp_timestamp_info,
+    const std::vector<uint32_t>& csrcs);
+
 }  // namespace webrtc
 
 #endif  // MODULES_RTP_RTCP_SOURCE_RTP_SENDER_VIDEO_FRAME_TRANSFORMER_DELEGATE_H_

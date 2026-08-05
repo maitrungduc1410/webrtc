@@ -395,5 +395,41 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
       /*expected_retransmission_time=*/TimeDelta::Millis(10), csrcs);
 }
 
+TEST_F(RtpSenderVideoFrameTransformerDelegateTest, CreateSenderVideoFrame) {
+  const uint8_t payload_data[] = {1, 2, 3};
+  std::vector<uint32_t> csrcs = {1, 2};
+  RTPVideoHeader video_header;
+  video_header.codec = VideoCodecType::kVideoCodecVP8;
+  RTPVideoHeaderVP8 vp8;
+  vp8.InitRTPVideoHeaderVP8();
+  video_header.video_type_header = vp8;
+
+  auto encoded_image_buffer =
+      EncodedImageBuffer::Create(payload_data, sizeof(payload_data));
+  EncodedImage encoded_image;
+  encoded_image.SetEncodedData(std::move(encoded_image_buffer));
+  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
+  encoded_image.capture_time_ms_ = 123;
+  encoded_image.SetPresentationTimestamp(Timestamp::Micros(7890));
+
+  auto frame = CreateSenderVideoFrame(
+      encoded_image, video_header, /*payload_type=*/99,
+      VideoCodecType::kVideoCodecVP8, RtpTimestampWithOffset{456}, csrcs);
+
+  ASSERT_TRUE(frame);
+  EXPECT_TRUE(frame->IsKeyFrame());
+  EXPECT_EQ(frame->CaptureTime(), Timestamp::Millis(123));
+  EXPECT_THAT(frame->GetData(), ElementsAreArray(payload_data));
+  EXPECT_EQ(frame->GetPayloadType(), 99);
+  EXPECT_EQ(frame->GetSsrc(), 0u);
+  EXPECT_THAT(frame->Metadata().GetCsrcs(), ElementsAreArray(csrcs));
+  EXPECT_EQ(frame->Rid(), "");
+  EXPECT_EQ(frame->GetPresentationTimestamp(), Timestamp::Micros(7890));
+  auto rtp_timestamp_info = frame->GetRtpTimestampInfo();
+  ASSERT_TRUE(
+      std::holds_alternative<RtpTimestampWithOffset>(rtp_timestamp_info));
+  EXPECT_EQ(std::get<RtpTimestampWithOffset>(rtp_timestamp_info), 456u);
+}
+
 }  // namespace
 }  // namespace webrtc

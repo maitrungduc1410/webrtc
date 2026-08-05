@@ -1835,6 +1835,7 @@ if (rtc_include_tests) {
       "video:video_frame",
       "video:video_frame_metadata",
       "video:video_frame_metadata_unittest",
+      "video:video_frame_type",
       "video/corruption_detection:corruption_detection_unittests",
       "video/corruption_detection:frame_instrumentation_data_reader_unittest",
       "video/corruption_detection:frame_instrumentation_data_unittest",
@@ -1954,8 +1955,17 @@ rtc_library("frame_transformer_factory") {
     ":payload_type",
     "../audio",
     "../modules/rtp_rtcp",
+    "../modules/rtp_rtcp:rtp_video_header",
+    "../modules/video_coding:codec_globals_headers",
     "../rtc_base:checks",
     "../rtc_base/system:rtc_export",
+    "units:time_delta",
+    "units:timestamp",
+    "video:encoded_image",
+    "video:video_frame",
+    "video:video_frame_metadata",
+    "video:video_frame_type",
+    "video_codecs:video_codecs_api",
   ]
 }
 
