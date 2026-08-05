@@ -93,9 +93,10 @@ class FrameValidator : public EncodedImageCallback {
                       bool is_end_of_temporal_unit) override {}
 
  private:
-  // With 4 spatial layers and patterns up to 8 pictures, it should be enough to
-  // keep the last 32 frames to validate dependencies.
-  static constexpr size_t kMaxFrameHistorySize = 32;
+  // While 32 frames covers a standard pattern (4 spatial layers * 8 pictures),
+  // fuzzing has shown that references can occasionally reach further back.
+  // 256 is used as a pragmatic buffer to keep older frames in history.
+  static constexpr size_t kMaxFrameHistorySize = 256;
   struct LayerFrame {
     int64_t frame_id;
     int64_t picture_id;
