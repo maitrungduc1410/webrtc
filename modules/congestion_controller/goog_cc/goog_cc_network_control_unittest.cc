@@ -851,7 +851,7 @@ TEST(GoogCcScenario, DetectsHighRateInSafeResetTrial) {
   EXPECT_GT(client->send_bandwidth().kbps(), kNewLinkCapacity.kbps() - 300);
 }
 
-TEST(GoogCcScenario, TargetRateReducedOnPacingBufferBuildupInTrial) {
+TEST(GoogCcScenario, TargetRateReducedOnPacingBufferBuildup) {
   const DataRate kLinkCapacity = DataRate::KilobitsPerSec(1000);
   const DataRate kStartRate = DataRate::KilobitsPerSec(1000);
 
@@ -864,8 +864,6 @@ TEST(GoogCcScenario, TargetRateReducedOnPacingBufferBuildupInTrial) {
     c->field_trials.Set("WebRTC-CongestionWindow",
                         "QueueSize:100,MinBitrate:30000");
     c->field_trials.Set("WebRTC-Video-Pacing", "factor:1.0");
-    c->field_trials.Set("WebRTC-AddPacingToCongestionWindowPushback",
-                        "Enabled");
     c->transport.rates.start_rate = kStartRate;
   });
   auto* route = s.CreateRoutes(

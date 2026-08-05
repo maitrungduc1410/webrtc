@@ -21,9 +21,7 @@ namespace webrtc {
 
 CongestionWindowPushbackController::CongestionWindowPushbackController(
     const FieldTrialsView& key_value_config)
-    : add_pacing_(key_value_config.IsEnabled(
-          "WebRTC-AddPacingToCongestionWindowPushback")),
-      min_pushback_target_bitrate_bps_(
+    : min_pushback_target_bitrate_bps_(
           RateControlSettings(key_value_config)
               .CongestionWindowMinPushbackTargetBitrateBps()),
       current_data_window_(RateControlSettings(key_value_config)
@@ -46,9 +44,7 @@ uint32_t CongestionWindowPushbackController::UpdateTargetBitrate(
     uint32_t bitrate_bps) {
   if (!current_data_window_ || current_data_window_->IsZero())
     return bitrate_bps;
-  int64_t total_bytes = outstanding_bytes_;
-  if (add_pacing_)
-    total_bytes += pacing_bytes_;
+  int64_t total_bytes = outstanding_bytes_ + pacing_bytes_;
   double fill_ratio =
       total_bytes / static_cast<double>(current_data_window_->bytes());
   if (fill_ratio > 1.5) {
