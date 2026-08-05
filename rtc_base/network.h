@@ -178,15 +178,6 @@ class RTC_EXPORT NetworkManager : public DefaultLocalAddressProvider,
   virtual void DumpNetworks() {}
   bool GetDefaultLocalAddress(int family, IPAddress* ipaddr) const override;
 
-  struct Stats {
-    int ipv4_network_count;
-    int ipv6_network_count;
-    Stats() {
-      ipv4_network_count = 0;
-      ipv6_network_count = 0;
-    }
-  };
-
   // MdnsResponderProvider interface.
   MdnsResponderInterface* GetMdnsResponder() const override;
 
@@ -503,11 +494,6 @@ class RTC_EXPORT NetworkManagerBase : public NetworkManager {
   // any change in the network list.
   void MergeNetworkList(std::vector<std::unique_ptr<Network>> list,
                         bool* changed);
-
-  // `stats` will be populated even if |*changed| is false.
-  void MergeNetworkList(std::vector<std::unique_ptr<Network>> list,
-                        bool* changed,
-                        NetworkManager::Stats* stats);
 
   void set_enumeration_permission(EnumerationPermission state) {
     enumeration_permission_ = state;
