@@ -153,18 +153,16 @@ AudioReceiveStreamImpl::~AudioReceiveStreamImpl() {
 
 void AudioReceiveStreamImpl::RegisterWithTransport(
     RtpStreamReceiverControllerInterface* receiver_controller) {
-  RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   RTC_DCHECK(!rtp_stream_receiver_);
   rtp_stream_receiver_ = receiver_controller->CreateReceiver(
       remote_ssrc(), channel_receive_.get());
 }
 
 void AudioReceiveStreamImpl::UnregisterFromTransport() {
-  RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   rtp_stream_receiver_.reset();
 }
-
-
 
 void AudioReceiveStreamImpl::Start() {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
@@ -432,12 +430,12 @@ void AudioReceiveStreamImpl::DeliverRtcp(std::span<const uint8_t> packet) {
 }
 
 void AudioReceiveStreamImpl::SetSyncGroup(absl::string_view sync_group) {
-  RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   config_.sync_group = std::string(sync_group);
 }
 
 const std::string& AudioReceiveStreamImpl::sync_group() const {
-  RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   return config_.sync_group;
 }
 

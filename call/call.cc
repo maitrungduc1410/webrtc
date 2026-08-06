@@ -856,7 +856,7 @@ webrtc::AudioReceiveStreamInterface* Call::CreateAudioReceiveStream(
   // to live on the network thread.
   receive_stream->RegisterWithTransport(&audio_receiver_controller_);
 
-  ConfigureSync(config.sync_group);
+  ConfigureSync(receive_stream->sync_group());
 
   UpdateAggregateNetworkState();
   return receive_stream;
