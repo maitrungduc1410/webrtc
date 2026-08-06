@@ -6757,10 +6757,11 @@ TEST_F(WebRtcVideoChannelTest, GetStatsTranslatesDecodeStatsCorrectly) {
   stats.render_delay_ms = 8;
   stats.width = 9;
   stats.height = 10;
-  stats.frame_counts.key_frames = 11;
-  stats.frame_counts.delta_frames = 12;
+  stats.received_frame_counts.key_frames = 11;
+  stats.received_frame_counts.delta_frames = 12;
   stats.frames_rendered = 13;
   stats.frames_decoded = 14;
+  stats.decoded_frame_counts.key_frames = 4;
   stats.qp_sum = 15;
   stats.corruption_score_sum = 0.3;
   stats.corruption_score_squared_sum = 0.05;
@@ -6800,12 +6801,13 @@ TEST_F(WebRtcVideoChannelTest, GetStatsTranslatesDecodeStatsCorrectly) {
   EXPECT_EQ(stats.render_delay_ms, receive_info.receivers[0].render_delay_ms);
   EXPECT_EQ(stats.width, receive_info.receivers[0].frame_width);
   EXPECT_EQ(stats.height, receive_info.receivers[0].frame_height);
-  EXPECT_EQ(checked_cast<unsigned int>(stats.frame_counts.key_frames +
-                                       stats.frame_counts.delta_frames),
-            receive_info.receivers[0].frames_received);
+  EXPECT_EQ(
+      checked_cast<unsigned int>(stats.received_frame_counts.key_frames +
+                                 stats.received_frame_counts.delta_frames),
+      receive_info.receivers[0].frames_received);
   EXPECT_EQ(stats.frames_rendered, receive_info.receivers[0].frames_rendered);
   EXPECT_EQ(stats.frames_decoded, receive_info.receivers[0].frames_decoded);
-  EXPECT_EQ(checked_cast<unsigned int>(stats.frame_counts.key_frames),
+  EXPECT_EQ(checked_cast<unsigned int>(stats.decoded_frame_counts.key_frames),
             receive_info.receivers[0].key_frames_decoded);
   EXPECT_EQ(stats.qp_sum, receive_info.receivers[0].qp_sum);
   EXPECT_EQ(stats.corruption_score_sum,

@@ -3879,11 +3879,11 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::GetVideoReceiverInfo(
       stats.jitter_buffer_minimum_delay.seconds<double>();
   info.min_playout_delay_ms = stats.min_playout_delay_ms;
   info.render_delay_ms = stats.render_delay_ms;
-  info.frames_received =
-      stats.frame_counts.key_frames + stats.frame_counts.delta_frames;
+  info.frames_received = stats.received_frame_counts.key_frames +
+                         stats.received_frame_counts.delta_frames;
   info.frames_dropped = stats.frames_dropped;
   info.frames_decoded = stats.frames_decoded;
-  info.key_frames_decoded = stats.frame_counts.key_frames;
+  info.key_frames_decoded = stats.decoded_frame_counts.key_frames;
   info.frames_rendered = stats.frames_rendered;
   info.qp_sum = stats.qp_sum;
   info.corruption_score_sum = stats.corruption_score_sum;
