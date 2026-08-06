@@ -149,6 +149,15 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
   void OnRtpPacket(const RtpPacketReceived& packet) override;
 
   // Public only for tests.
+  const std::map<int64_t, uint16_t>& last_seq_num_for_pic_id() const {
+    RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+    return last_seq_num_for_pic_id_;
+  }
+  const std::map<int64_t, uint32_t>& last_timestamp_for_pic_id() const {
+    RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+    return last_timestamp_for_pic_id_;
+  }
+
   // Returns true if the packet should be stashed and retried at a later stage.
   bool OnReceivedPayloadData(CopyOnWriteBuffer codec_payload,
                              const RtpPacketReceived& rtp_packet,

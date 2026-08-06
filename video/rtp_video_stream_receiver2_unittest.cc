@@ -80,6 +80,7 @@ using ::testing::_;
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::IsEmpty;
 using ::testing::SizeIs;
 using ::testing::Values;
 
@@ -1963,6 +1964,68 @@ TEST_F(RtpVideoStreamReceiver2Test, DoesNotLogRecoveredPacketToEventLog) {
 
   EXPECT_CALL(log_, LogProxy(_)).Times(0);
   rtp_video_stream_receiver_->OnRtpPacket(recovered_packet);
+}
+
+TEST_F(RtpVideoStreamReceiver2Test, PrunesHistoryMapsOnUndecodableFrames) {
+  const std::vector<uint8_t> data = {0, 1, 2, 3, 4};
+  rtp_video_stream_receiver_->StartReceive();
+
+  RtpHeaderExtensionMap extension_map;
+  extension_map.Register<RtpGenericFrameDescriptorExtension00>(
+      RtpHeaderExtensionId(5));
+
+  // Inject 2049 complete single-packet frames.
+  // Each frame completes and inserts an entry into last_seq_num_for_pic_id_
+  // and last_timestamp_for_pic_id_.
+  // After 2048 frames (kMaxFrameHistorySize), the capacity limit is reached,
+  // and oldest entries are evicted as new ones arrive.
+  for (int i = 1; i <= 2049; ++i) {
+    mock_on_complete_frame_callback_.ClearExpectedBitstream();
+    mock_on_complete_frame_callback_.AppendExpectedBitstream(data.data() + 1,
+                                                             data.size() - 1);
+
+    RtpPacketReceived rtp_packet(&extension_map);
+    rtp_packet.SetPayloadType(kPayloadType);
+
+    RtpGenericFrameDescriptor generic_descriptor;
+    generic_descriptor.SetFirstPacketInSubFrame(true);
+    generic_descriptor.SetLastPacketInSubFrame(true);
+    generic_descriptor.SetFrameId(i);
+    ASSERT_TRUE(rtp_packet.SetExtension<RtpGenericFrameDescriptorExtension00>(
+        generic_descriptor));
+
+    rtp_packet.SetPayload(data);
+    rtp_packet.SetMarker(true);
+    rtp_packet.SetSequenceNumber(static_cast<uint16_t>(i));
+    rtp_packet.SetTimestamp(static_cast<uint32_t>(90000 + i * 3000));
+    rtp_packet.SetSsrc(kSsrc);
+
+    rtp_video_stream_receiver_->OnRtpPacket(rtp_packet);
+  }
+
+  // Verify that history maps are bounded by kMaxFrameHistorySize (2048).
+  ASSERT_EQ(rtp_video_stream_receiver_->last_seq_num_for_pic_id().size(),
+            2048u);
+  ASSERT_EQ(rtp_video_stream_receiver_->last_timestamp_for_pic_id().size(),
+            2048u);
+
+  // Verify that the oldest frame (1) was evicted, while newer frames (2..2049)
+  // are retained.
+  EXPECT_FALSE(
+      rtp_video_stream_receiver_->last_seq_num_for_pic_id().contains(1));
+  EXPECT_FALSE(
+      rtp_video_stream_receiver_->last_timestamp_for_pic_id().contains(1));
+  EXPECT_EQ(
+      rtp_video_stream_receiver_->last_seq_num_for_pic_id().begin()->first, 2);
+  EXPECT_EQ(
+      rtp_video_stream_receiver_->last_seq_num_for_pic_id().rbegin()->first,
+      2049);
+
+  // Calling FrameDecoded for the newest frame clears all remaining entries.
+  rtp_video_stream_receiver_->FrameDecoded(2049);
+  EXPECT_THAT(rtp_video_stream_receiver_->last_seq_num_for_pic_id(), IsEmpty());
+  EXPECT_THAT(rtp_video_stream_receiver_->last_timestamp_for_pic_id(),
+              IsEmpty());
 }
 
 }  // namespace webrtc

@@ -98,6 +98,7 @@ namespace {
 //                 crbug.com/752886
 constexpr int kPacketBufferStartSize = 512;
 constexpr int kPacketBufferMaxSize = 2048;
+constexpr int kMaxFrameHistorySize = 2048;
 
 constexpr int kMaxPacketAgeToNack = 450;
 
@@ -984,6 +985,12 @@ void RtpVideoStreamReceiver2::OnCompleteFrames(
         std::max(last_completed_picture_id_, frame->Id());
     complete_frame_callback_->OnCompleteFrame(std::move(frame));
   }
+  while (last_seq_num_for_pic_id_.size() > kMaxFrameHistorySize) {
+    last_seq_num_for_pic_id_.erase(last_seq_num_for_pic_id_.begin());
+  }
+  while (last_timestamp_for_pic_id_.size() > kMaxFrameHistorySize) {
+    last_timestamp_for_pic_id_.erase(last_timestamp_for_pic_id_.begin());
+  }
 }
 
 void RtpVideoStreamReceiver2::OnDecryptedFrame(
@@ -1348,6 +1355,9 @@ void RtpVideoStreamReceiver2::FrameDecoded(int64_t picture_id) {
     int64_t unwrapped_rtp_seq_num = rtp_seq_num_unwrapper_.Unwrap(seq_num);
     packet_buffer_.ClearTo(unwrapped_rtp_seq_num);
     reference_finder_->ClearTo(seq_num, rtp_timestamp);
+  } else {
+    RTC_LOG(LS_WARNING) << "Frame with id " << picture_id
+                        << " not found in frame history maps.";
   }
 }
 
