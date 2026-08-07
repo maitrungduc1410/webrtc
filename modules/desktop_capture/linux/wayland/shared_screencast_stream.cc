@@ -185,14 +185,18 @@ class SharedScreenCastStreamPrivate {
     PipeWireThreadLoop(struct pw_thread_loop* main_loop,
                        struct pw_context* context)
         : main_loop(main_loop), context(context) {
-      RTC_DCHECK(main_loop);
-      RTC_DCHECK(context);
+      RTC_CHECK(g_pipewire_thread_loop_exists.load());
+      RTC_CHECK(main_loop);
+      RTC_CHECK(context);
     }
 
     PipeWireThreadLoop(const PipeWireThreadLoop&) = delete;
+    PipeWireThreadLoop(PipeWireThreadLoop&&) = delete;
     PipeWireThreadLoop& operator=(const PipeWireThreadLoop&) = delete;
+    PipeWireThreadLoop& operator=(PipeWireThreadLoop&&) = delete;
 
     ~PipeWireThreadLoop() {
+      RTC_CHECK(g_pipewire_thread_loop_exists.load());
       pw_thread_loop_stop(main_loop);
 
       if (stream) {
