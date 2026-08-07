@@ -356,24 +356,7 @@ struct RTC_EXPORT RtpHeaderExtensionCapability {
                                RtpHeaderExtensionId preferred_id,
                                bool preferred_encrypt,
                                RtpTransceiverDirection direction);
-  // Backwards compatibility overloads.
-  // TODO: bugs.webrtc.org/514817938 - Remove when downstream is updated.
-  // Note: the "uri, preferred id(int), direction" cannot be overloaded
-  // because compilers can't tell the difference between that one
-  // and "uri, preferred_encrypt(bool), direction".
-  [[deprecated]] ABSL_REFACTOR_INLINE RtpHeaderExtensionCapability(
-      absl::string_view uri,
-      int preferred_id)
-      : RtpHeaderExtensionCapability(uri, RtpHeaderExtensionId(preferred_id)) {}
-  [[deprecated]] ABSL_REFACTOR_INLINE RtpHeaderExtensionCapability(
-      absl::string_view uri,
-      int preferred_id,
-      bool preferred_encrypt,
-      RtpTransceiverDirection direction)
-      : RtpHeaderExtensionCapability(uri,
-                                     RtpHeaderExtensionId(preferred_id),
-                                     preferred_encrypt,
-                                     direction) {}
+
   ~RtpHeaderExtensionCapability();
 
   bool operator==(const RtpHeaderExtensionCapability& o) const {
@@ -413,15 +396,7 @@ struct RTC_EXPORT RtpExtension {
   RtpExtension();
   RtpExtension(absl::string_view uri, RtpHeaderExtensionId id);
   RtpExtension(absl::string_view uri, RtpHeaderExtensionId id, bool encrypt);
-  // Backwards compatibility overloads.
-  // TODO: bugs.webrtc.org/514817938 - Remove when downstream is updated.
-  [[deprecated]] ABSL_REFACTOR_INLINE RtpExtension(absl::string_view uri,
-                                                   int id)
-      : RtpExtension(uri, RtpHeaderExtensionId(id)) {}
-  [[deprecated]] ABSL_REFACTOR_INLINE RtpExtension(absl::string_view uri,
-                                                   int id,
-                                                   bool encrypt)
-      : RtpExtension(uri, RtpHeaderExtensionId(id), encrypt) {}
+
   ~RtpExtension();
 
   std::string ToString() const;
