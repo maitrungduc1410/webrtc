@@ -435,7 +435,7 @@ void DcSctpSocket::RestoreFromState(const DcSctpSocketHandoverState& state) {
       capabilities.negotiated_maximum_outgoing_streams =
           state.capabilities.negotiated_maximum_outgoing_streams;
 
-      send_queue_.RestoreFromState(state);
+      send_queue_.RestoreFromState(callbacks_.Now(), state);
 
       CreateTransmissionControlBlock(
           capabilities, my_verification_tag, TSN(state.my_initial_tsn),
@@ -1908,7 +1908,7 @@ DcSctpSocket::GetHandoverStateAndClose() {
   } else if (state_ == State::kEstablished) {
     state.socket_state = DcSctpSocketHandoverState::SocketState::kConnected;
     tcb_->AddHandoverState(state);
-    send_queue_.AddHandoverState(state);
+    send_queue_.AddHandoverState(callbacks_.Now(), state);
     InternalClose(ErrorKind::kNoError, "handover");
   }
 

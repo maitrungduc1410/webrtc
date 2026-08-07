@@ -13,6 +13,7 @@ rtc_source_set("send_queue") {
     "../../../api/units:timestamp",
     "../common:internal_types",
     "../packet:data",
+    "../public:socket",
     "../public:types",
   ]
   sources = [ "send_queue.h" ]
@@ -140,6 +141,7 @@ if (rtc_include_tests) {
       "../../../api/units:timestamp",
       "../../../test:test_support",
       "../common:internal_types",
+      "../public:socket",
       "../public:types",
     ]
     sources = [ "mock_send_queue.h" ]
