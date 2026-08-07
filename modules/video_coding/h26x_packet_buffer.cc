@@ -324,6 +324,10 @@ bool H26xPacketBuffer::MaybeAssembleFrame(int64_t start_seq_num_unwrapped,
   return true;
 }
 
+void H26xPacketBuffer::SetH264IdrOnlyKeyframesAllowed(bool allowed) {
+  h264_idr_only_keyframes_allowed_ = allowed;
+}
+
 void H26xPacketBuffer::SetSpropParameterSets(
     const std::string& sprop_parameter_sets) {
   if (!h264_idr_only_keyframes_allowed_) {

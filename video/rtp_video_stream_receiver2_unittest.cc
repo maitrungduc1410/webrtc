@@ -1949,6 +1949,42 @@ TEST_F(RtpVideoStreamReceiver2TestH265, H265Bitstream) {
   rtp_video_stream_receiver_->OnReceivedPayloadData(
       CopyOnWriteBuffer(idr, sizeof(idr)), rtp_packet, video_header, 0);
 }
+
+TEST_F(RtpVideoStreamReceiver2Test, AddReceiveCodecWhileReceivingH265) {
+  // Start receiving before adding any H26x codecs.
+  rtp_video_stream_receiver_->StartReceive();
+
+  constexpr int kH265PayloadType = 98;
+  constexpr uint8_t vps[] = {0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0x0c, 0x01,
+                             0xff, 0xff, 0x21, 0x40, 0x00, 0x00, 0x03, 0x00,
+                             0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00,
+                             0x7b, 0x3c, 0x0c, 0x00, 0x00, 0x03, 0x00, 0x04,
+                             0x00, 0x00, 0x03, 0x00, 0x79, 0x40};
+
+  RtpPacketReceived rtp_packet;
+  rtp_packet.SetSequenceNumber(0);
+  rtp_packet.SetPayloadType(kH265PayloadType);
+  RTPVideoHeader video_header = GetDefaultH265VideoHeader();
+
+  // Before adding H.265 receive codec, packet insertion does not trigger
+  // complete frame.
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
+  rtp_video_stream_receiver_->OnReceivedPayloadData(
+      CopyOnWriteBuffer(vps), rtp_packet, video_header, 0);
+
+  // Add H.265 receive codec while receiving.
+  CodecParameterMap codec_params;
+  rtp_video_stream_receiver_->AddReceiveCodec(kH265PayloadType, kVideoCodecH265,
+                                              codec_params,
+                                              /*raw_payload=*/false);
+
+  // Now h26x_packet_buffer_ is initialized, so packet insertion succeeds and
+  // frame callback is invoked.
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(vps, sizeof(vps));
+  rtp_video_stream_receiver_->OnReceivedPayloadData(
+      CopyOnWriteBuffer(vps), rtp_packet, video_header, 0);
+  mock_on_complete_frame_callback_.ClearExpectedBitstream();
+}
 #endif  // RTC_ENABLE_H265
 
 TEST_F(RtpVideoStreamReceiver2Test, LogsReceivedPacketToEventLog) {
@@ -2026,6 +2062,85 @@ TEST_F(RtpVideoStreamReceiver2Test, PrunesHistoryMapsOnUndecodableFrames) {
   EXPECT_THAT(rtp_video_stream_receiver_->last_seq_num_for_pic_id(), IsEmpty());
   EXPECT_THAT(rtp_video_stream_receiver_->last_timestamp_for_pic_id(),
               IsEmpty());
+}
+
+TEST_F(RtpVideoStreamReceiver2Test, RemoveReceiveCodecsResetsState) {
+  constexpr uint8_t kH264PayloadType = 99;
+
+  // Configure H.264 with SPS/PPS/IDR forced keyframe mode.
+  CodecParameterMap codec_params_keyframe;
+  codec_params_keyframe.emplace(kH264FmtpSpsPpsIdrInKeyframe, "");
+  rtp_video_stream_receiver_->AddReceiveCodec(kH264PayloadType, kVideoCodecH264,
+                                              codec_params_keyframe,
+                                              /*raw_payload=*/false);
+
+  // Remove codecs. This must reset sps_pps_idr_is_h264_keyframe_ to false.
+  rtp_video_stream_receiver_->RemoveReceiveCodecs();
+
+  // Re-add H.264 without forcing SPS/PPS/IDR keyframe mode.
+  CodecParameterMap empty_codec_params;
+  rtp_video_stream_receiver_->AddReceiveCodec(kH264PayloadType, kVideoCodecH264,
+                                              empty_codec_params,
+                                              /*raw_payload=*/false);
+  rtp_video_stream_receiver_->StartReceive();
+
+  // Send SPS
+  CopyOnWriteBuffer sps_data;
+  RtpPacketReceived rtp_packet;
+  RTPVideoHeader sps_video_header = GetDefaultH264VideoHeader();
+  AddSps(&sps_video_header, 0, &sps_data);
+  rtp_packet.SetSequenceNumber(0);
+  rtp_packet.SetPayloadType(kH264PayloadType);
+  sps_video_header.is_first_packet_in_frame = true;
+  sps_video_header.frame_type = VideoFrameType::kEmptyFrame;
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(
+      kH264StartCode, sizeof(kH264StartCode));
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(sps_data.data(),
+                                                           sps_data.size());
+  rtp_video_stream_receiver_->OnReceivedPayloadData(sps_data, rtp_packet,
+                                                    sps_video_header, 0);
+
+  // Send PPS
+  CopyOnWriteBuffer pps_data;
+  RTPVideoHeader pps_video_header = GetDefaultH264VideoHeader();
+  AddPps(&pps_video_header, 0, 1, &pps_data);
+  rtp_packet.SetSequenceNumber(1);
+  rtp_packet.SetPayloadType(kH264PayloadType);
+  pps_video_header.is_first_packet_in_frame = true;
+  pps_video_header.frame_type = VideoFrameType::kEmptyFrame;
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(
+      kH264StartCode, sizeof(kH264StartCode));
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(pps_data.data(),
+                                                           pps_data.size());
+  rtp_video_stream_receiver_->OnReceivedPayloadData(pps_data, rtp_packet,
+                                                    pps_video_header, 0);
+
+  // Send IDR packet
+  CopyOnWriteBuffer idr_data;
+  RTPVideoHeader idr_video_header = GetDefaultH264VideoHeader();
+  AddIdr(&idr_video_header, 1);
+  rtp_packet.SetSequenceNumber(2);
+  rtp_packet.SetPayloadType(kH264PayloadType);
+  rtp_packet.SetMarker(true);
+  idr_video_header.is_first_packet_in_frame = true;
+  idr_video_header.is_last_packet_in_frame = true;
+  idr_video_header.frame_type = VideoFrameType::kVideoFrameKey;
+
+  const uint8_t idr[] = {0x65, 1, 2, 3};
+  idr_data.AppendData(idr);
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(
+      kH264StartCode, sizeof(kH264StartCode));
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(idr_data.data(),
+                                                           idr_data.size());
+  // Because sps_pps_idr_is_h264_keyframe_ was reset to false, IDR-only
+  // keyframes are allowed again. Therefore, the IDR frame completes as a
+  // keyframe.
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame)
+      .WillOnce(
+          [&](EncodedFrame* frame) { EXPECT_TRUE(frame->is_keyframe()); });
+  rtp_video_stream_receiver_->OnReceivedPayloadData(idr_data, rtp_packet,
+                                                    idr_video_header, 0);
+  mock_on_complete_frame_callback_.ClearExpectedBitstream();
 }
 
 }  // namespace webrtc

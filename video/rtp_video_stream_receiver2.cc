@@ -404,12 +404,22 @@ void RtpVideoStreamReceiver2::AddReceiveCodec(
       env_.field_trials().IsEnabled("WebRTC-SpsPpsIdrIsH264Keyframe")) {
     packet_buffer_.ForceSpsPpsIdrIsH264Keyframe();
     sps_pps_idr_is_h264_keyframe_ = true;
+    if (h26x_packet_buffer_ != nullptr) {
+      // Update existing H26xPacketBuffer setting in-place if codec parameters
+      // change mid-stream to avoid recreating the buffer and dropping packets.
+      h26x_packet_buffer_->SetH264IdrOnlyKeyframesAllowed(false);
+    }
   }
-  payload_type_map_.emplace(
+  if (receiving_ && h26x_packet_buffer_ == nullptr &&
+      UseH26xPacketBuffer(video_codec)) {
+    h26x_packet_buffer_ =
+        std::make_unique<H26xPacketBuffer>(!sps_pps_idr_is_h264_keyframe_);
+  }
+  payload_type_map_.insert_or_assign(
       payload_type, raw_payload ? std::make_unique<VideoRtpDepacketizerRaw>()
                                 : CreateVideoRtpDepacketizer(video_codec));
-  pt_codec_params_.emplace(payload_type, codec_params);
-  pt_codec_.emplace(payload_type, video_codec);
+  pt_codec_params_.insert_or_assign(payload_type, codec_params);
+  pt_codec_.insert_or_assign(payload_type, video_codec);
 }
 
 void RtpVideoStreamReceiver2::RemoveReceiveCodecs() {
@@ -418,6 +428,7 @@ void RtpVideoStreamReceiver2::RemoveReceiveCodecs() {
   pt_codec_params_.clear();
   payload_type_map_.clear();
   packet_buffer_.ResetSpsPpsIdrIsH264Keyframe();
+  sps_pps_idr_is_h264_keyframe_ = false;
   h26x_packet_buffer_.reset();
   pt_codec_.clear();
 }
@@ -1369,7 +1380,14 @@ void RtpVideoStreamReceiver2::StartReceive() {
   RTC_DCHECK_RUN_ON(worker_queue_);
   // |h26x_packet_buffer_| is created here instead of in the ctor because we
   // need to know the value of |sps_pps_id_is_h264_keyframe_|.
-  if (!h26x_packet_buffer_) {
+  bool has_h26x_codec = false;
+  for (const auto& [payload_type, codec] : pt_codec_) {
+    if (UseH26xPacketBuffer(codec)) {
+      has_h26x_codec = true;
+      break;
+    }
+  }
+  if (!h26x_packet_buffer_ && has_h26x_codec) {
     h26x_packet_buffer_ =
         std::make_unique<H26xPacketBuffer>(!sps_pps_idr_is_h264_keyframe_);
   }
