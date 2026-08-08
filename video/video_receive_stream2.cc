@@ -532,6 +532,18 @@ void VideoReceiveStream2::SetAssociatedPayloadTypes(
       std::move(associated_payload_types));
 }
 
+void VideoReceiveStream2::SetRawPayloadTypes(std::set<int> raw_payload_types) {
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  if (config_.rtp.raw_payload_types == raw_payload_types) {
+    return;
+  }
+
+  // TODO(tommi): Stop using the config struct for the internal state.
+  const_cast<std::set<int>&>(config_.rtp.raw_payload_types) =
+      std::move(raw_payload_types);
+  rtp_video_stream_receiver_.SetRawPayloadTypes(config_.rtp.raw_payload_types);
+}
+
 void VideoReceiveStream2::CreateAndRegisterExternalDecoder(
     const Decoder& decoder) {
   TRACE_EVENT0("webrtc",

@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <vector>
@@ -168,6 +169,7 @@ class VideoReceiveStream2
   void SetRtcpXr(Config::Rtp::RtcpXr rtcp_xr) override;
   void SetAssociatedPayloadTypes(
       std::map<int, int> associated_payload_types) override;
+  void SetRawPayloadTypes(std::set<int> raw_payload_types) override;
 
   webrtc::VideoReceiveStreamInterface::Stats GetStats() const override;
 

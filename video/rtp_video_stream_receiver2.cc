@@ -16,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <utility>
@@ -431,6 +432,17 @@ void RtpVideoStreamReceiver2::RemoveReceiveCodecs() {
   sps_pps_idr_is_h264_keyframe_ = false;
   h26x_packet_buffer_.reset();
   pt_codec_.clear();
+}
+
+void RtpVideoStreamReceiver2::SetRawPayloadTypes(
+    const std::set<int>& raw_payload_types) {
+  RTC_DCHECK_RUN_ON(worker_queue_);
+  for (const auto& [pt, codec] : pt_codec_) {
+    const bool raw_payload = raw_payload_types.contains(pt);
+    payload_type_map_[pt] = raw_payload
+                                ? std::make_unique<VideoRtpDepacketizerRaw>()
+                                : CreateVideoRtpDepacketizer(codec);
+  }
 }
 
 std::optional<Syncable::Info> RtpVideoStreamReceiver2::GetSyncInfo() const {

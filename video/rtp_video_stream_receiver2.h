@@ -17,6 +17,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <vector>
 
@@ -124,6 +125,8 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
 
   // Clears state for all receive codecs added via `AddReceiveCodec`.
   void RemoveReceiveCodecs();
+
+  void SetRawPayloadTypes(const std::set<int>& raw_payload_types);
 
   void StartReceive();
   void StopReceive();

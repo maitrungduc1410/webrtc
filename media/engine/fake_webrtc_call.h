@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <utility>
@@ -333,6 +334,10 @@ class FakeVideoReceiveStream final : public VideoReceiveStreamInterface {
       std::map<int, int> associated_payload_types) override {
     config_.rtp.rtx_associated_payload_types =
         std::move(associated_payload_types);
+  }
+
+  void SetRawPayloadTypes(std::set<int> raw_payload_types) override {
+    config_.rtp.raw_payload_types = std::move(raw_payload_types);
   }
 
   void Start() override;

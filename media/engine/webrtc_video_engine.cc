@@ -3626,8 +3626,8 @@ bool WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::ReconfigureCodecs(
   bool recreate_needed = false;
 
   if (raw_payload_types != config_.rtp.raw_payload_types) {
+    stream_->SetRawPayloadTypes(raw_payload_types);
     raw_payload_types.swap(config_.rtp.raw_payload_types);
-    recreate_needed = true;
   }
 
   if (decoders != config_.decoders) {

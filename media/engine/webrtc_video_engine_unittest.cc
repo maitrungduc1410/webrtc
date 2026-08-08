@@ -5306,7 +5306,8 @@ TEST_F(WebRtcVideoChannelTest, SetRecvCodecsWithPacketization) {
   EXPECT_EQ(config.rtp.raw_payload_types.count(vp8_codec.id), 1U);
 }
 
-TEST_F(WebRtcVideoChannelTest, SetRecvCodecsWithPacketizationRecreatesStream) {
+TEST_F(WebRtcVideoChannelTest,
+       SetRecvCodecsWithPacketizationDoesNotRecreateStream) {
   VideoReceiverParameters parameters;
   parameters.codecs = {GetEngineCodec("VP8"), GetEngineCodec("VP9")};
   parameters.codecs.back().packetization = kPacketizationParamRaw;
@@ -5316,10 +5317,17 @@ TEST_F(WebRtcVideoChannelTest, SetRecvCodecsWithPacketizationRecreatesStream) {
   AddRecvStream(params);
   ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), testing::SizeIs(1));
   EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
+  EXPECT_EQ(fake_call_->GetVideoReceiveStreams()[0]
+                ->GetConfig()
+                .rtp.raw_payload_types.count(parameters.codecs.back().id),
+            1U);
 
   parameters.codecs.back().packetization.reset();
   EXPECT_TRUE(receive_channel_->SetReceiverParameters(parameters));
-  EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 2);
+  EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
+  EXPECT_TRUE(fake_call_->GetVideoReceiveStreams()[0]
+                  ->GetConfig()
+                  .rtp.raw_payload_types.empty());
 }
 
 TEST_F(WebRtcVideoChannelTest, DuplicateUlpfecCodecIsDropped) {
