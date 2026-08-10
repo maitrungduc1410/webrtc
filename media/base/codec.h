@@ -222,7 +222,9 @@ struct RTC_EXPORT Codec {
         size_t channels);
 
   explicit Codec(const SdpAudioFormat& c);
+  explicit Codec(SdpAudioFormat&& c);
   explicit Codec(const SdpVideoFormat& c);
+  explicit Codec(SdpVideoFormat&& c);
 
   friend Codec CreateAudioCodec(PayloadType id,
                                 absl::string_view name,

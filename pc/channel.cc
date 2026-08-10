@@ -688,7 +688,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
       error = RTCError::InvalidParameter(sb.Release());
       return error;
     }
-    last_recv_params_ = recv_params;
+    last_recv_params_ = std::move(recv_params);
 
     if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
       if (!video_media_send_channel()->SetSenderParameters(send_params)) {
@@ -698,7 +698,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
         error = RTCError::InvalidParameter(sb.Release());
         return error;
       }
-      last_send_params_ = send_params;
+      last_send_params_ = std::move(send_params);
     }
   } else {
     AudioReceiverParameters recv_params =
@@ -723,7 +723,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
       error = RTCError::InvalidParameter(sb.Release());
       return error;
     }
-    last_recv_params_ = recv_params;
+    last_recv_params_ = std::move(recv_params);
 
     if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
       if (!voice_media_send_channel()->SetSenderParameters(send_params)) {
@@ -733,7 +733,7 @@ RTCError BaseChannel::SetLocalContent_w(const MediaContentDescription* content,
         error = RTCError::InvalidParameter(sb.Release());
         return error;
       }
-      last_send_params_ = send_params;
+      last_send_params_ = std::move(send_params);
     }
   }
 
@@ -793,7 +793,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
          << mid() << "'.";
       return RTCError::InvalidParameter(sb.Release());
     }
-    last_send_params_ = send_params;
+    last_send_params_ = std::move(send_params);
 
     if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
       if (!video_media_receive_channel()->SetReceiverParameters(recv_params)) {
@@ -802,7 +802,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
            << "'.";
         return RTCError::InvalidParameter(sb.Release());
       }
-      last_recv_params_ = recv_params;
+      last_recv_params_ = std::move(recv_params);
     }
   } else {
     AudioSenderParameter send_params =
@@ -824,7 +824,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
          << mid() << "'.";
       return RTCError::InvalidParameter(sb.Release());
     }
-    last_send_params_ = send_params;
+    last_send_params_ = std::move(send_params);
 
     if (type == SdpType::kAnswer || type == SdpType::kPrAnswer) {
       if (!voice_media_receive_channel()->SetReceiverParameters(recv_params)) {
@@ -833,7 +833,7 @@ RTCError BaseChannel::SetRemoteContent_w(const MediaContentDescription* content,
            << "'.";
         return RTCError::InvalidParameter(sb.Release());
       }
-      last_recv_params_ = recv_params;
+      last_recv_params_ = std::move(recv_params);
     }
   }
 
@@ -977,7 +977,7 @@ RTCError BaseChannel::UpdateLocalStreams_w(
              << " into m-section with mid='" << mid() << "'";
     }
   }
-  local_streams_ = all_streams;
+  local_streams_ = std::move(all_streams);
   return RTCError::OK();
 }
 

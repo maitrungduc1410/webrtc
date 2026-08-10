@@ -255,7 +255,7 @@ std::optional<float> GetConfiguredPacingFactor(
       .value_or(default_pacing_config.pacing_factor);
 }
 
-int GetEncoderPriorityBitrate(std::string codec_name,
+int GetEncoderPriorityBitrate(const std::string& codec_name,
                               const FieldTrialsView& field_trials) {
   int priority_bitrate = 0;
   if (PayloadStringToCodecType(codec_name) == VideoCodecType::kVideoCodecAV1) {
