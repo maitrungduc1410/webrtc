@@ -196,7 +196,7 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
                date(2025, 7, 1)),
     FieldTrial('WebRTC-RFC8888CongestionControlFeedback',
                42225697,
-               date(2025, 1, 30)),
+               date(2027, 2, 1)),
     FieldTrial('WebRTC-ReceiveBufferSize',
                42225927,
                date(2024, 4, 1)),
