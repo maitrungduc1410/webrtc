@@ -281,6 +281,9 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-AddNetworkCostToVpn',
                42223280,
                date(2024, 4, 1)),
+    FieldTrial('WebRTC-AddPacingToCongestionWindowPushback',
+               42220204,
+               date(2024, 4, 1)),
     FieldTrial('WebRTC-AdjustOpusBandwidth',
                42233664,
                date(2024, 4, 1)),
@@ -929,7 +932,7 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
 ])  # yapf: disable
 
 POLICY_EXEMPT_FIELD_TRIALS_DIGEST: str = \
-    'b41ff32cc255517f1ba5add2a601453c5fc9e7c3'
+    '8470357338d133964bb56ea554cc1e824b2651f3'
 
 REGISTERED_FIELD_TRIALS: FrozenSet[FieldTrial] = ACTIVE_FIELD_TRIALS.union(
     POLICY_EXEMPT_FIELD_TRIALS)

@@ -35,6 +35,7 @@ class CongestionWindowPushbackController {
   void SetDataWindow(DataSize data_window);
 
  private:
+  const bool add_pacing_;
   const uint32_t min_pushback_target_bitrate_bps_;
   std::optional<DataSize> current_data_window_;
   int64_t outstanding_bytes_ = 0;
