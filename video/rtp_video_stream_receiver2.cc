@@ -533,10 +533,11 @@ RtpVideoStreamReceiver2::ParseGenericDependenciesExtension(
       video_structure_ = std::move(dependency_descriptor.attached_structure);
       video_structure_frame_id_ = frame_id;
       video_header->frame_type = VideoFrameType::kVideoFrameKey;
+      return kNewVideoStructure;
     } else {
       video_header->frame_type = VideoFrameType::kVideoFrameDelta;
+      return kHasGenericDescriptor;
     }
-    return kHasGenericDescriptor;
   }
 
   RtpGenericFrameDescriptor generic_frame_descriptor;
@@ -573,7 +574,8 @@ RtpVideoStreamReceiver2::ParseGenericDependenciesExtension(
   return kHasGenericDescriptor;
 }
 
-bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
+RtpVideoStreamReceiver2::StashResult
+RtpVideoStreamReceiver2::OnReceivedPayloadData(
     CopyOnWriteBuffer codec_payload,
     const RtpPacketReceived& rtp_packet,
     const RTPVideoHeader& video,
@@ -634,7 +636,7 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
       ParseGenericDependenciesExtension(rtp_packet, &video_header);
 
   if (generic_descriptor_state == kStashPacket) {
-    return true;
+    return StashResult::kStash;
   } else if (generic_descriptor_state == kDropPacket) {
     Timestamp now = env_.clock().CurrentTime();
     if (now - last_logged_failed_to_parse_dd_ > TimeDelta::Seconds(1)) {
@@ -651,7 +653,7 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
       next_keyframe_request_for_missing_video_structure_ =
           now + TimeDelta::Seconds(1);
     }
-    return false;
+    return StashResult::kIgnore;
   }
 
   // Extensions that should only be transmitted in the last packet of a frame.
@@ -722,7 +724,7 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
     NotifyReceiverOfEmptyPacket(packet->seq_num(),
                                 GetCodecFromPayloadType(packet->payload_type));
     rtcp_feedback_buffer_.SendBufferedRtcpFeedback();
-    return false;
+    return StashResult::kIgnore;
   }
 
   if (packet->codec() == kVideoCodecH264) {
@@ -748,7 +750,7 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
         rtcp_feedback_buffer_.SendBufferedRtcpFeedback();
         [[fallthrough]];
       case video_coding::H264SpsPpsTracker::kDrop:
-        return false;
+        return StashResult::kIgnore;
       case video_coding::H264SpsPpsTracker::kInsert:
         packet->video_payload = std::move(fixed.bitstream);
         break;
@@ -766,7 +768,8 @@ bool RtpVideoStreamReceiver2::OnReceivedPayloadData(
   } else {
     OnInsertedPacket(packet_buffer_.InsertPacket(std::move(packet)));
   }
-  return false;
+  return generic_descriptor_state == kNewVideoStructure ? StashResult::kUnstash
+                                                        : StashResult::kIgnore;
 }
 
 void RtpVideoStreamReceiver2::OnRecoveredPacket(
@@ -1217,7 +1220,7 @@ void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
       RTC_LOG(LS_WARNING) << " Failed to parse payload for "
                           << "ssrc: " << packet.Ssrc()
                           << ", timestamp: " << packet.Timestamp();
-      return false;
+      return StashResult::kIgnore;
     }
 
     int times_nacked = nack_module_
@@ -1241,19 +1244,24 @@ void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
   // `frame_transformer_delegate_` is called before the frames are inserted into
   // the `RtpFrameReferenceFinder`, and it expects the dependency descriptor to
   // be parsed at that stage.
-  if (parse_and_insert(packet)) {
-    if (stashed_packets_.size() == 100) {
-      stashed_packets_.clear();
-    }
-    stashed_packets_.push_back(packet);
-  } else {
-    for (auto it = stashed_packets_.begin(); it != stashed_packets_.end();) {
-      if (parse_and_insert(*it)) {
-        ++it;  // keep in the stash.
-      } else {
-        it = stashed_packets_.erase(it);
+  switch (parse_and_insert(packet)) {
+    case StashResult::kStash:
+      if (stashed_packets_.size() == 100) {
+        stashed_packets_.clear();
       }
-    }
+      stashed_packets_.push_back(packet);
+      break;
+    case StashResult::kUnstash:
+      for (auto it = stashed_packets_.begin(); it != stashed_packets_.end();) {
+        if (parse_and_insert(*it) == StashResult::kStash) {
+          ++it;
+        } else {
+          it = stashed_packets_.erase(it);
+        }
+      }
+      break;
+    case StashResult::kIgnore:
+      break;
   }
 }
 
