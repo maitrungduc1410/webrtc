@@ -214,10 +214,10 @@ struct RTC_EXPORT Codec {
   // Creates an empty codec.
   explicit Codec(Type type);
   // Creates a codec with the given parameters.
-  Codec(Type type, PayloadType id, const std::string& name, int clockrate);
+  Codec(Type type, PayloadType id, absl::string_view name, int clockrate);
   Codec(Type type,
         PayloadType id,
-        const std::string& name,
+        absl::string_view name,
         int clockrate,
         size_t channels);
 

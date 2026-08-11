@@ -708,6 +708,7 @@ rtc_library("sctp_utils") {
     "../rtc_base:byte_buffer",
     "../rtc_base:copy_on_write_buffer",
     "../rtc_base:logging",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 rtc_library("srtp_session") {
@@ -2144,6 +2145,7 @@ rtc_library("media_stream") {
     "../api:media_stream_interface",
     "../api:scoped_refptr",
     "../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 

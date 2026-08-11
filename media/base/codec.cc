@@ -101,11 +101,11 @@ bool FeedbackParams::HasDuplicateEntries() const {
   return false;
 }
 
-Codec::Codec(Type type, PayloadType id, const std::string& name, int clockrate)
+Codec::Codec(Type type, PayloadType id, absl::string_view name, int clockrate)
     : Codec(type, id, name, clockrate, 0) {}
 Codec::Codec(Type type,
              PayloadType id,
-             const std::string& name,
+             absl::string_view name,
              int clockrate,
              size_t channels)
     : type(type),
