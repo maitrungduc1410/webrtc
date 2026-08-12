@@ -874,20 +874,5 @@ ReceiveStatisticsProxy::ContentSpecificStats::ContentSpecificStats()
 
 ReceiveStatisticsProxy::ContentSpecificStats::~ContentSpecificStats() = default;
 
-void ReceiveStatisticsProxy::ContentSpecificStats::Add(
-    const ContentSpecificStats& other) {
-  e2e_delay_counter.Add(other.e2e_delay_counter);
-  interframe_delay_counter.Add(other.interframe_delay_counter);
-  flow_duration_ms += other.flow_duration_ms;
-  total_media_bytes += other.total_media_bytes;
-  received_height.Add(other.received_height);
-  received_width.Add(other.received_width);
-  qp_counter.Add(other.qp_counter);
-  frame_counts.key_frames += other.frame_counts.key_frames;
-  frame_counts.delta_frames += other.frame_counts.delta_frames;
-  interframe_delay_percentiles.Add(other.interframe_delay_percentiles);
-  corruption_score.MergeStatistics(other.corruption_score);
-}
-
 }  // namespace internal
 }  // namespace webrtc
