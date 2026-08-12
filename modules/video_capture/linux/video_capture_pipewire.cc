@@ -363,36 +363,6 @@ void VideoCaptureModulePipeWire::OnFormatChanged(const struct spa_pod* format) {
   spa_pod_builder_push_object(&builder, &frame, SPA_TYPE_OBJECT_ParamBuffers,
                               SPA_PARAM_Buffers);
 
-  if (media_subtype == SPA_MEDIA_SUBTYPE_raw) {
-    // Enforce stride without padding.
-    size_t stride;
-    switch (configured_capability_.videoType) {
-      case VideoType::kI420:
-      case VideoType::kNV12:
-        stride = configured_capability_.width;
-        break;
-      case VideoType::kYUY2:
-      case VideoType::kUYVY:
-      case VideoType::kRGB565:
-        stride = configured_capability_.width * 2;
-        break;
-      case VideoType::kRGB24:
-      case VideoType::kBGR24:
-        stride = configured_capability_.width * 3;
-        break;
-      case VideoType::kARGB:
-      case VideoType::kABGR:
-      case VideoType::kBGRA:
-        stride = configured_capability_.width * 4;
-        break;
-      default:
-        RTC_LOG(LS_ERROR) << "Unsupported video format.";
-        return;
-    }
-    spa_pod_builder_add(&builder, SPA_PARAM_BUFFERS_stride, SPA_POD_Int(stride),
-                        0);
-  }
-
   const int buffer_types =
       (1 << SPA_DATA_DmaBuf) | (1 << SPA_DATA_MemFd) | (1 << SPA_DATA_MemPtr);
   spa_pod_builder_add(
@@ -471,17 +441,6 @@ void VideoCaptureModulePipeWire::ProcessBuffers() {
     h = static_cast<struct spa_meta_header*>(
         spa_buffer_find_meta_data(spaBuffer, SPA_META_Header, sizeof(*h)));
 
-    struct spa_meta_videotransform* videotransform;
-    videotransform =
-        static_cast<struct spa_meta_videotransform*>(spa_buffer_find_meta_data(
-            spaBuffer, SPA_META_VideoTransform, sizeof(*videotransform)));
-    if (videotransform) {
-      VideoRotation rotation =
-          VideorotationFromPipeWireTransform(videotransform->transform);
-      SetCaptureRotation(rotation);
-      SetApplyRotation(rotation != kVideoRotation_0);
-    }
-
     if (h->flags & SPA_META_HEADER_FLAG_CORRUPTED) {
       RTC_LOG(LS_INFO) << "Dropping corruped frame.";
       pw_stream_queue_buffer(stream_, buffer);
@@ -494,6 +453,19 @@ void VideoCaptureModulePipeWire::ProcessBuffers() {
       RTC_LOG(LS_ERROR) << "Dropping frame with invalid size";
       pw_stream_queue_buffer(stream_, buffer);
       continue;
+    }
+
+    SetStride(spaBuffer->datas[0].chunk->stride);
+
+    struct spa_meta_videotransform* videotransform;
+    videotransform =
+        static_cast<struct spa_meta_videotransform*>(spa_buffer_find_meta_data(
+            spaBuffer, SPA_META_VideoTransform, sizeof(*videotransform)));
+    if (videotransform) {
+      VideoRotation rotation =
+          VideorotationFromPipeWireTransform(videotransform->transform);
+      SetCaptureRotation(rotation);
+      SetApplyRotation(rotation != kVideoRotation_0);
     }
 
     if (spaBuffer->datas[0].type == SPA_DATA_DmaBuf ||
