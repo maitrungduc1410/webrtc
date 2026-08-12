@@ -68,6 +68,25 @@ struct DcSctpSocketHandoverState {
   };
   Capabilities capabilities;
 
+  struct OutstandingData {
+    uint32_t mid = 0;
+    uint16_t stream_id = 0;
+    uint16_t ssn = 0;
+    uint32_t fsn = 0;
+    uint32_t ppid = 0;
+    std::vector<uint8_t> payload;
+    std::optional<int32_t> expires_in_ms;
+    uint16_t max_retransmissions = 0;
+    bool is_beginning = false;
+    bool is_end = false;
+    bool is_unordered = false;
+    uint64_t lifecycle_id = 0;
+    int32_t time_since_sent_ms = 0;
+    uint16_t retransmission_count = 0;
+    bool acked = false;
+    uint64_t message_id = 0;
+  };
+
   struct OutgoingStream {
     uint32_t id = 0;
     uint32_t next_ssn = 0;
@@ -85,6 +104,8 @@ struct DcSctpSocketHandoverState {
     uint32_t partial_bytes_acked = 0;
     std::vector<OutgoingStream> streams;
     std::vector<StreamMessage> queued_messages;
+    std::vector<OutstandingData> outstanding_data;
+    uint32_t last_cumulative_tsn_ack = 0;
   };
   Transmission tx;
 

@@ -99,6 +99,7 @@ rtc_library("outstanding_data") {
     "../common:sequence_numbers",
     "../packet:chunk",
     "../packet:data",
+    "../public:socket",
     "../public:types",
   ]
   sources = [
