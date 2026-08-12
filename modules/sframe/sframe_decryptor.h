@@ -8,13 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef MODULES_SFRAME_SFRAME_ENCRYPTOR_H_
-#define MODULES_SFRAME_SFRAME_ENCRYPTOR_H_
+#ifndef MODULES_SFRAME_SFRAME_DECRYPTOR_H_
+#define MODULES_SFRAME_SFRAME_DECRYPTOR_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <span>
 
 #include "absl/base/nullability.h"
@@ -22,7 +21,7 @@
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/sframe/sframe_types.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_media_decryptor_interface.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -32,41 +31,37 @@ class Context;
 
 namespace webrtc {
 
-class SframeEncryptor : public SframeMediaEncryptorInterface {
+class SframeDecryptor : public SframeMediaDecryptorInterface {
  public:
-  // Creates a new SframeEncryptor. This factory method never fails.
-  static absl_nonnull scoped_refptr<SframeEncryptor> Create(
-      SframeMode mode,
+  // Creates a new SframeDecryptor. This factory method never fails.
+  static absl_nonnull scoped_refptr<SframeDecryptor> Create(
       SframeCipherSuite cipher_suite);
 
-  ~SframeEncryptor() override;
+  ~SframeDecryptor() override;
 
-  // SframeEncryptorInterface implementation.
-  RTCError SetEncryptionKey(uint64_t key_id,
+  // SframeDecryptorInterface implementation.
+  RTCError AddDecryptionKey(uint64_t key_id,
                             std::span<const uint8_t> key_material) override;
+  RTCError RemoveDecryptionKey(uint64_t key_id) override;
 
-  // SframeMediaEncryptorInterface implementation.
-  RTCErrorOr<size_t> Encrypt(std::span<const uint8_t> frame,
-                             std::span<const uint8_t> additional_data,
-                             std::span<uint8_t> encrypted_frame) override;
+  // SframeMediaDecryptorInterface implementation.
+  SframeDecryptResult Decrypt(std::span<const uint8_t> encrypted_frame,
+                              std::span<const uint8_t> additional_data,
+                              std::span<uint8_t> frame) override;
 
-  size_t GetMaxCiphertextByteSize(size_t frame_size) override;
-
-  SframeMode mode() const override { return mode_; }
+  size_t GetMaxPlaintextByteSize(size_t encrypted_frame_size) override;
 
  protected:
-  SframeEncryptor(SframeMode mode, SframeCipherSuite cipher_suite);
+  explicit SframeDecryptor(SframeCipherSuite cipher_suite);
 
  private:
   // Callers must use this object from a single sequence. Today that sequence
   // is the media-pipeline (worker) thread reached via the signaling thread.
   RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
 
-  const SframeMode mode_;
   std::unique_ptr<sframe::Context> context_ RTC_GUARDED_BY(sequence_checker_);
-  std::optional<uint64_t> active_key_id_ RTC_GUARDED_BY(sequence_checker_);
 };
 
 }  // namespace webrtc
 
-#endif  // MODULES_SFRAME_SFRAME_ENCRYPTOR_H_
+#endif  // MODULES_SFRAME_SFRAME_DECRYPTOR_H_
