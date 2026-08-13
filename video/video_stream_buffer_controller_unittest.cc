@@ -16,7 +16,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -114,14 +113,13 @@ class VideoStreamBufferControllerStatsObserverMock
 constexpr auto kMaxWaitForKeyframe = TimeDelta::Millis(500);
 constexpr auto kMaxWaitForFrame = TimeDelta::Millis(1500);
 class VideoStreamBufferControllerFixture
-    : public ::testing::WithParamInterface<std::tuple<bool, std::string>>,
+    : public ::testing::WithParamInterface<bool>,
       public FrameSchedulingReceiver {
  public:
   VideoStreamBufferControllerFixture()
-      : sync_decoding_(std::get<0>(GetParam())),
+      : sync_decoding_(GetParam()),
         time_controller_(kClockStart),
-        env_(CreateTestEnvironment({.field_trials = std::get<1>(GetParam()),
-                                    .time = &time_controller_})),
+        env_(CreateTestEnvironment({.time = &time_controller_})),
         fake_metronome_(TimeDelta::Millis(16)),
         decode_sync_(&env_.clock(),
                      &fake_metronome_,
@@ -822,11 +820,10 @@ TEST_P(VideoStreamBufferControllerTest,
 
 INSTANTIATE_TEST_SUITE_P(VideoStreamBufferController,
                          VideoStreamBufferControllerTest,
-                         ::testing::Combine(::testing::Bool(),
-                                            ::testing::Values("")),
+                         ::testing::Bool(),
                          [](const auto& info) {
-                           return std::get<0>(info.param) ? "SyncDecoding"
-                                                          : "UnsyncedDecoding";
+                           return info.param ? "SyncDecoding"
+                                             : "UnsyncedDecoding";
                          });
 
 class LowLatencyVideoStreamBufferControllerTest
@@ -858,10 +855,19 @@ TEST_P(LowLatencyVideoStreamBufferControllerTest,
               .AsLast()
               .Build();
   buffer_->InsertFrame(std::move(frame));
-  // Pacing is set to 16ms in the field trial so we should not decode yet.
-  EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Eq(std::nullopt));
-  time_controller_.AdvanceTime(TimeDelta::Millis(16));
-  EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Frame(test::WithId(1)));
+  if (sync_decoding_) {
+    // With synchronous decoding and default pacing (8ms), the latest decode
+    // time is before the next metronome tick minus allowed frame delay
+    // (16ms - 5ms = 11ms), so the frame is decoded right away.
+    EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()),
+                Frame(test::WithId(1)));
+  } else {
+    // Pacing is 8ms so we should not decode yet.
+    EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Eq(std::nullopt));
+    time_controller_.AdvanceTime(TimeDelta::Millis(8));
+    EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()),
+                Frame(test::WithId(1)));
+  }
 }
 
 TEST_P(LowLatencyVideoStreamBufferControllerTest, ZeroPlayoutDelayFullQueue) {
@@ -878,8 +884,9 @@ TEST_P(LowLatencyVideoStreamBufferControllerTest, ZeroPlayoutDelayFullQueue) {
   buffer_->InsertFrame(std::move(frame));
   EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Frame(test::WithId(0)));
 
-  // Queue up 5 frames (configured max queue size for 0-playout delay pacing).
-  for (int id = 1; id <= 6; ++id) {
+  // Queue up frames beyond the default max decode queue size (8) for
+  // zero-playout delay pacing.
+  for (int id = 1; id <= 9; ++id) {
     frame = test::FakeFrameBuilder()
                 .Id(id)
                 .Time(kFps30Rtp * id)
@@ -925,14 +932,12 @@ TEST_P(LowLatencyVideoStreamBufferControllerTest,
   EXPECT_THAT(WaitForFrameOrTimeout(TimeDelta::Zero()), Frame(test::WithId(1)));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    VideoStreamBufferController,
-    LowLatencyVideoStreamBufferControllerTest,
-    ::testing::Combine(
-        ::testing::Bool(),
-        ::testing::Values(
-            "WebRTC-ZeroPlayoutDelay/min_pacing:16ms,max_decode_queue_size:5/",
-            "WebRTC-ZeroPlayoutDelay/"
-            "min_pacing:16ms,max_decode_queue_size:5/")));
+INSTANTIATE_TEST_SUITE_P(VideoStreamBufferController,
+                         LowLatencyVideoStreamBufferControllerTest,
+                         ::testing::Bool(),
+                         [](const auto& info) {
+                           return info.param ? "SyncDecoding"
+                                             : "UnsyncedDecoding";
+                         });
 
 }  // namespace webrtc

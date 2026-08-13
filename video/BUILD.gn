@@ -305,7 +305,6 @@ rtc_library("video_stream_buffer_controller") {
     "../rtc_base:checks",
     "../rtc_base:logging",
     "../rtc_base:macromagic",
-    "../rtc_base/experiments:field_trial_parser",
     "../rtc_base/system:no_unique_address",
     "../system_wrappers",
     "//third_party/abseil-cpp/absl/base:core_headers",
@@ -346,13 +345,11 @@ rtc_library("frame_decode_timing") {
     "frame_decode_timing.h",
   ]
   deps = [
-    "../api:field_trials_view",
     "../api/units:time_delta",
     "../api/units:timestamp",
     "../modules/video_coding/timing:timing_module",
     "../rtc_base:checks",
     "../rtc_base:logging",
-    "../rtc_base/experiments:field_trial_parser",
     "../system_wrappers",
   ]
 }
