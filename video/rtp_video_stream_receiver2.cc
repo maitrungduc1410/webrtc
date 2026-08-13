@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
 #include "api/field_trials_view.h"
@@ -574,12 +575,10 @@ RtpVideoStreamReceiver2::ParseGenericDependenciesExtension(
   return kHasGenericDescriptor;
 }
 
-RtpVideoStreamReceiver2::StashResult
-RtpVideoStreamReceiver2::OnReceivedPayloadData(
+void RtpVideoStreamReceiver2::OnReceivedPayloadDataForTesting(
     CopyOnWriteBuffer codec_payload,
     const RtpPacketReceived& rtp_packet,
-    const RTPVideoHeader& video,
-    int times_nacked) {
+    const RTPVideoHeader& video) {
   RTC_DCHECK_RUN_ON(worker_queue_);
 
   int64_t unwrapped_rtp_seq_num =
@@ -587,6 +586,16 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
 
   auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
       rtp_packet, unwrapped_rtp_seq_num, video);
+  packet->video_payload = std::move(codec_payload);
+
+  OnReceivedPayloadData(rtp_packet, std::move(packet));
+}
+
+RtpVideoStreamReceiver2::StashResult
+RtpVideoStreamReceiver2::OnReceivedPayloadData(
+    const RtpPacketReceived& rtp_packet,
+    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet> packet) {
+  RTC_DCHECK_RUN_ON(worker_queue_);
 
   RtpPacketInfo& packet_info = packet->rtp_packet_info;
   packet_info.set_receive_time(env_.clock().CurrentTime());
@@ -718,9 +727,7 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
     }
   }
 
-  packet->times_nacked = times_nacked;
-
-  if (codec_payload.empty()) {
+  if (packet->video_payload.empty()) {
     NotifyReceiverOfEmptyPacket(packet->seq_num(),
                                 GetCodecFromPayloadType(packet->payload_type));
     rtcp_feedback_buffer_.SendBufferedRtcpFeedback();
@@ -740,9 +747,8 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
   if (packet->codec() == kVideoCodecH264 &&
       !UseH26xPacketBuffer(packet->codec())) {
     video_coding::H264SpsPpsTracker::FixedBitstream fixed =
-        tracker_.CopyAndFixBitstream(
-            std::span(codec_payload.cdata(), codec_payload.size()),
-            &packet->video_header);
+        tracker_.CopyAndFixBitstream(packet->video_payload,
+                                     &packet->video_header);
 
     switch (fixed.action) {
       case video_coding::H264SpsPpsTracker::kRequestKeyframe:
@@ -755,9 +761,6 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
         packet->video_payload = std::move(fixed.bitstream);
         break;
     }
-
-  } else {
-    packet->video_payload = std::move(codec_payload);
   }
 
   rtcp_feedback_buffer_.SendBufferedRtcpFeedback();
@@ -1190,47 +1193,53 @@ void RtpVideoStreamReceiver2::ManageFrame(
   OnCompleteFrames(reference_finder_->ManageFrame(std::move(frame)));
 }
 
-void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
+void RtpVideoStreamReceiver2::ReceivePacket(
+    const RtpPacketReceived& rtp_packet) {
   RTC_DCHECK_RUN_ON(worker_queue_);
 
-  if (packet.payload_size() == 0) {
+  if (rtp_packet.payload_size() == 0) {
     // Padding or keep-alive packet.
     // TODO(nisse): Could drop empty packets earlier, but need to figure out how
     // they should be counted in stats.
     NotifyReceiverOfEmptyPacket(
-        rtp_seq_num_unwrapper_.Unwrap(packet.SequenceNumber()),
-        GetCodecFromPayloadType(packet.PayloadType()));
+        rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber()),
+        GetCodecFromPayloadType(rtp_packet.PayloadType()));
     return;
   }
-  if (packet.PayloadType() == red_payload_type_) {
-    ParseAndHandleEncapsulatingHeader(packet);
+  if (rtp_packet.PayloadType() == red_payload_type_) {
+    ParseAndHandleEncapsulatingHeader(rtp_packet);
     return;
   }
 
-  const auto type_it = payload_type_map_.find(packet.PayloadType());
+  const auto type_it = payload_type_map_.find(rtp_packet.PayloadType());
   if (type_it == payload_type_map_.end()) {
     return;
   }
 
-  auto parse_and_insert = [&](const RtpPacketReceived& packet) {
+  auto parse_and_insert = [&](const RtpPacketReceived& rtp_packet) {
     RTC_DCHECK_RUN_ON(worker_queue_);
     std::optional<VideoRtpDepacketizer::ParsedRtpPayload> parsed_payload =
-        type_it->second->Parse(packet.PayloadBuffer());
+        type_it->second->Parse(rtp_packet.PayloadBuffer());
     if (parsed_payload == std::nullopt) {
       RTC_LOG(LS_WARNING) << " Failed to parse payload for "
-                          << "ssrc: " << packet.Ssrc()
-                          << ", timestamp: " << packet.Timestamp();
+                          << "ssrc: " << rtp_packet.Ssrc()
+                          << ", timestamp: " << rtp_packet.Timestamp();
       return StashResult::kIgnore;
     }
 
-    int times_nacked = nack_module_
-                           ? nack_module_->OnReceivedPacket(
-                                 packet.SequenceNumber(), packet.recovered())
-                           : -1;
+    int64_t unwrapped_rtp_seq_num =
+        rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber());
 
-    return OnReceivedPayloadData(std::move(parsed_payload->video_payload),
-                                 packet, parsed_payload->video_header,
-                                 times_nacked);
+    auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
+        rtp_packet, unwrapped_rtp_seq_num, parsed_payload->video_header);
+    packet->video_payload = std::move(parsed_payload->video_payload);
+    packet->times_nacked =
+        nack_module_ != nullptr
+            ? nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
+                                             rtp_packet.recovered())
+            : -1;
+
+    return OnReceivedPayloadData(rtp_packet, std::move(packet));
   };
 
   // When the dependency descriptor is used and the descriptor fail to parse
@@ -1244,12 +1253,12 @@ void RtpVideoStreamReceiver2::ReceivePacket(const RtpPacketReceived& packet) {
   // `frame_transformer_delegate_` is called before the frames are inserted into
   // the `RtpFrameReferenceFinder`, and it expects the dependency descriptor to
   // be parsed at that stage.
-  switch (parse_and_insert(packet)) {
+  switch (parse_and_insert(rtp_packet)) {
     case StashResult::kStash:
       if (stashed_packets_.size() == 100) {
         stashed_packets_.clear();
       }
-      stashed_packets_.push_back(packet);
+      stashed_packets_.push_back(rtp_packet);
       break;
     case StashResult::kUnstash:
       for (auto it = stashed_packets_.begin(); it != stashed_packets_.end();) {

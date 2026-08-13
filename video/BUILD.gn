@@ -183,6 +183,7 @@ rtc_library("video") {
     "config:encoder_config",
     "render:incoming_video_stream",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
   ]

@@ -19,9 +19,9 @@
 #include <optional>
 #include <set>
 #include <span>
-#include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
 #include "api/frame_transformer_interface.h"
@@ -241,10 +241,7 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
   // `OnRtpPacket`, tests may pass parsed parts of an rtp packet directly.
   void OnReceivedPayloadDataForTesting(CopyOnWriteBuffer codec_payload,
                                        const RtpPacketReceived& rtp_packet,
-                                       const RTPVideoHeader& video) {
-    OnReceivedPayloadData(std::move(codec_payload), rtp_packet, video,
-                          /*times_nacked=*/0);
-  }
+                                       const RTPVideoHeader& video);
 
  private:
   // Implements RtpVideoFrameReceiver.
@@ -331,14 +328,14 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
     kStash,    // The packet should be stashed for later processing.
     kUnstash,  // Previously stashed packets should be retried.
   };
-  StashResult OnReceivedPayloadData(CopyOnWriteBuffer codec_payload,
-                                    const RtpPacketReceived& rtp_packet,
-                                    const RTPVideoHeader& video,
-                                    int times_nacked);
+  StashResult OnReceivedPayloadData(
+      const RtpPacketReceived& rtp_packet,
+      absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet> packet);
 
   // Entry point doing non-stats work for a received packet. Called
   // for the same packet both before and after RED decapsulation.
-  void ReceivePacket(const RtpPacketReceived& packet) RTC_RUN_ON(worker_queue_);
+  void ReceivePacket(const RtpPacketReceived& rtp_packet)
+      RTC_RUN_ON(worker_queue_);
 
   // Parses and handles RED headers.
   // This function assumes that it's being called from only one thread.
