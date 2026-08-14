@@ -775,9 +775,6 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-SendBufferSizeBytes',
                42222026,
                date(2024, 4, 1)),
-    FieldTrial('WebRTC-SendNackDelayMs',
-               42235176,
-               date(2024, 4, 1)),
     FieldTrial('WebRTC-SetSocketReceiveBuffer',
                42223976,
                date(2024, 4, 1)),
@@ -902,7 +899,7 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
 ])  # yapf: disable
 
 POLICY_EXEMPT_FIELD_TRIALS_DIGEST: str = \
-    'b1d963f47bb9db11402bcea0a0d27fdfb13fd734'
+    'fa94f997a8ae8fc462a803da10778c58e8c2cbeb'
 
 REGISTERED_FIELD_TRIALS: FrozenSet[FieldTrial] = ACTIVE_FIELD_TRIALS.union(
     POLICY_EXEMPT_FIELD_TRIALS)
