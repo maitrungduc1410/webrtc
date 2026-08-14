@@ -588,13 +588,13 @@ void RtpVideoStreamReceiver2::OnReceivedPayloadDataForTesting(
       rtp_packet, unwrapped_rtp_seq_num, video);
   packet->video_payload = std::move(codec_payload);
 
-  OnReceivedPayloadData(rtp_packet, std::move(packet));
+  OnReceivedPayloadData(rtp_packet, packet);
 }
 
 RtpVideoStreamReceiver2::StashResult
 RtpVideoStreamReceiver2::OnReceivedPayloadData(
     const RtpPacketReceived& rtp_packet,
-    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet> packet) {
+    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet>& packet) {
   RTC_DCHECK_RUN_ON(worker_queue_);
 
   RtpPacketInfo& packet_info = packet->rtp_packet_info;
@@ -1216,31 +1216,26 @@ void RtpVideoStreamReceiver2::ReceivePacket(
     return;
   }
 
-  auto parse_and_insert = [&](const RtpPacketReceived& rtp_packet) {
-    RTC_DCHECK_RUN_ON(worker_queue_);
-    std::optional<VideoRtpDepacketizer::ParsedRtpPayload> parsed_payload =
-        type_it->second->Parse(rtp_packet.PayloadBuffer());
-    if (parsed_payload == std::nullopt) {
-      RTC_LOG(LS_WARNING) << " Failed to parse payload for "
-                          << "ssrc: " << rtp_packet.Ssrc()
-                          << ", timestamp: " << rtp_packet.Timestamp();
-      return StashResult::kIgnore;
-    }
+  std::optional<VideoRtpDepacketizer::ParsedRtpPayload> parsed_payload =
+      type_it->second->Parse(rtp_packet.PayloadBuffer());
+  if (parsed_payload == std::nullopt) {
+    RTC_LOG(LS_WARNING) << " Failed to parse payload for "
+                        << "ssrc: " << rtp_packet.Ssrc()
+                        << ", timestamp: " << rtp_packet.Timestamp();
+    return;
+  }
 
-    int64_t unwrapped_rtp_seq_num =
-        rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber());
+  int64_t unwrapped_rtp_seq_num =
+      rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber());
 
-    auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
-        rtp_packet, unwrapped_rtp_seq_num, parsed_payload->video_header);
-    packet->video_payload = std::move(parsed_payload->video_payload);
-    packet->times_nacked =
-        nack_module_ != nullptr
-            ? nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
-                                             rtp_packet.recovered())
-            : -1;
-
-    return OnReceivedPayloadData(rtp_packet, std::move(packet));
-  };
+  auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
+      rtp_packet, unwrapped_rtp_seq_num, parsed_payload->video_header);
+  packet->video_payload = std::move(parsed_payload->video_payload);
+  packet->times_nacked =
+      nack_module_ != nullptr
+          ? nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
+                                           rtp_packet.recovered())
+          : -1;
 
   // When the dependency descriptor is used and the descriptor fail to parse
   // then `OnReceivedPayloadData` may return true to signal the the packet
@@ -1253,16 +1248,24 @@ void RtpVideoStreamReceiver2::ReceivePacket(
   // `frame_transformer_delegate_` is called before the frames are inserted into
   // the `RtpFrameReferenceFinder`, and it expects the dependency descriptor to
   // be parsed at that stage.
-  switch (parse_and_insert(rtp_packet)) {
+  switch (OnReceivedPayloadData(rtp_packet, packet)) {
     case StashResult::kStash:
+      // When `OnReceivedPayloadData` tells to stash `packet`, it should stay
+      // nonnull.
+      RTC_DCHECK(packet != nullptr);
       if (stashed_packets_.size() == 100) {
         stashed_packets_.clear();
       }
-      stashed_packets_.push_back(rtp_packet);
+      stashed_packets_.push_back(
+          {.rtp_packet = rtp_packet, .packet = std::move(packet)});
       break;
     case StashResult::kUnstash:
       for (auto it = stashed_packets_.begin(); it != stashed_packets_.end();) {
-        if (parse_and_insert(*it) == StashResult::kStash) {
+        if (OnReceivedPayloadData(it->rtp_packet, it->packet) ==
+            StashResult::kStash) {
+          // When `OnReceivedPayloadData` tells to keep packet in stash, it
+          // should stay nonnull.
+          RTC_DCHECK(it->packet != nullptr);
           ++it;
         } else {
           it = stashed_packets_.erase(it);

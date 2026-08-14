@@ -330,7 +330,7 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
   };
   StashResult OnReceivedPayloadData(
       const RtpPacketReceived& rtp_packet,
-      absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet> packet);
+      absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet>& packet);
 
   // Entry point doing non-stats work for a received packet. Called
   // for the same packet both before and after RED decapsulation.
@@ -476,7 +476,12 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
 
   SeqNumUnwrapper<uint16_t> rtp_seq_num_unwrapper_
       RTC_GUARDED_BY(worker_queue_);
-  std::vector<RtpPacketReceived> stashed_packets_ RTC_GUARDED_BY(worker_queue_);
+
+  struct StashedPacket {
+    RtpPacketReceived rtp_packet;
+    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet> packet;
+  };
+  std::vector<StashedPacket> stashed_packets_ RTC_GUARDED_BY(worker_queue_);
 
   Timestamp next_keyframe_request_for_missing_video_structure_ =
       Timestamp::MinusInfinity();
