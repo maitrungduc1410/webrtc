@@ -251,7 +251,7 @@ RTCError MergeRedCodec(const CodecConfiguration& config,
       // Opus RED uses Opus as both the primary payload and
       // the redundancy payload, with different timestamp offsets.
       param << primary_codec.id.value() << "/" << primary_codec.id.value();
-      red.SetParam(kCodecParamNotInNameValueFormat, param.str());
+      red.SetParam(kCodecParamNotInNameValueFormat, param.Release());
     }
   }
 
@@ -825,7 +825,7 @@ void LinkRed(std::vector<Codec>& codecs) {
           // Opus RED uses Opus as both the primary payload and
           // the redundancy payload, with different timestamp offsets.
           param << first_opus_pt << "/" << first_opus_pt;
-          codec.SetParam(kCodecParamNotInNameValueFormat, param.str());
+          codec.SetParam(kCodecParamNotInNameValueFormat, param.Release());
         }
       }
     }

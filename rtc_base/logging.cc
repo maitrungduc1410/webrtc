@@ -247,7 +247,7 @@ LogMessage::LogMessage(const char* file,
       default:
         break;
     }
-    extra_ = tmp.str();
+    extra_ = tmp.Release();
   }
 }
 
