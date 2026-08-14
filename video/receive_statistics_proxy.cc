@@ -662,9 +662,7 @@ void ReceiveStatisticsProxy::OnDecodedFrame(
 
   ++stats_.frames_decoded;
   if (frame_type == VideoFrameType::kVideoFrameKey) {
-    ++stats_.decoded_frame_counts.key_frames;
-  } else {
-    ++stats_.decoded_frame_counts.delta_frames;
+    ++stats_.key_frames_decoded;
   }
   if (qp) {
     if (!stats_.qp_sum) {

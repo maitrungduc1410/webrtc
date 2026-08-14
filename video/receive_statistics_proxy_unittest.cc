@@ -146,27 +146,25 @@ TEST_F(ReceiveStatisticsProxyTest, OnDecodedFrameIncreasesFramesDecoded) {
   }
 }
 
-TEST_F(ReceiveStatisticsProxyTest, OnDecodedFrameIncreasesDecodedFrameCounts) {
-  EXPECT_EQ(0, statistics_proxy_->GetStats().decoded_frame_counts.key_frames);
+TEST_F(ReceiveStatisticsProxyTest, OnDecodedFrameIncreasesKeyFramesDecoded) {
+  EXPECT_EQ(0u, statistics_proxy_->GetStats().key_frames_decoded);
   VideoFrame frame = CreateFrame(kWidth, kHeight);
   statistics_proxy_->OnDecodedFrame(frame, std::nullopt, TimeDelta::Zero(),
                                     VideoContentType::UNSPECIFIED,
                                     VideoFrameType::kVideoFrameKey, Info());
-  EXPECT_EQ(1, FlushAndGetStats().decoded_frame_counts.key_frames);
-  EXPECT_EQ(0, FlushAndGetStats().decoded_frame_counts.delta_frames);
+  EXPECT_EQ(1u, FlushAndGetStats().key_frames_decoded);
   statistics_proxy_->OnDecodedFrame(frame, std::nullopt, TimeDelta::Zero(),
                                     VideoContentType::UNSPECIFIED,
                                     VideoFrameType::kVideoFrameDelta, Info());
-  EXPECT_EQ(1, FlushAndGetStats().decoded_frame_counts.key_frames);
-  EXPECT_EQ(1, FlushAndGetStats().decoded_frame_counts.delta_frames);
+  EXPECT_EQ(1u, FlushAndGetStats().key_frames_decoded);
   EXPECT_EQ(2u, FlushAndGetStats().frames_decoded);
 }
 
 TEST_F(ReceiveStatisticsProxyTest,
-       OnCompleteFrameDoesNotIncreaseDecodedFrameCounts) {
+       OnCompleteFrameDoesNotIncreaseKeyFramesDecoded) {
   statistics_proxy_->OnCompleteFrame(true, 1000, VideoContentType::UNSPECIFIED);
   EXPECT_EQ(1, FlushAndGetStats().received_frame_counts.key_frames);
-  EXPECT_EQ(0, FlushAndGetStats().decoded_frame_counts.key_frames);
+  EXPECT_EQ(0u, FlushAndGetStats().key_frames_decoded);
 }
 
 TEST_F(ReceiveStatisticsProxyTest, DecodedFpsIsReported) {

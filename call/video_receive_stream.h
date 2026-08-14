@@ -116,9 +116,8 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
     uint32_t frames_dropped = 0;
     // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-framesdecoded
     uint32_t frames_decoded = 0;
-    // Key/delta split of `frames_decoded`.
     // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-keyframesdecoded
-    FrameCounts decoded_frame_counts;
+    uint32_t key_frames_decoded = 0;
     // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-totaldecodetime
     TimeDelta total_decode_time = TimeDelta::Zero();
     // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-totalprocessingdelay
