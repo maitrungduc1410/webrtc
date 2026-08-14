@@ -11,7 +11,10 @@
 #ifndef API_RTP_HEADER_EXTENSION_ID_H_
 #define API_RTP_HEADER_EXTENSION_ID_H_
 
+#include <optional>
+
 #include "absl/strings/str_format.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/strong_alias.h"
 
 namespace webrtc {
@@ -36,14 +39,19 @@ class RtpHeaderExtensionId
     return RtpHeaderExtensionId();
   }
 
+  // Returns `RtpHeaderExtensionId` when id is valid, std::nullopt otherwise.
+  // In particular, returns std::nullopt when id is 0.
+  static constexpr std::optional<RtpHeaderExtensionId> Create(int id);
+
   // The default constructor makes a NotSet.
   constexpr RtpHeaderExtensionId() : StrongAlias(0) {}
 
-  // TODO: bugs.webrtc.org/514817938 - enable these checks when tests fixed.
-  //   RTC_DCHECK_GE(id, kMinId.value());
-  //   RTC_DCHECK_LE(id, kMaxId.value());
-  // }
-  explicit constexpr RtpHeaderExtensionId(int id) : StrongAlias(id) {}
+  explicit constexpr RtpHeaderExtensionId(int id) : StrongAlias(id) {
+    // For convenience allow all valid ids + special value 0 that represents
+    // 'NotSet'.
+    RTC_DCHECK_GE(id, 0);
+    RTC_DCHECK_LE(id, 255);
+  }
 
   // Returns true for an extension id that is set and is in the legal range.
   constexpr bool Valid() const {
@@ -65,6 +73,14 @@ inline constexpr RtpHeaderExtensionId RtpHeaderExtensionId::kMaxId =
 inline constexpr RtpHeaderExtensionId
     RtpHeaderExtensionId::kOneByteHeaderExtensionMaxId =
         RtpHeaderExtensionId(14);
+
+inline constexpr std::optional<RtpHeaderExtensionId>
+RtpHeaderExtensionId::Create(int id) {
+  if (id >= kMinId.value() && id <= kMaxId.value()) {
+    return RtpHeaderExtensionId(id);
+  }
+  return std::nullopt;
+}
 
 }  // namespace webrtc
 
