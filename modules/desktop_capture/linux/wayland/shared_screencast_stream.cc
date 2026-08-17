@@ -877,7 +877,8 @@ void SharedScreenCastStreamPrivate::ProcessBuffer(pw_buffer* buffer) {
     }
   }
 
-  if (spa_buffer->datas[0].chunk->flags & SPA_CHUNK_FLAG_CORRUPTED) {
+  if (spa_buffer->n_datas == 0 ||
+      spa_buffer->datas[0].chunk->flags & SPA_CHUNK_FLAG_CORRUPTED) {
     RTC_LOG(LS_INFO) << "Dropping buffer with corrupted or missing data";
     if (observer_) {
       observer_->OnBufferCorruptedData();
