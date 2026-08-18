@@ -955,13 +955,13 @@ void SharedScreenCastStreamPrivate::ProcessBuffer(pw_buffer* buffer) {
   // that the position doesn't exceed the size of the stream itself.
   // NOTE: Currently it looks there is no implementation using this.
   uint32_t y_offset =
-      videocrop_metadata_use &&
+      videocrop_metadata_use && videocrop_metadata->region.position.y >= 0 &&
               (videocrop_metadata->region.position.y + frame_size_.height() <=
                stream_size_.height())
           ? videocrop_metadata->region.position.y
           : 0;
   uint32_t x_offset =
-      videocrop_metadata_use &&
+      videocrop_metadata_use && videocrop_metadata->region.position.x >= 0 &&
               (videocrop_metadata->region.position.x + frame_size_.width() <=
                stream_size_.width())
           ? videocrop_metadata->region.position.x
