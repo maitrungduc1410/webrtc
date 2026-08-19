@@ -42,6 +42,7 @@
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/peer_connection_interface.h"
+#include "api/peer_connection_tracer_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/rtc_event_log_output.h"
@@ -495,6 +496,7 @@ PeerConnection::PeerConnection(
       session_id_(absl::StrCat(CreateRandomId64() & LLONG_MAX)),
       data_channel_controller_(this),
       message_handler_(signaling_thread()),
+      tracer_(std::move(dependencies.tracer)),
       codec_lookup_helper_(
           std::make_unique<CodecLookupHelperForPeerConnection>(this)) {
   // Field trials specific to the peerconnection should be owned by the `env`,
@@ -504,6 +506,10 @@ PeerConnection::PeerConnection(
   if (!configuration_.enable_sctp_snap) {
     configuration_.enable_sctp_snap =
         env.field_trials().IsEnabled("WebRTC-Sctp-Snap");
+  }
+
+  if (tracer_) {
+    tracer_->OnSetConfiguration(configuration_);
   }
 
   std::vector<IceParameters> pooled_credentials;
@@ -1413,6 +1419,9 @@ PeerConnection::CreateDataChannelOrError(const std::string& label,
 
   ClearStatsCache();
   scoped_refptr<DataChannelInterface> channel = ret.MoveValue();
+  if (tracer_) {
+    tracer_->OnCreateDataChannel(*channel);
+  }
 
   // Check the onRenegotiationNeeded event (with plan-b backward compat)
   if (configuration_.sdp_semantics == SdpSemantics::kUnifiedPlan ||
@@ -1613,23 +1622,51 @@ RTCError PeerConnection::SetConfiguration(
     sdp_handler_->UpdateNegotiationNeeded();
   }
 
+  if (tracer_) {
+    tracer_->OnSetConfiguration(configuration_);
+  }
   return RTCError::OK();
 }
 
 bool PeerConnection::AddIceCandidate(const IceCandidate* ice_candidate) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   ClearStatsCache();
-  return sdp_handler_->AddIceCandidate(ice_candidate);
+  bool succeeded = sdp_handler_->AddIceCandidate(ice_candidate);
+  if (tracer_ && ice_candidate != nullptr) {
+    tracer_->OnAddIceCandidate(*ice_candidate, succeeded);
+  }
+  return succeeded;
 }
 
 void PeerConnection::AddIceCandidate(std::unique_ptr<IceCandidate> candidate,
                                      std::function<void(RTCError)> callback) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  sdp_handler_->AddIceCandidate(std::move(candidate),
-                                [this, callback](RTCError result) {
-                                  ClearStatsCache();
-                                  callback(result);
-                                });
+  const bool trace_candidate = tracer_ != nullptr && candidate != nullptr;
+  std::string sdp_mid;
+  int sdp_mline_index = 0;
+  Candidate candidate_copy;
+  if (trace_candidate) {
+    sdp_mid = candidate->sdp_mid();
+    sdp_mline_index = candidate->sdp_mline_index();
+    candidate_copy = candidate->candidate();
+  }
+  sdp_handler_->AddIceCandidate(
+      std::move(candidate),
+      [this, safety = signaling_thread_safety_.flag(),
+       callback = std::move(callback), sdp_mid = std::move(sdp_mid),
+       sdp_mline_index, candidate_copy = std::move(candidate_copy),
+       trace_candidate](RTCError result) {
+        RTC_DCHECK_RUN_ON(signaling_thread());
+        if (safety->alive()) {
+          ClearStatsCache();
+          if (trace_candidate) {
+            IceCandidate reconstructed(sdp_mid, sdp_mline_index,
+                                       candidate_copy);
+            tracer_->OnAddIceCandidate(reconstructed, result.ok());
+          }
+        }
+        callback(result);
+      });
 }
 
 bool PeerConnection::RemoveIceCandidate(const IceCandidate* candidate) {
@@ -1821,6 +1858,9 @@ void PeerConnection::Close() {
   if (IsClosed()) {
     return;
   }
+  if (tracer_) {
+    tracer_->OnClose();
+  }
   // Update stats here so that we have the most recent stats for tracks and
   // streams before the channels are closed.
   legacy_stats_->UpdateStats(kStatsOutputLevelStandard);
@@ -1915,6 +1955,9 @@ void PeerConnection::SetIceConnectionState(IceConnectionState new_state) {
              PeerConnectionInterface::kIceConnectionClosed);
 
   ice_connection_state_ = new_state;
+  if (tracer_) {
+    tracer_->OnIceConnectionStateChanged(new_state);
+  }
   RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnIceConnectionChange(ice_connection_state_);
@@ -1947,6 +1990,9 @@ void PeerConnection::SetConnectionState(
   if (IsClosed())
     return;
   connection_state_ = new_state;
+  if (tracer_) {
+    tracer_->OnConnectionStateChanged(new_state);
+  }
   RunWithObserver(
       [&](auto observer) { observer->OnConnectionChange(new_state); });
 
@@ -2152,6 +2198,9 @@ void PeerConnection::OnIceGatheringChange(
     return;
   }
   ice_gathering_state_ = new_state;
+  if (tracer_) {
+    tracer_->OnIceGatheringStateChanged(new_state);
+  }
   RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnIceGatheringChange(ice_gathering_state_);
@@ -2164,6 +2213,9 @@ void PeerConnection::OnIceCandidate(std::unique_ptr<IceCandidate> candidate) {
   }
   ReportIceCandidateCollected(candidate->candidate());
   ClearStatsCache();
+  if (tracer_) {
+    tracer_->OnIceCandidate(*candidate);
+  }
   RunWithObserver(
       [&](auto observer) { observer->OnIceCandidate(candidate.get()); });
 }
@@ -2175,6 +2227,9 @@ void PeerConnection::OnIceCandidateError(const std::string& address,
                                          const std::string& error_text) {
   if (IsClosed()) {
     return;
+  }
+  if (tracer_) {
+    tracer_->OnIceCandidateError(address, port, url, error_code, error_text);
   }
   RunWithObserver([&](auto observer) {
     observer->OnIceCandidateError(address, port, url, error_code, error_text);
@@ -3074,7 +3129,11 @@ void PeerConnection::ClearStatsCache() {
 
 bool PeerConnection::ShouldFireNegotiationNeededEvent(uint32_t event_id) {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  return sdp_handler_->ShouldFireNegotiationNeededEvent(event_id);
+  bool should_fire = sdp_handler_->ShouldFireNegotiationNeededEvent(event_id);
+  if (should_fire && tracer_) {
+    tracer_->OnNegotiationNeededEvent();
+  }
+  return should_fire;
 }
 
 void PeerConnection::RequestUsagePatternReportForTesting() {
