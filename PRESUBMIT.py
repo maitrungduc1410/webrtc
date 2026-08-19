@@ -39,6 +39,8 @@ CPPLINT_EXCEPTIONS = [
 
 PYLINT_OLD_STYLE = [
     "PRESUBMIT.py",
+    "presubmit_test.py",
+    "presubmit_test_mocks.py",
     "tools_webrtc/autoroller/roll_deps.py",
     "tools_webrtc/android/build_aar.py",
     "tools_webrtc/ios/build_ios_libs.py",
