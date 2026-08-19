@@ -220,6 +220,7 @@ rtc_library("video_coding") {
     "../../api:scoped_refptr",
     "../../api:sequence_checker",
     "../../api/environment",
+    "../../api/task_queue",
     "../../api/units:data_rate",
     "../../api/units:time_delta",
     "../../api/units:timestamp",
@@ -258,6 +259,7 @@ rtc_library("video_coding") {
     "svc:scalability_mode_util",
     "timing:timing_module",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/container:inlined_vector",
   ]
 }
