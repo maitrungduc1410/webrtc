@@ -320,7 +320,6 @@ HandoverReadinessStatus TransmissionControlBlock::GetHandoverReadiness() const {
 }
 
 void TransmissionControlBlock::AddHandoverState(
-    webrtc::Timestamp now,
     DcSctpSocketHandoverState& state) {
   state.capabilities.partial_reliability = capabilities_.partial_reliability;
   state.capabilities.message_interleaving = capabilities_.message_interleaving;
@@ -340,14 +339,13 @@ void TransmissionControlBlock::AddHandoverState(
   data_tracker_.AddHandoverState(state);
   stream_reset_handler_.AddHandoverState(state);
   reassembly_queue_.AddHandoverState(state);
-  retransmission_queue_.AddHandoverState(now, state);
+  retransmission_queue_.AddHandoverState(state);
 }
 
 void TransmissionControlBlock::RestoreFromState(
-    webrtc::Timestamp now,
     const DcSctpSocketHandoverState& state) {
   data_tracker_.RestoreFromState(state);
-  retransmission_queue_.RestoreFromState(now, state);
+  retransmission_queue_.RestoreFromState(state);
   reassembly_queue_.RestoreFromState(state);
 }
 }  // namespace dcsctp

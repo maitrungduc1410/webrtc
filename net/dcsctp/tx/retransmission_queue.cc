@@ -584,9 +584,7 @@ void RetransmissionQueue::RollbackResetStreams() {
 
 HandoverReadinessStatus RetransmissionQueue::GetHandoverReadiness() const {
   HandoverReadinessStatus status;
-  bool block_on_outstanding_data =
-      !options_.enable_handover_with_outstanding_data;
-  if (block_on_outstanding_data && !outstanding_data_.empty()) {
+  if (!outstanding_data_.empty()) {
     status.Add(HandoverUnreadinessReason::kRetransmissionQueueOutstandingData);
   }
   if (fast_recovery_exit_tsn_.has_value()) {
@@ -598,20 +596,15 @@ HandoverReadinessStatus RetransmissionQueue::GetHandoverReadiness() const {
   return status;
 }
 
-void RetransmissionQueue::AddHandoverState(webrtc::Timestamp now,
-                                           DcSctpSocketHandoverState& state) {
+void RetransmissionQueue::AddHandoverState(DcSctpSocketHandoverState& state) {
   state.tx.next_tsn = next_tsn().value();
   state.tx.rwnd = rwnd_;
   state.tx.cwnd = cwnd_;
   state.tx.ssthresh = ssthresh_;
   state.tx.partial_bytes_acked = partial_bytes_acked_;
-  state.tx.last_cumulative_tsn_ack =
-      outstanding_data_.last_cumulative_tsn_ack().value();
-  outstanding_data_.AddHandoverState(now, state);
 }
 
 void RetransmissionQueue::RestoreFromState(
-    webrtc::Timestamp now,
     const DcSctpSocketHandoverState& state) {
   // Validate that the component is in pristine state.
   RTC_DCHECK(outstanding_data_.empty());
@@ -623,20 +616,7 @@ void RetransmissionQueue::RestoreFromState(
   ssthresh_ = state.tx.ssthresh;
   partial_bytes_acked_ = state.tx.partial_bytes_acked;
 
-  if (options_.enable_handover_with_outstanding_data) {
-    UnwrappedTSN last_cumulative_tsn_ack =
-        state.tx.outstanding_data.empty()
-            ? tsn_unwrapper_.Unwrap(TSN(state.tx.next_tsn - 1))
-            : tsn_unwrapper_.Unwrap(TSN(state.tx.last_cumulative_tsn_ack));
-
-    outstanding_data_.RestoreFromState(now, last_cumulative_tsn_ack, state);
-
-    if (!outstanding_data_.empty()) {
-      t3_rtx_.Start();
-    }
-  } else {
-    outstanding_data_.ResetSequenceNumbers(
-        tsn_unwrapper_.Unwrap(TSN(state.tx.next_tsn - 1)));
-  }
+  outstanding_data_.ResetSequenceNumbers(
+      tsn_unwrapper_.Unwrap(TSN(state.tx.next_tsn - 1)));
 }
 }  // namespace dcsctp

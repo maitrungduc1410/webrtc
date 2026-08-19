@@ -153,10 +153,8 @@ class RetransmissionQueue {
 
   HandoverReadinessStatus GetHandoverReadiness() const;
 
-  void AddHandoverState(webrtc::Timestamp now,
-                        DcSctpSocketHandoverState& state);
-  void RestoreFromState(webrtc::Timestamp now,
-                        const DcSctpSocketHandoverState& state);
+  void AddHandoverState(DcSctpSocketHandoverState& state);
+  void RestoreFromState(const DcSctpSocketHandoverState& state);
 
  private:
   enum class CongestionAlgorithmPhase {
