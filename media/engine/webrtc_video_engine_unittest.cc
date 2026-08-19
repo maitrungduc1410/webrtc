@@ -5298,11 +5298,11 @@ TEST_F(WebRtcVideoChannelTest, SetRecvCodecsWithPacketization) {
 
   const StreamParams params = StreamParams::CreateLegacy(kSsrcs1[0]);
   AddRecvStream(params);
-  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), testing::SizeIs(1));
+  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), SizeIs(1));
 
   const VideoReceiveStreamInterface::Config& config =
       fake_call_->GetVideoReceiveStreams()[0]->GetConfig();
-  ASSERT_THAT(config.rtp.raw_payload_types, testing::SizeIs(1));
+  ASSERT_THAT(config.rtp.raw_payload_types, SizeIs(1));
   EXPECT_EQ(config.rtp.raw_payload_types.count(vp8_codec.id), 1U);
 }
 
@@ -5315,7 +5315,7 @@ TEST_F(WebRtcVideoChannelTest,
 
   const StreamParams params = StreamParams::CreateLegacy(kSsrcs1[0]);
   AddRecvStream(params);
-  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), testing::SizeIs(1));
+  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), SizeIs(1));
   EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
   EXPECT_EQ(fake_call_->GetVideoReceiveStreams()[0]
                 ->GetConfig()

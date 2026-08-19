@@ -201,6 +201,16 @@ std::unique_ptr<VideoStreamBufferController> CreateBuffer(
       env.field_trials());
 }
 
+void VerifyNoDuplicatePayloadTypes(
+    const std::vector<VideoReceiveStreamInterface::Decoder>& decoders) {
+  std::set<int> decoder_payload_types;
+  for (const auto& decoder : decoders) {
+    RTC_CHECK(decoder_payload_types.insert(decoder.payload_type).second)
+        << "Duplicate payload type (" << decoder.payload_type
+        << ") for different decoders.";
+  }
+}
+
 }  // namespace
 
 TimeDelta DetermineMaxWaitForFrame(TimeDelta rtp_history, bool is_keyframe) {
@@ -287,14 +297,7 @@ VideoReceiveStream2::VideoReceiveStream2(
 
   RTC_DCHECK(!config_.decoders.empty());
   RTC_CHECK(config_.decoder_factory);
-  std::set<int> decoder_payload_types;
-  for (const Decoder& decoder : config_.decoders) {
-    RTC_CHECK(decoder_payload_types.find(decoder.payload_type) ==
-              decoder_payload_types.end())
-        << "Duplicate payload type (" << decoder.payload_type
-        << ") for different decoders.";
-    decoder_payload_types.insert(decoder.payload_type);
-  }
+  VerifyNoDuplicatePayloadTypes(config_.decoders);
 
   if (!config_.rtp.rtx_associated_payload_types.empty()) {
     rtx_receive_stream_ = std::make_unique<RtxReceiveStream>(
@@ -381,21 +384,7 @@ void VideoReceiveStream2::Start() {
     renderer = this;
   }
 
-  for (const Decoder& decoder : config_.decoders) {
-    VideoDecoder::Settings settings;
-    settings.set_codec_type(
-        PayloadStringToCodecType(decoder.video_format.name));
-    settings.set_max_render_resolution(
-        InitialDecoderResolution(env_.field_trials()));
-    settings.set_number_of_cores(num_cpu_cores_);
-
-    const bool raw_payload =
-        config_.rtp.raw_payload_types.count(decoder.payload_type) > 0;
-    rtp_video_stream_receiver_.AddReceiveCodec(
-        decoder.payload_type, settings.codec_type(),
-        decoder.video_format.parameters, raw_payload);
-    video_receiver_.RegisterReceiveCodec(decoder.payload_type, settings);
-  }
+  ConfigureCodecs();
 
   RTC_DCHECK(renderer != nullptr);
   video_stream_decoder_.reset(
@@ -532,6 +521,27 @@ void VideoReceiveStream2::SetAssociatedPayloadTypes(
 
   rtx_receive_stream_->SetAssociatedPayloadTypes(
       std::move(associated_payload_types));
+}
+
+void VideoReceiveStream2::ConfigureCodecs() {
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  rtp_video_stream_receiver_.RemoveReceiveCodecs();
+  video_receiver_.DeregisterReceiveCodecs();
+  for (const Decoder& decoder : config_.decoders) {
+    VideoDecoder::Settings settings;
+    settings.set_codec_type(
+        PayloadStringToCodecType(decoder.video_format.name));
+    settings.set_max_render_resolution(
+        InitialDecoderResolution(env_.field_trials()));
+    settings.set_number_of_cores(num_cpu_cores_);
+
+    const bool raw_payload =
+        config_.rtp.raw_payload_types.count(decoder.payload_type) > 0;
+    rtp_video_stream_receiver_.AddReceiveCodec(
+        decoder.payload_type, settings.codec_type(),
+        decoder.video_format.parameters, raw_payload);
+    video_receiver_.RegisterReceiveCodec(decoder.payload_type, settings);
+  }
 }
 
 void VideoReceiveStream2::SetRawPayloadTypes(std::set<int> raw_payload_types) {
