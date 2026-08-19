@@ -240,6 +240,11 @@ VideoReceiveStream2::VideoReceiveStream2(
       decode_sequence_checker_(SequenceChecker::kDetached),
       transport_adapter_(config.rtcp_send_transport),
       config_(std::move(config)),
+      remote_ssrc_(config_.rtp.remote_ssrc),
+      renderer_(config_.renderer),
+      decoder_factory_(config_.decoder_factory),
+      require_frame_encryption_(
+          config_.crypto_options.sframe.require_frame_encryption),
       num_cpu_cores_(num_cpu_cores),
       call_(call),
       call_stats_(call_stats),
@@ -292,11 +297,11 @@ VideoReceiveStream2::VideoReceiveStream2(
   RTC_LOG(LS_INFO) << "VideoReceiveStream2: " << config_.ToString();
 
   RTC_DCHECK(call_->worker_thread());
-  RTC_DCHECK(config_.renderer);
+  RTC_DCHECK(renderer_);
   RTC_DCHECK(call_stats_);
 
   RTC_DCHECK(!config_.decoders.empty());
-  RTC_CHECK(config_.decoder_factory);
+  RTC_CHECK(decoder_factory_);
   VerifyNoDuplicatePayloadTypes(config_.decoders);
 
   if (!config_.rtp.rtx_associated_payload_types.empty()) {
@@ -397,9 +402,10 @@ void VideoReceiveStream2::Start() {
   // Start decoding on task queue.
   stats_proxy_.DecoderThreadStarting();
   video_receiver_.SetDecodeQueue(decode_queue_.get());
-  decode_queue_->PostTask([this] {
+  decode_queue_->PostTask([this, decoders = config_.decoders]() mutable {
     RTC_DCHECK_RUN_ON(&decode_sequence_checker_);
     decoder_stopped_ = false;
+    active_decoders_ = std::move(decoders);
   });
   buffer_->StartNextDecode(true);
   decoder_running_ = true;
@@ -426,7 +432,7 @@ void VideoReceiveStream2::Stop() {
       // that any pending encoded frame will return early without trying to
       // access the decoder database.
       decoder_stopped_ = true;
-      for (const Decoder& decoder : config_.decoders) {
+      for (const Decoder& decoder : active_decoders_) {
         video_receiver_.RegisterExternalDecoder(nullptr, decoder.payload_type);
       }
       done.Set();
@@ -450,8 +456,7 @@ void VideoReceiveStream2::Stop() {
 
 void VideoReceiveStream2::SetRtcpMode(RtcpMode mode) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
-  // TODO(tommi): Stop using the config struct for the internal state.
-  const_cast<RtcpMode&>(config_.rtp.rtcp_mode) = mode;
+  config_.rtp.rtcp_mode = mode;
   rtp_video_stream_receiver_.SetRtcpMode(mode);
 }
 
@@ -459,16 +464,13 @@ void VideoReceiveStream2::SetFlexFecProtection(
     RtpPacketSinkInterface* flexfec_sink) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
   rtp_video_stream_receiver_.SetPacketSink(flexfec_sink);
-  // TODO(tommi): Stop using the config struct for the internal state.
-  const_cast<RtpPacketSinkInterface*&>(config_.rtp.packet_sink_) = flexfec_sink;
-  const_cast<bool&>(config_.rtp.protected_by_flexfec) =
-      (flexfec_sink != nullptr);
+  config_.rtp.packet_sink_ = flexfec_sink;
+  config_.rtp.protected_by_flexfec = (flexfec_sink != nullptr);
 }
 
 void VideoReceiveStream2::SetLossNotificationEnabled(bool enabled) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
-  // TODO(tommi): Stop using the config struct for the internal state.
-  const_cast<bool&>(config_.rtp.lntf.enabled) = enabled;
+  config_.rtp.lntf.enabled = enabled;
   rtp_video_stream_receiver_.SetLossNotificationEnabled(enabled);
 }
 
@@ -479,8 +481,7 @@ void VideoReceiveStream2::SetNackHistory(TimeDelta history) {
   if (config_.rtp.nack.rtp_history_ms == history.ms())
     return;
 
-  // TODO(tommi): Stop using the config struct for the internal state.
-  const_cast<int&>(config_.rtp.nack.rtp_history_ms) = history.ms();
+  config_.rtp.nack.rtp_history_ms = history.ms();
 
   const bool protected_by_fec =
       config_.rtp.protected_by_flexfec ||
@@ -550,9 +551,7 @@ void VideoReceiveStream2::SetRawPayloadTypes(std::set<int> raw_payload_types) {
     return;
   }
 
-  // TODO(tommi): Stop using the config struct for the internal state.
-  const_cast<std::set<int>&>(config_.rtp.raw_payload_types) =
-      std::move(raw_payload_types);
+  config_.rtp.raw_payload_types = std::move(raw_payload_types);
   rtp_video_stream_receiver_.SetRawPayloadTypes(config_.rtp.raw_payload_types);
 }
 
@@ -561,7 +560,7 @@ void VideoReceiveStream2::CreateAndRegisterExternalDecoder(
   TRACE_EVENT0("webrtc",
                "VideoReceiveStream2::CreateAndRegisterExternalDecoder");
   std::unique_ptr<VideoDecoder> video_decoder =
-      config_.decoder_factory->Create(env_, decoder.video_format);
+      decoder_factory_->Create(env_, decoder.video_format);
   // The factory can end up in this state either if the format is not supported
   // or because a creation step failed, e.g. HW is unavailable.
   if (!video_decoder) {
@@ -719,7 +718,7 @@ int VideoReceiveStream2::GetBaseMinimumPlayoutDelayMs() const {
 }
 
 void VideoReceiveStream2::OnFrame(const VideoFrame& video_frame) {
-  config_.renderer->OnFrame(video_frame);
+  renderer_->OnFrame(video_frame);
 
   // TODO: bugs.webrtc.org/42220804 - we should set local capture clock offset
   // for `packet_infos`.
@@ -911,7 +910,7 @@ void VideoReceiveStream2::OnDecodableFrameTimeout(TimeDelta wait) {
     stats_proxy_.OnStreamInactive();
 
   if (stream_is_active && !IsReceivingKeyFrame(now) &&
-      (!config_.crypto_options.sframe.require_frame_encryption ||
+      (!require_frame_encryption_ ||
        rtp_video_stream_receiver_.IsDecryptable())) {
     std::optional<uint32_t> last_timestamp =
         rtp_video_stream_receiver_.LastReceivedFrameRtpTimestamp();
@@ -942,7 +941,7 @@ VideoReceiveStream2::HandleEncodedFrameOnDecodeQueue(
 
   if (!video_receiver_.IsExternalDecoderRegistered(frame->PayloadType())) {
     // Look for the decoder with this payload type.
-    for (const Decoder& decoder : config_.decoders) {
+    for (const Decoder& decoder : active_decoders_) {
       if (decoder.payload_type == frame->PayloadType()) {
         CreateAndRegisterExternalDecoder(decoder);
       } else {

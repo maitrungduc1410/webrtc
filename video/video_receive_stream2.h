@@ -144,7 +144,7 @@ class VideoReceiveStream2
 
   // Getters for const remote SSRC values that won't change throughout the
   // object's lifetime.
-  uint32_t remote_ssrc() const { return config_.rtp.remote_ssrc; }
+  uint32_t remote_ssrc() const { return remote_ssrc_; }
   // RTX ssrc can be updated.
   uint32_t rtx_ssrc() const {
     RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
@@ -271,7 +271,12 @@ class VideoReceiveStream2
   RaceChecker decode_callback_race_checker_;
 
   TransportAdapter transport_adapter_;
-  const VideoReceiveStreamInterface::Config config_;
+  VideoReceiveStreamInterface::Config config_
+      RTC_GUARDED_BY(worker_sequence_checker_);
+  const uint32_t remote_ssrc_;
+  VideoSinkInterface<VideoFrame>* const renderer_;
+  VideoDecoderFactory* const decoder_factory_;
+  const bool require_frame_encryption_;
   const int num_cpu_cores_;
   Call* const call_;
 
@@ -345,6 +350,8 @@ class VideoReceiveStream2
   // Function that is triggered with encoded frames, if not empty.
   std::function<void(const RecordableEncodedFrame&)>
       encoded_frame_buffer_function_ RTC_GUARDED_BY(decode_sequence_checker_);
+  std::vector<VideoReceiveStreamInterface::Decoder> active_decoders_
+      RTC_GUARDED_BY(decode_sequence_checker_);
   // Set to true while we're requesting keyframes but not yet received one.
   bool keyframe_generation_requested_ RTC_GUARDED_BY(worker_sequence_checker_) =
       false;
