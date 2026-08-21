@@ -40,10 +40,6 @@ char kTSanDefaultSuppressions[] =
     // https://code.google.com/p/webrtc/issues/detail?id=2497
     "race:*trace_event_unique_catstatic*\n"
 
-    // Race between InitCpuFlags and TestCpuFlag in libyuv.
-    // https://code.google.com/p/libyuv/issues/detail?id=508
-    "race:InitCpuFlags\n"
-
     // http://crbug.com/244856
     "race:libpulsecommon*.so\n"
 
