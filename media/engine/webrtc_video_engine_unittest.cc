@@ -3094,7 +3094,7 @@ class WebRtcVideoChannelTest : public WebRtcVideoEngineTest {
   }
 
   void SetAndExpectMaxBitrate(int global_max,
-                              int stream_max,
+                              std::optional<int> stream_max,
                               int expected_encoder_bitrate) {
     VideoSenderParameters limited_send_params = send_parameters_;
     limited_send_params.max_bandwidth_bps = global_max;
@@ -5050,6 +5050,28 @@ TEST_F(WebRtcVideoChannelTest, SetMaxSendBandwidthAndAddSendStream) {
   ASSERT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
   EXPECT_EQ(send_parameters_.max_bandwidth_bps,
             stream->GetVideoStreams()[0].max_bitrate_bps);
+}
+
+TEST_F(WebRtcVideoChannelTest, MaxBitrateZeroDisablesCodecMaxBitrateFallback) {
+  // "x-google-max-bitrate" only applies if no encoding configured a maximum.
+  send_parameters_.codecs[0].SetParam(kCodecParamMaxBitrate, "300");
+  send_parameters_.max_bandwidth_bps = -1;
+  AddSendStream();
+  ASSERT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
+
+  // SetSenderParameters() recreates the send stream.
+  std::vector<FakeVideoSendStream*> send_streams = GetFakeSendStreams();
+  ASSERT_EQ(1u, send_streams.size());
+  FakeVideoSendStream* stream = send_streams[0];
+  ASSERT_EQ(1u, stream->GetVideoStreams().size());
+  EXPECT_EQ(300000, stream->GetVideoStreams()[0].max_bitrate_bps);
+
+  RtpParameters parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+  ASSERT_EQ(1u, parameters.encodings.size());
+  parameters.encodings[0].max_bitrate_bps = 0;
+  EXPECT_TRUE(send_channel_->SetRtpSendParameters(last_ssrc_, parameters).ok());
+  ASSERT_EQ(1u, stream->GetVideoStreams().size());
+  EXPECT_EQ(0, stream->GetVideoStreams()[0].max_bitrate_bps);
 }
 
 // Tests that when the codec specific max bitrate and VideoSenderParameters
@@ -7824,11 +7846,16 @@ TEST_F(WebRtcVideoChannelTest, CanSetMaxBitrateForExistingStream) {
   // - Video: max_bandwidth_bps = 0 - remove the bandwidth limit,
   //          max_bandwidth_bps = -1 - remove the bandwidth limit
 
-  SetAndExpectMaxBitrate(1000, 0, 1000);
+  SetAndExpectMaxBitrate(1000, std::nullopt, 1000);
   SetAndExpectMaxBitrate(1000, 800, 800);
   SetAndExpectMaxBitrate(600, 800, 600);
   SetAndExpectMaxBitrate(0, 800, 800);
-  SetAndExpectMaxBitrate(0, 0, default_encoder_bitrate);
+  SetAndExpectMaxBitrate(0, std::nullopt, default_encoder_bitrate);
+  // An encoding max bitrate of zero is a configured value, not an unset one,
+  // so neither the global limit nor the default may raise it, see
+  // https://w3c.github.io/webrtc-pc/#dom-rtcrtpencodingparameters-maxbitrate
+  SetAndExpectMaxBitrate(1000, 0, 0);
+  SetAndExpectMaxBitrate(0, 0, 0);
 
   EXPECT_TRUE(send_channel_->SetVideoSend(last_ssrc_, nullptr, nullptr));
 }

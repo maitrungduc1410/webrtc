@@ -2339,7 +2339,7 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::CreateVideoEncoderConfig(
   // max bitrate is not specified through other means.
   bool encodings_has_max_bitrate = false;
   for (const auto& encoding : rtp_parameters_.encodings) {
-    if (encoding.active && encoding.max_bitrate_bps.value_or(0) > 0) {
+    if (encoding.active && encoding.max_bitrate_bps >= 0) {
       encodings_has_max_bitrate = true;
       break;
     }
