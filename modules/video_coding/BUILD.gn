@@ -445,6 +445,7 @@ rtc_library("webrtc_h264") {
     "../../api:scoped_refptr",
     "../../api/environment",
     "../../api/units:data_rate",
+    "../../api/units:time_delta",
     "../../api/video:encoded_image",
     "../../api/video:render_resolution",
     "../../api/video:video_bitrate_allocation",
@@ -461,7 +462,6 @@ rtc_library("webrtc_h264") {
     "../../rtc_base:checks",
     "../../rtc_base:event_tracer",
     "../../rtc_base:logging",
-    "../../rtc_base/experiments:psnr_experiment",
     "../../rtc_base/system:rtc_export",
     "../../system_wrappers:metrics",
     "svc:scalability_structures",
@@ -554,7 +554,6 @@ rtc_library("webrtc_vp8") {
     "../../rtc_base:safe_conversions",
     "../../rtc_base/experiments:encoder_info_settings",
     "../../rtc_base/experiments:field_trial_parser",
-    "../../rtc_base/experiments:psnr_experiment",
     "../../rtc_base/experiments:rate_control_settings",
     "../../system_wrappers:metrics",
     "../rtp_rtcp:rtp_rtcp_format",
@@ -653,6 +652,7 @@ rtc_library("webrtc_vp9") {
     "../../api:scoped_refptr",
     "../../api/environment",
     "../../api/transport/rtp:dependency_descriptor",
+    "../../api/units:time_delta",
     "../../api/video:encoded_image",
     "../../api/video:render_resolution",
     "../../api/video:video_bitrate_allocation",
@@ -675,7 +675,6 @@ rtc_library("webrtc_vp9") {
     "../../rtc_base/containers:flat_map",
     "../../rtc_base/experiments:encoder_info_settings",
     "../../rtc_base/experiments:field_trial_parser",
-    "../../rtc_base/experiments:psnr_experiment",
     "../../rtc_base/experiments:rate_control_settings",
     "../../rtc_base/synchronization:mutex",
     "../rtp_rtcp:rtp_rtcp_format",
@@ -1067,6 +1066,7 @@ if (rtc_include_tests) {
       ":videocodec_test_stats_impl_unittest",
       ":videoprocessor_unittest",
       ":vp9_uncompressed_header_parser_unittest",
+      "codecs/av1:video_coding_codecs_av1_tests",
     ]
     if (rtc_use_h264) {
       deps += [
