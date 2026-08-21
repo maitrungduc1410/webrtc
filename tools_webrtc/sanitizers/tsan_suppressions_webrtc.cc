@@ -43,9 +43,6 @@ char kTSanDefaultSuppressions[] =
     // http://crbug.com/244856
     "race:libpulsecommon*.so\n"
 
-    // https://crbug.com/1158622
-    "race:absl::synchronization_internal::Waiter::Post\n"
-
     // End of suppressions.
     ;  // Please keep this semicolon.
 
