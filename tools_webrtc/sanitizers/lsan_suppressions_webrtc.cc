@@ -50,16 +50,6 @@ char kLSanDefaultSuppressions[] =
     // impossible, i.e. when enabling leak detection for the first time for a
     // test target with pre-existing leaks.
 
-    // rtc_unittest
-    // https://code.google.com/p/webrtc/issues/detail?id=3827 for details.
-    "leak:webrtc::unstarted_task_test_DoNotDeleteTask2_Test::TestBody\n"
-    "leak:webrtc::HttpServer::HandleConnection\n"
-    "leak:webrtc::HttpServer::Connection::onHttpHeaderComplete\n"
-    "leak:webrtc::HttpResponseData::set_success\n"
-    "leak:webrtc::HttpData::changeHeader\n"
-    // https://code.google.com/p/webrtc/issues/detail?id=4149 for details.
-    "leak:StartDNSLookup\n"
-
     // rtc_media_unittests
     "leak:webrtc::FakeNetworkInterface::SetOption\n"
     "leak:CodecTest_TestCodecOperators_Test::TestBody\n"
