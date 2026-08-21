@@ -31,10 +31,6 @@ char kTSanDefaultSuppressions[] =
     // https://code.google.com/p/webrtc/issues/detail?id=2080
     "race:rtc_base/logging.cc\n"
 
-    // Potential deadlocks detected after roll in r6516.
-    // https://code.google.com/p/webrtc/issues/detail?id=3509
-    "deadlock:webrtc::test::UdpSocketManagerPosixImpl::RemoveSocket\n"
-
     // TODO(pbos): Trace events are racy due to lack of proper POD atomics.
     // https://code.google.com/p/webrtc/issues/detail?id=2497
     "race:*trace_event_unique_catstatic*\n"
