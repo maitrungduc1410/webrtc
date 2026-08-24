@@ -303,7 +303,10 @@ class VideoReceiveStream2
   TimeDelta max_wait_for_keyframe_ RTC_GUARDED_BY(worker_sequence_checker_);
   TimeDelta max_wait_for_frame_ RTC_GUARDED_BY(worker_sequence_checker_);
 
-  const std::unique_ptr<VideoStreamBufferController> buffer_;
+  DecodeSynchronizer* const decode_sync_;
+
+  std::unique_ptr<VideoStreamBufferController> buffer_
+      RTC_GUARDED_BY(worker_sequence_checker_);
 
   // `receiver_controller_` is valid from when RegisterWithTransport is invoked
   //  until UnregisterFromTransport.

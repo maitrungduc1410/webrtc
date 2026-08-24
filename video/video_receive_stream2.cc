@@ -273,6 +273,7 @@ VideoReceiveStream2::VideoReceiveStream2(
       max_wait_for_frame_(DetermineMaxWaitForFrame(
           TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
           false)),
+      decode_sync_(decode_sync),
       buffer_(CreateBuffer(env_,
                            call_,
                            timing_.get(),
@@ -280,7 +281,7 @@ VideoReceiveStream2::VideoReceiveStream2(
                            this,
                            max_wait_for_keyframe_,
                            max_wait_for_frame_,
-                           decode_sync)),
+                           decode_sync_)),
       frame_evaluator_(FrameInstrumentationEvaluation::Create(&stats_proxy_)),
       post_decode_queue_(
           CorruptionDetectionFrameSelectorSettings(env.field_trials())
@@ -371,6 +372,17 @@ void VideoReceiveStream2::Start() {
     return;
   }
 
+  if (buffer_->stopped()) {
+    // Reset old buffer before creating a new one to unregister its scheduler
+    // from DecodeSynchronizer before registering the new scheduler.
+    // Dynamic internal state (e.g. RTT) will reset to defaults until the next
+    // update.
+    buffer_.reset();
+    buffer_ =
+        CreateBuffer(env_, call_, timing_.get(), &stats_proxy_, this,
+                     max_wait_for_keyframe_, max_wait_for_frame_, decode_sync_);
+  }
+
   const bool protected_by_fec =
       config_.rtp.protected_by_flexfec ||
       rtp_video_stream_receiver_.ulpfec_payload_type() != -1;
@@ -421,6 +433,9 @@ void VideoReceiveStream2::Stop() {
   stats_proxy_.OnUniqueFramesCounted(
       rtp_video_stream_receiver_.GetUniqueFramesSeen());
 
+  // Stop frame decode scheduling. The buffer_ is kept alive while in a stopped
+  // state to safely absorb late incoming frames and to be able to assume that
+  // the buffer itself is always valid.
   buffer_->Stop();
   call_stats_->DeregisterStatsObserver(this);
 
@@ -452,6 +467,11 @@ void VideoReceiveStream2::Stop() {
   video_stream_decoder_.reset();
   incoming_video_stream_.reset();
   transport_adapter_.Disable();
+
+  // Reset task_safety_ after video_stream_decoder_ and incoming_video_stream_
+  // have been destroyed to safely invalidate any pending worker queue tasks
+  // from the stopped stream run without data races.
+  task_safety_.reset();
 }
 
 void VideoReceiveStream2::SetRtcpMode(RtcpMode mode) {
@@ -864,7 +884,8 @@ void VideoReceiveStream2::OnEncodedFrame(std::unique_ptr<EncodedFrame> frame) {
 
   decode_queue_->PostTask([this, now, keyframe_request_is_due,
                            received_frame_is_keyframe, frame = std::move(frame),
-                           keyframe_required = keyframe_required_]() mutable {
+                           keyframe_required = keyframe_required_,
+                           task_safety_flag = task_safety_.flag()]() mutable {
     RTC_DCHECK_RUN_ON(&decode_sequence_checker_);
     if (decoder_stopped_)
       return;
@@ -873,7 +894,7 @@ void VideoReceiveStream2::OnEncodedFrame(std::unique_ptr<EncodedFrame> frame) {
         std::move(frame), keyframe_request_is_due, keyframe_required);
 
     call_->worker_thread()->PostTask(
-        SafeTask(task_safety_.flag(),
+        SafeTask(std::move(task_safety_flag),
                  [this, now, rtp_timestamp, result = std::move(result),
                   received_frame_is_keyframe, keyframe_request_is_due]() {
                    RTC_DCHECK_RUN_ON(&worker_sequence_checker_);

@@ -1414,6 +1414,38 @@ TEST_P(VideoReceiveStream2Test, StreamShouldNotTimeoutWhileWaitingForFrame) {
   video_receive_stream_->Stop();
 }
 
+// Verifies that stopping and restarting VideoReceiveStream2 recreates the
+// video buffer controller so frames delivered after restart are scheduled
+// and rendered successfully.
+TEST_P(VideoReceiveStream2Test,
+       RestartsDecodeSchedulerAndRendersFramesAfterStreamStopAndRestart) {
+  video_receive_stream_->Start();
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(1000)
+                                             .AsLast()
+                                             .Build());
+  EXPECT_THAT(
+      fake_renderer_.WaitForFrame(kDefaultTimeOut, /*advance_time=*/true),
+      RenderedFrameWith(RtpTimestamp(1000u)));
+
+  video_receive_stream_->Stop();
+  video_receive_stream_->Start();
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(1)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(2000)
+                                             .AsLast()
+                                             .Build());
+  EXPECT_THAT(
+      fake_renderer_.WaitForFrame(kDefaultTimeOut, /*advance_time=*/true),
+      RenderedFrameWith(RtpTimestamp(2000u)));
+
+  video_receive_stream_->Stop();
+}
+
 INSTANTIATE_TEST_SUITE_P(VideoReceiveStream2Test,
                          VideoReceiveStream2Test,
                          testing::Bool(),
