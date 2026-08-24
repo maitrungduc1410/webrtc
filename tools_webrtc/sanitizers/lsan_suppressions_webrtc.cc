@@ -50,22 +50,9 @@ char kLSanDefaultSuppressions[] =
     // impossible, i.e. when enabling leak detection for the first time for a
     // test target with pre-existing leaks.
 
-    // rtc_media_unittests
-    "leak:webrtc::FakeNetworkInterface::SetOption\n"
-    "leak:CodecTest_TestCodecOperators_Test::TestBody\n"
-
-    // peerconnection_unittests
-    // https://code.google.com/p/webrtc/issues/detail?id=2528
-    "leak:DtmfSenderTest_InsertEmptyTonesToCancelPreviousTask_Test::TestBody\n"
-    "leak:testing::internal::CmpHelperEQ\n"
+    // ALSA Linux system library leaks.
     "leak:webrtc::AudioDeviceLinuxALSA::InitMicrophone\n"
     "leak:webrtc::AudioDeviceLinuxALSA::InitSpeaker\n"
-    "leak:webrtc::CreateIceCandidate\n"
-    "leak:PeerConnectionInterfaceTest_SsrcInOfferAnswer_Test::TestBody\n"
-    "leak:WebRtcSdpTest::TestDeserializeRtcpFb\n"
-    "leak:WebRtcSdpTest::TestSerialize\n"
-    "leak:WebRtcSdpTest_SerializeSessionDescriptionWithBandwidth_Test::"
-    "TestBody\n"
 
     // PLEASE READ ABOVE BEFORE ADDING NEW SUPPRESSIONS.
 
