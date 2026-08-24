@@ -34,6 +34,7 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/corruption_detection/frame_instrumentation_data.h"
+#include "api/video/encoded_image.h"
 #include "api/video/i420_buffer.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/test/video_frame_matchers.h"
@@ -44,6 +45,7 @@
 #include "api/video/video_sink_interface.h"
 #include "api/video/video_timing.h"
 #include "api/video_codecs/sdp_video_format.h"
+#include "api/video_codecs/video_decoder.h"
 #include "call/rtp_stream_receiver_controller.h"
 #include "call/video_receive_stream.h"
 #include "common_video/include/corruption_score_calculator.h"
@@ -79,7 +81,6 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::InSequence;
-using ::testing::Invoke;
 using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pointee;
@@ -188,7 +189,9 @@ class DummySinkValidator : public RtpSinkValidator {
 class VideoReceiveStream2Test : public ::testing::TestWithParam<bool> {
  public:
   auto DefaultDecodeAction() {
-    return Invoke(&fake_decoder_, &test::FakeDecoder::Decode);
+    return [this](const EncodedImage& input, int64_t render_time_ms) {
+      return fake_decoder_.Decode(input, render_time_ms);
+    };
   }
 
   bool UseMetronome() const { return GetParam(); }
@@ -210,19 +213,24 @@ class VideoReceiveStream2Test : public ::testing::TestWithParam<bool> {
         h264_decoder_factory_(&mock_decoder_) {
     // By default, mock decoder factory is backed by VideoDecoderProxyFactory.
     ON_CALL(mock_decoder_factory_, Create)
-        .WillByDefault(Invoke(&h264_decoder_factory_,
-                              &test::VideoDecoderProxyFactory::Create));
+        .WillByDefault(
+            [this](const Environment& env, const SdpVideoFormat& format) {
+              return h264_decoder_factory_.Create(env, format);
+            });
 
     // By default, mock decode will wrap the fake decoder.
     ON_CALL(mock_decoder_, Configure)
-        .WillByDefault(Invoke(&fake_decoder_, &test::FakeDecoder::Configure));
+        .WillByDefault([this](const VideoDecoder::Settings& settings) {
+          return fake_decoder_.Configure(settings);
+        });
     ON_CALL(mock_decoder_, Decode(_, _)).WillByDefault(DefaultDecodeAction());
     ON_CALL(mock_decoder_, RegisterDecodeCompleteCallback)
-        .WillByDefault(
-            Invoke(&fake_decoder_,
-                   &test::FakeDecoder::RegisterDecodeCompleteCallback));
-    ON_CALL(mock_decoder_, Release)
-        .WillByDefault(Invoke(&fake_decoder_, &test::FakeDecoder::Release));
+        .WillByDefault([this](DecodedImageCallback* callback) {
+          return fake_decoder_.RegisterDecodeCompleteCallback(callback);
+        });
+    ON_CALL(mock_decoder_, Release).WillByDefault([this] {
+      return fake_decoder_.Release();
+    });
     ON_CALL(mock_transport_, SendRtcp)
         .WillByDefault(
             [this](std::span<const uint8_t> packet, ::testing::Unused) {
@@ -295,8 +303,6 @@ class VideoReceiveStream2Test : public ::testing::TestWithParam<bool> {
   VCMTiming* timing_;
   test::FakeMetronome fake_metronome_;
   DecodeSynchronizer decode_sync_;
-
- private:
   test::VideoDecoderProxyFactory h264_decoder_factory_;
   test::FakeDecoder fake_decoder_;
 };
@@ -1135,12 +1141,11 @@ TEST_P(VideoReceiveStream2Test, FramesFastForwardOnSystemHalt) {
                             .Build();
   InSequence seq;
   EXPECT_CALL(mock_decoder_, Decode(test::RtpTimestamp(kFirstRtpTimestamp), _))
-      .WillOnce(testing::DoAll(
-          [&] {
-            // System halt will be simulated in the decode.
-            time_controller_.AdvanceTime(k30FpsDelay * 2);
-          },
-          DefaultDecodeAction()));
+      .WillOnce([&](const EncodedImage& input, int64_t render_time_ms) {
+        // System halt will be simulated in the decode.
+        time_controller_.AdvanceTime(k30FpsDelay * 2);
+        return fake_decoder_.Decode(input, render_time_ms);
+      });
   EXPECT_CALL(mock_decoder_,
               Decode(test::RtpTimestamp(RtpTimestampForFrame(2)), _));
   video_receive_stream_->OnCompleteFrame(std::move(key_frame));

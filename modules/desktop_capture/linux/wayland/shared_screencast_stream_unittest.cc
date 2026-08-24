@@ -29,7 +29,6 @@
 using ::testing::_;
 using ::testing::AtLeast;
 using ::testing::Ge;
-using ::testing::Invoke;
 
 namespace webrtc {
 
@@ -115,7 +114,9 @@ TEST_F(MAYBE_PipeWireStreamTest, TestPipeWire) {
   Event waitStreamParamChangedEvent2;
 
   EXPECT_CALL(*this, OnStreamReady(_))
-      .WillOnce(Invoke(this, &MAYBE_PipeWireStreamTest::StartScreenCastStream));
+      .WillOnce([this](uint32_t stream_node_id) {
+        StartScreenCastStream(stream_node_id);
+      });
   EXPECT_CALL(*this, OnStreamConfigured).WillOnce([&waitConnectEvent] {
     waitConnectEvent.Set();
   });
@@ -215,7 +216,6 @@ TEST_F(MAYBE_PipeWireStreamTest, TestPipeWire) {
   // Update stream parameters.
   EXPECT_CALL(*this, OnFormatChanged(SPA_VIDEO_FORMAT_BGRA, 800, 640, 0,
                                      DRM_FORMAT_MOD_LINEAR))
-      .Times(1)
       .WillOnce([&waitStreamParamChangedEvent1] {
         waitStreamParamChangedEvent1.Set();
       });
@@ -239,7 +239,6 @@ TEST_F(MAYBE_PipeWireStreamTest, TestPipeWire) {
 
   EXPECT_CALL(*this, OnFormatChanged(SPA_VIDEO_FORMAT_BGRA, 800, 640, 22,
                                      DRM_FORMAT_MOD_LINEAR))
-      .Times(1)
       .WillOnce([&waitStreamParamChangedEvent2] {
         waitStreamParamChangedEvent2.Set();
       });
@@ -272,7 +271,9 @@ TEST_F(MAYBE_PipeWireStreamTest, TestModifierFallback) {
   Event waitStartStreamingEvent;
 
   EXPECT_CALL(*this, OnStreamReady(_))
-      .WillOnce(Invoke(this, &MAYBE_PipeWireStreamTest::StartScreenCastStream));
+      .WillOnce([this](uint32_t stream_node_id) {
+        StartScreenCastStream(stream_node_id);
+      });
   EXPECT_CALL(*this, OnStreamConfigured).WillOnce([&waitConnectEvent] {
     waitConnectEvent.Set();
   });
@@ -416,7 +417,9 @@ TEST_F(MAYBE_PipeWireStreamTest, TestOnlyOneInstanceAllowed) {
   // stream.
   Event waitConnectEvent;
   EXPECT_CALL(*this, OnStreamReady(_))
-      .WillOnce(Invoke(this, &MAYBE_PipeWireStreamTest::StartScreenCastStream));
+      .WillOnce([this](uint32_t stream_node_id) {
+        StartScreenCastStream(stream_node_id);
+      });
   EXPECT_CALL(*this, OnStreamConfigured).WillOnce([&waitConnectEvent] {
     waitConnectEvent.Set();
   });
