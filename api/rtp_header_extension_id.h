@@ -11,11 +11,12 @@
 #ifndef API_RTP_HEADER_EXTENSION_ID_H_
 #define API_RTP_HEADER_EXTENSION_ID_H_
 
+#include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "absl/strings/str_format.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/strong_alias.h"
 
 namespace webrtc {
 
@@ -25,10 +26,7 @@ namespace webrtc {
 // association with an URI for all RTP packets in an RTP session,
 // such as that defined by a BUNDLE.
 // We allow the value 0 to mean "not set".
-// TODO: bugs.webrtc.org/514817938 - change to underlying "uint8_t"
-// once initialization prevents creation of illegal values.
-class RtpHeaderExtensionId
-    : public StrongAlias<class RtpHeaderExtensionIdTag, int> {
+class RtpHeaderExtensionId final {
  public:
   static const RtpHeaderExtensionId kMinId;
   static const RtpHeaderExtensionId kMaxId;
@@ -44,14 +42,27 @@ class RtpHeaderExtensionId
   static constexpr std::optional<RtpHeaderExtensionId> Create(int id);
 
   // The default constructor makes a NotSet.
-  constexpr RtpHeaderExtensionId() : StrongAlias(0) {}
+  constexpr RtpHeaderExtensionId() = default;
 
-  explicit constexpr RtpHeaderExtensionId(int id) : StrongAlias(id) {
+  constexpr RtpHeaderExtensionId(const RtpHeaderExtensionId&) = default;
+  constexpr RtpHeaderExtensionId& operator=(const RtpHeaderExtensionId&) =
+      default;
+
+  explicit constexpr RtpHeaderExtensionId(int id)
+      : value_(static_cast<uint8_t>(id)) {
     // For convenience allow all valid ids + special value 0 that represents
     // 'NotSet'.
     RTC_DCHECK_GE(id, 0);
     RTC_DCHECK_LE(id, 255);
   }
+
+  constexpr int value() const { return value_; }
+  constexpr explicit operator int() const { return value_; }
+
+  constexpr friend bool operator==(const RtpHeaderExtensionId&,
+                                   const RtpHeaderExtensionId&) = default;
+  constexpr friend auto operator<=>(const RtpHeaderExtensionId&,
+                                    const RtpHeaderExtensionId&) = default;
 
   // Returns true for an extension id that is set and is in the legal range.
   constexpr bool Valid() const {
@@ -64,6 +75,14 @@ class RtpHeaderExtensionId
   friend void AbslStringify(Sink& sink, RtpHeaderExtensionId id) {
     absl::Format(&sink, "%d", id.value());
   }
+
+  template <typename H>
+  friend H AbslHashValue(H h, RtpHeaderExtensionId id) {
+    return H::combine(std::move(h), id.value());
+  }
+
+ private:
+  uint8_t value_ = 0;
 };
 
 inline constexpr RtpHeaderExtensionId RtpHeaderExtensionId::kMinId =
