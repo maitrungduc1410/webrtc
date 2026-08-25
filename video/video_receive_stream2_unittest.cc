@@ -77,12 +77,14 @@ using test::video_frame_matchers::Rotation;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyNumber;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::InSequence;
 using ::testing::IsEmpty;
 using ::testing::Optional;
+using ::testing::Pair;
 using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::Return;
@@ -713,6 +715,164 @@ TEST_P(VideoReceiveStream2Test, PassesNtpTime) {
   video_receive_stream_->OnCompleteFrame(std::move(test_frame));
   EXPECT_THAT(fake_renderer_.WaitForFrame(kDefaultTimeOut),
               RenderedFrameWith(NtpTimestamp(kNtpTimestamp)));
+}
+
+TEST_P(VideoReceiveStream2Test, SetDecodersWhileRunning) {
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  VideoReceiveStreamInterface::Decoder new_decoder;
+  new_decoder.video_format = SdpVideoFormat("AV1");
+  new_decoder.payload_type = kAv1PayloadType;
+
+  video_receive_stream_->SetDecoders({new_decoder});
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::name, Eq("AV1"))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(12345)
+                                             .AsLast()
+                                             .Build());
+
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+}
+
+TEST_P(VideoReceiveStream2Test,
+       SetDecodersReusesPayloadTypeWithDifferentFormat) {
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  // Decode initial frame to register external decoder for default H264 format.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::parameters,
+                              ElementsAre(Pair("sprop-parameter-sets",
+                                               "Z0IACpZTBYmI,aMljiA==")))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kH264PayloadType)
+                                             .Time(10000)
+                                             .AsLast()
+                                             .Build());
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Reconfigure PT kH264PayloadType with modified video_format parameters.
+  VideoReceiveStreamInterface::Decoder new_decoder;
+  new_decoder.video_format = SdpVideoFormat("H264", {{"param", "value"}});
+  new_decoder.payload_type = kH264PayloadType;
+
+  video_receive_stream_->SetDecoders({new_decoder});
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Verify that modified format causes old decoder to be deregistered and a
+  // new decoder created.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::parameters,
+                              ElementsAre(Pair("param", "value")))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(1)
+                                             .PayloadType(kH264PayloadType)
+                                             .Time(12345)
+                                             .AsLast()
+                                             .Build());
+
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+}
+
+TEST_P(VideoReceiveStream2Test, SetDecodersWhileStoppedUpdatesCodecs) {
+  VideoReceiveStreamInterface::Decoder av1_decoder;
+  av1_decoder.video_format = SdpVideoFormat("AV1");
+  av1_decoder.payload_type = kAv1PayloadType;
+
+  // Update decoders while stopped.
+  video_receive_stream_->SetDecoders({av1_decoder});
+
+  // Start stream and verify AV1 frame decodes properly.
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::name, Eq("AV1"))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(12345)
+                                             .AsLast()
+                                             .Build());
+
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+}
+
+TEST_P(VideoReceiveStream2Test,
+       SetDecodersWhileStoppedRecreatesDecoderOnRestart) {
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  // Decode initial frame to register external decoder for default H264 format.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::parameters,
+                              ElementsAre(Pair("sprop-parameter-sets",
+                                               "Z0IACpZTBYmI,aMljiA==")))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kH264PayloadType)
+                                             .Time(10000)
+                                             .AsLast()
+                                             .Build());
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Stop the stream and update decoder with modified format parameters.
+  video_receive_stream_->Stop();
+
+  VideoReceiveStreamInterface::Decoder new_decoder;
+  new_decoder.video_format = SdpVideoFormat("H264", {{"param", "value"}});
+  new_decoder.payload_type = kH264PayloadType;
+
+  video_receive_stream_->SetDecoders({new_decoder});
+
+  // Restart the stream.
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  // Verify that modified format causes a new decoder to be created instead of
+  // reusing the old one.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::parameters,
+                              ElementsAre(Pair("param", "value")))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(1)
+                                             .PayloadType(kH264PayloadType)
+                                             .Time(12345)
+                                             .AsLast()
+                                             .Build());
+
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
 }
 
 TEST_P(VideoReceiveStream2Test, PassesRotation) {

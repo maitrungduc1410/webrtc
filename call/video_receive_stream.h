@@ -352,6 +352,8 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
   virtual void SetAssociatedPayloadTypes(
       std::map<int, int> associated_payload_types) = 0;
 
+  virtual void SetDecoders(std::vector<Decoder> decoders) = 0;
+
   virtual void SetRawPayloadTypes(std::set<int> raw_payload_types) = 0;
 
   virtual void UpdateRtxSsrc(uint32_t ssrc) = 0;

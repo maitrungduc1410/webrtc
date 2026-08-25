@@ -5352,6 +5352,23 @@ TEST_F(WebRtcVideoChannelTest,
                   .rtp.raw_payload_types.empty());
 }
 
+TEST_F(WebRtcVideoChannelTest, SetReceiveStopAndStartDoesNotRecreateStream) {
+  VideoReceiverParameters parameters;
+  parameters.codecs = {GetEngineCodec("VP8")};
+  EXPECT_TRUE(receive_channel_->SetReceiverParameters(parameters));
+
+  const StreamParams params = StreamParams::CreateLegacy(kSsrcs1[0]);
+  AddRecvStream(params);
+  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), SizeIs(1));
+  EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
+
+  receive_channel_->SetReceive(false);
+  EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
+
+  receive_channel_->SetReceive(true);
+  EXPECT_EQ(fake_call_->GetNumCreatedReceiveStreams(), 1);
+}
+
 TEST_F(WebRtcVideoChannelTest, DuplicateUlpfecCodecIsDropped) {
   constexpr int kFirstUlpfecPayloadType = 126;
   constexpr int kSecondUlpfecPayloadType = 127;

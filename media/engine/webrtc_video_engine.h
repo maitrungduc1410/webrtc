@@ -644,13 +644,10 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
     // when disabled.
     void SetFlexFecPayload(int payload_type);
 
-    void RecreateReceiveStream();
     void CreateReceiveStream();
 
-    // Applies a new receive codecs configration to `config_`. Returns true
-    // if the internal stream needs to be reconstructed, or false if no changes
-    // were applied.
-    bool ReconfigureCodecs(const std::vector<VideoCodecSettings>& recv_codecs);
+    // Applies a new receive codecs configuration to `config_` and `stream_`.
+    void ReconfigureCodecs(const std::vector<VideoCodecSettings>& recv_codecs);
 
     const Environment env_;
     Call* const call_;

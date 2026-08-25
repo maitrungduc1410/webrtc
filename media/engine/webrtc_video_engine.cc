@@ -3568,7 +3568,7 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::GetRtpParameters() const {
   return rtp_parameters;
 }
 
-bool WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::ReconfigureCodecs(
+void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::ReconfigureCodecs(
     const std::vector<VideoCodecSettings>& recv_codecs) {
   RTC_DCHECK(stream_);
   RTC_DCHECK(!recv_codecs.empty());
@@ -3623,19 +3623,15 @@ bool WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::ReconfigureCodecs(
     rtx_associated_payload_types.swap(config_.rtp.rtx_associated_payload_types);
   }
 
-  bool recreate_needed = false;
-
   if (raw_payload_types != config_.rtp.raw_payload_types) {
     stream_->SetRawPayloadTypes(raw_payload_types);
     raw_payload_types.swap(config_.rtp.raw_payload_types);
   }
 
   if (decoders != config_.decoders) {
+    stream_->SetDecoders(decoders);
     decoders.swap(config_.decoders);
-    recreate_needed = true;
   }
-
-  return recreate_needed;
 }
 
 void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetFlexFecPayload(
@@ -3674,18 +3670,12 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetFlexFecPayload(
 void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetReceiverParameters(
     const ChangedReceiverParameters& changed_params) {
   RTC_DCHECK(stream_);
-  bool video_needs_recreation = false;
   if (changed_params.codec_settings) {
-    video_needs_recreation = ReconfigureCodecs(*changed_params.codec_settings);
+    ReconfigureCodecs(*changed_params.codec_settings);
   }
 
   if (changed_params.flexfec_payload_type) {
     SetFlexFecPayload(*changed_params.flexfec_payload_type);
-  }
-  if (video_needs_recreation) {
-    RecreateReceiveStream();
-  } else {
-    RTC_DLOG_F(LS_INFO) << "No receive stream recreate needed.";
   }
   if (changed_params.rtcp_mode) {
     RtcpMode rtcp_mode = *changed_params.rtcp_mode;
@@ -3695,42 +3685,6 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetReceiverParameters(
     if (flexfec_stream_) {
       flexfec_stream_->SetRtcpMode(rtcp_mode);
     }
-  }
-}
-
-void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::
-    RecreateReceiveStream() {
-  RTC_DCHECK_RUN_ON(&thread_checker_);
-  RTC_DCHECK(stream_);
-  std::optional<int> base_minimum_playout_delay_ms;
-  std::optional<VideoReceiveStreamInterface::RecordingState> recording_state;
-  if (stream_) {
-    base_minimum_playout_delay_ms = stream_->GetBaseMinimumPlayoutDelayMs();
-    recording_state = stream_->SetAndGetRecordingState(
-        VideoReceiveStreamInterface::RecordingState(),
-        /*generate_key_frame=*/false);
-    call_->DestroyVideoReceiveStream(stream_);
-    stream_ = nullptr;
-    previous_stats_ = std::nullopt;
-  }
-
-  if (flexfec_stream_) {
-    call_->DestroyFlexfecReceiveStream(flexfec_stream_);
-    flexfec_stream_ = nullptr;
-  }
-
-  CreateReceiveStream();
-
-  if (base_minimum_playout_delay_ms) {
-    stream_->SetBaseMinimumPlayoutDelayMs(
-        base_minimum_playout_delay_ms.value());
-  }
-  if (recording_state) {
-    stream_->SetAndGetRecordingState(std::move(*recording_state),
-                                     /*generate_key_frame=*/false);
-  }
-  if (receiving_) {
-    StartReceiveStream();
   }
 }
 
@@ -3758,7 +3712,6 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::StopReceiveStream() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   receiving_ = false;
   stream_->Stop();
-  RecreateReceiveStream();
 }
 
 void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::OnFrame(

@@ -93,6 +93,7 @@
 #include "video/null_video_decoder.h"
 #include "video/receive_statistics_proxy.h"
 #include "video/render/incoming_video_stream.h"
+#include "video/rtp_video_stream_receiver2.h"
 #include "video/task_queue_frame_decode_scheduler.h"
 #include "video/video_stream_buffer_controller.h"
 #include "video/video_stream_decoder2.h"
@@ -544,10 +545,11 @@ void VideoReceiveStream2::SetAssociatedPayloadTypes(
       std::move(associated_payload_types));
 }
 
-void VideoReceiveStream2::ConfigureCodecs() {
+std::vector<RtpVideoStreamReceiver2::ReceiveCodec>
+VideoReceiveStream2::GetReceiveCodecConfig() const {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
-  rtp_video_stream_receiver_.RemoveReceiveCodecs();
-  video_receiver_.DeregisterReceiveCodecs();
+  std::vector<RtpVideoStreamReceiver2::ReceiveCodec> receive_codecs;
+  receive_codecs.reserve(config_.decoders.size());
   for (const Decoder& decoder : config_.decoders) {
     VideoDecoder::Settings settings;
     settings.set_codec_type(
@@ -558,11 +560,83 @@ void VideoReceiveStream2::ConfigureCodecs() {
 
     const bool raw_payload =
         config_.rtp.raw_payload_types.count(decoder.payload_type) > 0;
-    rtp_video_stream_receiver_.AddReceiveCodec(
-        decoder.payload_type, settings.codec_type(),
-        decoder.video_format.parameters, raw_payload);
+    receive_codecs.push_back({
+        .payload_type = static_cast<uint8_t>(decoder.payload_type),
+        .video_codec = settings.codec_type(),
+        .codec_params = decoder.video_format.parameters,
+        .raw_payload = raw_payload,
+    });
+  }
+  return receive_codecs;
+}
+
+void VideoReceiveStream2::RegisterCodecsOnReceiver(
+    const std::vector<Decoder>& old_decoders,
+    const std::vector<Decoder>& new_decoders) {
+  // Deregister external decoders from the previous configuration that are
+  // removed or updated in the new configuration.
+  for (const Decoder& old_decoder : old_decoders) {
+    if (!absl::c_linear_search(new_decoders, old_decoder)) {
+      video_receiver_.RegisterExternalDecoder(nullptr,
+                                              old_decoder.payload_type);
+    }
+  }
+
+  video_receiver_.DeregisterReceiveCodecs();
+
+  // Register settings for the new decoder configuration.
+  for (const Decoder& decoder : new_decoders) {
+    VideoDecoder::Settings settings;
+    settings.set_codec_type(
+        PayloadStringToCodecType(decoder.video_format.name));
+    settings.set_max_render_resolution(
+        InitialDecoderResolution(env_.field_trials()));
+    settings.set_number_of_cores(num_cpu_cores_);
+
     video_receiver_.RegisterReceiveCodec(decoder.payload_type, settings);
   }
+}
+
+void VideoReceiveStream2::ConfigureCodecs() {
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  RegisterCodecsOnReceiver(/*old_decoders=*/{}, config_.decoders);
+  rtp_video_stream_receiver_.SetReceiveCodecs(GetReceiveCodecConfig());
+}
+
+void VideoReceiveStream2::SetDecoders(std::vector<Decoder> decoders) {
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  if (config_.decoders == decoders) {
+    return;
+  }
+
+  VerifyNoDuplicatePayloadTypes(decoders);
+
+  std::vector<Decoder> old_decoders = std::move(config_.decoders);
+  config_.decoders = std::move(decoders);
+
+  if (!decoder_running_) {
+    return;
+  }
+
+  // Post codec registration task to decode_queue_ before updating
+  // rtp_video_stream_receiver_ to ensure the codec database is updated on the
+  // decode queue before any newly arriving RTP frames are processed. Note that
+  // if Stop() is called, it synchronously flushes decode_queue_ before setting
+  // decoder_running_ to false, avoiding a clash with ConfigureCodecs().
+  decode_queue_->PostTask([this, old_decoders = std::move(old_decoders),
+                           new_decoders = config_.decoders]() mutable {
+    RTC_DCHECK_RUN_ON(&decode_sequence_checker_);
+    RegisterCodecsOnReceiver(old_decoders, new_decoders);
+    active_decoders_ = std::move(new_decoders);
+  });
+
+  rtp_video_stream_receiver_.SetReceiveCodecs(GetReceiveCodecConfig());
+
+  // Request a keyframe immediately because changing the decoder configuration
+  // resets the decoder database and underlying decoders. Delta frames currently
+  // in the jitter buffer or arriving before the keyframe will fail to decode
+  // due to missing state.
+  RequestKeyFrame(env_.clock().CurrentTime());
 }
 
 void VideoReceiveStream2::SetRawPayloadTypes(std::set<int> raw_payload_types) {

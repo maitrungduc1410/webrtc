@@ -139,7 +139,7 @@ class VideoReceiveStream2
   void UnregisterFromTransport();
 
   // Accessor for the a/v sync group. This value may change and the caller
-  // must be on the packet delivery thread.
+  // must be on the worker thread.
   const std::string& sync_group() const;
 
   // Getters for const remote SSRC values that won't change throughout the
@@ -170,6 +170,7 @@ class VideoReceiveStream2
   void SetAssociatedPayloadTypes(
       std::map<int, int> associated_payload_types) override;
   void SetRawPayloadTypes(std::set<int> raw_payload_types) override;
+  void SetDecoders(std::vector<Decoder> decoders) override;
 
   webrtc::VideoReceiveStreamInterface::Stats GetStats() const override;
 
@@ -256,6 +257,13 @@ class VideoReceiveStream2
 
   void UpdateHistograms();
   void ConfigureCodecs() RTC_RUN_ON(worker_sequence_checker_);
+  // Registers new decoders with the internal VideoReceiver2 database and
+  // deregisters any external decoder instances from `old_decoders` whose
+  // payload type or video format is no longer present in `new_decoders`.
+  void RegisterCodecsOnReceiver(const std::vector<Decoder>& old_decoders,
+                                const std::vector<Decoder>& new_decoders);
+  std::vector<RtpVideoStreamReceiver2::ReceiveCodec> GetReceiveCodecConfig()
+      const RTC_RUN_ON(worker_sequence_checker_);
   void CalculateCorruptionScore(
       const VideoFrame& frame,
       FrameInstrumentationData frame_instrumentation_data,
