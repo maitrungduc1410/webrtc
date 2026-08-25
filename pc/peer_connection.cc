@@ -1064,6 +1064,20 @@ PeerConnection::AddTransceiver(MediaType media_type,
   RtpParameters parameters;
   parameters.encodings = init.send_encodings;
 
+  const bool has_scale_resolution_down_by =
+      media_type == MediaType::VIDEO &&
+      absl::c_any_of(parameters.encodings,
+                     [](const RtpEncodingParameters& encoding) {
+                       return encoding.scale_resolution_down_by.has_value();
+                     });
+  if (has_scale_resolution_down_by) {
+    for (RtpEncodingParameters& encoding : parameters.encodings) {
+      if (!encoding.scale_resolution_down_by.has_value()) {
+        encoding.scale_resolution_down_by = 1.0;
+      }
+    }
+  }
+
   // Encodings are dropped from the tail if too many are provided.
   size_t max_simulcast_streams =
       media_type == MediaType::VIDEO ? kMaxSimulcastStreams : 1u;
@@ -1091,6 +1105,15 @@ PeerConnection::AddTransceiver(MediaType media_type,
   // If no encoding parameters were provided, a default entry is created.
   if (parameters.encodings.empty()) {
     parameters.encodings.push_back({});
+  }
+
+  if (media_type == MediaType::VIDEO && !has_scale_resolution_down_by) {
+    double scale_resolution_down_by = 1.0;
+    for (auto encoding = parameters.encodings.rbegin();
+         encoding != parameters.encodings.rend(); ++encoding) {
+      encoding->scale_resolution_down_by = scale_resolution_down_by;
+      scale_resolution_down_by *= 2.0;
+    }
   }
 
   if (UnimplementedRtpParameterHasValue(parameters)) {

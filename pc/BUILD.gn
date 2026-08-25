@@ -3263,6 +3263,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/audio_codecs:builtin_audio_encoder_factory",
       "../api/units:data_rate",
       "../api/video:render_resolution",
+      "../api/video:video_codec_constants",
       "../api/video_codecs:video_codecs_api",
       "../api/video_codecs:video_decoder_factory_template",
       "../api/video_codecs:video_decoder_factory_template_dav1d_adapter",
