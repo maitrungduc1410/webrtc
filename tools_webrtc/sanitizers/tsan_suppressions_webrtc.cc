@@ -23,10 +23,6 @@ char kTSanDefaultSuppressions[] =
 
     // WebRTC specific suppressions.
 
-    // Split up suppressions covered previously by thread.cc and
-    // messagequeue.cc.
-    "race:third_party/libvpx/source/libvpx/vp9/common/vp9_scan.h\n"
-
     // rtc_unittests
     // https://code.google.com/p/webrtc/issues/detail?id=2080
     "race:rtc_base/logging.cc\n"
