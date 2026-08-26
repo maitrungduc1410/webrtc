@@ -17,6 +17,5 @@
 # GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET.
 
 src:*/third_party/protobuf/src/google/protobuf/compiler/plugin.pb.cc
-src:*/third_party/protobuf/src/google/protobuf/compiler/cpp/cpp_message.cc
 src:*/third_party/protobuf/src/google/protobuf/descriptor.pb.cc
 
