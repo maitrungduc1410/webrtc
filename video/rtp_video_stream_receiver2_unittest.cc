@@ -201,7 +201,7 @@ class RtpVideoStreamReceiver2Test : public ::testing::Test,
         env_, TaskQueueBase::Current(), &mock_transport_, nullptr, nullptr,
         &config_, rtp_receive_statistics_.get(), nullptr, nullptr,
         &nack_periodic_processor_, &mock_on_complete_frame_callback_, nullptr,
-        nullptr);
+        nullptr, nullptr);
     rtp_video_stream_receiver_->AddReceiveCodec(kPayloadType,
                                                 kVideoCodecGeneric, {},
                                                 /*raw_payload=*/false);
@@ -1730,7 +1730,7 @@ TEST_F(RtpVideoStreamReceiver2Test, TransformFrame) {
       env_, TaskQueueBase::Current(), &mock_transport_, nullptr, nullptr,
       &config_, rtp_receive_statistics_.get(), nullptr, nullptr,
       &nack_periodic_processor_, &mock_on_complete_frame_callback_, nullptr,
-      mock_frame_transformer);
+      mock_frame_transformer, nullptr);
   receiver->AddReceiveCodec(kPayloadType, kVideoCodecGeneric, {},
                             /*raw_payload=*/false);
 
@@ -1763,7 +1763,7 @@ TEST_F(RtpVideoStreamReceiver2Test, TransformFrameWithAbsoluteCaptureTime) {
       env_, TaskQueueBase::Current(), &mock_transport_, nullptr, nullptr,
       &config_, rtp_receive_statistics_.get(), nullptr, nullptr,
       &nack_periodic_processor_, &mock_on_complete_frame_callback_, nullptr,
-      mock_frame_transformer);
+      mock_frame_transformer, nullptr);
   receiver->AddReceiveCodec(kPayloadType, kVideoCodecGeneric, {},
                             /*raw_payload=*/false);
 

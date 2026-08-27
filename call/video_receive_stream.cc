@@ -193,6 +193,8 @@ VideoReceiveStreamInterface::Config VideoReceiveStreamInterface::Config::Copy()
   config_copy.frame_decryptor = frame_decryptor;
   config_copy.crypto_options = crypto_options;
   config_copy.frame_transformer = frame_transformer;
+  // Note: `on_first_packet` is a one-shot move-only callback.
+  // It is moved out during construction and should not be copied.
   return config_copy;
 }
 

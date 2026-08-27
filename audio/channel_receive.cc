@@ -159,6 +159,7 @@ class ChannelReceive : public ChannelReceiveInterface,
                  scoped_refptr<FrameDecryptorInterface> frame_decryptor,
                  const CryptoOptions& crypto_options,
                  scoped_refptr<FrameTransformerInterface> frame_transformer,
+                 absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
                  PacketRouter* absl_nonnull packet_router);
   ~ChannelReceive() override;
 
@@ -359,6 +360,9 @@ class ChannelReceive : public ChannelReceiveInterface,
   std::map<int, SdpAudioFormat> payload_type_map_;
 
   std::unique_ptr<NackTracker> nack_tracker_
+      RTC_GUARDED_BY(worker_thread_checker_);
+
+  absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet_
       RTC_GUARDED_BY(worker_thread_checker_);
 };
 
@@ -586,6 +590,7 @@ ChannelReceive::ChannelReceive(
     scoped_refptr<FrameDecryptorInterface> frame_decryptor,
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
+    absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
     PacketRouter* absl_nonnull packet_router)
     : env_(env),
       worker_thread_(TaskQueueBase::Current()),
@@ -614,7 +619,8 @@ ChannelReceive::ChannelReceive(
       packet_router_(packet_router),
       frame_decryptor_(frame_decryptor),
       crypto_options_(crypto_options),
-      absolute_capture_time_interpolator_(&env_.clock()) {
+      absolute_capture_time_interpolator_(&env_.clock()),
+      on_first_packet_(std::move(on_first_packet)) {
   RTC_DCHECK(audio_device_module);
   RTC_DCHECK(packet_router_);
 
@@ -691,6 +697,10 @@ void ChannelReceive::SetReceiveCodecs(
 
 void ChannelReceive::OnRtpPacket(const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  if (on_first_packet_) {
+    auto cb = std::move(on_first_packet_);
+    std::move(cb)(remote_ssrc_);
+  }
   env_.event_log().Log(std::make_unique<RtcEventRtpPacketIncoming>(packet));
   Timestamp now = env_.clock().CurrentTime();
 
@@ -1214,13 +1224,14 @@ std::unique_ptr<ChannelReceiveInterface> CreateChannelReceive(
     scoped_refptr<FrameDecryptorInterface> frame_decryptor,
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
+    absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
     PacketRouter* absl_nonnull packet_router) {
   return std::make_unique<ChannelReceive>(
       env, neteq_factory, audio_device_module, rtcp_send_transport, remote_ssrc,
       jitter_buffer_max_packets, jitter_buffer_fast_playout,
       jitter_buffer_min_delay_ms, enable_non_sender_rtt, decoder_factory,
       std::move(frame_decryptor), crypto_options, std::move(frame_transformer),
-      packet_router);
+      std::move(on_first_packet), packet_router);
 }
 
 }  // namespace voe

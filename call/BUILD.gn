@@ -472,6 +472,7 @@ rtc_library("video_receive_stream_api") {
     "../common_video:frame_counts",
     "../modules/rtp_rtcp:rtp_rtcp_format",
     "../rtc_base:stringutils",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
 

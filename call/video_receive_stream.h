@@ -20,6 +20,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "absl/functional/any_invocable.h"
 #include "api/call/transport.h"
 #include "api/crypto/crypto_options.h"
 #include "api/crypto/frame_decryptor_interface.h"
@@ -299,6 +301,10 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
     CryptoOptions crypto_options;
 
     scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer;
+
+    // Callback invoked on the first received packet for this stream. Note that
+    // this is a move-only callback and is not copied when calling Copy().
+    absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet;
   };
 
   // TODO(pbos): Add info on currently-received codec to Stats.

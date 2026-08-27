@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "api/audio/audio_mixer.h"
 #include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
@@ -179,6 +180,8 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
     // a part of the AudioReceiveStreamInterface state but rather a pass through
     // variable.
     scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer;
+
+    absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet;
   };
 
   // Methods that support reconfiguring the stream post initialization.

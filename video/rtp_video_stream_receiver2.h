@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/functional/any_invocable.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
 #include "api/frame_transformer_interface.h"
@@ -115,7 +116,8 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
       // requests are sent via the internal RtpRtcp module.
       OnCompleteFrameCallback* complete_frame_callback,
       scoped_refptr<FrameDecryptorInterface> frame_decryptor,
-      scoped_refptr<FrameTransformerInterface> frame_transformer);
+      scoped_refptr<FrameTransformerInterface> frame_transformer,
+      absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet);
   ~RtpVideoStreamReceiver2() override;
 
   struct ReceiveCodec {
@@ -509,6 +511,9 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
   // TODO: bugs.webrtc.org/358039777 - Move this to after the frame assembler.
   std::array<FrameInstrumentationDataReader, kMaxSpatialLayers>
       last_corruption_detection_state_by_layer_;
+
+  absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet_
+      RTC_GUARDED_BY(worker_queue_);
 };
 
 }  // namespace webrtc

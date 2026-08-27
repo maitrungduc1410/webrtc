@@ -266,7 +266,8 @@ VideoReceiveStream2::VideoReceiveStream2(
                                  nack_periodic_processor,
                                  this,  // OnCompleteFrameCallback
                                  std::move(config_.frame_decryptor),
-                                 std::move(config_.frame_transformer)),
+                                 std::move(config_.frame_transformer),
+                                 std::move(config_.on_first_packet)),
       rtp_stream_sync_(env_, call->worker_thread(), this),
       max_wait_for_keyframe_(DetermineMaxWaitForFrame(
           TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
