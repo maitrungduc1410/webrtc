@@ -1078,11 +1078,8 @@ bool SharedScreenCastStreamPrivate::ProcessMemFDBuffer(
   uint8_t* src = nullptr;
 
   const uint64_t maxsize = static_cast<uint64_t>(spa_buffer->datas[0].maxsize);
-  const uint64_t mapoffset =
-      static_cast<uint64_t>(spa_buffer->datas[0].mapoffset);
-
-  map.initialize(spa_buffer->datas[0].fd, maxsize, mapoffset,
-                 ScopedBuf::BufferType::kMemFd);
+  map.initialize(spa_buffer->datas[0].fd, maxsize,
+                 spa_buffer->datas[0].mapoffset, ScopedBuf::BufferType::kMemFd);
 
   if (!map) {
     RTC_LOG(LS_ERROR) << "Failed to mmap the memory: " << std::strerror(errno);
