@@ -1978,9 +1978,6 @@ void PeerConnection::SetIceConnectionState(IceConnectionState new_state) {
              PeerConnectionInterface::kIceConnectionClosed);
 
   ice_connection_state_ = new_state;
-  if (tracer_) {
-    tracer_->OnIceConnectionStateChanged(new_state);
-  }
   RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnIceConnectionChange(ice_connection_state_);
@@ -2001,6 +1998,9 @@ void PeerConnection::SetStandardizedIceConnectionState(
                    << standardized_ice_connection_state_ << " => " << new_state;
 
   standardized_ice_connection_state_ = new_state;
+  if (tracer_) {
+    tracer_->OnIceConnectionStateChanged(new_state);
+  }
   RunWithObserver([&](auto observer) {
     observer->OnStandardizedIceConnectionChange(new_state);
   });

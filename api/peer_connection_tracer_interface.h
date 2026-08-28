@@ -120,6 +120,8 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   // the equivalent PeerConnectionObserver callbacks.
   virtual void OnSignalingStateChanged(
       PeerConnectionInterface::SignalingState state) = 0;
+  // Note: this is OnStandardizedIceConnectionChange(), i.e. the state the
+  // specification exposes not the legacy OnIceConnectionChange() one.
   virtual void OnIceConnectionStateChanged(
       PeerConnectionInterface::IceConnectionState state) = 0;
   virtual void OnConnectionStateChanged(
