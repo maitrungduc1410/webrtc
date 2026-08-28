@@ -27,6 +27,7 @@
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/frame_transformer_interface.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -118,7 +119,6 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
     TimeDelta total_round_trip_time = TimeDelta::Zero();
     int round_trip_time_measurements = 0;
   };
-
   struct Config {
     Config();
     Config(const Config&) = delete;
@@ -181,7 +181,12 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
     // variable.
     scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer;
 
+    // Callback invoked on the first received packet for this stream.
     absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet;
+
+    // Callback invoked when an audio frame has been delivered.
+    absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
+        on_frame_delivered_callback;
   };
 
   // Methods that support reconfiguring the stream post initialization.

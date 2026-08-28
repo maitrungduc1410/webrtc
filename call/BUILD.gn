@@ -47,6 +47,7 @@ rtc_library("call_interfaces") {
     "../api:network_state_predictor_api",
     "../api:ref_count",
     "../api:rtp_headers",
+    "../api:rtp_packet_info",
     "../api:rtp_parameters",
     "../api:rtp_sender_interface",
     "../api:scoped_refptr",
@@ -459,6 +460,7 @@ rtc_library("video_receive_stream_api") {
     ":rtp_interfaces",
     "../api:frame_transformer_interface",
     "../api:rtp_headers",
+    "../api:rtp_packet_info",
     "../api:scoped_refptr",
     "../api:transport_api",
     "../api/crypto:frame_decryptor_interface",
@@ -1027,6 +1029,7 @@ if (rtc_include_tests) {
       ":call_interfaces",
       "../api:frame_transformer_interface",
       "../api:rtp_headers",
+      "../api:rtp_packet_info",
       "../api:rtp_sender_interface",
       "../api:scoped_refptr",
       "../api/audio:audio_frame_api",
@@ -1034,8 +1037,10 @@ if (rtc_include_tests) {
       "../api/audio_codecs:audio_codecs_api",
       "../api/crypto:frame_decryptor_interface",
       "../api/transport/rtp:rtp_source",
+      "../api/units:timestamp",
       "../test:run_loop",
       "../test:test_support",
+      "//third_party/abseil-cpp/absl/functional:any_invocable",
     ]
   }
 

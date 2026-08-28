@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -26,8 +27,10 @@
 #include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/rtc_error.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/units/timestamp.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_decoder_factory.h"
@@ -116,6 +119,19 @@ class VoiceChannelFactoryInterface {
       const MediaConfig& config,
       const AudioOptions& options,
       const CryptoOptions& crypto_options,
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback) {
+    return CreateReceiveChannel(env, call, config, options, crypto_options,
+                                std::move(on_first_packet));
+  }
+  virtual std::unique_ptr<VoiceMediaReceiveChannelInterface>
+  CreateReceiveChannel(
+      const Environment& env,
+      Call* call,
+      const MediaConfig& config,
+      const AudioOptions& options,
+      const CryptoOptions& crypto_options,
       absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet) = 0;
 };
 
@@ -141,6 +157,18 @@ class VideoChannelFactoryInterface {
       absl::AnyInvocable<void()> parameters_changed_callback) = 0;
 
   // Safe to be called from the signaling thread.
+  virtual std::unique_ptr<VideoMediaReceiveChannelInterface>
+  CreateReceiveChannel(
+      const Environment& env,
+      Call* call,
+      const MediaConfig& config,
+      const CryptoOptions& crypto_options,
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback) {
+    return CreateReceiveChannel(env, call, config, crypto_options,
+                                std::move(on_first_packet));
+  }
   virtual std::unique_ptr<VideoMediaReceiveChannelInterface>
   CreateReceiveChannel(
       const Environment& env,
@@ -179,6 +207,8 @@ class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface,
       const CryptoOptions& crypto_options,
       absl::AnyInvocable<void()> parameters_changed_callback =
           nullptr) override = 0;
+
+  using VoiceChannelFactoryInterface::CreateReceiveChannel;
 
   std::unique_ptr<VoiceMediaReceiveChannelInterface> CreateReceiveChannel(
       const Environment& env,
@@ -233,6 +263,8 @@ class VideoEngineInterface : public RtpHeaderExtensionQueryInterface,
       VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
           video_encoder_switch_request_callback,
       absl::AnyInvocable<void()> parameters_changed_callback) override = 0;
+
+  using VideoChannelFactoryInterface::CreateReceiveChannel;
 
   std::unique_ptr<VideoMediaReceiveChannelInterface> CreateReceiveChannel(
       const Environment& env,
