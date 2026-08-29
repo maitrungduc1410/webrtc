@@ -184,7 +184,9 @@ class AudioReceiveStreamInterface : public MediaReceiveStreamInterface {
     // Callback invoked on the first received packet for this stream.
     absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet;
 
-    // Callback invoked when an audio frame has been delivered.
+    // Callback invoked when an audio frame has been delivered. Note that this
+    // callback is called synchronously from audio/packet processing threads and
+    // must be thread-safe and non-blocking.
     absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
         on_frame_delivered_callback;
   };

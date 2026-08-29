@@ -160,7 +160,9 @@ class ChannelReceive : public ChannelReceiveInterface,
                  const CryptoOptions& crypto_options,
                  scoped_refptr<FrameTransformerInterface> frame_transformer,
                  absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
-                 PacketRouter* absl_nonnull packet_router);
+                 PacketRouter* absl_nonnull packet_router,
+                 absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp)
+                                        const> on_frame_delivered_callback);
   ~ChannelReceive() override;
 
   void SetSink(AudioSinkInterface* sink) override;
@@ -283,6 +285,8 @@ class ChannelReceive : public ChannelReceiveInterface,
   const std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
   const uint32_t remote_ssrc_;
   SourceTracker source_tracker_ RTC_GUARDED_BY(&worker_thread_checker_);
+  const absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
+      on_frame_delivered_callback_;
 
   std::optional<uint32_t> last_received_rtp_timestamp_
       RTC_GUARDED_BY(&worker_thread_checker_);
@@ -381,10 +385,12 @@ void ChannelReceive::OnReceivedPayloadData(std::span<const uint8_t> payload,
     // playing and (b) any audio/video synchronization. But the alternative is
     // that muting playout also stops the SourceTracker from updating RtpSource
     // information.
-    RtpPacketInfos::vector_type packet_vector = {
-        RtpPacketInfo(header, receive_time)};
-    source_tracker_.OnFrameDelivered(RtpPacketInfos(packet_vector),
-                                     env_.clock().CurrentTime());
+    RtpPacketInfos packet_infos({RtpPacketInfo(header, receive_time)});
+    Timestamp now = env_.clock().CurrentTime();
+    if (on_frame_delivered_callback_) {
+      on_frame_delivered_callback_(packet_infos, now);
+    }
+    source_tracker_.OnFrameDelivered(packet_infos, now);
     return;
   }
 
@@ -528,10 +534,13 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
   }
   audio_frame->packet_infos_ = RtpPacketInfos(std::move(packet_infos));
   if (!audio_frame->packet_infos_.empty()) {
-    RtpPacketInfos infos_copy = audio_frame->packet_infos_;
     Timestamp delivery_time = env_.clock().CurrentTime();
-    worker_thread_->PostTask(
-        SafeTask(worker_safety_.flag(), [this, infos_copy, delivery_time]() {
+    if (on_frame_delivered_callback_) {
+      on_frame_delivered_callback_(audio_frame->packet_infos_, delivery_time);
+    }
+    worker_thread_->PostTask(SafeTask(
+        worker_safety_.flag(),
+        [this, infos_copy = audio_frame->packet_infos_, delivery_time]() {
           RTC_DCHECK_RUN_ON(&worker_thread_checker_);
           source_tracker_.OnFrameDelivered(infos_copy, delivery_time);
         }));
@@ -591,7 +600,9 @@ ChannelReceive::ChannelReceive(
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
-    PacketRouter* absl_nonnull packet_router)
+    PacketRouter* absl_nonnull packet_router,
+    absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
+        on_frame_delivered_callback)
     : env_(env),
       worker_thread_(TaskQueueBase::Current()),
       rtp_receive_statistics_(ReceiveStatistics::Create(&env_.clock())),
@@ -604,6 +615,7 @@ ChannelReceive::ChannelReceive(
                                     packet_router)),
       remote_ssrc_(remote_ssrc),
       source_tracker_(&env_.clock()),
+      on_frame_delivered_callback_(std::move(on_frame_delivered_callback)),
       neteq_(CreateNetEq(neteq_factory,
                          jitter_buffer_max_packets,
                          jitter_buffer_fast_playout,
@@ -1225,13 +1237,16 @@ std::unique_ptr<ChannelReceiveInterface> CreateChannelReceive(
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     absl::AnyInvocable<void(uint32_t ssrc) &&> on_first_packet,
-    PacketRouter* absl_nonnull packet_router) {
+    PacketRouter* absl_nonnull packet_router,
+    absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
+        on_frame_delivered_callback) {
   return std::make_unique<ChannelReceive>(
       env, neteq_factory, audio_device_module, rtcp_send_transport, remote_ssrc,
       jitter_buffer_max_packets, jitter_buffer_fast_playout,
       jitter_buffer_min_delay_ms, enable_non_sender_rtt, decoder_factory,
       std::move(frame_decryptor), crypto_options, std::move(frame_transformer),
-      std::move(on_first_packet), packet_router);
+      std::move(on_first_packet), packet_router,
+      std::move(on_frame_delivered_callback));
 }
 
 }  // namespace voe
