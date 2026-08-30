@@ -2024,6 +2024,26 @@ void SdpOfferAnswerHandler::CreateOffer(
                 std::move(observer_refptr),
                 std::move(operations_chain_callback), this_weak_ptr,
                 SdpType::kOffer);
+        if (this_weak_ptr->pc_->IsClosed()) {
+          const absl::string_view error =
+              "CreateOffer called when PeerConnection is closed.";
+          RTC_LOG(LS_ERROR) << error;
+          observer_wrapper->OnFailure(
+              RTCError(RTCErrorType::INVALID_STATE, error));
+          return;
+        }
+        const auto signaling_state = this_weak_ptr->signaling_state();
+        if (options.restrict_offer_to_stable_or_have_local_offer &&
+            signaling_state != PeerConnectionInterface::kStable &&
+            signaling_state != PeerConnectionInterface::kHaveLocalOffer) {
+          const absl::string_view error =
+              "PeerConnection cannot create an offer in a state other than "
+              "stable or have-local-offer.";
+          RTC_LOG(LS_ERROR) << error;
+          observer_wrapper->OnFailure(
+              RTCError(RTCErrorType::INVALID_STATE, error));
+          return;
+        }
         this_weak_ptr->DoCreateOffer(options, observer_wrapper);
       });
 }
@@ -3189,15 +3209,6 @@ void SdpOfferAnswerHandler::DoCreateOffer(
     return;
   }
 
-  if (pc_->IsClosed()) {
-    std::string error = "CreateOffer called when PeerConnection is closed.";
-    RTC_LOG(LS_ERROR) << error;
-    pc_->message_handler()->PostCreateSessionDescriptionFailure(
-        observer.get(),
-        RTCError(RTCErrorType::INVALID_STATE, std::move(error)));
-    return;
-  }
-
   // If a session error has occurred the PeerConnection is in a possibly
   // inconsistent state so fail right away.
   if (session_error() != SessionError::kNone) {
@@ -3279,6 +3290,25 @@ void SdpOfferAnswerHandler::CreateAnswer(
                 std::move(observer_refptr),
                 std::move(operations_chain_callback), this_weak_ptr,
                 SdpType::kAnswer);
+        if (this_weak_ptr->pc_->IsClosed()) {
+          const absl::string_view error =
+              "CreateAnswer called when PeerConnection is closed.";
+          RTC_LOG(LS_ERROR) << error;
+          observer_wrapper->OnFailure(
+              RTCError(RTCErrorType::INVALID_STATE, error));
+          return;
+        }
+        const auto signaling_state = this_weak_ptr->signaling_state();
+        if (signaling_state != PeerConnectionInterface::kHaveRemoteOffer &&
+            signaling_state != PeerConnectionInterface::kHaveLocalPrAnswer) {
+          const absl::string_view error =
+              "PeerConnection cannot create an answer in a state other than "
+              "have-remote-offer or have-local-pranswer.";
+          RTC_LOG(LS_ERROR) << error;
+          observer_wrapper->OnFailure(
+              RTCError(RTCErrorType::INVALID_STATE, error));
+          return;
+        }
         this_weak_ptr->DoCreateAnswer(options, observer_wrapper);
       });
 }
@@ -3302,18 +3332,6 @@ void SdpOfferAnswerHandler::DoCreateAnswer(
     pc_->message_handler()->PostCreateSessionDescriptionFailure(
         observer.get(),
         RTCError(RTCErrorType::INTERNAL_ERROR, std::move(error_message)));
-    return;
-  }
-
-  if (!(signaling_state_ == PeerConnectionInterface::kHaveRemoteOffer ||
-        signaling_state_ == PeerConnectionInterface::kHaveLocalPrAnswer)) {
-    std::string error =
-        "PeerConnection cannot create an answer in a state other than "
-        "have-remote-offer or have-local-pranswer.";
-    RTC_LOG(LS_ERROR) << error;
-    pc_->message_handler()->PostCreateSessionDescriptionFailure(
-        observer.get(),
-        RTCError(RTCErrorType::INVALID_STATE, std::move(error)));
     return;
   }
 
