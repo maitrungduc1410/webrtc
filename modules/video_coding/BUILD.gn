@@ -695,6 +695,33 @@ rtc_library("webrtc_vp9") {
 }
 
 if (rtc_include_tests) {
+  video_coding_modules_tests_resources = [
+    "../../resources/foreman_128x96.yuv",
+    "../../resources/foreman_160x120.yuv",
+    "../../resources/foreman_176x144.yuv",
+    "../../resources/foreman_240x136.yuv",
+    "../../resources/foreman_320x240.yuv",
+    "../../resources/foreman_480x272.yuv",
+    "../../resources/foreman_cif.yuv",
+  ]
+  if (!is_android) {
+    video_coding_modules_tests_resources += [
+      "../../resources/ConferenceMotion_1280_720_50.yuv",
+      "../../resources/FourPeople_1280x720_30.yuv",
+    ]
+  }
+  if (rtc_libvpx_build_vp9) {
+    video_coding_modules_tests_resources +=
+        [ "../../resources/photo_1850_1110.yuv" ]
+  }
+  if (is_ios) {
+    bundle_data("video_coding_modules_tests_resources_bundle_data") {
+      testonly = true
+      sources = video_coding_modules_tests_resources
+      outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
+    }
+  }
+
   if (is_android) {
     rtc_library("android_codec_factory_helper") {
       sources = [
@@ -728,15 +755,7 @@ if (rtc_include_tests) {
         "../../test:fileutils",
         "../../test:test_support",
       ]
-      data = [
-        "../../resources/foreman_128x96.yuv",
-        "../../resources/foreman_160x120.yuv",
-        "../../resources/foreman_176x144.yuv",
-        "../../resources/foreman_240x136.yuv",
-        "../../resources/foreman_320x240.yuv",
-        "../../resources/foreman_480x272.yuv",
-      ]
-      data_deps = [ "../../resources:modules_tests_data" ]
+      data = video_coding_modules_tests_resources
     }
   }
 
@@ -889,25 +908,6 @@ if (rtc_include_tests) {
       "../rtp_rtcp:rtp_rtcp_format",
       "//third_party/libyuv",
     ]
-  }
-
-  video_coding_modules_tests_resources = []
-  if (!is_android) {
-    video_coding_modules_tests_resources += [
-      "../../resources/ConferenceMotion_1280_720_50.yuv",
-      "../../resources/FourPeople_1280x720_30.yuv",
-    ]
-  }
-  if (rtc_libvpx_build_vp9) {
-    video_coding_modules_tests_resources +=
-        [ "../../resources/photo_1850_1110.yuv" ]
-  }
-  if (is_ios) {
-    bundle_data("video_coding_modules_tests_resources_bundle_data") {
-      testonly = true
-      sources = video_coding_modules_tests_resources
-      outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
-    }
   }
 
   rtc_library("videocodec_test_impl") {
