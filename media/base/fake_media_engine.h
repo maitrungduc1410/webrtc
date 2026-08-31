@@ -48,11 +48,13 @@
 #include "api/media_types.h"
 #include "api/rtc_error.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/rtp/rtp_source.h"
+#include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video/video_sink_interface.h"
@@ -830,7 +832,9 @@ class FakeVoiceEngine : public VoiceEngineInterface {
       const MediaConfig& config,
       const AudioOptions& options,
       const CryptoOptions& crypto_options,
-      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet) override;
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback) override;
 
   // TODO(ossu): For proper testing, These should either individually settable
   //             or the voice engine should reference mockable factories.
@@ -959,7 +963,9 @@ class FakeVideoEngine : public VideoEngineInterface {
       Call* call,
       const MediaConfig& config,
       const CryptoOptions& crypto_options,
-      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet) override;
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback) override;
   FakeVideoMediaSendChannel* GetSendChannel(size_t index);
   FakeVideoMediaReceiveChannel* GetReceiveChannel(size_t index);
 

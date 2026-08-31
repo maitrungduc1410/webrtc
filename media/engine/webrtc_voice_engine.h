@@ -43,6 +43,7 @@
 #include "api/payload_type.h"
 #include "api/rtc_error.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
 #include "api/scoped_refptr.h"
@@ -50,6 +51,7 @@
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/rtp/rtp_source.h"
+#include "api/units/timestamp.h"
 #include "call/audio_send_stream.h"
 #include "call/audio_state.h"
 #include "call/call.h"
@@ -109,7 +111,9 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
       const MediaConfig& config,
       const AudioOptions& options,
       const CryptoOptions& crypto_options,
-      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet) override;
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback) override;
 
   const std::vector<Codec>& LegacySendCodecs() const override;
   const std::vector<Codec>& LegacyRecvCodecs() const override;
@@ -325,7 +329,9 @@ class WebRtcVoiceReceiveChannel final
       const AudioOptions& options,
       const CryptoOptions& crypto_options,
       Call* absl_nonnull call,
-      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet);
+      absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+      absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                             const> on_frame_delivered_callback);
 
   WebRtcVoiceReceiveChannel() = delete;
   WebRtcVoiceReceiveChannel(const WebRtcVoiceReceiveChannel&) = delete;
@@ -482,6 +488,9 @@ class WebRtcVoiceReceiveChannel final
   // receives its first packet.
   absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet_
       RTC_GUARDED_BY(worker_thread_);
+  const absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                               const>
+      on_frame_delivered_callback_;
 };
 
 }  //  namespace webrtc

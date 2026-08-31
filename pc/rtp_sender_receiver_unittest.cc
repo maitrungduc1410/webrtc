@@ -28,6 +28,7 @@
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
@@ -37,6 +38,7 @@
 #include "api/test/fake_frame_decryptor.h"
 #include "api/test/fake_frame_encryptor.h"
 #include "api/test/rtc_error_matchers.h"
+#include "api/units/timestamp.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video/video_codec_constants.h"
@@ -139,9 +141,10 @@ class RtpSenderReceiverTest
         video_bitrate_allocator_factory_.get(), nullptr, nullptr);
     voice_media_receive_channel_ = media_engine_->voice().CreateReceiveChannel(
         env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions(),
-        nullptr);
+        nullptr, nullptr);
     video_media_receive_channel_ = media_engine_->video().CreateReceiveChannel(
-        env_, &fake_call_, MediaConfig(), CryptoOptions(), nullptr);
+        env_, &fake_call_, MediaConfig(), CryptoOptions(), nullptr,
+        [](uint32_t, const RtpPacketInfos&, Timestamp) {});
 
     // Create streams for predefined SSRCs. Streams need to exist in order
     // for the senders and receievers to apply parameters to them.

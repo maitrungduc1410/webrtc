@@ -28,7 +28,6 @@
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "media/base/media_channel.h"
 #include "pc/audio_track.h"
 #include "pc/jitter_buffer_delay.h"
@@ -37,6 +36,7 @@
 #include "pc/rtp_receiver.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
+#include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
@@ -55,7 +55,8 @@ class AudioRtpReceiver : public ObserverInterface,
                    absl::string_view receiver_id,
                    std::vector<std::string> stream_ids,
                    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
-                   VoiceMediaReceiveChannelInterface* voice_channel = nullptr);
+                   VoiceMediaReceiveChannelInterface* voice_channel = nullptr,
+                   Clock* clock = Clock::GetRealTimeClock());
   // Note: This is a PlanB-only constructor.
   // TODO(https://crbug.com/webrtc/9480): Remove this when streams() is removed.
   // This should be PLAN_B_ONLY; but this marking is deferred due to templating
@@ -65,7 +66,8 @@ class AudioRtpReceiver : public ObserverInterface,
       absl::string_view receiver_id,
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
       bool is_unified_plan,  // must always be set to false.
-      VoiceMediaReceiveChannelInterface* media_channel = nullptr);
+      VoiceMediaReceiveChannelInterface* media_channel = nullptr,
+      Clock* clock = Clock::GetRealTimeClock());
   // TODO(https://crbug.com/webrtc/9480): Remove this when streams() is removed.
   // This should be PLAN_B_ONLY; but this marking is deferred due to templating
   // issues
@@ -73,7 +75,8 @@ class AudioRtpReceiver : public ObserverInterface,
       Thread* worker_thread,
       absl::string_view receiver_id,
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
-      VoiceMediaReceiveChannelInterface* media_channel = nullptr);
+      VoiceMediaReceiveChannelInterface* media_channel = nullptr,
+      Clock* clock = Clock::GetRealTimeClock());
   ~AudioRtpReceiver() override;
 
   // ObserverInterface implementation
@@ -120,7 +123,6 @@ class AudioRtpReceiver : public ObserverInterface,
 
   void SetMediaChannel(MediaReceiveChannelInterface* media_channel) override;
 
-  std::vector<RtpSource> GetSources() const override;
   int AttachmentId() const override { return attachment_id_; }
 
  private:
@@ -130,7 +132,8 @@ class AudioRtpReceiver : public ObserverInterface,
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams,
       absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
       VoiceMediaReceiveChannelInterface* media_channel,
-      RemoteAudioSource::OnAudioChannelGoneAction source_gone_action);
+      RemoteAudioSource::OnAudioChannelGoneAction source_gone_action,
+      Clock* clock = Clock::GetRealTimeClock());
 
   absl::AnyInvocable<void() &&> GetRestartFunctionForMediaChannel(
       std::optional<uint32_t> ssrc) RTC_RUN_ON(&signaling_thread_checker_);

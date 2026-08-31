@@ -29,10 +29,12 @@
 #include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/make_ref_counted.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/rtp/rtp_source.h"
+#include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video/video_sink_interface.h"
@@ -626,7 +628,9 @@ FakeVoiceEngine::CreateReceiveChannel(
     const MediaConfig& /* config */,
     const AudioOptions& options,
     const CryptoOptions& /* crypto_options */,
-    absl::AnyInvocable<void(uint32_t ssrc)> /*on_first_packet*/) {
+    absl::AnyInvocable<void(uint32_t ssrc)> /*on_first_packet*/,
+    absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                           const> /* on_frame_delivered_callback */) {
   std::unique_ptr<FakeVoiceMediaReceiveChannel> ch =
       std::make_unique<FakeVoiceMediaReceiveChannel>(options,
                                                      call->network_thread());
@@ -706,7 +710,9 @@ FakeVideoEngine::CreateReceiveChannel(
     Call* call,
     const MediaConfig& /* config */,
     const CryptoOptions& /* crypto_options */,
-    absl::AnyInvocable<void(uint32_t ssrc)> /*on_first_packet*/) {
+    absl::AnyInvocable<void(uint32_t ssrc)> /*on_first_packet*/,
+    absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                           const> /* on_frame_delivered_callback */) {
   std::unique_ptr<FakeVideoMediaReceiveChannel> ch =
       std::make_unique<FakeVideoMediaReceiveChannel>(call->network_thread());
   return ch;

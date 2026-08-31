@@ -24,13 +24,18 @@
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/sframe/sframe_decryptor_interface.h"
 #include "api/sframe/sframe_types.h"
+#include "api/transport/rtp/rtp_source.h"
+#include "api/units/timestamp.h"
+#include "media/base/media_channel.h"
 #include "pc/media_stream.h"
 #include "pc/media_stream_proxy.h"
 #include "rtc_base/thread.h"
+#include "system_wrappers/include/clock.h"
 
 namespace webrtc {
 
@@ -57,8 +62,10 @@ RtpReceiverInternal::CreateStreamsFromIds(
 
 RtpReceiverBase::RtpReceiverBase(
     Thread* worker_thread,
-    absl::AnyInvocable<RTCError()> enable_sframe_at_owner)
+    absl::AnyInvocable<RTCError()> enable_sframe_at_owner,
+    Clock* clock)
     : worker_thread_(worker_thread),
+      source_tracker_(clock),
       enable_sframe_at_owner_(std::move(enable_sframe_at_owner)) {}
 
 std::optional<uint32_t> RtpReceiverBase::ssrc() const {
@@ -103,6 +110,17 @@ void RtpReceiverBase::SetFrameTransformer(
     media_channel()->SetDepacketizerToDecoderFrameTransformer(
         signaled_ssrc_.value_or(0), frame_transformer_);
   }
+}
+
+std::vector<RtpSource> RtpReceiverBase::GetSources() const {
+  RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
+  return source_tracker_.GetSources();
+}
+
+void RtpReceiverBase::OnFrameDelivered(const RtpPacketInfos& infos,
+                                       Timestamp delivery_time) {
+  RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
+  source_tracker_.OnFrameDelivered(infos, delivery_time);
 }
 
 RTCErrorOr<scoped_refptr<SframeDecryptorInterface>>

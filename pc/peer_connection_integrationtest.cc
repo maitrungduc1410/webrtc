@@ -1276,6 +1276,10 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan, EndToEndCallForwardsCsrcs) {
       callee()->GetReceiversOfType(webrtc::MediaType::VIDEO);
   ASSERT_EQ(video_receivers.size(), 1u);
 
+  EXPECT_TRUE(WaitUntil([&] {
+    return !audio_receivers[0]->GetSources().empty() &&
+           !video_receivers[0]->GetSources().empty();
+  }));
   EXPECT_THAT(audio_receivers[0]->GetSources(),
               Contains(IsCsrcWithId(kAudioCsrc)));
   EXPECT_THAT(video_receivers[0]->GetSources(),
@@ -2815,7 +2819,11 @@ TEST_P(PeerConnectionIntegrationTest, GetSourcesAudio) {
   ASSERT_EQ(callee()->pc()->GetReceivers().size(), 1u);
   auto receiver = callee()->pc()->GetReceivers()[0];
   ASSERT_EQ(receiver->media_type(), MediaType::AUDIO);
-  auto sources = receiver->GetSources();
+  std::vector<RtpSource> sources;
+  EXPECT_TRUE(WaitUntil([&] {
+    sources = receiver->GetSources();
+    return !sources.empty();
+  }));
   ASSERT_GT(receiver->GetParameters().encodings.size(), 0u);
   EXPECT_EQ(receiver->GetParameters().encodings[0].ssrc,
             sources[0].source_id());
@@ -2836,7 +2844,11 @@ TEST_P(PeerConnectionIntegrationTest, GetSourcesVideo) {
   ASSERT_EQ(callee()->pc()->GetReceivers().size(), 1u);
   auto receiver = callee()->pc()->GetReceivers()[0];
   ASSERT_EQ(receiver->media_type(), MediaType::VIDEO);
-  auto sources = receiver->GetSources();
+  std::vector<RtpSource> sources;
+  EXPECT_TRUE(WaitUntil([&] {
+    sources = receiver->GetSources();
+    return !sources.empty();
+  }));
   ASSERT_GT(receiver->GetParameters().encodings.size(), 0u);
   ASSERT_GT(sources.size(), 0u);
   EXPECT_EQ(receiver->GetParameters().encodings[0].ssrc,
@@ -2946,7 +2958,7 @@ TEST_P(PeerConnectionIntegrationTest, UnsignaledSsrcGetSourcesVideo) {
 // TODO(crbug.com/webrtc/441652589): Figure out why this is flaking and
 // re-enable the test.
 TEST_P(PeerConnectionIntegrationTest,
-       DISABLED_UnsignaledSsrcGetSourcesNonEmptyIfMediaFlowing) {
+       UnsignaledSsrcGetSourcesNonEmptyIfMediaFlowing) {
   ASSERT_TRUE(CreatePeerConnectionWrappers());
   ConnectFakeSignaling();
   caller()->AddVideoTrack();
@@ -2959,6 +2971,9 @@ TEST_P(PeerConnectionIntegrationTest,
   ASSERT_TRUE(ExpectNewFrames(media_expectations));
   ASSERT_EQ(callee()->pc()->GetReceivers().size(), 1u);
   auto receiver = callee()->pc()->GetReceivers()[0];
+
+  ASSERT_TRUE(WaitUntil([&] { return !receiver->GetSources().empty(); }));
+
   std::vector<RtpSource> sources = receiver->GetSources();
   // SSRC history must not be cleared since the reception of the first frame.
   ASSERT_GT(sources.size(), 0u);

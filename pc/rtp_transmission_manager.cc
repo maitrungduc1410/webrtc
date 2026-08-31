@@ -482,7 +482,7 @@ PLAN_B_ONLY void RtpTransmissionManager::CreateAudioReceiverPlanB(
   // the constructor taking stream IDs instead.
   auto audio_receiver = make_ref_counted<AudioRtpReceiver>(
       worker_thread(), remote_sender_info.sender_id, streams, false,
-      voice_media_receive_channel());
+      voice_media_receive_channel(), &env_.clock());
   auto task = (remote_sender_info.sender_id == kDefaultAudioSenderId)
                   ? audio_receiver->GetSetupForUnsignaledMediaChannel()
                   : audio_receiver->GetSetupForMediaChannel(
@@ -508,7 +508,8 @@ PLAN_B_ONLY void RtpTransmissionManager::CreateVideoReceiverPlanB(
   // the constructor taking stream IDs instead.
   auto video_receiver = make_ref_counted<VideoRtpReceiver>(
       worker_thread(), remote_sender_info.sender_id, streams,
-      /*enable_sframe_at_owner=*/nullptr);
+      /*enable_sframe_at_owner=*/nullptr,
+      /*media_channel=*/nullptr, &env_.clock());
 
   auto task = video_receiver->GetSetupForMediaChannel(
       remote_sender_info.sender_id == kDefaultVideoSenderId

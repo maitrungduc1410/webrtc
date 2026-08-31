@@ -56,6 +56,7 @@
 #include "api/rtc_error.h"
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_direction.h"
@@ -610,10 +611,12 @@ WebRtcVoiceEngine::CreateReceiveChannel(
     const MediaConfig& config,
     const AudioOptions& options,
     const CryptoOptions& crypto_options,
-    absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet) {
+    absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+    absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                           const> on_frame_delivered_callback) {
   return std::make_unique<WebRtcVoiceReceiveChannel>(
       env, this, config, options, crypto_options, call,
-      std::move(on_first_packet));
+      std::move(on_first_packet), std::move(on_frame_delivered_callback));
 }
 
 void WebRtcVoiceEngine::ApplyGlobalOptions(const AudioOptions& options) {
@@ -2177,7 +2180,9 @@ WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel(
     const AudioOptions& options,
     const CryptoOptions& crypto_options,
     Call* absl_nonnull call,
-    absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet)
+    absl::AnyInvocable<void(uint32_t ssrc)> on_first_packet,
+    absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp)
+                           const> on_frame_delivered_callback)
     : MediaChannelUtil(call->network_thread(), config.enable_dscp),
       env_(env),
       worker_thread_(call->worker_thread()),
@@ -2189,7 +2194,8 @@ WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel(
       call_(call),
       audio_config_(config.audio),
       crypto_options_(crypto_options),
-      on_first_packet_(std::move(on_first_packet)) {
+      on_first_packet_(std::move(on_first_packet)),
+      on_frame_delivered_callback_(std::move(on_frame_delivered_callback)) {
   RTC_LOG(LS_VERBOSE) << "WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel";
   RTC_DCHECK(call);
   if (options.audio_jitter_buffer_max_packets.has_value()) {
@@ -2448,6 +2454,12 @@ bool WebRtcVoiceReceiveChannel::AddRecvStream(const StreamParams& sp) {
       options_.audio_jitter_buffer_min_delay_ms.value_or(0),
       unsignaled_frame_decryptor_, crypto_options_,
       unsignaled_frame_transformer_);
+  if (on_frame_delivered_callback_ != nullptr) {
+    config.on_frame_delivered_callback =
+        [this, ssrc](const RtpPacketInfos& infos, Timestamp timestamp) {
+          on_frame_delivered_callback_(ssrc, infos, timestamp);
+        };
+  }
 
   config.on_first_packet = [this](uint32_t ssrc) {
     RTC_DCHECK_RUN_ON(worker_thread_);
