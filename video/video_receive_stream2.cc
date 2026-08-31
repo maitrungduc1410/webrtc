@@ -243,6 +243,8 @@ VideoReceiveStream2::VideoReceiveStream2(
       config_(std::move(config)),
       remote_ssrc_(config_.rtp.remote_ssrc),
       renderer_(config_.renderer),
+      on_frame_delivered_callback_(
+          std::move(config_.on_frame_delivered_callback)),
       decoder_factory_(config_.decoder_factory),
       require_frame_encryption_(
           config_.crypto_options.sframe.require_frame_encryption),
@@ -813,20 +815,30 @@ int VideoReceiveStream2::GetBaseMinimumPlayoutDelayMs() const {
 }
 
 void VideoReceiveStream2::OnFrame(const VideoFrame& video_frame) {
-  renderer_->OnFrame(video_frame);
+  // Capture current time once for both source tracking and frame delay metrics
+  // to ensure coherent delivery timestamp across the delivery callback and
+  // metadata. The callback is synchronous and non-blocking, so any difference
+  // to renderer hand-off time is negligible.
+  Timestamp now = env_.clock().CurrentTime();
 
   // TODO: bugs.webrtc.org/42220804 - we should set local capture clock offset
   // for `packet_infos`.
-  RtpPacketInfos packet_infos = video_frame.packet_infos();
+  const RtpPacketInfos& packet_infos = video_frame.packet_infos();
+  // Invoke delivery callback before passing the frame to the renderer to
+  // ensure source tracker updates happen before downstream observers are
+  // notified.
+  if (on_frame_delivered_callback_ != nullptr && !packet_infos.empty()) {
+    on_frame_delivered_callback_(packet_infos, now);
+  }
+
+  renderer_->OnFrame(video_frame);
 
   // For frame delay metrics, calculated in `OnRenderedFrame`, to better reflect
   // user experience measurements must be done as close as possible to frame
-  // rendering moment. Capture current time, which is used for calculation of
-  // delay metrics in `OnRenderedFrame`, right after frame is passed to
-  // renderer. Frame may or may be not rendered by this time. This results in
-  // inaccuracy but is still the best we can do in the absence of "frame
-  // rendered" callback from the renderer.
-  VideoFrameMetaData frame_meta(video_frame, env_.clock().CurrentTime());
+  // rendering moment. Frame may or may be not rendered by this time. This
+  // results in inaccuracy but is still the best we can do in the absence of
+  // "frame rendered" callback from the renderer.
+  VideoFrameMetaData frame_meta(video_frame, now);
   call_->worker_thread()->PostTask(
       SafeTask(task_safety_.flag(), [frame_meta, packet_infos, this]() {
         RTC_DCHECK_RUN_ON(&worker_sequence_checker_);

@@ -53,6 +53,7 @@
 #include "media/engine/fake_webrtc_call.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
+#include "modules/rtp_rtcp/source/source_tracker.h"
 #include "modules/video_coding/nack_requester.h"
 #include "rtc_base/logging.h"
 #include "system_wrappers/include/clock.h"
@@ -276,10 +277,19 @@ class VideoReceiveStream2Test : public ::testing::TestWithParam<bool> {
       video_receive_stream_ = nullptr;
     }
     timing_ = new VCMTiming(env_, TimeDelta::Millis(config_.render_delay_ms));
+    VideoReceiveStreamInterface::Config config = config_.Copy();
+    if (config_.on_frame_delivered_callback != nullptr) {
+      config.on_frame_delivered_callback = [this](const RtpPacketInfos& infos,
+                                                  Timestamp timestamp) {
+        if (config_.on_frame_delivered_callback != nullptr) {
+          config_.on_frame_delivered_callback(infos, timestamp);
+        }
+      };
+    }
     video_receive_stream_ = std::make_unique<internal::VideoReceiveStream2>(
-        env_, &fake_call_, kDefaultNumCpuCores, &packet_router_, config_.Copy(),
-        &call_stats_, absl::WrapUnique(timing_), &nack_periodic_processor_,
-        UseMetronome() ? &decode_sync_ : nullptr);
+        env_, &fake_call_, kDefaultNumCpuCores, &packet_router_,
+        std::move(config), &call_stats_, absl::WrapUnique(timing_),
+        &nack_periodic_processor_, UseMetronome() ? &decode_sync_ : nullptr);
     video_receive_stream_->RegisterWithTransport(
         &rtp_stream_receiver_controller_);
     if (state)
@@ -906,10 +916,17 @@ TEST_P(VideoReceiveStream2Test, PassesPacketInfos) {
               RenderedFrameWith(PacketInfos(ElementsAreArray(packet_infos))));
 }
 
-TEST_P(VideoReceiveStream2Test, RenderedFrameUpdatesGetSources) {
+TEST_P(VideoReceiveStream2Test, RenderedFrameUpdatesOnFrameDeliveredCallback) {
   constexpr uint32_t kSsrc = kRemoteSsrc;
   constexpr uint32_t kCsrc = 9001;
   constexpr uint32_t kRtpTimestamp = 12345;
+
+  SourceTracker source_tracker(&env_.clock());
+  config_.on_frame_delivered_callback =
+      [&source_tracker](const RtpPacketInfos& infos, Timestamp delivery_time) {
+        source_tracker.OnFrameDelivered(infos, delivery_time);
+      };
+  RecreateReceiveStream();
 
   // Prepare one video frame with per-packet information.
   auto test_frame = test::FakeFrameBuilder()
@@ -944,7 +961,7 @@ TEST_P(VideoReceiveStream2Test, RenderedFrameUpdatesGetSources) {
 
   // Start receive stream.
   video_receive_stream_->Start();
-  EXPECT_THAT(video_receive_stream_->GetSources(), IsEmpty());
+  EXPECT_THAT(source_tracker.GetSources(), IsEmpty());
 
   // Render one video frame.
   Timestamp timestamp_min = env_.clock().CurrentTime();
@@ -955,7 +972,7 @@ TEST_P(VideoReceiveStream2Test, RenderedFrameUpdatesGetSources) {
   Timestamp timestamp_max = env_.clock().CurrentTime();
 
   // Verify that the per-packet information also updates `GetSources()`.
-  std::vector<RtpSource> sources = video_receive_stream_->GetSources();
+  std::vector<RtpSource> sources = source_tracker.GetSources();
   ASSERT_THAT(sources, SizeIs(2));
   {
     auto it = std::find_if(sources.begin(), sources.end(),
@@ -983,6 +1000,10 @@ TEST_P(VideoReceiveStream2Test, RenderedFrameUpdatesGetSources) {
     EXPECT_GE(it->timestamp(), timestamp_min);
     EXPECT_LE(it->timestamp(), timestamp_max);
   }
+
+  video_receive_stream_->Stop();
+  video_receive_stream_->UnregisterFromTransport();
+  video_receive_stream_.reset();
 }
 
 std::unique_ptr<test::FakeEncodedFrame> MakeFrameWithResolution(

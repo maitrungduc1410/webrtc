@@ -23,10 +23,12 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
 #include "api/frame_transformer_interface.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
@@ -283,6 +285,8 @@ class VideoReceiveStream2
       RTC_GUARDED_BY(worker_sequence_checker_);
   const uint32_t remote_ssrc_;
   VideoSinkInterface<VideoFrame>* const renderer_;
+  const absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
+      on_frame_delivered_callback_;
   VideoDecoderFactory* const decoder_factory_;
   const bool require_frame_encryption_;
   const int num_cpu_cores_;

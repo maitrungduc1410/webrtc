@@ -1818,6 +1818,7 @@ if (rtc_include_tests) {
       "../common_video/test:utilities",
       "../media:rtc_media_tests_utils",
       "../modules/pacing",
+      "../modules/rtp_rtcp",
       "../modules/rtp_rtcp:rtp_rtcp_format",
       "../modules/video_coding:nack_requester",
       "../rtc_base:logging",
