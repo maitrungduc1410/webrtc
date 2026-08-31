@@ -9,6 +9,7 @@
  */
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -64,6 +65,7 @@ class CountingTracer : public PeerConnectionTracerInterface {
     int ice_candidate_error = 0;
     int data_channel_created_local = 0;
     int data_channel_created_remote = 0;
+    std::optional<int> data_channel_id;
     int signaling_state_changed = 0;
     int ice_connection_state_changed = 0;
     int connection_state_changed = 0;
@@ -135,11 +137,15 @@ class CountingTracer : public PeerConnectionTracerInterface {
                            absl::string_view) override {
     counts_.ice_candidate_error++;
   }
-  void OnCreateDataChannel(const DataChannelInterface&) override {
+  void OnCreateDataChannel(const DataChannelInterface&,
+                           std::optional<int> id) override {
     counts_.data_channel_created_local++;
+    counts_.data_channel_id = id;
   }
-  void OnDataChannel(const DataChannelInterface&) override {
+  void OnDataChannel(const DataChannelInterface&,
+                     std::optional<int> id) override {
     counts_.data_channel_created_remote++;
+    counts_.data_channel_id = id;
   }
   void OnSignalingStateChanged(
       PeerConnectionInterface::SignalingState) override {
@@ -266,6 +272,21 @@ TEST_F(PeerConnectionTracerTest, FiresOnCreateDataChannel) {
   ASSERT_TRUE(channel);
   EXPECT_EQ(Counts(*pc).data_channel_created_local, 1);
   EXPECT_EQ(Counts(*pc).data_channel_created_remote, 0);
+  EXPECT_EQ(Counts(*pc).data_channel_id, std::nullopt);
+}
+
+// A negotiated channel carries the id the application picked.
+TEST_F(PeerConnectionTracerTest, FiresOnCreateDataChannelWithNegotiatedId) {
+  auto pc = CreatePeerConnection();
+  ASSERT_TRUE(pc);
+
+  DataChannelInit config;
+  config.negotiated = true;
+  config.id = 7;
+  auto channel = pc->pc()->CreateDataChannelOrError("dc", &config);
+  ASSERT_TRUE(channel.ok());
+  EXPECT_EQ(Counts(*pc).data_channel_created_local, 1);
+  EXPECT_EQ(Counts(*pc).data_channel_id, 7);
 }
 
 // SetConfiguration should fire OnSetConfiguration in addition to the one

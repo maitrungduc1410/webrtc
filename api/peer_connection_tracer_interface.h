@@ -11,6 +11,8 @@
 #ifndef API_PEER_CONNECTION_TRACER_INTERFACE_H_
 #define API_PEER_CONNECTION_TRACER_INTERFACE_H_
 
+#include <optional>
+
 #include "absl/strings/string_view.h"
 #include "api/data_channel_interface.h"
 #include "api/jsep.h"
@@ -110,11 +112,16 @@ class RTC_EXPORT PeerConnectionTracerInterface {
                                    absl::string_view error_text) = 0;
 
   // A data channel was created locally via PeerConnection::CreateDataChannel.
-  virtual void OnCreateDataChannel(const DataChannelInterface& channel) = 0;
+  // `id` is the stream id the application preassigned, if any. It is passed
+  // separately because DataChannelInterface::id() is network-thread bound and
+  // would block the signaling thread.
+  virtual void OnCreateDataChannel(const DataChannelInterface& channel,
+                                   std::optional<int> id) = 0;
 
   // A peer-initiated data channel was surfaced via the OnDataChannel observer
-  // callback.
-  virtual void OnDataChannel(const DataChannelInterface& channel) = 0;
+  // callback. `id` is the stream id its OPEN message arrived on.
+  virtual void OnDataChannel(const DataChannelInterface& channel,
+                             std::optional<int> id) = 0;
 
   // State-change events. These are fired in addition to (not in place of)
   // the equivalent PeerConnectionObserver callbacks.

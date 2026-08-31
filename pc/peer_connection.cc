@@ -1441,7 +1441,11 @@ PeerConnection::CreateDataChannelOrError(const std::string& label,
   ClearStatsCache();
   scoped_refptr<DataChannelInterface> channel = ret.MoveValue();
   if (tracer_) {
-    tracer_->OnCreateDataChannel(*channel);
+    std::optional<int> id;
+    if (internal_config.id >= 0) {
+      id = internal_config.id;
+    }
+    tracer_->OnCreateDataChannel(*channel, id);
   }
 
   // Check the onRenegotiationNeeded event (with plan-b backward compat)
