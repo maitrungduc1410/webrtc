@@ -1716,6 +1716,7 @@ if (rtc_include_tests) {
       ":video",
       ":video_stream_encoder_interface",
       "../api:field_trials",
+      "../api/environment",
       "../api/units:data_rate",
       "../api/units:time_delta",
       "../api/units:timestamp",
@@ -1732,7 +1733,7 @@ if (rtc_include_tests) {
       "../modules/video_coding:video_codec_interface",
       "../system_wrappers",
       "../system_wrappers:metrics",
-      "../test:create_test_field_trials",
+      "../test:create_test_environment",
       "../test:test_support",
       "config:encoder_config",
       "//call",
@@ -1862,6 +1863,7 @@ if (rtc_include_tests) {
       "../api:field_trials_view",
       "../api:rtp_header_extension_id",
       "../api:rtp_parameters",
+      "../api/environment",
       "../api/environment:environment_factory",
       "../api/rtc_event_log",
       "../api/task_queue",
@@ -1891,6 +1893,7 @@ if (rtc_include_tests) {
       "config:encoder_config",
       "//call",
       "//call:call_interfaces",
+      "//test:create_test_environment",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }

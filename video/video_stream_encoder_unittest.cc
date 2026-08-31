@@ -690,11 +690,10 @@ class AdaptingFrameForwarder : public test::FrameForwarder {
 // TODO(nisse): Mock only VideoStreamEncoderObserver.
 class MockableSendStatisticsProxy : public SendStatisticsProxy {
  public:
-  MockableSendStatisticsProxy(Clock* clock,
+  MockableSendStatisticsProxy(const Environment& env,
                               const VideoSendStream::Config& config,
-                              VideoEncoderConfig::ContentType content_type,
-                              const FieldTrialsView& field_trials)
-      : SendStatisticsProxy(clock, config, content_type, field_trials) {}
+                              VideoEncoderConfig::ContentType content_type)
+      : SendStatisticsProxy(env, config, content_type) {}
 
   VideoSendStream::Stats GetStats() override {
     MutexLock lock(&lock_);
@@ -829,10 +828,9 @@ class SimpleVideoStreamEncoderFactory {
       {.field_trials = &field_trials_, .time = &time_controller_});
   std::unique_ptr<MockableSendStatisticsProxy> stats_proxy_ =
       std::make_unique<MockableSendStatisticsProxy>(
-          time_controller_.GetClock(),
+          env_,
           VideoSendStream::Config(nullptr),
-          VideoEncoderConfig::ContentType::kRealtimeVideo,
-          field_trials_);
+          VideoEncoderConfig::ContentType::kRealtimeVideo);
   std::unique_ptr<VideoBitrateAllocatorFactory> bitrate_allocator_factory_ =
       CreateBuiltinVideoBitrateAllocatorFactory();
   VideoStreamEncoderSettings encoder_settings_{
@@ -908,10 +906,9 @@ class VideoStreamEncoderTest : public ::testing::Test {
         fake_encoder_(env_),
         encoder_factory_(&fake_encoder_),
         stats_proxy_(new MockableSendStatisticsProxy(
-            time_controller_.GetClock(),
+            env_,
             video_send_config_,
-            VideoEncoderConfig::ContentType::kRealtimeVideo,
-            field_trials_)),
+            VideoEncoderConfig::ContentType::kRealtimeVideo)),
         sink_(&time_controller_, &fake_encoder_),
         encoder_switch_request_callback_(nullptr) {}
 
@@ -10641,8 +10638,8 @@ TEST(VideoStreamEncoderSimpleTest, CreateDestroy) {
   GlobalSimulatedTimeController time_controller(Timestamp::Zero());
   Environment env = CreateTestEnvironment({.time = &time_controller});
   MockableSendStatisticsProxy stats_proxy(
-      &env.clock(), VideoSendStream::Config(nullptr),
-      VideoEncoderConfig::ContentType::kRealtimeVideo, env.field_trials());
+      env, VideoSendStream::Config(nullptr),
+      VideoEncoderConfig::ContentType::kRealtimeVideo);
   SimpleVideoStreamEncoderFactory::MockFakeEncoder mock_fake_encoder(env);
   test::VideoEncoderProxyFactory encoder_factory(&mock_fake_encoder);
   std::unique_ptr<VideoBitrateAllocatorFactory> bitrate_allocator_factory =

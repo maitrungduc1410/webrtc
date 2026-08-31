@@ -444,10 +444,7 @@ VideoSendStreamImpl::VideoSendStreamImpl(
     std::unique_ptr<VideoStreamEncoderInterface> video_stream_encoder_for_test)
     : env_(env),
       transport_(transport),
-      stats_proxy_(&env_.clock(),
-                   config,
-                   encoder_config.content_type,
-                   env_.field_trials()),
+      stats_proxy_(env_, config, encoder_config.content_type),
       send_packet_observer_(&stats_proxy_, send_delay_stats),
       config_(std::move(config)),
       content_type_(encoder_config.content_type),

@@ -23,6 +23,7 @@
 
 #include "absl/strings/string_view.h"
 #include "api/call/bitrate_allocation.h"
+#include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
 #include "api/field_trials.h"
 #include "api/field_trials_view.h"
@@ -52,6 +53,7 @@
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "rtc_base/experiments/alr_experiment.h"
+#include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -157,15 +159,16 @@ class VideoSendStreamImplTest : public ::testing::Test {
   VideoSendStreamImplTest()
       : time_controller_(Timestamp::Seconds(1000)),
         field_trials_(CreateTestFieldTrials()),
+        env_(CreateTestEnvironment({.field_trials = &field_trials_,
+                                    .time = time_controller_.GetClock()})),
         config_(&transport_),
         send_delay_stats_(time_controller_.GetClock()),
         encoder_queue_(time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
             "encoder_queue",
             TaskQueueFactory::Priority::kNormal)),
-        stats_proxy_(time_controller_.GetClock(),
+        stats_proxy_(env_,
                      config_,
-                     VideoEncoderConfig::ContentType::kRealtimeVideo,
-                     field_trials_) {
+                     VideoEncoderConfig::ContentType::kRealtimeVideo) {
     config_.rtp.ssrcs.push_back(8080);
     config_.rtp.payload_type = 1;
 
@@ -240,6 +243,7 @@ class VideoSendStreamImplTest : public ::testing::Test {
  protected:
   GlobalSimulatedTimeController time_controller_;
   FieldTrials field_trials_;
+  Environment env_;
   NiceMock<MockTransport> transport_;
   NiceMock<MockRtpTransportControllerSend> transport_controller_;
   NiceMock<MockBitrateAllocator> bitrate_allocator_;
