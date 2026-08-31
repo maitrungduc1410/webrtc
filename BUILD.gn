@@ -141,6 +141,7 @@ if (rtc_include_tests) {
       "//call:call_tests",
       "//call/adaptation:resource_adaptation_tests",
       "//modules:modules_tests",
+      "//modules/audio_processing:audio_processing_unittests",
       "//pc:peerconnection_unittests",
       "//test:test_support_unittests",
       "//video:video_tests",

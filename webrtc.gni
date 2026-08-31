@@ -398,6 +398,7 @@ set_defaults("rtc_test") {
 
 set_defaults("rtc_cc_test") {
   configs = rtc_add_configs
+  suppressed_configs = []
 }
 
 set_defaults("rtc_library") {
@@ -1339,8 +1340,6 @@ template("rtc_cc_test") {
     forward_variables_from(invoker,
                            "*",
                            [
-                             "public_configs",
-                             "suppressed_configs",
                              "deps",
                              "visibility",
                            ])
