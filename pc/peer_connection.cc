@@ -302,8 +302,6 @@ RTCErrorOr<PeerConnectionInterface::RTCConfiguration> ApplyConfiguration(
       existing_configuration;
   modified_config.type = configuration.type;
   modified_config.crypto_options = configuration.crypto_options;
-  modified_config.always_negotiate_data_channels =
-      configuration.always_negotiate_data_channels;
 
   // ICE configuration.
   modified_config.servers = configuration.servers;
