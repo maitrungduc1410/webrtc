@@ -389,7 +389,7 @@ RtpTransmissionManager::GetAudioTransceiver() const {
   // This method only works with Plan B SDP, where there is a single
   // audio/video transceiver.
   RTC_DCHECK(!IsUnifiedPlan());
-  for (auto transceiver : transceivers_.List()) {
+  for (const auto& transceiver : transceivers_.List()) {
     if (transceiver->media_type() == MediaType::AUDIO) {
       return transceiver;
     }
@@ -404,7 +404,7 @@ RtpTransmissionManager::GetVideoTransceiver() const {
   // This method only works with Plan B SDP, where there is a single
   // audio/video transceiver.
   RTC_DCHECK(!IsUnifiedPlan());
-  for (auto transceiver : transceivers_.List()) {
+  for (const auto& transceiver : transceivers_.List()) {
     if (transceiver->media_type() == MediaType::VIDEO) {
       return transceiver;
     }
@@ -671,7 +671,7 @@ RtpTransmissionManager::FindSenderForTrack(
   RTC_DCHECK_RUN_ON(signaling_thread());
   for (const auto& transceiver : transceivers_.List()) {
     RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
-    for (auto sender : transceiver->internal()->senders()) {
+    for (const auto& sender : transceiver->internal()->senders()) {
       if (sender->track() == track) {
         return sender;
       }
@@ -690,7 +690,7 @@ RtpTransmissionManager::FindSenderById(absl::string_view sender_id) const {
     // and one can use sender() not senders().
     // Since this function is used both in Plan B and Unified, this is
     // left as-is for now.
-    for (auto sender : transceiver->internal()->senders()) {
+    for (const auto& sender : transceiver->internal()->senders()) {
       if (sender->id() == sender_id) {
         return sender;
       }
@@ -704,7 +704,7 @@ PLAN_B_ONLY scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
 RtpTransmissionManager::FindReceiverById(absl::string_view receiver_id) const {
   RTC_DCHECK_RUN_ON(signaling_thread());
   for (const auto& transceiver : transceivers_.List()) {
-    for (auto receiver : transceiver->internal()->receivers()) {
+    for (const auto& receiver : transceiver->internal()->receivers()) {
       if (receiver->id() == receiver_id) {
         return receiver;
       }

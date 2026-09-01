@@ -421,7 +421,7 @@ void MergeRtpHdrExts(const RtpHeaderExtensions& reference_extensions,
                      PayloadTypeSuggester& suggester,
                      absl::string_view mid,
                      RtpTransceiverIdDomain id_domain) {
-  for (auto reference_extension : reference_extensions) {
+  for (const auto& reference_extension : reference_extensions) {
     if (!RtpExtension::FindHeaderExtensionByUriAndEncryption(
             *offered_extensions, reference_extension.uri,
             reference_extension.encrypt)) {
@@ -441,15 +441,16 @@ void MergeRtpHdrExts(const RtpHeaderExtensions& reference_extensions,
       } else {
         auto suggested_id = suggester.SuggestRtpHeaderExtensionId(
             mid, reference_extension, id_domain);
+        RtpExtension extension = reference_extension;
         if (suggested_id.ok()) {
-          reference_extension.id = suggested_id.value();
+          extension.id = suggested_id.value();
         } else {
           RTC_LOG(LS_ERROR)
               << "Failed to suggest RTP header extension ID for "
               << reference_extension.uri << ", error " << suggested_id.error();
         }
-        all_encountered_extensions->push_back(reference_extension);
-        offered_extensions->push_back(reference_extension);
+        all_encountered_extensions->push_back(extension);
+        offered_extensions->push_back(std::move(extension));
       }
     }
   }
