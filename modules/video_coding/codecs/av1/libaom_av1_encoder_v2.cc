@@ -16,6 +16,7 @@
 #include <cstring>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <span>
 #include <string>
@@ -81,20 +82,19 @@ constexpr int kRtpTicksPerSecond = 90000;
 static_assert(kMaxSpatialLayersLimit <= AOM_MAX_SS_LAYERS);
 static_assert(kMaxTemporalLayers <= AOM_MAX_TS_LAYERS);
 
-constexpr std::array<Rational, 7> kSupportedScalingFactors = {
-    {{.numerator = 8, .denominator = 1},
+constexpr std::array<Rational, 6> kSupportedScalingFactors = {
+    {{.numerator = 16, .denominator = 1},
+     {.numerator = 8, .denominator = 1},
      {.numerator = 4, .denominator = 1},
      {.numerator = 2, .denominator = 1},
      {.numerator = 1, .denominator = 1},
-     {.numerator = 1, .denominator = 2},
-     {.numerator = 1, .denominator = 4},
-     {.numerator = 1, .denominator = 8}}};
+     {.numerator = 1, .denominator = 2}}};
 
 std::optional<Rational> GetScalingFactor(const Resolution& from,
                                          const Resolution& to) {
   auto it = absl::c_find_if(kSupportedScalingFactors, [&](const Rational& r) {
-    return (from.width * r.numerator / r.denominator) == to.width &&
-           (from.height * r.numerator / r.denominator) == to.height;
+    return (from.width * r.numerator == to.width * r.denominator) &&
+           (from.height * r.numerator == to.height * r.denominator);
   });
 
   if (it != kSupportedScalingFactors.end()) {
@@ -160,7 +160,7 @@ ThreadTilesAndSuperblockSizeInfo GetThreadingTilesAndSuperblockSize(
 }
 
 bool ValidateEncodeParams(
-    const VideoFrameBuffer& /* frame_buffer */,
+    const VideoFrameBuffer& frame_buffer,
     const VideoEncoderInterface::TemporalUnitSettings& /* tu_settings */,
     const std::vector<FrameEncodeSettings>& frame_settings,
     const std::array<std::optional<Resolution>, 8>& last_resolution_in_buffer,
@@ -174,11 +174,27 @@ bool ValidateEncodeParams(
     return low <= val && val < high;
   };
 
+  const Resolution input_resolution = {.width = frame_buffer.width(),
+                                       .height = frame_buffer.height()};
+
   for (size_t i = 0; i < frame_settings.size(); ++i) {
     const FrameEncodeSettings& settings = frame_settings[i];
 
     if (!settings.frame_output()) {
       RTC_LOG(LS_ERROR) << "No frame output provided.";
+      return false;
+    }
+
+    if (static_cast<int64_t>(settings.resolution().width) *
+            input_resolution.height !=
+        static_cast<int64_t>(settings.resolution().height) *
+            input_resolution.width) {
+      RTC_LOG(LS_ERROR) << "Resolution scaling between input frame ("
+                        << input_resolution.width << "x"
+                        << input_resolution.height << ") and layer ("
+                        << settings.resolution().width << "x"
+                        << settings.resolution().height
+                        << ") changes aspect ratio.";
       return false;
     }
 
@@ -465,13 +481,11 @@ aom_svc_params_t GetSvcParams(
   }
 
   for (const FrameEncodeSettings& settings : frame_settings) {
-    std::optional<Rational> scaling_factor = GetScalingFactor(
-        {.width = frame_buffer.width(), .height = frame_buffer.height()},
-        settings.resolution());
-    RTC_CHECK(scaling_factor);
-    scaling_factor_num_view[settings.spatial_id()] = scaling_factor->numerator;
-    scaling_factor_den_view[settings.spatial_id()] =
-        scaling_factor->denominator;
+    int w_num = settings.resolution().width;
+    int w_den = frame_buffer.width();
+    int gcd = std::gcd(w_num, w_den);
+    scaling_factor_num_view[settings.spatial_id()] = w_num / gcd;
+    scaling_factor_den_view[settings.spatial_id()] = w_den / gcd;
 
     const int flat_layer_id =
         settings.spatial_id() * svc_params.number_temporal_layers +
@@ -509,6 +523,11 @@ aom_svc_params_t GetSvcParams(
             // `layer_target_bitrate` to determine whether the layer is disabled
             // or not. Set `layer_target_bitrate` to 1 so that libaom knows the
             // layer is active.
+            const int last_temporal_layer_in_spatial_layer_id =
+                settings.spatial_id() * svc_params.number_temporal_layers +
+                (kMaxTemporalLayers - 1);
+            layer_target_bitrate_view[last_temporal_layer_in_spatial_layer_id] =
+                1;
             layer_target_bitrate_view[flat_layer_id] = 1;
             max_quantizers_view[flat_layer_id] = arg.target_qp;
             min_quantizers_view[flat_layer_id] = arg.target_qp;
@@ -563,11 +582,17 @@ bool LibaomAv1EncoderV2::InitEncode(
   }
 
   max_number_of_threads_ = settings.max_number_of_threads();
+  ThreadTilesAndSuperblockSizeInfo ttsbi = GetThreadingTilesAndSuperblockSize(
+      settings.max_encode_dimensions().width,
+      settings.max_encode_dimensions().height, max_number_of_threads_);
 
   // The encode resolution is set dynamically for each call to `Encode`, but for
   // `aom_codec_enc_init` to not fail we set it here as well.
   cfg_.g_w = settings.max_encode_dimensions().width;
   cfg_.g_h = settings.max_encode_dimensions().height;
+  cfg_.g_forced_max_frame_width = settings.max_encode_dimensions().width;
+  cfg_.g_forced_max_frame_height = settings.max_encode_dimensions().height;
+  cfg_.g_threads = ttsbi.num_threads;
   cfg_.g_timebase.num = 1;
   // TD: does 90khz timebase make sense, use microseconds instead maybe?
   cfg_.g_timebase.den = kRtpTicksPerSecond;
@@ -595,6 +620,9 @@ bool LibaomAv1EncoderV2::InitEncode(
     return false;
   }
 
+  SET_OR_RETURN_FALSE(AV1E_SET_SUPERBLOCK_SIZE, ttsbi.superblock_size);
+  SET_OR_RETURN_FALSE(AV1E_SET_TILE_ROWS, ttsbi.exp_tile_rows);
+  SET_OR_RETURN_FALSE(AV1E_SET_TILE_COLUMNS, ttsbi.exp_tile_colums);
   SET_OR_RETURN_FALSE(AV1E_SET_ENABLE_CDEF, 1);
   SET_OR_RETURN_FALSE(AV1E_SET_ENABLE_TPL_MODEL, 0);
   SET_OR_RETURN_FALSE(AV1E_SET_DELTAQ_MODE, 0);
@@ -675,6 +703,8 @@ void LibaomAv1EncoderV2::Encode(
     cfg_.rc_target_bitrate = accum_rate.kbps();
     RTC_LOG(LS_WARNING) << __FUNCTION__
                         << " cfg_.rc_target_bitrate=" << cfg_.rc_target_bitrate;
+  } else if (cfg_.rc_end_usage == AOM_Q) {
+    cfg_.rc_target_bitrate = 1;
   }
 
   if (static_cast<int>(cfg_.g_w) != frame_buffer->width() ||
@@ -683,12 +713,6 @@ void LibaomAv1EncoderV2::Encode(
                         << cfg_.g_w << "x" << cfg_.g_h << " to "
                         << frame_buffer->width() << "x"
                         << frame_buffer->height();
-    ThreadTilesAndSuperblockSizeInfo ttsbi = GetThreadingTilesAndSuperblockSize(
-        frame_buffer->width(), frame_buffer->height(), max_number_of_threads_);
-    SET_OR_RETURN(AV1E_SET_SUPERBLOCK_SIZE, ttsbi.superblock_size);
-    SET_OR_RETURN(AV1E_SET_TILE_ROWS, ttsbi.exp_tile_rows);
-    SET_OR_RETURN(AV1E_SET_TILE_COLUMNS, ttsbi.exp_tile_colums);
-    cfg_.g_threads = ttsbi.num_threads;
     cfg_.g_w = frame_buffer->width();
     cfg_.g_h = frame_buffer->height();
   }
@@ -769,7 +793,11 @@ void LibaomAv1EncoderV2::Encode(
             ? AOM_EFLAG_FORCE_KF
             : 0);
     if (ret != AOM_CODEC_OK) {
-      RTC_LOG(LS_WARNING) << "aom_codec_encode returned " << ret;
+      RTC_LOG(LS_WARNING) << "aom_codec_encode returned " << ret << " : "
+                          << aom_codec_error(&ctx_) << " detail: "
+                          << (aom_codec_error_detail(&ctx_)
+                                  ? aom_codec_error_detail(&ctx_)
+                                  : "none");
       return;
     }
 
