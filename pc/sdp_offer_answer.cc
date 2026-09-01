@@ -199,11 +199,6 @@ const char kDefaultStreamId[] = "default";
 const char kDefaultAudioSenderId[] = "defaulta0";
 const char kDefaultVideoSenderId[] = "defaultv0";
 
-void NoteAddIceCandidateResult(int result) {
-  RTC_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.AddIceCandidate", result,
-                            kAddIceCandidateMax);
-}
-
 flat_map<std::string, const ContentGroup*> GetBundleGroupsByMid(
     const SessionDescription* desc) {
   std::vector<const ContentGroup*> bundle_groups =
@@ -3462,7 +3457,6 @@ void SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
 bool SdpOfferAnswerHandler::AddIceCandidate(const IceCandidate* ice_candidate) {
   RTC_LOG_THREAD_BLOCK_COUNT();
   const AddIceCandidateResult result = AddIceCandidateInternal(ice_candidate);
-  NoteAddIceCandidateResult(result);
   // If the return value is kAddIceCandidateFailNotReady, the candidate has
   // been added, although not 'ready', but that's a success.
   return result == kAddIceCandidateSuccess ||
@@ -3531,7 +3525,6 @@ void SdpOfferAnswerHandler::AddIceCandidate(
             this_weak_ptr
                 ? this_weak_ptr->AddIceCandidateInternal(candidate.get())
                 : kAddIceCandidateFailClosed;
-        NoteAddIceCandidateResult(result);
         operations_chain_callback();
         switch (result) {
           case AddIceCandidateResult::kAddIceCandidateSuccess:
