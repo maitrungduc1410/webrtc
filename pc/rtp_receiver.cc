@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,11 +44,13 @@ int RtpReceiverInternal::GenerateUniqueId() {
 }
 
 std::vector<scoped_refptr<MediaStreamInterface>>
-RtpReceiverInternal::CreateStreamsFromIds(std::vector<std::string> stream_ids) {
-  std::vector<scoped_refptr<MediaStreamInterface>> streams(stream_ids.size());
-  for (size_t i = 0; i < stream_ids.size(); ++i) {
-    streams[i] = MediaStreamProxy::Create(
-        Thread::Current(), MediaStream::Create(std::move(stream_ids[i])));
+RtpReceiverInternal::CreateStreamsFromIds(
+    std::span<const std::string> stream_ids) {
+  std::vector<scoped_refptr<MediaStreamInterface>> streams;
+  streams.reserve(stream_ids.size());
+  for (const std::string& stream_id : stream_ids) {
+    streams.push_back(MediaStreamProxy::Create(Thread::Current(),
+                                               MediaStream::Create(stream_id)));
   }
   return streams;
 }

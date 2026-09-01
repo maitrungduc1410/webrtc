@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -111,7 +112,7 @@ class RtpReceiverInternal : public RtpReceiverInterface {
   static int GenerateUniqueId();
 
   static std::vector<scoped_refptr<MediaStreamInterface>> CreateStreamsFromIds(
-      std::vector<std::string> stream_ids);
+      std::span<const std::string> stream_ids);
 };
 
 class RtpReceiverBase : public RtpReceiverInternal {
