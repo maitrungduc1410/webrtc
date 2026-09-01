@@ -29,12 +29,14 @@
 #include "api/units/data_rate.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "api/video/resolution.h"
 #include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder_factory_interface.h"
 #include "api/video_codecs/video_encoder_interface.h"
 #include "api/video_codecs/video_encoding_general.h"
+#include "modules/video_coding/utility/reference_buffer_tracker.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/rational.h"
@@ -356,7 +358,8 @@ void PrepareInputImage(const VideoFrameBuffer& input_buffer,
 }
 
 aom_svc_ref_frame_config_t GetSvcRefFrameConfig(
-    const FrameEncodeSettings& settings) {
+    const FrameEncodeSettings& settings,
+    const ReferenceBufferTracker& reference_buffer_tracker) {
   // Buffer alias to use for each position. In particular when there are two
   // buffers being used, prefer to alias them as LAST and GOLDEN, since the AV1
   // bitstream format has dedicated fields for them. See last_frame_idx and
@@ -369,8 +372,8 @@ aom_svc_ref_frame_config_t GetSvcRefFrameConfig(
   // should be specified in order of how useful they are for prediction. Libaom
   // could be updated to make LAST, GOLDEN and ALTREF equivalent, but that is
   // not a priority for now. All aliases can be used to update buffers.
-  // TD: Automatically select LAST, GOLDEN and ALTREF depending on previous
-  //       buffer usage.
+  // Buffers are ordered so that the most recent update is aliased as LAST,
+  // the next oldest as GOLDEN, ALTREF, and so on.
   static constexpr std::array<int, 7> kPreferedAlias = {0,  // LAST
                                                         3,  // GOLDEN
                                                         6,  // ALTREF
@@ -383,9 +386,10 @@ aom_svc_ref_frame_config_t GetSvcRefFrameConfig(
 
   int alias_index = 0;
   if (!settings.reference_buffers().empty()) {
-    for (size_t i = 0; i < settings.reference_buffers().size(); ++i) {
-      ref_idx_view[kPreferedAlias[alias_index]] =
-          settings.reference_buffers()[i];
+    std::vector<int> sorted_references =
+        reference_buffer_tracker.OrderByTimestamp(settings.reference_buffers());
+    for (size_t i = 0; i < sorted_references.size(); ++i) {
+      ref_idx_view[kPreferedAlias[alias_index]] = sorted_references[i];
       reference_view[kPreferedAlias[alias_index]] = 1;
       alias_index++;
     }
@@ -393,9 +397,8 @@ aom_svc_ref_frame_config_t GetSvcRefFrameConfig(
     // Delta frames must not alias unused buffers, and since start frames only
     // update some buffers it is not safe to leave unused aliases to simply
     // point to buffer 0.
-    for (size_t i = settings.reference_buffers().size();
-         i < ref_idx_view.size(); ++i) {
-      ref_idx_view[kPreferedAlias[i]] = settings.reference_buffers().back();
+    for (size_t i = sorted_references.size(); i < ref_idx_view.size(); ++i) {
+      ref_idx_view[kPreferedAlias[i]] = sorted_references.back();
     }
   }
 
@@ -548,6 +551,9 @@ bool LibaomAv1EncoderV2::InitEncode(
         << "libaom av1 encoder accepts no encoder specific settings";
     return false;
   }
+
+  last_resolution_in_buffer_ = {};
+  reference_buffer_tracker_.Reset();
 
   if (aom_codec_err_t ret = aom_codec_enc_config_default(
           aom_codec_av1_cx(), &cfg_, AOM_USAGE_REALTIME);
@@ -722,7 +728,8 @@ void LibaomAv1EncoderV2::Encode(
         .temporal_layer_id = settings.temporal_id(),
     };
     SET_OR_RETURN(AV1E_SET_SVC_LAYER_ID, &layer_id);
-    aom_svc_ref_frame_config_t ref_config = GetSvcRefFrameConfig(settings);
+    aom_svc_ref_frame_config_t ref_config =
+        GetSvcRefFrameConfig(settings, reference_buffer_tracker_);
     SET_OR_RETURN(AV1E_SET_SVC_REF_FRAME_CONFIG, &ref_config);
 
     // TD: Duration can't be zero, what does it matter when the layer is
@@ -772,11 +779,14 @@ void LibaomAv1EncoderV2::Encode(
 
     if (settings.frame_type() == VideoEncoderInterface::FrameType::kKeyframe) {
       last_resolution_in_buffer_ = {};
+      reference_buffer_tracker_.Reset();
     }
 
     if (settings.update_buffer()) {
       last_resolution_in_buffer_[*settings.update_buffer()] =
           settings.resolution();
+      reference_buffer_tracker_.Update(*settings.update_buffer(),
+                                       tu_settings.presentation_timestamp());
     }
 
     VideoEncoderInterface::EncodedData result;

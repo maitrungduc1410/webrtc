@@ -370,7 +370,7 @@ TEST(LibaomAv1Encoder, TempoSpatial) {
   EXPECT_THAT(Psnr(frame, f), Gt(39));
 }
 
-TEST(DISABLED_LibaomAv1Encoder, InvertedTempoSpatial) {
+TEST(LibaomAv1Encoder, InvertedTempoSpatial) {
   auto frame_reader = CreateFrameReader();
   auto enc = LibaomAv1EncoderFactory().CreateEncoder(kCbrEncoderSettings, {});
 
@@ -401,6 +401,45 @@ TEST(DISABLED_LibaomAv1Encoder, InvertedTempoSpatial) {
   EXPECT_THAT(Resolution(dec.Decode(tu1_s0.bitstream)), ResolutionIs(320, 180));
   EXPECT_THAT(Resolution(dec.Decode(tu2_s0.bitstream)), ResolutionIs(320, 180));
   EXPECT_THAT(Resolution(dec.Decode(tu2_s1.bitstream)), ResolutionIs(640, 360));
+}
+
+TEST(LibaomAv1Encoder, InvertedReferencesThreeBuffers) {
+  auto frame_reader = CreateFrameReader();
+  auto enc = LibaomAv1EncoderFactory().CreateEncoder(kCbrEncoderSettings, {});
+
+  EncOut tu0_s0;
+  EncOut tu0_s1;
+  EncOut tu0_s2;
+  enc->Encode(
+      frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(0)),
+      ToVec({Fb().Cbr(kCbr).Res(160, 90).S(0).Upd(0).Key().Out(tu0_s0),
+             Fb().Cbr(kCbr).Res(320, 180).S(1).Ref({0}).Upd(1).Out(tu0_s1),
+             Fb().Cbr(kCbr).Res(640, 360).S(2).Ref({1}).Upd(2).Out(tu0_s2)}));
+
+  EncOut tu1_s0;
+  EncOut tu1_s1;
+  enc->Encode(
+      frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(100)),
+      ToVec({Fb().Cbr(kCbr).Res(160, 90).S(0).Ref({0}).Upd(0).Out(tu1_s0),
+             Fb().Cbr(kCbr).Res(320, 180).S(1).Ref({1}).Upd(1).Out(tu1_s1)}));
+
+  EncOut tu2_s0;
+  EncOut tu2_s2;
+  scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
+  enc->Encode(
+      frame, TemporalUnitSettings(Timestamp::Millis(200)),
+      ToVec({Fb().Cbr(kCbr).Res(160, 90).S(0).Ref({0}).Upd(0).Out(tu2_s0),
+             Fb().Cbr(kCbr).Res(640, 360).S(2).Ref({2, 1, 0}).Upd(2).Out(
+                 tu2_s2)}));
+
+  Av1Decoder dec;
+  EXPECT_THAT(Resolution(dec.Decode(tu0_s0.bitstream)), ResolutionIs(160, 90));
+  EXPECT_THAT(Resolution(dec.Decode(tu0_s1.bitstream)), ResolutionIs(320, 180));
+  EXPECT_THAT(Resolution(dec.Decode(tu0_s2.bitstream)), ResolutionIs(640, 360));
+  EXPECT_THAT(Resolution(dec.Decode(tu1_s0.bitstream)), ResolutionIs(160, 90));
+  EXPECT_THAT(Resolution(dec.Decode(tu1_s1.bitstream)), ResolutionIs(320, 180));
+  EXPECT_THAT(Resolution(dec.Decode(tu2_s0.bitstream)), ResolutionIs(160, 90));
+  EXPECT_THAT(Resolution(dec.Decode(tu2_s2.bitstream)), ResolutionIs(640, 360));
 }
 
 TEST(LibaomAv1Encoder, SkipMidLayer) {
