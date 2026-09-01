@@ -2833,6 +2833,12 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
 
   worker_tasks.Run();
 
+  if (auto* tracer = pc_->tracer()) {
+    for (const auto& transceiver : now_receiving_transceivers) {
+      tracer->OnTrack(*transceiver);
+    }
+  }
+
   // Once all processing has finished, fire off callbacks.
   pc_->RunWithObserver([&](auto observer) {
     for (const auto& transceiver : now_receiving_transceivers) {
@@ -4011,6 +4017,12 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   pending_local_description_.reset();
   pending_remote_description_.reset();
   ChangeSignalingState(PeerConnectionInterface::kStable);
+
+  if (auto* tracer = pc_->tracer()) {
+    for (const auto& transceiver : now_receiving_transceivers) {
+      tracer->OnTrack(*transceiver);
+    }
+  }
 
   // Once all processing has finished, fire off callbacks.
   pc_->RunWithObserver([&](auto observer) {

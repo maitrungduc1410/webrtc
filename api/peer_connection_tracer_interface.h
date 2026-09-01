@@ -18,6 +18,7 @@
 #include "api/jsep.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_transceiver_interface.h"
 #include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
@@ -122,6 +123,10 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   // callback. `id` is the stream id its OPEN message arrived on.
   virtual void OnDataChannel(const DataChannelInterface& channel,
                              std::optional<int> id) = 0;
+
+  // A remote track was surfaced to the application (mirrors the
+  // PeerConnectionObserver::OnTrack callback).
+  virtual void OnTrack(const RtpTransceiverInterface& transceiver) = 0;
 
   // State-change events. These are fired in addition to (not in place of)
   // the equivalent PeerConnectionObserver callbacks.

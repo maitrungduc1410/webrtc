@@ -2838,6 +2838,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:make_ref_counted",
       "../api:peer_connection_interface",
       "../api:rtc_error",
+      "../api:rtp_transceiver_interface",
       "../api:scoped_refptr",
       "../rtc_base:rtc_base_tests_utils",
       "../rtc_base:threading",

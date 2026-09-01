@@ -21,6 +21,7 @@
 #include "api/peer_connection_interface.h"
 #include "api/peer_connection_tracer_interface.h"
 #include "api/rtc_error.h"
+#include "api/rtp_transceiver_interface.h"
 #include "api/scoped_refptr.h"
 #include "pc/peer_connection.h"
 #include "pc/peer_connection_wrapper.h"
@@ -66,6 +67,7 @@ class CountingTracer : public PeerConnectionTracerInterface {
     int data_channel_created_local = 0;
     int data_channel_created_remote = 0;
     std::optional<int> data_channel_id;
+    int track = 0;
     int signaling_state_changed = 0;
     int ice_connection_state_changed = 0;
     int connection_state_changed = 0;
@@ -147,6 +149,7 @@ class CountingTracer : public PeerConnectionTracerInterface {
     counts_.data_channel_created_remote++;
     counts_.data_channel_id = id;
   }
+  void OnTrack(const RtpTransceiverInterface&) override { counts_.track++; }
   void OnSignalingStateChanged(
       PeerConnectionInterface::SignalingState) override {
     counts_.signaling_state_changed++;
@@ -361,6 +364,24 @@ TEST_F(PeerConnectionTracerTest, FiresOnSetRemoteDescription) {
   EXPECT_TRUE(WaitUntil([&] { return set_observer->called(); }));
   EXPECT_EQ(Counts(*callee).set_remote_description_success, 1);
   EXPECT_EQ(Counts(*callee).set_remote_description_failure, 0);
+}
+
+// SetRemoteDescription with a receiving section fires OnTrack, on the
+// receiving side only.
+TEST_F(PeerConnectionTracerTest, FiresOnTrack) {
+  auto caller = CreatePeerConnection();
+  ASSERT_TRUE(caller);
+  auto callee = CreatePeerConnection();
+  ASSERT_TRUE(callee);
+  caller->AddAudioTrack("a");
+  auto offer = caller->CreateOffer();
+  ASSERT_TRUE(offer);
+
+  auto set_observer = make_ref_counted<MockSetSessionDescriptionObserver>();
+  callee->pc()->SetRemoteDescription(set_observer.get(), offer.release());
+  EXPECT_TRUE(WaitUntil([&] { return set_observer->called(); }));
+  EXPECT_EQ(Counts(*callee).track, 1);
+  EXPECT_EQ(Counts(*caller).track, 0);
 }
 
 }  // namespace
