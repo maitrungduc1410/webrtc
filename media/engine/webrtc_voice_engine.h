@@ -50,7 +50,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/timestamp.h"
 #include "call/audio_send_stream.h"
 #include "call/audio_state.h"
@@ -401,8 +400,6 @@ class WebRtcVoiceReceiveChannel final
   // current. Only one stream at a time will use the sink.
   void SetDefaultRawAudioSink(
       std::unique_ptr<AudioSinkInterface> sink) override;
-
-  std::vector<RtpSource> GetSources(uint32_t ssrc) const override;
 
   void SetDepacketizerToDecoderFrameTransformer(
       uint32_t ssrc,

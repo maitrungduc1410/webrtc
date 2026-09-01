@@ -33,7 +33,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/corruption_detection/frame_instrumentation_data.h"
@@ -49,7 +48,6 @@
 #include "call/video_receive_stream.h"
 #include "common_video/include/corruption_score_calculator.h"
 #include "modules/include/module_common_types.h"
-#include "modules/rtp_rtcp/source/source_tracker.h"
 #include "modules/video_coding/nack_requester.h"
 #include "modules/video_coding/video_receiver2.h"
 #include "rtc_base/race_checker.h"
@@ -206,8 +204,6 @@ class VideoReceiveStream2
   // SetMinimumPlayoutDelay is only called by A/V sync.
   bool SetMinimumPlayoutDelay(TimeDelta delay) override;
 
-  std::vector<webrtc::RtpSource> GetSources() const override;
-
   RecordingState SetAndGetRecordingState(RecordingState state,
                                          bool generate_key_frame) override;
   void GenerateKeyFrame() override;
@@ -297,7 +293,6 @@ class VideoReceiveStream2
   bool decoder_running_ RTC_GUARDED_BY(worker_sequence_checker_) = false;
   bool decoder_stopped_ RTC_GUARDED_BY(decode_sequence_checker_) = true;
 
-  SourceTracker source_tracker_ RTC_GUARDED_BY(worker_sequence_checker_);
   ReceiveStatisticsProxy stats_proxy_;
   // Shared by media and rtx stream receivers, since the latter has no RtpRtcp
   // module of its own.

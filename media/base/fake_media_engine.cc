@@ -33,7 +33,6 @@
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/video_bitrate_allocator_factory.h"
@@ -196,10 +195,6 @@ void FakeVoiceMediaReceiveChannel::SetRawAudioSink(
 void FakeVoiceMediaReceiveChannel::SetDefaultRawAudioSink(
     std::unique_ptr<AudioSinkInterface> sink) {
   sink_ = std::move(sink);
-}
-std::vector<RtpSource> FakeVoiceMediaReceiveChannel::GetSources(
-    uint32_t /* ssrc */) const {
-  return std::vector<RtpSource>();
 }
 bool FakeVoiceMediaReceiveChannel::SetRecvCodecs(
     const std::vector<Codec>& codecs) {
@@ -533,10 +528,6 @@ bool FakeVideoMediaReceiveChannel::RemoveRecvStream(uint32_t ssrc) {
   sinks_.erase(ssrc);
   output_delays_.erase(ssrc);
   return true;
-}
-std::vector<RtpSource> FakeVideoMediaReceiveChannel::GetSources(
-    uint32_t /* ssrc */) const {
-  return {};
 }
 bool FakeVideoMediaReceiveChannel::SetBaseMinimumPlayoutDelayMs(uint32_t ssrc,
                                                                 int delay_ms) {

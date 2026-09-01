@@ -47,7 +47,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "audio/audio_level.h"
@@ -71,7 +70,6 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_config.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
-#include "modules/rtp_rtcp/source/source_tracker.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -225,8 +223,6 @@ class ChannelReceive : public ChannelReceiveInterface,
 
   int PreferredSampleRate() const override;
 
-  std::vector<RtpSource> GetSources() const override;
-
   // Sets a frame transformer between the depacketizer and the decoder, to
   // transform the received frames before decoding them.
   void SetDepacketizerToDecoderFrameTransformer(
@@ -284,7 +280,6 @@ class ChannelReceive : public ChannelReceiveInterface,
   const std::unique_ptr<ReceiveStatistics> rtp_receive_statistics_;
   const std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
   const uint32_t remote_ssrc_;
-  SourceTracker source_tracker_ RTC_GUARDED_BY(&worker_thread_checker_);
   const absl::AnyInvocable<void(const RtpPacketInfos&, Timestamp) const>
       on_frame_delivered_callback_;
 
@@ -385,12 +380,11 @@ void ChannelReceive::OnReceivedPayloadData(std::span<const uint8_t> payload,
     // playing and (b) any audio/video synchronization. But the alternative is
     // that muting playout also stops the SourceTracker from updating RtpSource
     // information.
-    RtpPacketInfos packet_infos({RtpPacketInfo(header, receive_time)});
-    Timestamp now = env_.clock().CurrentTime();
     if (on_frame_delivered_callback_) {
-      on_frame_delivered_callback_(packet_infos, now);
+      on_frame_delivered_callback_(
+          RtpPacketInfos({RtpPacketInfo(header, receive_time)}),
+          env_.clock().CurrentTime());
     }
-    source_tracker_.OnFrameDelivered(packet_infos, now);
     return;
   }
 
@@ -533,17 +527,9 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
     packet_infos.push_back(std::move(new_packet_info));
   }
   audio_frame->packet_infos_ = RtpPacketInfos(std::move(packet_infos));
-  if (!audio_frame->packet_infos_.empty()) {
-    Timestamp delivery_time = env_.clock().CurrentTime();
-    if (on_frame_delivered_callback_) {
-      on_frame_delivered_callback_(audio_frame->packet_infos_, delivery_time);
-    }
-    worker_thread_->PostTask(SafeTask(
-        worker_safety_.flag(),
-        [this, infos_copy = audio_frame->packet_infos_, delivery_time]() {
-          RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-          source_tracker_.OnFrameDelivered(infos_copy, delivery_time);
-        }));
+  if (!audio_frame->packet_infos_.empty() && on_frame_delivered_callback_) {
+    on_frame_delivered_callback_(audio_frame->packet_infos_,
+                                 env_.clock().CurrentTime());
   }
 
   ++audio_frame_interval_count_;
@@ -614,7 +600,6 @@ ChannelReceive::ChannelReceive(
                                     remote_ssrc,
                                     packet_router)),
       remote_ssrc_(remote_ssrc),
-      source_tracker_(&env_.clock()),
       on_frame_delivered_callback_(std::move(on_frame_delivered_callback)),
       neteq_(CreateNetEq(neteq_factory,
                          jitter_buffer_max_packets,
@@ -1213,11 +1198,6 @@ int ChannelReceive::GetRtpTimestampRateHz() const {
   return (decoder_format && decoder_format->sdp_format.clockrate_hz != 0)
              ? decoder_format->sdp_format.clockrate_hz
              : neteq_->last_output_sample_rate_hz();
-}
-
-std::vector<RtpSource> ChannelReceive::GetSources() const {
-  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-  return source_tracker_.GetSources();
 }
 
 }  // namespace

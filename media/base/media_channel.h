@@ -40,7 +40,6 @@
 #include "api/rtp_parameters.h"
 #include "api/rtp_sender_interface.h"
 #include "api/scoped_refptr.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -954,7 +953,6 @@ class VoiceMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
   virtual bool SetReceiverParameters(const AudioReceiverParameters& params) = 0;
   // Get the receive parameters for the incoming stream identified by `ssrc`.
   virtual RtpParameters GetRtpReceiverParameters(uint32_t ssrc) const = 0;
-  virtual std::vector<RtpSource> GetSources(uint32_t ssrc) const = 0;
   // Retrieve the receive parameters for the default receive
   // stream, which is used when SSRCs are not signaled.
   virtual RtpParameters GetDefaultRtpReceiveParameters() const = 0;
@@ -1049,7 +1047,6 @@ class VideoMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
   // RTCP feedback.
   virtual void RequestRecvKeyFrame(uint32_t ssrc) = 0;
 
-  virtual std::vector<RtpSource> GetSources(uint32_t ssrc) const = 0;
   // Set recordable encoded frame callback for `ssrc`
   virtual void SetRecordableEncodedFrameCallback(
       uint32_t ssrc,

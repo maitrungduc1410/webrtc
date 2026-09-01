@@ -53,7 +53,6 @@
 #include "api/rtp_sender_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/video_bitrate_allocator_factory.h"
@@ -567,7 +566,6 @@ class FakeVoiceMediaReceiveChannel
 
   webrtc::RtcpMode RtcpMode() const { return recv_rtcp_mode_; }
   void SetRtcpMode(webrtc::RtcpMode mode) override { recv_rtcp_mode_ = mode; }
-  std::vector<RtpSource> GetSources(uint32_t ssrc) const override;
   void SetReceiveNackEnabled(bool /* enabled */) override {}
   void SetReceiveNonSenderRttEnabled(bool /* enabled */) override {}
 
@@ -725,8 +723,6 @@ class FakeVideoMediaReceiveChannel
   bool HasSource(uint32_t ssrc) const;
   bool AddRecvStream(const StreamParams& sp) override;
   bool RemoveRecvStream(uint32_t ssrc) override;
-
-  std::vector<RtpSource> GetSources(uint32_t ssrc) const override;
 
   bool SetBaseMinimumPlayoutDelayMs(uint32_t ssrc, int delay_ms) override;
   std::optional<int> GetBaseMinimumPlayoutDelayMs(uint32_t ssrc) const override;

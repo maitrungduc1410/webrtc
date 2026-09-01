@@ -43,7 +43,6 @@
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/bitrate_settings.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
 #include "api/video/video_bitrate_allocator_factory.h"
@@ -556,7 +555,6 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   void SetDepacketizerToDecoderFrameTransformer(
       uint32_t ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
-  std::vector<RtpSource> GetSources(uint32_t ssrc) const override;
 
  private:
   class WebRtcVideoReceiveStream;
@@ -611,8 +609,6 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
     ~WebRtcVideoReceiveStream() override;
 
     const std::vector<uint32_t>& GetSsrcs() const;
-
-    std::vector<RtpSource> GetSources();
 
     // Does not return codecs, nor header extensions,  they are filled by the
     // owning WebRtcVideoChannel.

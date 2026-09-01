@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/str_cat.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
@@ -37,7 +38,6 @@
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/frequency.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -251,7 +251,6 @@ VideoReceiveStream2::VideoReceiveStream2(
       num_cpu_cores_(num_cpu_cores),
       call_(call),
       call_stats_(call_stats),
-      source_tracker_(&env_.clock()),
       stats_proxy_(remote_ssrc(), &env_.clock(), call->worker_thread()),
       rtp_receive_statistics_(ReceiveStatistics::Create(&env_.clock())),
       timing_(std::move(timing)),
@@ -840,7 +839,7 @@ void VideoReceiveStream2::OnFrame(const VideoFrame& video_frame) {
   // "frame rendered" callback from the renderer.
   VideoFrameMetaData frame_meta(video_frame, now);
   call_->worker_thread()->PostTask(
-      SafeTask(task_safety_.flag(), [frame_meta, packet_infos, this]() {
+      SafeTask(task_safety_.flag(), [frame_meta, this]() {
         RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
         int64_t video_playout_ntp_ms;
         int64_t sync_offset_ms;
@@ -852,8 +851,6 @@ void VideoReceiveStream2::OnFrame(const VideoFrame& video_frame) {
                                            estimated_freq_khz);
         }
         stats_proxy_.OnRenderedFrame(frame_meta);
-        source_tracker_.OnFrameDelivered(packet_infos,
-                                         frame_meta.decode_timestamp);
       }));
 
   MutexLock lock(&pending_resolution_mutex_);
@@ -1272,11 +1269,6 @@ void VideoReceiveStream2::UpdatePlayoutDelays() const {
         std::max(max_composition_delay_in_frames - buffer_->Size(), 0);
     timing_->SetMaxCompositionDelayInFrames(max_composition_delay_in_frames);
   }
-}
-
-std::vector<RtpSource> VideoReceiveStream2::GetSources() const {
-  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
-  return source_tracker_.GetSources();
 }
 
 VideoReceiveStream2::RecordingState

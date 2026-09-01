@@ -64,7 +64,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/transport/bitrate_settings.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -2154,11 +2153,6 @@ class WebRtcVoiceReceiveChannel::WebRtcAudioReceiveStream {
     stream_->SetJitterBufferFastAccelerate(fast_accelerate);
   }
 
-  std::vector<RtpSource> GetSources() {
-    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-    return stream_->GetSources();
-  }
-
   void SetDepacketizerToDecoderFrameTransformer(
       scoped_refptr<FrameTransformerInterface> frame_transformer) {
     RTC_DCHECK_RUN_ON(&worker_thread_checker_);
@@ -2198,6 +2192,7 @@ WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel(
       on_frame_delivered_callback_(std::move(on_frame_delivered_callback)) {
   RTC_LOG(LS_VERBOSE) << "WebRtcVoiceReceiveChannel::WebRtcVoiceReceiveChannel";
   RTC_DCHECK(call);
+  RTC_DCHECK(on_frame_delivered_callback_ != nullptr);
   if (options.audio_jitter_buffer_max_packets.has_value()) {
     audio_config_.audio_jitter_buffer_max_packets =
         std::max(20, *options.audio_jitter_buffer_max_packets);
@@ -2454,12 +2449,11 @@ bool WebRtcVoiceReceiveChannel::AddRecvStream(const StreamParams& sp) {
       options_.audio_jitter_buffer_min_delay_ms.value_or(0),
       unsignaled_frame_decryptor_, crypto_options_,
       unsignaled_frame_transformer_);
-  if (on_frame_delivered_callback_ != nullptr) {
-    config.on_frame_delivered_callback =
-        [this, ssrc](const RtpPacketInfos& infos, Timestamp timestamp) {
-          on_frame_delivered_callback_(ssrc, infos, timestamp);
-        };
-  }
+  RTC_DCHECK(on_frame_delivered_callback_ != nullptr);
+  config.on_frame_delivered_callback = [this, ssrc](const RtpPacketInfos& infos,
+                                                    Timestamp timestamp) {
+    on_frame_delivered_callback_(ssrc, infos, timestamp);
+  };
 
   config.on_first_packet = [this](uint32_t ssrc) {
     RTC_DCHECK_RUN_ON(worker_thread_);
@@ -2861,18 +2855,6 @@ void WebRtcVoiceReceiveChannel::SetDefaultRawAudioSink(
     SetRawAudioSink(unsignaled_recv_ssrcs_.back(), std::move(proxy_sink));
   }
   default_sink_ = std::move(sink);
-}
-
-std::vector<RtpSource> WebRtcVoiceReceiveChannel::GetSources(
-    uint32_t ssrc) const {
-  RTC_DCHECK_RUN_ON(worker_thread_);
-  auto it = recv_streams_.find(ssrc);
-  if (it == recv_streams_.end()) {
-    RTC_LOG(LS_ERROR) << "Attempting to get contributing sources for SSRC:"
-                      << ssrc << " which doesn't exist.";
-    return std::vector<RtpSource>();
-  }
-  return it->second->GetSources();
 }
 
 void WebRtcVoiceReceiveChannel::SetDepacketizerToDecoderFrameTransformer(

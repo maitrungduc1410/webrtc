@@ -52,7 +52,6 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/transport/rtp/rtp_source.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
@@ -3107,13 +3106,12 @@ bool WebRtcVideoReceiveChannel::AddRecvStream(const StreamParams& sp,
     }
   };
 
-  if (on_frame_delivered_callback_ != nullptr) {
-    config.on_frame_delivered_callback = [this, ssrc = sp.first_ssrc()](
-                                             const RtpPacketInfos& infos,
-                                             Timestamp timestamp) {
-      on_frame_delivered_callback_(ssrc, infos, timestamp);
-    };
-  }
+  RTC_DCHECK(on_frame_delivered_callback_ != nullptr);
+  config.on_frame_delivered_callback = [this, ssrc = sp.first_ssrc()](
+                                           const RtpPacketInfos& infos,
+                                           Timestamp timestamp) {
+    on_frame_delivered_callback_(ssrc, infos, timestamp);
+  };
 
   config.rtp.rtcp_xr.receiver_reference_time_report = enable_non_sender_rtt_;
   auto receive_stream = new WebRtcVideoReceiveStream(
@@ -3495,20 +3493,6 @@ std::optional<int> WebRtcVideoReceiveChannel::GetBaseMinimumPlayoutDelayMs(
   }
 }
 
-std::vector<RtpSource> WebRtcVideoReceiveChannel::GetSources(
-    uint32_t ssrc) const {
-  RTC_DCHECK_RUN_ON(&thread_checker_);
-  auto it = receive_streams_.find(ssrc);
-  if (it == receive_streams_.end()) {
-    // TODO(bugs.webrtc.org/9781): Investigate standard compliance
-    // with sources for streams that has been removed.
-    RTC_LOG(LS_ERROR) << "Attempting to get contributing sources for SSRC:"
-                      << ssrc << " which doesn't exist.";
-    return {};
-  }
-  return it->second->GetSources();
-}
-
 WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::WebRtcVideoReceiveStream(
     const Environment& env,
     Call* call,
@@ -3533,6 +3517,7 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::WebRtcVideoReceiveStream(
       thread_checker_(call_->worker_thread()),
       receiving_(false),
       on_first_packet_(std::move(config_.on_first_packet)) {
+  RTC_DCHECK(on_frame_delivered_callback_ != nullptr);
   RTC_DCHECK(config_.decoder_factory);
   RTC_DCHECK(config_.decoders.empty())
       << "Decoder info is supplied via `recv_codecs`";
@@ -3573,12 +3558,6 @@ WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::
 const std::vector<uint32_t>&
 WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::GetSsrcs() const {
   return stream_params_.ssrcs;
-}
-
-std::vector<RtpSource>
-WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::GetSources() {
-  RTC_DCHECK(stream_);
-  return stream_->GetSources();
 }
 
 RtpParameters
@@ -3736,12 +3715,11 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::
       std::move(cb)(ssrc);
     }
   };
-  if (on_frame_delivered_callback_ != nullptr) {
-    config.on_frame_delivered_callback = [this](const RtpPacketInfos& infos,
-                                                Timestamp timestamp) {
-      on_frame_delivered_callback_(infos, timestamp);
-    };
-  }
+  RTC_DCHECK(on_frame_delivered_callback_ != nullptr);
+  config.on_frame_delivered_callback = [this](const RtpPacketInfos& infos,
+                                              Timestamp timestamp) {
+    on_frame_delivered_callback_(infos, timestamp);
+  };
   stream_ = call_->CreateVideoReceiveStream(std::move(config));
 }
 
