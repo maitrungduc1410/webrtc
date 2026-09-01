@@ -780,8 +780,8 @@ deps = {
   'src/third_party/android_sdk/public': {
       'packages': [
           {
-              'package': 'chromium/third_party/android_sdk/public/build-tools/37.0.0',
-              'version': 'febJrTgiK9s1ANoUlc4Orn3--zs9GjGCj2vQc8g7OaMC',
+              'package': 'chromium/third_party/android_sdk/public/build-tools/37.0.0/${{os}}',
+              'version': 'version_37.0.0',
           },
           {
               'package': 'chromium/third_party/android_sdk/public/emulator',
