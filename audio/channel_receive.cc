@@ -242,10 +242,9 @@ class ChannelReceive : public ChannelReceiveInterface,
                      size_t packet_length,
                      const RTPHeader& header,
                      Timestamp receive_time) RTC_RUN_ON(worker_thread_checker_);
-  void UpdatePlayoutTimestamp(bool rtcp, Timestamp now)
-      RTC_RUN_ON(worker_thread_checker_);
-
   int GetRtpTimestampRateHz() const;
+  int GetRtpTimestampRateHzLocked() const
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(neteq_mutex_);
 
   void OnReceivedPayloadData(std::span<const uint8_t> payload,
                              const RTPHeader& header,
@@ -303,12 +302,6 @@ class ChannelReceive : public ChannelReceiveInterface,
 
   RemoteNtpTimeEstimator ntp_estimator_ RTC_GUARDED_BY(ts_stats_lock_);
 
-  // Timestamp of the audio pulled from NetEq.
-  std::optional<uint32_t> jitter_buffer_playout_timestamp_;
-
-  std::optional<Syncable::PlayoutInfo> playout_timestamp_
-      RTC_GUARDED_BY(worker_thread_checker_);
-  uint32_t playout_delay_ms_ RTC_GUARDED_BY(worker_thread_checker_);
   std::optional<NtpTime> playout_timestamp_ntp_
       RTC_GUARDED_BY(worker_thread_checker_);
   std::optional<Timestamp> playout_timestamp_ntp_time_
@@ -543,14 +536,15 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
         target_delay = neteq_->TargetDelayMs();
         jitter_buffer_delay = neteq_->FilteredCurrentDelayMs();
       }
+      uint16_t delay_ms = 0;
+      audio_device_module_->PlayoutDelay(&delay_ms);
       RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.TargetJitterBufferDelayMs",
                                 target_delay);
       RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverDelayEstimateMs",
-                                jitter_buffer_delay + playout_delay_ms_);
+                                jitter_buffer_delay + delay_ms);
       RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverJitterBufferDelayMs",
                                 jitter_buffer_delay);
-      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverDeviceDelayMs",
-                                playout_delay_ms_);
+      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverDeviceDelayMs", delay_ms);
     }));
   }
 
@@ -608,7 +602,6 @@ ChannelReceive::ChannelReceive(
                          env_,
                          decoder_factory)),
       ntp_estimator_(&env_.clock()),
-      playout_delay_ms_(0),
       capture_start_rtp_time_stamp_(-1),
       capture_start_ntp_time_ms_(-1),
       audio_device_module_(audio_device_module),
@@ -703,9 +696,6 @@ void ChannelReceive::OnRtpPacket(const RtpPacketReceived& packet) {
 
   last_received_rtp_timestamp_ = packet.Timestamp();
   last_received_rtp_system_time_ = now;
-
-  // Store playout timestamp for the received RTP packet
-  UpdatePlayoutTimestamp(false, now);
 
   const auto& it = payload_type_frequencies_.find(packet.PayloadType());
   if (it == payload_type_frequencies_.end())
@@ -803,9 +793,6 @@ void ChannelReceive::ReceivePacket(const uint8_t* packet,
 
 void ChannelReceive::ReceivedRTCPPacket(const uint8_t* data, size_t length) {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-  // Store playout timestamp for the received RTCP packet
-  UpdatePlayoutTimestamp(true, env_.clock().CurrentTime());
-
   // Deliver RTCP packet to RTP/RTCP module for parsing
   rtp_rtcp_->IncomingRtcpPacket(std::span(data, length));
 
@@ -1057,8 +1044,10 @@ AudioDecodingCallStats ChannelReceive::GetDecodingCallStatistics() const {
 uint32_t ChannelReceive::GetDelayEstimate() const {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   // Return the current jitter buffer delay + playout delay.
+  uint16_t delay_ms = 0;
+  audio_device_module_->PlayoutDelay(&delay_ms);
   MutexLock lock(&neteq_mutex_);
-  return neteq_->FilteredCurrentDelayMs() + playout_delay_ms_;
+  return neteq_->FilteredCurrentDelayMs() + delay_ms;
 }
 
 bool ChannelReceive::SetMinimumPlayoutDelay(TimeDelta delay) {
@@ -1079,7 +1068,34 @@ bool ChannelReceive::SetMinimumPlayoutDelay(TimeDelta delay) {
 std::optional<Syncable::PlayoutInfo> ChannelReceive::GetPlayoutRtpTimestamp()
     const {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-  return playout_timestamp_;
+  std::optional<uint32_t> playout_timestamp;
+  int rtp_timestamp_rate_hz = 0;
+  {
+    MutexLock lock(&neteq_mutex_);
+    playout_timestamp = neteq_->GetPlayoutTimestamp();
+    rtp_timestamp_rate_hz = GetRtpTimestampRateHzLocked();
+  }
+
+  if (!playout_timestamp) {
+    // This can happen if this channel has not received any RTP packets. In
+    // this case, NetEq is not capable of computing a playout timestamp.
+    return std::nullopt;
+  }
+
+  uint16_t delay_ms = 0;
+  if (audio_device_module_->PlayoutDelay(&delay_ms) == -1) {
+    RTC_DLOG(LS_WARNING)
+        << "ChannelReceive::GetPlayoutRtpTimestamp() failed to read"
+           " playout delay from the ADM";
+    return std::nullopt;
+  }
+
+  uint32_t adjusted_playout_timestamp =
+      *playout_timestamp - (delay_ms * (rtp_timestamp_rate_hz / 1000));
+  return Syncable::PlayoutInfo{
+      .time = env_.clock().CurrentTime(),
+      .rtp_timestamp = adjusted_playout_timestamp,
+  };
 }
 
 void ChannelReceive::SetEstimatedPlayoutNtpTimestamp(NtpTime ntp_time,
@@ -1140,51 +1156,22 @@ std::optional<Syncable::Info> ChannelReceive::GetSyncInfo() const {
   info.latest_received_capture_rtp_timestamp = *last_received_rtp_timestamp_;
   info.latest_receive_time = *last_received_rtp_system_time_;
 
+  uint16_t delay_ms = 0;
+  audio_device_module_->PlayoutDelay(&delay_ms);
+
   MutexLock lock(&neteq_mutex_);
   int jitter_buffer_delay = neteq_->FilteredCurrentDelayMs();
-  info.current_delay =
-      TimeDelta::Millis(jitter_buffer_delay + playout_delay_ms_);
+  info.current_delay = TimeDelta::Millis(jitter_buffer_delay + delay_ms);
 
   return info;
 }
 
-void ChannelReceive::UpdatePlayoutTimestamp(bool rtcp, Timestamp now) {
-  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-
-  {
-    MutexLock lock(&neteq_mutex_);
-    jitter_buffer_playout_timestamp_ = neteq_->GetPlayoutTimestamp();
-  }
-
-  if (!jitter_buffer_playout_timestamp_) {
-    // This can happen if this channel has not received any RTP packets. In
-    // this case, NetEq is not capable of computing a playout timestamp.
-    return;
-  }
-
-  uint16_t delay_ms = 0;
-  if (audio_device_module_->PlayoutDelay(&delay_ms) == -1) {
-    RTC_DLOG(LS_WARNING)
-        << "ChannelReceive::UpdatePlayoutTimestamp() failed to read"
-           " playout delay from the ADM";
-    return;
-  }
-
-  RTC_DCHECK(jitter_buffer_playout_timestamp_);
-  uint32_t playout_timestamp = *jitter_buffer_playout_timestamp_;
-
-  // Remove the playout delay.
-  playout_timestamp -= (delay_ms * (GetRtpTimestampRateHz() / 1000));
-
-  if (!rtcp && (!playout_timestamp_.has_value() ||
-                playout_timestamp_->rtp_timestamp != playout_timestamp)) {
-    playout_timestamp_ = {{.time = now, .rtp_timestamp = playout_timestamp}};
-  }
-  playout_delay_ms_ = delay_ms;
-}
-
 int ChannelReceive::GetRtpTimestampRateHz() const {
   MutexLock lock(&neteq_mutex_);
+  return GetRtpTimestampRateHzLocked();
+}
+
+int ChannelReceive::GetRtpTimestampRateHzLocked() const {
   const std::optional<NetEq::DecoderFormat> decoder_format =
       neteq_->GetCurrentDecoderFormat();
 
