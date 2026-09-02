@@ -972,4 +972,60 @@ TEST(TransportFeedbackAdapterCongestionFeedbackTest,
   }
 }
 
+TEST(TransportFeedbackAdapterCongestionFeedbackTest,
+     ClampsExcessiveArrivalTimeOffsetToMaxExpectedAto) {
+  SimulatedClock clock(Timestamp::Millis(1000));
+  TransportFeedbackAdapter adapter;
+
+  std::vector<PacketTemplate> packets = {
+      {.ssrc = 1234,
+       .transport_sequence_number = 1,
+       .rtp_sequence_number = 101,
+       .send_timestamp = Timestamp::Millis(100),
+       .receive_timestamp = Timestamp::Millis(150)},
+      {.ssrc = 1234,
+       .transport_sequence_number = 2,
+       .rtp_sequence_number = 102,
+       .send_timestamp = Timestamp::Millis(120),
+       .receive_timestamp = Timestamp::Millis(180)},
+  };
+
+  for (const auto& packet : packets) {
+    adapter.AddPacket(CreatePacketToSend(packet), packet.pacing_info,
+                      /*overhead_bytes=*/0u, TimeNow());
+    adapter.ProcessSentPacket(SentPacketInfo(packet.transport_sequence_number,
+                                             packet.send_timestamp.ms()));
+  }
+
+  // First feedback at t = 200ms with report timestamp 150ms.
+  std::vector<PacketTemplate> feedback_1 = {packets[0]};
+  adapter.ProcessCongestionControlFeedback(
+      BuildRtcpCongestionControlFeedbackPacket(feedback_1),
+      Timestamp::Millis(200));
+
+  // Second feedback at t = 230ms with report timestamp 180ms (feedback_delta =
+  // 30ms). But reported arrival_time_offset is 400ms (exceeding
+  // feedback_delta).
+  rtcp::CongestionControlFeedback::PacketInfo packet_info = {
+      .ssrc = 1234,
+      .sequence_number = 102,
+      .arrival_time_offset = TimeDelta::Millis(400),
+      .ecn = EcnMarking::kNotEct};
+  uint32_t compact_ntp =
+      CompactNtp(clock.ConvertTimestampToNtpTime(Timestamp::Millis(180)));
+  rtcp::CongestionControlFeedback feedback_2({packet_info}, compact_ntp);
+
+  std::optional<TransportPacketsFeedback> result =
+      adapter.ProcessCongestionControlFeedback(feedback_2,
+                                               Timestamp::Millis(230));
+  ASSERT_TRUE(result.has_value());
+  std::optional<PacketResult> packet_feedback =
+      FindFeedback(result, /*transport_sequence_number=*/2);
+  ASSERT_TRUE(packet_feedback.has_value());
+  ASSERT_TRUE(packet_feedback->arrival_time_offset.has_value());
+  // The arrival_time_offset should be clamped to max expected ATO
+  // (feedback_delta + 1ms = 31ms) rather than remaining 400ms.
+  EXPECT_LE(*packet_feedback->arrival_time_offset, TimeDelta::Millis(31));
+}
+
 }  // namespace webrtc
