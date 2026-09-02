@@ -53,12 +53,12 @@ LibaomAv1EncoderFactory::GetEncoderCapabilities() const {
       VideoFrameBuffer::Type::kI420, VideoFrameBuffer::Type::kNV12};
 
   std::vector<Rational> supported_scaling_factors = {
-      {{.numerator = 16, .denominator = 1},
-       {.numerator = 8, .denominator = 1},
-       {.numerator = 4, .denominator = 1},
-       {.numerator = 2, .denominator = 1},
+      {{.numerator = 2, .denominator = 1},
        {.numerator = 1, .denominator = 1},
-       {.numerator = 1, .denominator = 2}}};
+       {.numerator = 1, .denominator = 2},
+       {.numerator = 1, .denominator = 4},
+       {.numerator = 1, .denominator = 8},
+       {.numerator = 1, .denominator = 16}}};
 
   return CapabilitiesBuilder()
       .WithPredictionConstraints(

@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "api/units/data_size.h"
-#include "api/video/resolution.h"
 #include "api/video_codecs/video_encoder_interface.h"
 
 namespace webrtc {
@@ -41,11 +40,6 @@ FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::S(
 FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::T(
     int temporal_id) {
   return TemporalId(temporal_id);
-}
-
-FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::Res(
-    webrtc::Resolution resolution) {
-  return Resolution(resolution);
 }
 
 FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::Res(
