@@ -255,12 +255,19 @@ VideoReceiveStream2::VideoReceiveStream2(
       rtp_receive_statistics_(ReceiveStatistics::Create(&env_.clock())),
       timing_(std::move(timing)),
       video_receiver_(&env_.clock(), timing_.get(), env_.field_trials(), this),
+      max_wait_for_keyframe_(DetermineMaxWaitForFrame(
+          TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
+          true)),
+      max_wait_for_frame_(DetermineMaxWaitForFrame(
+          TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
+          false)),
       rtp_video_stream_receiver_(env_,
                                  call->worker_thread(),
                                  &transport_adapter_,
                                  call_stats->AsRtcpRttStats(),
                                  packet_router,
                                  &config_,
+                                 max_wait_for_keyframe_,
                                  rtp_receive_statistics_.get(),
                                  &stats_proxy_,
                                  &stats_proxy_,
@@ -270,12 +277,6 @@ VideoReceiveStream2::VideoReceiveStream2(
                                  std::move(config_.frame_transformer),
                                  std::move(config_.on_first_packet)),
       rtp_stream_sync_(env_, call->worker_thread(), this),
-      max_wait_for_keyframe_(DetermineMaxWaitForFrame(
-          TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
-          true)),
-      max_wait_for_frame_(DetermineMaxWaitForFrame(
-          TimeDelta::Millis(config_.rtp.nack.rtp_history_ms),
-          false)),
       decode_sync_(decode_sync),
       buffer_(CreateBuffer(env_,
                            call_,
@@ -518,6 +519,7 @@ void VideoReceiveStream2::SetNackHistory(TimeDelta history) {
   TimeDelta max_wait_for_keyframe = DetermineMaxWaitForFrame(history, true);
   TimeDelta max_wait_for_frame = DetermineMaxWaitForFrame(history, false);
 
+  rtp_video_stream_receiver_.SetMaxWaitForKeyframe(max_wait_for_keyframe);
   max_wait_for_keyframe_ = max_wait_for_keyframe;
   max_wait_for_frame_ = max_wait_for_frame;
 

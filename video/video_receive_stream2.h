@@ -301,14 +301,15 @@ class VideoReceiveStream2
   const std::unique_ptr<VCMTiming> timing_;  // Jitter buffer experiment.
   VideoReceiver2 video_receiver_;
   std::unique_ptr<VideoSinkInterface<VideoFrame>> incoming_video_stream_;
-  RtpVideoStreamReceiver2 rtp_video_stream_receiver_;
-  std::unique_ptr<VideoStreamDecoder> video_stream_decoder_;
-  RtpStreamsSynchronizer rtp_stream_sync_;
 
   // Maximum wait times for keyframes and frames. Configurable through field
   // trials and may be adjusted dynamically (see `DetermineMaxWaitForFrame`).
   TimeDelta max_wait_for_keyframe_ RTC_GUARDED_BY(worker_sequence_checker_);
   TimeDelta max_wait_for_frame_ RTC_GUARDED_BY(worker_sequence_checker_);
+
+  RtpVideoStreamReceiver2 rtp_video_stream_receiver_;
+  std::unique_ptr<VideoStreamDecoder> video_stream_decoder_;
+  RtpStreamsSynchronizer rtp_stream_sync_;
 
   DecodeSynchronizer* const decode_sync_;
 
