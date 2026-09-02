@@ -1281,7 +1281,15 @@ void WebRtcVideoSendChannel::ApplyEncoderSwitch(
     }
 
     params.negotiated_codecs = negotiated_codecs_;
-    params.negotiated_codecs->erase(params.negotiated_codecs->begin());
+    // Find and remove the current codec. It might not be the first on the list
+    // because of SetParameters().
+    if (send_codec().has_value()) {
+      auto it = std::find(params.negotiated_codecs->begin(),
+                          params.negotiated_codecs->end(), *send_codec());
+      if (it != params.negotiated_codecs->end()) {
+        params.negotiated_codecs->erase(it);
+      }
+    }
     params.send_codec = params.negotiated_codecs->front();
   } else {
     auto it = absl::c_find_if(

@@ -2655,6 +2655,35 @@ TEST_F(WebRtcVideoChannelBaseTest,
   EXPECT_TRUE(send_channel_->RemoveSendStream(kSsrc));
 }
 
+TEST_F(WebRtcVideoChannelBaseTest,
+       RequestEncoderFallbackDoesNotSkipFirstNegotiatedCodec) {
+  VideoSenderParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP9"));
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  parameters.codecs.push_back(GetEngineCodec("AV1"));
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+
+  // Switch to a codec that is not first in the list, this emulates what happens
+  // if SetParameters() is called.
+  SendImpl()->RequestEncoderSwitch(SdpVideoFormat::VP8(), false);
+  time_controller_.AdvanceTime(kFrameDuration);
+  std::optional<Codec> codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP8", codec->name);
+
+  // Fallback order: VP9, AV1 (because middle codec VP8 was already removed).
+  SendImpl()->RequestEncoderSwitch(std::nullopt, true);
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP9", codec->name);
+  SendImpl()->RequestEncoderSwitch(std::nullopt, true);
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("AV1", codec->name);
+}
+
 #if defined(RTC_ENABLE_VP9)
 
 TEST_F(WebRtcVideoChannelBaseTest, RequestEncoderSwitchWithNullopt) {
