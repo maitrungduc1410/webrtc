@@ -104,6 +104,7 @@ rtc_library("libaom_av1_encoder_v2") {
   ]
   deps = [
     "../..:video_coding_utility",
+    "../../../../api:media_stream_interface",
     "../../../../api:scoped_refptr",
     "../../../../api/units:data_rate",
     "../../../../api/units:data_size",

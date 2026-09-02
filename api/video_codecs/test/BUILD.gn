@@ -48,6 +48,7 @@ if (rtc_include_tests) {
       "../..:fec_controller_api",
       "../..:field_trials",
       "../..:frame_generator_api",
+      "../..:media_stream_interface",
       "../..:mock_video_encoder",
       "../..:rtp_parameters",
       "../..:scoped_refptr",

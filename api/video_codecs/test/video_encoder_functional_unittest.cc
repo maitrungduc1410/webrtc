@@ -22,6 +22,7 @@
 
 #include "absl/algorithm/container.h"
 #include "api/environment/environment.h"
+#include "api/media_stream_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/test/create_frame_generator.h"
 #include "api/test/frame_generator_interface.h"
@@ -41,7 +42,6 @@
 #include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/libaom_av1_encoder_factory.h"
 #include "api/video_codecs/test/video_codec_test_utils.h"
-#include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_builders.h"
 #include "api/video_codecs/video_encoder_factory_interface.h"
@@ -1716,7 +1716,7 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeAndStartFrameAreApproximatelyEqual) {
   }
 }
 
-TEST_P(VideoEncoderFunctionalTest, SupportsScreenshareContentHint) {
+TEST_P(VideoEncoderFunctionalTest, SupportsAllContentHints) {
   auto capabilities = factory_->GetEncoderCapabilities();
   TestConfig config = CreateTestConfig(capabilities);
   auto enc = factory_->CreateEncoder(config.static_settings, {});
@@ -1728,17 +1728,21 @@ TEST_P(VideoEncoderFunctionalTest, SupportsScreenshareContentHint) {
   }
 
   auto frame_reader = CreateFrameReader();
-  auto frame = frame_reader->PullFrame();
-  EncOut out;
-  enc->Encode(frame,
-              TemporalUnitSettings(VideoCodecMode::kScreensharing,
-                                   Timestamp::Millis(0)),
-              ToVec({BuildSettings(
-                  std::move(Fb().Res(kDefaultResolution).Upd(0).Key().Out(out)),
-                  config.rate_options)}));
-  ASSERT_THAT(out, HasBitstreamAndMetaData());
-  VideoFrame decoded = dec.Decode(out.bitstream);
-  EXPECT_EQ(GetResolution(decoded), kDefaultResolution);
+  for (VideoTrackInterface::ContentHint hint :
+       {VideoTrackInterface::ContentHint::kDetailed,
+        VideoTrackInterface::ContentHint::kText,
+        VideoTrackInterface::ContentHint::kFluid}) {
+    EncOut out;
+    enc->Encode(
+        frame_reader->PullFrame(),
+        TemporalUnitSettings(hint, Timestamp::Millis(0)),
+        ToVec({BuildSettings(
+            std::move(Fb().Res(kDefaultResolution).Upd(0).Key().Out(out)),
+            config.rate_options)}));
+    ASSERT_THAT(out, HasBitstreamAndMetaData());
+    VideoFrame f0 = dec.Decode(out.bitstream);
+    EXPECT_EQ(GetResolution(f0), kDefaultResolution);
+  }
 }
 
 TEST_P(VideoEncoderFunctionalTest, SupportsMinResolution) {

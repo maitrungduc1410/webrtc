@@ -33,7 +33,6 @@
 #include "api/units/timestamp.h"
 #include "api/video/resolution.h"
 #include "api/video/video_frame_buffer.h"
-#include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder_factory_interface.h"
 #include "api/video_codecs/video_encoder_interface.h"
 #include "api/video_codecs/video_encoding_general.h"
@@ -683,16 +682,16 @@ void LibaomAv1EncoderV2::Encode(
     return;
   }
 
-  if (current_content_type_ != tu_settings.content_hint()) {
-    if (tu_settings.content_hint() == VideoCodecMode::kScreensharing) {
-      // TD: Set speed 11?
+  if (content_type_ != tu_settings.content_hint()) {
+    if (tu_settings.content_hint() == ContentHint::kText ||
+        tu_settings.content_hint() == ContentHint::kDetailed) {
       SET_OR_RETURN(AV1E_SET_TUNE_CONTENT, AOM_CONTENT_SCREEN);
       SET_OR_RETURN(AV1E_SET_ENABLE_PALETTE, 1);
     } else {
       SET_OR_RETURN(AV1E_SET_TUNE_CONTENT, AOM_CONTENT_DEFAULT);
       SET_OR_RETURN(AV1E_SET_ENABLE_PALETTE, 0);
     }
-    current_content_type_ = tu_settings.content_hint();
+    content_type_ = tu_settings.content_hint();
   }
 
   if (cfg_.rc_end_usage == AOM_CBR) {
@@ -768,11 +767,12 @@ void LibaomAv1EncoderV2::Encode(
       }
 
       if (settings.effort_level() !=
-          current_effort_level_[settings.spatial_id()]) {
+          effort_level_by_spatial_id_[settings.spatial_id()]) {
         // For RTC we use speed level 5 to 11, with 9 being the default. Note
         // that low effort means higher speed.
         SET_OR_RETURN(AOME_SET_CPUUSED, 9 - settings.effort_level());
-        current_effort_level_[settings.spatial_id()] = settings.effort_level();
+        effort_level_by_spatial_id_[settings.spatial_id()] =
+            settings.effort_level();
       }
     }
 

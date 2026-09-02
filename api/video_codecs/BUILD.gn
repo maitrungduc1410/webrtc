@@ -297,6 +297,7 @@ rtc_source_set("video_encoder_interface") {
 
   deps = [
     ":video_codecs_api",
+    "..:media_stream_interface",
     "..:scoped_refptr",
     "../units:data_rate",
     "../units:data_size",

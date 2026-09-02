@@ -22,7 +22,6 @@
 #include "api/video/resolution.h"
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_frame_buffer.h"
-#include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder_factory_interface.h"
 #include "api/video_codecs/video_encoder_interface.h"
 #include "modules/video_coding/utility/reference_buffer_tracker.h"
@@ -53,8 +52,8 @@ class LibaomAv1EncoderV2 : public VideoEncoderInterface {
   aom_codec_ctx_t ctx_;
   aom_codec_enc_cfg_t cfg_;
 
-  std::optional<VideoCodecMode> current_content_type_;
-  std::array<std::optional<int>, kMaxSpatialLayers> current_effort_level_;
+  std::optional<ContentHint> content_type_;
+  std::array<std::optional<int>, kMaxSpatialLayers> effort_level_by_spatial_id_;
   int max_number_of_threads_;
   std::array<std::optional<Resolution>, kNumBuffers> last_resolution_in_buffer_;
   ReferenceBufferTracker reference_buffer_tracker_{kNumBuffers};
