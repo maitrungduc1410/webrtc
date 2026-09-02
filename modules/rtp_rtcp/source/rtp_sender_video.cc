@@ -531,7 +531,7 @@ bool RTPSenderVideo::SendVideo(int payload_type,
   return SendVideoFrame(payload_type, codec_type,
                         RtpTimestampWithOffset{rtp_timestamp}, capture_time,
                         payload, encoder_output_size, video_header,
-                        expected_retransmission_time, csrcs);
+                        expected_retransmission_time, std::move(csrcs));
 }
 
 bool RTPSenderVideo::SendVideoFrame(int payload_type,
