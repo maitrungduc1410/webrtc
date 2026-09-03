@@ -266,6 +266,7 @@ if (rtc_include_tests) {
       "../api/crypto:options",
       "../api/units:time_delta",
       "../api/units:timestamp",
+      "../call:call_interfaces",
       "../logging:mocks",
       "../modules/audio_device:mock_audio_device",
       "../modules/pacing",

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -28,6 +29,7 @@
 #include "api/test/mock_frame_transformer.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "call/syncable.h"
 #include "logging/rtc_event_log/mock/mock_rtc_event_log.h"
 #include "modules/audio_device/include/mock_audio_device.h"
 #include "modules/pacing/packet_router.h"
@@ -286,6 +288,47 @@ TEST_F(ChannelReceiveTest, LogsReceivedPacketToEventLog) {
 
   EXPECT_CALL(log_, LogProxy);
   channel->OnRtpPacket(packet);
+}
+
+TEST_F(ChannelReceiveTest, GetPlayoutRtpTimestamp) {
+  auto channel = CreateTestChannelReceive();
+
+  // Before playout starts, no timestamp is available.
+  EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+
+  channel->StartPlayout();
+  // Playout started, but no audio frames have been pulled yet.
+  EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+
+  // Deliver an RTP packet and pull an audio frame.
+  channel->OnRtpPacket(CreateRtpPacket());
+  AudioFrame audio_frame;
+  channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame);
+
+  Timestamp playout_time = time_controller_.GetClock()->CurrentTime();
+  std::optional<Syncable::PlayoutInfo> playout_info =
+      channel->GetPlayoutRtpTimestamp();
+  ASSERT_TRUE(playout_info.has_value());
+  EXPECT_EQ(playout_info->time, playout_time);
+
+  // Stopping playout clears playout timestamp.
+  channel->StopPlayout();
+  EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+
+  // Restarting playout requires pulling another frame.
+  channel->StartPlayout();
+  EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+
+  channel->OnRtpPacket(CreateRtpPacket());
+  channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame);
+  playout_time = time_controller_.GetClock()->CurrentTime();
+  playout_info = channel->GetPlayoutRtpTimestamp();
+  ASSERT_TRUE(playout_info.has_value());
+  EXPECT_EQ(playout_info->time, playout_time);
+
+  // Stopping playout clears playout timestamp.
+  channel->StopPlayout();
+  EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
 }
 
 }  // namespace
