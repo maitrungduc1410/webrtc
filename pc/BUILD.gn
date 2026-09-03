@@ -2191,11 +2191,15 @@ rtc_library("datagram_connection_internal") {
   sources = [
     "datagram_connection_internal.cc",
     "datagram_connection_internal.h",
+    "dtls_packet_processor.cc",
+    "dtls_packet_processor.h",
+    "packet_processor.h",
   ]
   deps = [
     ":dtls_srtp_transport",
     ":dtls_transport",
     ":ice_transport",
+    "../api:array_view",
     "../api:candidate",
     "../api:datagram_connection",
     "../api:dtls_transport_interface",
@@ -2256,6 +2260,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "codec_vendor_redesign_unittest.cc",
       "codec_vendor_unittest.cc",
       "datagram_connection_unittest.cc",
+      "dtls_packet_processor_unittest.cc",
       "dtls_srtp_transport_integrationtest.cc",
       "dtls_srtp_transport_unittest.cc",
       "dtls_transport_unittest.cc",
