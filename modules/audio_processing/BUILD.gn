@@ -645,6 +645,10 @@ if (rtc_include_tests) {
           "aec_dump",
           "//third_party/abseil-cpp/absl/strings:string_view",
         ]
+        data_deps = [ "../../resources:audio_processing_unittests_data" ]
+        if (is_ios) {
+          deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
+        }
       }
     }
 

@@ -349,6 +349,7 @@ if (rtc_include_tests) {
     sources = [ "adaptive_fir_filter_erl_unittest.cc" ]
     deps = [
       ":adaptive_fir_filter_erl",
+      ":aec3",
       ":aec3_common",
       "../../../rtc_base:cpu_info",
       "../../../rtc_base/system:arch",
@@ -386,6 +387,7 @@ if (rtc_include_tests) {
     configs += [ "..:apm_debug_dump" ]
     sources = [ "aec3_fft_unittest.cc" ]
     deps = [
+      ":aec3",
       ":aec3_common",
       ":aec3_fft",
       ":fft_data",
@@ -674,6 +676,9 @@ if (rtc_include_tests) {
       "../../../rtc_base/system:arch",
       "../../../test:test_support",
     ]
+    if (current_cpu == "x86" || current_cpu == "x64") {
+      deps += [ ":aec3_avx2" ]
+    }
   }
 
   rtc_cc_test("filter_analyzer_unittest") {
@@ -778,6 +783,7 @@ if (rtc_include_tests) {
     configs += [ "..:apm_debug_dump" ]
     sources = [ "render_buffer_unittest.cc" ]
     deps = [
+      ":aec3",
       ":render_buffer",
       "../../../rtc_base:checks",
       "../../../test:test_support",
@@ -947,5 +953,8 @@ if (rtc_include_tests) {
       "../../../rtc_base/system:arch",
       "../../../test:test_support",
     ]
+    if (current_cpu == "x86" || current_cpu == "x64") {
+      deps += [ ":aec3_avx2" ]
+    }
   }
 }
