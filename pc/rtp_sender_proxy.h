@@ -19,6 +19,7 @@
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/encoded_video_frame_injector_interface.h"
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
@@ -72,6 +73,10 @@ PROXY_METHOD1(void,
               SetEncoderSelector,
               scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>)
 PROXY_METHOD1(RTCError, GenerateKeyFrame, const std::vector<std::string>&)
+PROXY_METHOD2(scoped_refptr<EncodedVideoFrameInjectorInterface>,
+              CreateEncodedVideoFrameInjector,
+              KeyFrameCallback,
+              BitrateInfoCallback)
 END_PROXY_MAP(RtpSender)
 
 }  // namespace webrtc

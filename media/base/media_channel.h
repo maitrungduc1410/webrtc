@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_cat.h"
@@ -260,6 +261,9 @@ class MediaSendChannelInterface {
   // Called whenever the list of sending SSRCs changes.
   virtual void SetSsrcListChangedCallback(
       absl::AnyInvocable<void(const std::set<uint32_t>&)> callback) = 0;
+  // Resets the encoder factory override for the given SSRC that was set via
+  // video/audio specific methods.
+  virtual void ResetEncoderFactoryOverride(uint32_t ssrc) = 0;
 };
 
 class MediaReceiveChannelInterface {
@@ -946,6 +950,7 @@ class VoiceMediaSendChannelInterface : public MediaSendChannelInterface {
   GetStatsTask() = 0;
   virtual bool SenderNackEnabled() const = 0;
   virtual bool SenderNonSenderRttEnabled() const = 0;
+  void ResetEncoderFactoryOverride(uint32_t ssrc) override {}
 };
 
 class VoiceMediaReceiveChannelInterface : public MediaReceiveChannelInterface {
@@ -1028,6 +1033,15 @@ class VideoMediaSendChannelInterface : public MediaSendChannelInterface {
   // so that it's getting the send stream stats separately by calling
   // GetStats(), and merges with BandwidthEstimationInfo by itself.
   virtual void FillBitrateInfo(BandwidthEstimationInfo* bwe_info) = 0;
+  // Override encoder factory for a specific ssrc.
+  // Replaces the default encoder_factory in VideoSendStream::Config and
+  // forces reallocation of the underlying VideoSendStream
+  virtual bool SetEncoderFactoryOverride(
+      uint32_t ssrc,
+      absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory) {
+    return false;
+  }
+  void ResetEncoderFactoryOverride(uint32_t ssrc) override {}
 };
 
 class VideoMediaReceiveChannelInterface : public MediaReceiveChannelInterface {

@@ -1820,6 +1820,32 @@ void WebRtcVideoSendChannel::SetEncoderSelector(
   }
 }
 
+bool WebRtcVideoSendChannel::SetEncoderFactoryOverride(
+    uint32_t ssrc,
+    absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  auto matching_stream = send_streams_.find(ssrc);
+  if (matching_stream == send_streams_.end()) {
+    RTC_LOG(LS_ERROR)
+        << "No stream found to set video encoder factory override";
+    return false;
+  }
+  matching_stream->second->SetEncoderFactoryOverride(
+      std::move(encoder_factory));
+  return true;
+}
+
+void WebRtcVideoSendChannel::ResetEncoderFactoryOverride(uint32_t ssrc) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  auto matching_stream = send_streams_.find(ssrc);
+  if (matching_stream != send_streams_.end()) {
+    matching_stream->second->ResetEncoderFactoryOverride();
+  } else {
+    RTC_LOG(LS_ERROR)
+        << "No stream found to reset video encoder factory override";
+  }
+}
+
 WebRtcVideoSendChannel::WebRtcVideoSendStream::VideoSendStreamParameters::
     VideoSendStreamParameters(
         VideoSendStream::Config config,
@@ -2284,6 +2310,37 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetEncoderSelector(
   }
 }
 
+void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetEncoderFactoryOverride(
+    absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+
+  encoder_factory_override_ = std::move(encoder_factory);
+
+  if (stream_) {
+    RTC_LOG(LS_INFO)
+        << "RecreateWebRtcStream (send) because of SetEncoderFactory, ssrc="
+        << parameters_.config.rtp.ssrcs[0];
+    RecreateWebRtcStream();
+  }
+}
+
+void WebRtcVideoSendChannel::WebRtcVideoSendStream::
+    ResetEncoderFactoryOverride() {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+
+  if (!encoder_factory_override_) {
+    return;
+  }
+  encoder_factory_override_ = nullptr;
+
+  if (stream_) {
+    RTC_LOG(LS_INFO)
+        << "RecreateWebRtcStream (send) because of ResetEncoderFactory, ssrc="
+        << parameters_.config.rtp.ssrcs[0];
+    RecreateWebRtcStream();
+  }
+}
+
 void WebRtcVideoSendChannel::WebRtcVideoSendStream::UpdateSendState() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   if (sending_) {
@@ -2729,6 +2786,13 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::RecreateWebRtcStream() {
       ConfigureVideoEncoderSettings(parameters_.codec_settings->codec);
 
   VideoSendStream::Config config = parameters_.config.Copy();
+
+  if (encoder_factory_override_) {
+    // Passing the raw ptr is safe since it has the same lifetime as this
+    // object. The pointer will be stored in VideoSendStreamImpl and
+    // VideoStreamEncoder.
+    config.encoder_settings.encoder_factory = encoder_factory_override_.get();
+  }  // default factory is used if no override is set.
 
   auto encoder_switch_request_callback =
       [send_channel = send_channel_](std::optional<SdpVideoFormat> format,

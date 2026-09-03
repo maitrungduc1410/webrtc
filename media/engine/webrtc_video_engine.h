@@ -244,6 +244,11 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
       uint32_t ssrc,
       scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
           encoder_selector) override;
+  bool SetEncoderFactoryOverride(
+      uint32_t ssrc,
+      absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory)
+      override;
+  void ResetEncoderFactoryOverride(uint32_t ssrc) override;
 
   void SetSsrcListChangedCallback(
       absl::AnyInvocable<void(const std::set<uint32_t>&)> callback) override {
@@ -335,6 +340,9 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     void SetEncoderSelector(
         scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
             encoder_selector);
+    void SetEncoderFactoryOverride(
+        absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory);
+    void ResetEncoderFactoryOverride();
 
     void SetSend(bool send);
 
@@ -417,6 +425,11 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     // DegrationPreferences::MAINTAIN_RESOLUTION isn't sufficient to disable
     // downscaling everywhere in the pipeline.
     const bool disable_automatic_resize_;
+
+    // If set, this factory overrides the default video encoder factory used by
+    // this WebRtcVideoSendStream.
+    std::unique_ptr<VideoEncoderFactory> encoder_factory_override_
+        RTC_GUARDED_BY(&thread_checker_);
   };
 
   // Get all codecs that are compatible with the receiver.

@@ -185,6 +185,7 @@ rtc_source_set("media_channel") {
     "../rtc_base/containers:flat_set",
     "../rtc_base/network:sent_packet",
     "../video/config:encoder_config",
+    "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/container:flat_hash_map",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings",
