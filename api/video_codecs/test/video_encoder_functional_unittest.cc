@@ -54,6 +54,7 @@
 #include "test/frame_utils.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
+#include "test/testsupport/frame_reader.h"
 #include "third_party/libyuv/include/libyuv/convert.h"
 #include "third_party/libyuv/include/libyuv/planar_functions.h"
 
@@ -73,6 +74,17 @@ namespace {
 using ::testing::Gt;
 using ::testing::IsEmpty;
 using ::testing::Not;
+
+using Capabilities = VideoEncoderFactoryInterface::Capabilities;
+using PredictionConstraints = Capabilities::PredictionConstraints;
+using BufferSpaceType = PredictionConstraints::BufferSpaceType;
+using InputConstraints = Capabilities::InputConstraints;
+using BitrateControl = Capabilities::BitrateControl;
+using RateControlMode = VideoEncoderFactoryInterface::RateControlMode;
+using Performance = Capabilities::Performance;
+using StaticEncoderSettings =
+    VideoEncoderFactoryInterface::StaticEncoderSettings;
+using FrameEncodeSettings = VideoEncoderInterface::FrameEncodeSettings;
 
 constexpr Resolution kDefaultResolution = {.width = 640, .height = 360};
 
@@ -112,7 +124,7 @@ std::vector<Resolution> GetSpatialLayerResolutions(
     int alignment = 1) {
   std::vector<Resolution> res;
   res.reserve(factors.size());
-  for (const auto& f : factors) {
+  for (const Rational& f : factors) {
     res.push_back(Scale(base_resolution, f, alignment));
   }
   return res;
@@ -121,13 +133,13 @@ std::vector<Resolution> GetSpatialLayerResolutions(
 // Finds a set of layer scaling factors (relative to top layer) for an N-layer
 // spatial hierarchy (e.g. 1/4, 1/2, 1/1 for 3 layers).
 std::vector<Rational> FindSpatialLayerScalingFactors(
-    const VideoEncoderFactoryInterface::Capabilities& capabilities,
+    const Capabilities& capabilities,
     int num_layers) {
   if (num_layers <= 0 ||
       num_layers > capabilities.prediction_constraints().max_spatial_layers()) {
     return {};
   }
-  const auto& scaling_factors =
+  const std::vector<Rational>& scaling_factors =
       capabilities.prediction_constraints().scaling_factors();
   // Ensure the encoder supports 2:1 upscaling for inter-layer prediction if
   // num_layers > 1.
@@ -152,9 +164,7 @@ class FitsWithinMatcher {
   FitsWithinMatcher(std::optional<Resolution> min,
                     std::optional<Resolution> max)
       : min_(min), max_(max) {}
-  explicit FitsWithinMatcher(
-      const VideoEncoderFactoryInterface::Capabilities::InputConstraints&
-          constraints)
+  explicit FitsWithinMatcher(const InputConstraints& constraints)
       : min_(constraints.min()), max_(constraints.max()) {}
 
   bool MatchAndExplain(const Resolution& res,
@@ -210,15 +220,11 @@ inline ::testing::Matcher<Resolution> FitsWithin(Resolution max) {
   return FitsWithinMatcher(std::nullopt, max);
 }
 inline ::testing::Matcher<Resolution> FitsWithin(
-    const VideoEncoderFactoryInterface::Capabilities::InputConstraints&
-        constraints) {
+    const InputConstraints& constraints) {
   return FitsWithinMatcher(constraints);
 }
 
-inline bool FitsWithin(
-    Resolution res,
-    const VideoEncoderFactoryInterface::Capabilities::InputConstraints&
-        constraints) {
+inline bool FitsWithin(Resolution res, const InputConstraints& constraints) {
   return FitsWithin(constraints).MatchAndExplain(res, nullptr);
 }
 
@@ -284,7 +290,8 @@ scoped_refptr<VideoFrameBuffer> CreateAndPopulateFrameBuffer(
     case VideoFrameBuffer::Type::kI422:
       return I422Buffer::Copy(source);
     case VideoFrameBuffer::Type::kI444: {
-      auto i444 = I444Buffer::Create(source.width(), source.height());
+      scoped_refptr<I444Buffer> i444 =
+          I444Buffer::Create(source.width(), source.height());
       libyuv::I420ToI444(source.DataY(), source.StrideY(), source.DataU(),
                          source.StrideU(), source.DataV(), source.StrideV(),
                          i444->MutableDataY(), i444->StrideY(),
@@ -298,14 +305,16 @@ scoped_refptr<VideoFrameBuffer> CreateAndPopulateFrameBuffer(
     case VideoFrameBuffer::Type::kI210:
       return I210Buffer::Copy(source);
     case VideoFrameBuffer::Type::kI410: {
-      auto i444 = I444Buffer::Create(source.width(), source.height());
+      scoped_refptr<I444Buffer> i444 =
+          I444Buffer::Create(source.width(), source.height());
       libyuv::I420ToI444(source.DataY(), source.StrideY(), source.DataU(),
                          source.StrideU(), source.DataV(), source.StrideV(),
                          i444->MutableDataY(), i444->StrideY(),
                          i444->MutableDataU(), i444->StrideU(),
                          i444->MutableDataV(), i444->StrideV(), source.width(),
                          source.height());
-      auto i410 = I410Buffer::Create(source.width(), source.height());
+      scoped_refptr<I410Buffer> i410 =
+          I410Buffer::Create(source.width(), source.height());
       libyuv::Convert8To16Plane(i444->DataY(), i444->StrideY(),
                                 i410->MutableDataY(), i410->StrideY(), 1024,
                                 source.width(), source.height());
@@ -343,26 +352,24 @@ TEST_P(VideoEncoderFunctionalTest, ReportsCodecAndImplementationName) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidBufferCount) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   EXPECT_GE(capabilities.prediction_constraints().num_buffers(), 0);
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidMaxReferences) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   EXPECT_GE(capabilities.prediction_constraints().max_references(), 0);
   EXPECT_LE(capabilities.prediction_constraints().max_references(),
             capabilities.prediction_constraints().num_buffers());
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidTemporalLayerCount) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   EXPECT_GE(capabilities.prediction_constraints().max_temporal_layers(), 1);
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidBufferSpaceType) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  using BufferSpaceType = VideoEncoderFactoryInterface::Capabilities::
-      PredictionConstraints::BufferSpaceType;
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   BufferSpaceType bst =
       capabilities.prediction_constraints().buffer_space_type();
   EXPECT_TRUE(bst == BufferSpaceType::kSingleKeyframe ||
@@ -371,33 +378,33 @@ TEST_P(VideoEncoderFunctionalTest, ValidBufferSpaceType) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidSpatialLayerCount) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   EXPECT_GE(capabilities.prediction_constraints().max_spatial_layers(), 1);
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidScalingFactors) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& scaling_factors =
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<Rational>& scaling_factors =
       capabilities.prediction_constraints().scaling_factors();
   EXPECT_FALSE(scaling_factors.empty());
   EXPECT_TRUE(absl::c_linear_search(scaling_factors, Rational(1, 1)));
-  for (const auto& factor : scaling_factors) {
+  for (const Rational& factor : scaling_factors) {
     EXPECT_GT(factor.numerator, 0);
     EXPECT_GT(factor.denominator, 0);
   }
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidSupportedFrameTypes) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& supported_frame_types =
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<FrameType>& supported_frame_types =
       capabilities.prediction_constraints().supported_frame_types();
   EXPECT_THAT(supported_frame_types, testing::Contains(FrameType::kKeyframe));
   EXPECT_THAT(supported_frame_types, testing::Contains(FrameType::kDeltaFrame));
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidResolutionBounds) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& ic = capabilities.input_constraints();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const InputConstraints& ic = capabilities.input_constraints();
   EXPECT_GT(ic.min().width, 0);
   EXPECT_GT(ic.min().height, 0);
   EXPECT_LE(ic.min().width, ic.max().width);
@@ -405,8 +412,8 @@ TEST_P(VideoEncoderFunctionalTest, ValidResolutionBounds) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidPixelAlignment) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& ic = capabilities.input_constraints();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const InputConstraints& ic = capabilities.input_constraints();
   EXPECT_GE(ic.pixel_alignment(), 1);
   EXPECT_EQ(ic.min().width % ic.pixel_alignment(), 0);
   EXPECT_EQ(ic.min().height % ic.pixel_alignment(), 0);
@@ -415,16 +422,17 @@ TEST_P(VideoEncoderFunctionalTest, ValidPixelAlignment) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidInputFormats) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& ic = capabilities.input_constraints();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const InputConstraints& ic = capabilities.input_constraints();
   EXPECT_FALSE(ic.input_formats().empty());
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidEncodingFormats) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& enc_formats = capabilities.encoding_formats();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<EncodingFormat>& enc_formats =
+      capabilities.encoding_formats();
   EXPECT_FALSE(enc_formats.empty());
-  for (const auto& format : enc_formats) {
+  for (const EncodingFormat& format : enc_formats) {
     EXPECT_THAT(format.bit_depth, testing::AnyOf(8, 10, 12));
     EXPECT_THAT(format.sub_sampling,
                 testing::AnyOf(EncodingFormat::SubSampling::k420,
@@ -434,20 +442,21 @@ TEST_P(VideoEncoderFunctionalTest, ValidEncodingFormats) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidQpRange) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& bc = capabilities.bitrate_control();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const BitrateControl& bc = capabilities.bitrate_control();
   EXPECT_GE(bc.min_qp(), 0);
   EXPECT_LT(bc.min_qp(), bc.max_qp());
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidRateControlModes) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& rc_modes = capabilities.bitrate_control().rc_modes();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<RateControlMode>& rc_modes =
+      capabilities.bitrate_control().rc_modes();
   EXPECT_FALSE(rc_modes.empty());
 }
 
 TEST_P(VideoEncoderFunctionalTest, ValidEffortLevelRange) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   std::pair<int, int> effort_range =
       capabilities.performance().min_max_effort_level();
   EXPECT_LE(effort_range.first, effort_range.second);
@@ -456,8 +465,9 @@ TEST_P(VideoEncoderFunctionalTest, ValidEffortLevelRange) {
 }
 
 TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesKeyframe) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& rc_modes = capabilities.bitrate_control().rc_modes();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<RateControlMode>& rc_modes =
+      capabilities.bitrate_control().rc_modes();
   ASSERT_FALSE(rc_modes.empty())
       << "Encoder must support at least one RC mode.";
 
@@ -469,9 +479,10 @@ TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesKeyframe) {
 
   TestConfig config = CreateTestConfig(capabilities);
 
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
-  auto input_frame = frame_reader->PullFrame();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  scoped_refptr<I420Buffer> input_frame = frame_reader->PullFrame();
 
   EncOut out;
   enc->Encode(input_frame, TemporalUnitSettings(Timestamp::Millis(0)),
@@ -501,12 +512,12 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllReferenceBuffers) {
   // Each set of {[Key], [P_i], [P_i'] } are then decoded with a separate
   // decoder and verified to be equal with decoding all frames in sequence.
 
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int num_buffers = capabilities.prediction_constraints().num_buffers();
   if (num_buffers < 1) {
     GTEST_SKIP() << "Encoder doesn't support reference buffers.";
   }
-  const auto& supported_frame_types =
+  const std::vector<FrameType>& supported_frame_types =
       capabilities.prediction_constraints().supported_frame_types();
   if (!absl::c_linear_search(supported_frame_types, FrameType::kKeyframe) ||
       !absl::c_linear_search(supported_frame_types, FrameType::kDeltaFrame)) {
@@ -514,16 +525,18 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllReferenceBuffers) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
   // Generate N distinct pictures using moving squares with varying square
   // counts.
   std::vector<scoped_refptr<VideoFrameBuffer>> pictures;
   pictures.reserve(num_buffers);
   for (int i = 0; i < num_buffers; ++i) {
-    auto frame_gen = test::CreateSquareFrameGenerator(
-        kDefaultResolution.width, kDefaultResolution.height,
-        test::FrameGeneratorInterface::OutputType::kI420,
-        /*num_squares=*/10 + (i * 5));
+    std::unique_ptr<test::FrameGeneratorInterface> frame_gen =
+        test::CreateSquareFrameGenerator(
+            kDefaultResolution.width, kDefaultResolution.height,
+            test::FrameGeneratorInterface::OutputType::kI420,
+            /*num_squares=*/10 + (i * 5));
     for (int step = 0; step < i * 5; ++step) {
       frame_gen->NextFrame();
     }
@@ -629,8 +642,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllReferenceBuffers) {
   std::vector<std::unique_ptr<TestDecoder>> decoders;
   decoders.reserve(num_buffers);
   for (int i = 0; i < num_buffers; ++i) {
-    auto dec_i = std::make_unique<TestDecoder>(env_, decoder_factory_.get(),
-                                               factory_->CodecName());
+    std::unique_ptr<TestDecoder> dec_i = std::make_unique<TestDecoder>(
+        env_, decoder_factory_.get(), factory_->CodecName());
     ASSERT_TRUE(dec_i->IsSupported());
 
     VideoFrame dec_key = dec_i->Decode(black_key_out.bitstream);
@@ -667,7 +680,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllReferenceBuffers) {
 // implicitly update all buffers. Referencing a buffer that has not been
 // explicitly updated via the API is not allowed.
 TEST_P(VideoEncoderFunctionalTest, KeyframeUpdatesSpecifiedBuffer) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   if (capabilities.prediction_constraints().num_buffers() < 2) {
     GTEST_SKIP() << "Encoder must support multiple buffers for this test.";
   }
@@ -678,8 +691,9 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeUpdatesSpecifiedBuffer) {
   constexpr int kRefBuffer = 0;
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -687,8 +701,8 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeUpdatesSpecifiedBuffer) {
                  << factory_->CodecName();
   }
 
-  auto raw_key = frame_reader->PullFrame();
-  auto raw_delta = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_key = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_delta = frame_reader->PullFrame();
 
   EncOut key;
   enc->Encode(
@@ -712,28 +726,31 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeUpdatesSpecifiedBuffer) {
   EXPECT_THAT(delta, Not(HasBitstreamAndMetaData()));
 }
 
+// Verifies that the encoder can reference up to `max_references()` reference
+// buffers simultaneously in a single delta frame.
 TEST_P(VideoEncoderFunctionalTest, SupportsMaxReferences) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_references = capabilities.prediction_constraints().max_references();
   if (max_references == 0) {
     GTEST_SKIP() << "Encoder doesn't support references.";
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
     GTEST_SKIP() << "No matching decoder found for codec: "
                  << factory_->CodecName();
   }
 
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   // Encode N + 1 frames (i = 0..max_references).
   // Frame 0 is a keyframe updating buffer 0.
   // For i > 0, frame i references buffers 0..i-1 and updates buffer i.
   for (int i = 0; i <= max_references; ++i) {
-    scoped_refptr<VideoFrameBuffer> raw_frame = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> raw_frame = frame_reader->PullFrame();
     ASSERT_TRUE(raw_frame);
     EncOut out;
     int64_t timestamp_ms = i * 100;
@@ -774,8 +791,42 @@ TEST_P(VideoEncoderFunctionalTest, SupportsMaxReferences) {
   }
 }
 
+// Verifies that referencing the same buffer slot multiple times in a single
+// frame's reference list is rejected.
+TEST_P(VideoEncoderFunctionalTest, DuplicateReferenceBuffersNotAllowed) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  if (capabilities.prediction_constraints().max_references() < 2) {
+    GTEST_SKIP() << "Encoder must support multiple references for this test.";
+  }
+
+  TestConfig config = CreateTestConfig(capabilities);
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+  scoped_refptr<I420Buffer> raw_key = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_delta = frame_reader->PullFrame();
+
+  EncOut key;
+  enc->Encode(raw_key, TemporalUnitSettings(Timestamp::Millis(0)),
+              ToVec({BuildSettings(
+                  std::move(Fb().Res(kDefaultResolution).Upd(0).Key().Out(key)),
+                  config.rate_options)}));
+  ASSERT_THAT(key, HasBitstreamAndMetaData());
+
+  EncOut delta;
+  enc->Encode(
+      raw_delta, TemporalUnitSettings(Timestamp::Millis(100)),
+      ToVec({BuildSettings(
+          std::move(Fb().Res(kDefaultResolution).Ref({0, 0}).Out(delta)),
+          config.rate_options)}));
+
+  EXPECT_THAT(delta, Not(HasBitstreamAndMetaData()));
+}
+
+// Verifies temporal layering with a 2-layer pattern (T0, T1, T0, T1).
 TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_temporal_layers =
       capabilities.prediction_constraints().max_temporal_layers();
   if (max_temporal_layers < 2) {
@@ -783,8 +834,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -794,7 +846,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
 
   // 2-layer temporal pattern: T0, T1, T0, T1
   // Frame 0: Keyframe, T0, updates buffer 0
-  auto raw_frame0 = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_frame0 = frame_reader->PullFrame();
   EncOut out0;
   enc->Encode(
       raw_frame0, TemporalUnitSettings(Timestamp::Millis(0)),
@@ -806,7 +858,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
   EXPECT_EQ(GetResolution(dec0), kDefaultResolution);
 
   // Frame 1: Delta frame, T1, references buffer 0, updates buffer 1
-  auto raw_frame1 = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_frame1 = frame_reader->PullFrame();
   EncOut out1;
   enc->Encode(
       raw_frame1, TemporalUnitSettings(Timestamp::Millis(100)),
@@ -819,7 +871,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
   EXPECT_EQ(GetResolution(dec1), kDefaultResolution);
 
   // Frame 2: Delta frame, T0, references buffer 0, updates buffer 0
-  auto raw_frame2 = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_frame2 = frame_reader->PullFrame();
   EncOut out2;
   enc->Encode(
       raw_frame2, TemporalUnitSettings(Timestamp::Millis(200)),
@@ -832,7 +884,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
   EXPECT_EQ(GetResolution(dec2), kDefaultResolution);
 
   // Frame 3: Delta frame, T1, references buffer 0, updates buffer 1
-  auto raw_frame3 = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> raw_frame3 = frame_reader->PullFrame();
   EncOut out3;
   enc->Encode(
       raw_frame3, TemporalUnitSettings(Timestamp::Millis(300)),
@@ -845,21 +897,21 @@ TEST_P(VideoEncoderFunctionalTest, SupportsTemporalLayers) {
   EXPECT_EQ(GetResolution(dec3), kDefaultResolution);
 }
 
+// Verifies encoding multiple independent spatial layers in the same temporal
+// unit, where higher spatial layers do not predict from lower spatial layers.
 TEST_P(VideoEncoderFunctionalTest, SupportsIndependentSpatialLayers) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_spatial_layers =
       capabilities.prediction_constraints().max_spatial_layers();
   if (max_spatial_layers < 2) {
     GTEST_SKIP() << "Encoder doesn't support multiple spatial layers.";
   }
 
-  using BufferSpaceType = VideoEncoderFactoryInterface::Capabilities::
-      PredictionConstraints::BufferSpaceType;
   BufferSpaceType buffer_space_type =
       capabilities.prediction_constraints().buffer_space_type();
 
   if (buffer_space_type == BufferSpaceType::kSingleKeyframe) {
-    const auto& supported_frame_types =
+    const std::vector<FrameType>& supported_frame_types =
         capabilities.prediction_constraints().supported_frame_types();
     if (!absl::c_linear_search(supported_frame_types, FrameType::kStartFrame)) {
       GTEST_SKIP() << "kSingleKeyframe encoder must support start frames.";
@@ -873,37 +925,39 @@ TEST_P(VideoEncoderFunctionalTest, SupportsIndependentSpatialLayers) {
   }
 
   int num_layers = max_spatial_layers;
-  auto factors = FindSpatialLayerScalingFactors(capabilities, num_layers);
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, num_layers);
   if (factors.empty()) {
     GTEST_SKIP() << "Could not find valid scaling factors.";
   }
 
   constexpr Resolution kBaseResolution = {.width = 640, .height = 384};
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kBaseResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(kBaseResolution)
           .EncodingFormat(config.static_settings.encoding_format())
           .RcMode(config.static_settings.rc_mode())
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
-  auto enc = factory_->CreateEncoder(static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   scoped_refptr<I420Buffer> input_frame =
       I420Buffer::Create(kBaseResolution.width, kBaseResolution.height);
   input_frame->ScaleFrom(*frame_reader->PullFrame());
 
   std::vector<EncOut> outs(num_layers);
-  std::vector<VideoEncoderInterface::FrameEncodeSettings> frame_settings;
+  std::vector<FrameEncodeSettings> frame_settings;
   frame_settings.reserve(num_layers);
 
   for (int i = 0; i < num_layers; ++i) {
-    auto fb = Fb();
+    Fb fb;
     fb.Res(resolutions[i]).S(i).Out(outs[i]);
     if (i == 0) {
       fb.Key().Upd(0);
@@ -939,16 +993,16 @@ TEST_P(VideoEncoderFunctionalTest, SupportsIndependentSpatialLayers) {
   }
 }
 
+// Verifies spatial scalability with inter-layer prediction (S1 predicting from
+// S0, etc.).
 TEST_P(VideoEncoderFunctionalTest, SupportsInterLayerPrediction) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_spatial_layers =
       capabilities.prediction_constraints().max_spatial_layers();
   if (max_spatial_layers < 2) {
     GTEST_SKIP() << "Encoder doesn't support multiple spatial layers.";
   }
 
-  using BufferSpaceType = VideoEncoderFactoryInterface::Capabilities::
-      PredictionConstraints::BufferSpaceType;
   BufferSpaceType buffer_space_type =
       capabilities.prediction_constraints().buffer_space_type();
   if (buffer_space_type == BufferSpaceType::kMultiInstance) {
@@ -960,37 +1014,39 @@ TEST_P(VideoEncoderFunctionalTest, SupportsInterLayerPrediction) {
             capabilities.prediction_constraints().num_buffers());
 
   int num_layers = max_spatial_layers;
-  auto factors = FindSpatialLayerScalingFactors(capabilities, num_layers);
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, num_layers);
   if (factors.empty()) {
     GTEST_SKIP() << "Could not find valid scaling factors.";
   }
 
   constexpr Resolution kBaseResolution = {.width = 640, .height = 384};
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kBaseResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(kBaseResolution)
           .EncodingFormat(config.static_settings.encoding_format())
           .RcMode(config.static_settings.rc_mode())
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
-  auto enc = factory_->CreateEncoder(static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   scoped_refptr<I420Buffer> input_frame =
       I420Buffer::Create(kBaseResolution.width, kBaseResolution.height);
   input_frame->ScaleFrom(*frame_reader->PullFrame());
 
   std::vector<EncOut> outs(num_layers);
-  std::vector<VideoEncoderInterface::FrameEncodeSettings> frame_settings;
+  std::vector<FrameEncodeSettings> frame_settings;
   frame_settings.reserve(num_layers);
 
   for (int i = 0; i < num_layers; ++i) {
-    auto fb = Fb();
+    Fb fb;
     fb.Res(resolutions[i]).S(i).Out(outs[i]).Upd(i);
     if (i == 0) {
       fb.Key();
@@ -1028,9 +1084,10 @@ TEST_P(VideoEncoderFunctionalTest, SupportsInterLayerPrediction) {
   }
 }
 
+// Verifies reference frame scaling across frames of different resolutions.
 TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& scaling_factors =
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<Rational>& scaling_factors =
       capabilities.prediction_constraints().scaling_factors();
   if (scaling_factors.empty()) {
     GTEST_SKIP() << "Encoder does not report any scaling factors.";
@@ -1048,7 +1105,7 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
 
   // Compute maximum encode dimensions needed across all scaling factors.
   Resolution max_encode_dimensions = kBaseResolution;
-  for (const auto& factor : scaling_factors) {
+  for (const Rational& factor : scaling_factors) {
     Resolution scaled = Scale(kBaseResolution, factor, effective_alignment);
     max_encode_dimensions.width =
         std::max(max_encode_dimensions.width, scaled.width);
@@ -1057,7 +1114,7 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(max_encode_dimensions)
           .EncodingFormat(config.static_settings.encoding_format())
@@ -1065,7 +1122,7 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
 
-  for (const auto& factor : scaling_factors) {
+  for (const Rational& factor : scaling_factors) {
     Resolution scaled_resolution =
         Scale(kBaseResolution, factor, effective_alignment);
 
@@ -1073,11 +1130,12 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
       continue;
     }
 
-    auto enc = factory_->CreateEncoder(static_settings, {});
-    auto frame_reader = CreateFrameReader();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
     // 1. Encode a base resolution keyframe and store it in reference buffer 0.
-    auto raw_frame0 = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> raw_frame0 = frame_reader->PullFrame();
     scoped_refptr<I420Buffer> base_frame =
         I420Buffer::Create(kBaseResolution.width, kBaseResolution.height);
     base_frame->ScaleFrom(*raw_frame0);
@@ -1096,7 +1154,7 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
     EXPECT_EQ(GetResolution(decoded_key), kBaseResolution);
 
     // 2. Encode a delta frame at the scaled resolution referencing buffer 0.
-    auto raw_frame1 = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> raw_frame1 = frame_reader->PullFrame();
     scoped_refptr<I420Buffer> scaled_frame =
         I420Buffer::Create(scaled_resolution.width, scaled_resolution.height);
     scaled_frame->ScaleFrom(*raw_frame1);
@@ -1134,8 +1192,9 @@ TEST_P(VideoEncoderFunctionalTest, DISABLED_ReferenceFrameScaling) {
   }
 }
 
+// Verifies spatial layer scaling where higher layers upscale from lower layers.
 TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   if (capabilities.prediction_constraints().max_spatial_layers() < 2) {
     GTEST_SKIP() << "Encoder doesn't support multiple spatial layers.";
   }
@@ -1143,7 +1202,7 @@ TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
   // Filter scaling factors > 1:1, representing inter-layer upscaling from a
   // lower reference layer.
   std::vector<Rational> svc_factors;
-  for (const auto& f :
+  for (const Rational& f :
        capabilities.prediction_constraints().scaling_factors()) {
     if (static_cast<double>(f.numerator) / f.denominator > 1.0) {
       svc_factors.push_back(f);
@@ -1166,7 +1225,7 @@ TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
   constexpr Resolution kMaxLayerResolution = {.width = 1280, .height = 768};
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(kMaxLayerResolution)
           .EncodingFormat(config.static_settings.encoding_format())
@@ -1174,7 +1233,7 @@ TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
 
-  for (const auto& factor : svc_factors) {
+  for (const Rational& factor : svc_factors) {
     // S0 is the base layer (downscaled by factor relative to S1).
     // S1 is the upscaled layer (scaled up by factor relative to S0).
     Resolution s0_resolution = Scale(
@@ -1183,22 +1242,25 @@ TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
     Resolution s1_resolution =
         Scale(s0_resolution, factor, effective_alignment);
 
-    if (!FitsWithin(s0_resolution, capabilities.input_constraints()) ||
-        !FitsWithin(s1_resolution, capabilities.input_constraints())) {
+    if (!FitsWithin(s0_resolution, capabilities.input_constraints())) {
+      continue;
+    }
+    if (!FitsWithin(s1_resolution, capabilities.input_constraints())) {
       continue;
     }
 
-    auto enc = factory_->CreateEncoder(static_settings, {});
-    auto frame_reader = CreateFrameReader();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
-    auto raw_frame = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> raw_frame = frame_reader->PullFrame();
     scoped_refptr<I420Buffer> input_frame =
         I420Buffer::Create(s1_resolution.width, s1_resolution.height);
     input_frame->ScaleFrom(*raw_frame);
 
     EncOut s0_out;
     EncOut s1_out;
-    std::vector<VideoEncoderInterface::FrameEncodeSettings> tu_settings;
+    std::vector<FrameEncodeSettings> tu_settings;
     // S0: Base layer keyframe, stored in buffer 0.
     tu_settings.push_back(BuildSettings(
         std::move(Fb().Res(s0_resolution).S(0).Upd(0).Key().Out(s0_out)),
@@ -1241,11 +1303,13 @@ TEST_P(VideoEncoderFunctionalTest, SpatialLayerScaling) {
   }
 }
 
+// Verifies that in kSingleKeyframe buffer space mode, inserting a keyframe on
+// an intermediate spatial layer invalidates/resets buffers according to API
+// semantics.
 TEST_P(VideoEncoderFunctionalTest, MidTemporalUnitKeyframeResetsBuffers) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   if (capabilities.prediction_constraints().buffer_space_type() !=
-      VideoEncoderFactoryInterface::Capabilities::PredictionConstraints::
-          BufferSpaceType::kSingleKeyframe) {
+      BufferSpaceType::kSingleKeyframe) {
     GTEST_SKIP() << "Test only applies to encoders with kSingleKeyframe "
                     "buffer space type.";
   }
@@ -1255,8 +1319,9 @@ TEST_P(VideoEncoderFunctionalTest, MidTemporalUnitKeyframeResetsBuffers) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   EncOut tu0_out;
   enc->Encode(
@@ -1292,9 +1357,12 @@ TEST_P(VideoEncoderFunctionalTest, MidTemporalUnitKeyframeResetsBuffers) {
   EXPECT_THAT(tu1_s0, Not(HasBitstreamAndMetaData()));
 }
 
+// Verifies dynamic resolution switching between consecutive frames without
+// reinitializing.
 TEST_P(VideoEncoderFunctionalTest, ResolutionSwitching) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  auto factors = FindSpatialLayerScalingFactors(capabilities, 2);
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, 2);
   if (factors.size() < 2) {
     GTEST_SKIP() << "Encoder doesn't support resolution switching.";
   }
@@ -1303,11 +1371,11 @@ TEST_P(VideoEncoderFunctionalTest, ResolutionSwitching) {
   factors = FindSpatialLayerScalingFactors(capabilities, num_resolutions);
 
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kDefaultResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(resolutions.back())
           .EncodingFormat(config.static_settings.encoding_format())
@@ -1315,8 +1383,9 @@ TEST_P(VideoEncoderFunctionalTest, ResolutionSwitching) {
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
 
-  auto enc = factory_->CreateEncoder(static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1357,9 +1426,12 @@ TEST_P(VideoEncoderFunctionalTest, ResolutionSwitching) {
   EXPECT_EQ(GetResolution(f2), res2);
 }
 
+// Verifies that varying input frame resolutions are properly handled and scaled
+// to the target encode resolution.
 TEST_P(VideoEncoderFunctionalTest, InputResolutionSwitching) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  auto factors = FindSpatialLayerScalingFactors(capabilities, 2);
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, 2);
   if (factors.size() < 2) {
     GTEST_SKIP() << "Encoder doesn't support input resolution switching.";
   }
@@ -1368,12 +1440,13 @@ TEST_P(VideoEncoderFunctionalTest, InputResolutionSwitching) {
   factors = FindSpatialLayerScalingFactors(capabilities, num_resolutions);
 
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kDefaultResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1418,8 +1491,10 @@ TEST_P(VideoEncoderFunctionalTest, InputResolutionSwitching) {
   EXPECT_THAT(Psnr(in2, f2), Gt(40.0));
 }
 
+// Verifies combined temporal and spatial scalability (SVC) encoding and
+// decoding.
 TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_spatial_layers =
       capabilities.prediction_constraints().max_spatial_layers();
   if (max_spatial_layers < 2) {
@@ -1427,18 +1502,20 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
   }
 
   int num_layers = std::min(3, max_spatial_layers);
-  auto factors = FindSpatialLayerScalingFactors(capabilities, num_layers);
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, num_layers);
   if (factors.empty()) {
     GTEST_SKIP() << "Could not find valid scaling factors.";
   }
 
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kDefaultResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec_test(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec_test.IsSupported()) {
@@ -1446,7 +1523,7 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
   }
 
   std::vector<EncOut> tu0_outs(num_layers);
-  std::vector<VideoEncoderInterface::FrameEncodeSettings> tu0_settings;
+  std::vector<FrameEncodeSettings> tu0_settings;
   tu0_settings.push_back(BuildSettings(
       std::move(Fb().Res(resolutions[0]).S(0).Upd(0).Key().Out(tu0_outs[0])),
       config.rate_options));
@@ -1461,7 +1538,7 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
               std::move(tu0_settings));
 
   EncOut tu1_out;
-  std::vector<VideoEncoderInterface::FrameEncodeSettings> tu1_settings;
+  std::vector<FrameEncodeSettings> tu1_settings;
   tu1_settings.push_back(BuildSettings(std::move(Fb().Res(resolutions.back())
                                                      .S(num_layers - 1)
                                                      .Ref({num_layers - 1})
@@ -1473,7 +1550,7 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
               std::move(tu1_settings));
 
   std::vector<EncOut> tu2_outs(num_layers);
-  std::vector<VideoEncoderInterface::FrameEncodeSettings> tu2_settings;
+  std::vector<FrameEncodeSettings> tu2_settings;
   tu2_settings.push_back(BuildSettings(
       std::move(Fb().Res(resolutions[0]).S(0).Ref({0}).Upd(0).Out(tu2_outs[0])),
       config.rate_options));
@@ -1485,7 +1562,7 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
                                                        .Out(tu2_outs[i])),
                                          config.rate_options));
   }
-  auto tu2_frame = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> tu2_frame = frame_reader->PullFrame();
   enc->Encode(tu2_frame, TemporalUnitSettings(Timestamp::Millis(100)),
               std::move(tu2_settings));
 
@@ -1507,26 +1584,29 @@ TEST_P(VideoEncoderFunctionalTest, TempoSpatial) {
   EXPECT_THAT(Psnr(tu2_frame, f_tu2_top), Gt(39.0));
 }
 
+// Verifies that spatial layers can be selectively skipped in a temporal unit.
 TEST_P(VideoEncoderFunctionalTest, SkipMidLayer) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int max_spatial_layers =
       capabilities.prediction_constraints().max_spatial_layers();
   if (max_spatial_layers < 3) {
     GTEST_SKIP() << "Encoder doesn't support at least 3 spatial layers.";
   }
 
-  auto factors = FindSpatialLayerScalingFactors(capabilities, 3);
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, 3);
   if (factors.empty()) {
     GTEST_SKIP() << "Could not find 3 valid scaling factors.";
   }
 
   int alignment = capabilities.input_constraints().pixel_alignment();
-  auto resolutions =
+  std::vector<Resolution> resolutions =
       GetSpatialLayerResolutions(kDefaultResolution, factors, alignment);
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1562,7 +1642,7 @@ TEST_P(VideoEncoderFunctionalTest, SkipMidLayer) {
                  config.rate_options)}));
 
   EncOut tu2_s0, tu2_s1, tu2_s2;
-  auto tu2_frame = frame_reader->PullFrame();
+  scoped_refptr<I420Buffer> tu2_frame = frame_reader->PullFrame();
   enc->Encode(
       tu2_frame, TemporalUnitSettings(Timestamp::Millis(200)),
       ToVec({BuildSettings(
@@ -1595,9 +1675,11 @@ TEST_P(VideoEncoderFunctionalTest, SkipMidLayer) {
   EXPECT_THAT(Psnr(tu2_frame, f_tu2_s2), Gt(40.0));
 }
 
+// Verifies encoding and decoding of a StartFrame (independent frame without
+// clearing all references).
 TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesStartFrame) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& supported_types =
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<FrameType>& supported_types =
       capabilities.prediction_constraints().supported_frame_types();
   if (!absl::c_linear_search(supported_types, FrameType::kStartFrame)) {
     GTEST_SKIP() << "Encoder doesn't support StartFrame.";
@@ -1611,9 +1693,10 @@ TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesStartFrame) {
 
   TestConfig config = CreateTestConfig(capabilities);
 
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
-  auto input_frame = frame_reader->PullFrame();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  scoped_refptr<I420Buffer> input_frame = frame_reader->PullFrame();
 
   EncOut out;
   enc->Encode(
@@ -1629,12 +1712,13 @@ TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesStartFrame) {
               FitsWithin(capabilities.input_constraints()));
 }
 
+// Verifies that encoding with a StartFrame produces bitrate and quality
+// comparable to a Keyframe.
 TEST_P(VideoEncoderFunctionalTest, KeyframeAndStartFrameAreApproximatelyEqual) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& supported_types =
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<FrameType>& supported_types =
       capabilities.prediction_constraints().supported_frame_types();
-  if (std::find(supported_types.begin(), supported_types.end(),
-                FrameType::kStartFrame) == supported_types.end()) {
+  if (!absl::c_linear_search(supported_types, FrameType::kStartFrame)) {
     GTEST_SKIP() << "Encoder doesn't support StartFrame.";
   }
 
@@ -1643,15 +1727,17 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeAndStartFrameAreApproximatelyEqual) {
   TestConfig config = CreateTestConfig(capabilities);
 
   for (int sid = 0; sid < max_spatial_layers; ++sid) {
-    auto enc_key = factory_->CreateEncoder(config.static_settings, {});
-    auto enc_start = factory_->CreateEncoder(config.static_settings, {});
-    auto frame_reader = CreateFrameReader();
+    std::unique_ptr<VideoEncoderInterface> enc_key =
+        factory_->CreateEncoder(config.static_settings, {});
+    std::unique_ptr<VideoEncoderInterface> enc_start =
+        factory_->CreateEncoder(config.static_settings, {});
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
     DataSize total_size_key = DataSize::Zero();
     DataSize total_size_start = DataSize::Zero();
     TimeDelta total_duration = TimeDelta::Zero();
 
-    auto frame_in = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> frame_in = frame_reader->PullFrame();
 
     EncOut key;
     EncOut start;
@@ -1674,12 +1760,9 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeAndStartFrameAreApproximatelyEqual) {
     total_size_start += DataSize::Bytes(start.bitstream.size());
 
     TimeDelta frame_duration = TimeDelta::Millis(100);
-    if (std::holds_alternative<VideoEncoderInterface::FrameEncodeSettings::Cbr>(
-            config.rate_options)) {
+    if (std::holds_alternative<FrameEncodeSettings::Cbr>(config.rate_options)) {
       frame_duration =
-          std::get<VideoEncoderInterface::FrameEncodeSettings::Cbr>(
-              config.rate_options)
-              .duration;
+          std::get<FrameEncodeSettings::Cbr>(config.rate_options).duration;
     }
     total_duration += frame_duration;
 
@@ -1716,10 +1799,13 @@ TEST_P(VideoEncoderFunctionalTest, KeyframeAndStartFrameAreApproximatelyEqual) {
   }
 }
 
+// Verifies that the encoder accepts all ContentHint options (Detailed, Text,
+// Fluid).
 TEST_P(VideoEncoderFunctionalTest, SupportsAllContentHints) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1727,7 +1813,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllContentHints) {
                  << factory_->CodecName();
   }
 
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
   for (VideoTrackInterface::ContentHint hint :
        {VideoTrackInterface::ContentHint::kDetailed,
         VideoTrackInterface::ContentHint::kText,
@@ -1745,8 +1831,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllContentHints) {
   }
 }
 
+// Verifies that the encoder correctly handles the minimum supported resolution.
 TEST_P(VideoEncoderFunctionalTest, SupportsMinResolution) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   Resolution min_res = capabilities.input_constraints().min();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
@@ -1756,8 +1843,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsMinResolution) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   scoped_refptr<I420Buffer> input_frame =
       I420Buffer::Create(min_res.width, min_res.height);
@@ -1774,8 +1862,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsMinResolution) {
   EXPECT_EQ(GetResolution(decoded), min_res);
 }
 
+// Verifies that the encoder correctly handles the maximum supported resolution.
 TEST_P(VideoEncoderFunctionalTest, SupportsMaxResolution) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   Resolution max_res = capabilities.input_constraints().max();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
@@ -1785,15 +1874,16 @@ TEST_P(VideoEncoderFunctionalTest, SupportsMaxResolution) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(max_res)
           .EncodingFormat(config.static_settings.encoding_format())
           .RcMode(config.static_settings.rc_mode())
           .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
           .Build();
-  auto enc = factory_->CreateEncoder(static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   scoped_refptr<I420Buffer> input_frame =
       I420Buffer::Create(max_res.width, max_res.height);
@@ -1810,8 +1900,10 @@ TEST_P(VideoEncoderFunctionalTest, SupportsMaxResolution) {
   EXPECT_EQ(GetResolution(decoded), max_res);
 }
 
+// Verifies that the encoder accepts resolutions adhering to the required pixel
+// alignment.
 TEST_P(VideoEncoderFunctionalTest, SupportsPixelAlignment) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   int alignment = capabilities.input_constraints().pixel_alignment();
   Resolution min_res = capabilities.input_constraints().min();
   Resolution aligned_res = {.width = min_res.width + alignment,
@@ -1824,8 +1916,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsPixelAlignment) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto enc = factory_->CreateEncoder(config.static_settings, {});
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   scoped_refptr<I420Buffer> input_frame =
       I420Buffer::Create(aligned_res.width, aligned_res.height);
@@ -1841,9 +1934,11 @@ TEST_P(VideoEncoderFunctionalTest, SupportsPixelAlignment) {
   EXPECT_EQ(GetResolution(dec.Decode(out.bitstream)), aligned_res);
 }
 
+// Verifies that all advertised input pixel formats can be encoded and decoded.
 TEST_P(VideoEncoderFunctionalTest, SupportsAllInputFormats) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& formats = capabilities.input_constraints().input_formats();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<VideoFrameBuffer::Type>& formats =
+      capabilities.input_constraints().input_formats();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1852,11 +1947,12 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllInputFormats) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
   for (VideoFrameBuffer::Type format : formats) {
-    auto enc = factory_->CreateEncoder(config.static_settings, {});
-    auto i420_source = frame_reader->PullFrame();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(config.static_settings, {});
+    scoped_refptr<I420Buffer> i420_source = frame_reader->PullFrame();
 
     scoped_refptr<VideoFrameBuffer> input_buffer;
     switch (format) {
@@ -1888,9 +1984,11 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllInputFormats) {
   }
 }
 
+// Verifies encoding with all supported bit-depth and sub-sampling combinations.
 TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& enc_formats = capabilities.encoding_formats();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::vector<EncodingFormat>& enc_formats =
+      capabilities.encoding_formats();
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
   if (!dec.IsSupported()) {
@@ -1899,9 +1997,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
 
-  for (const auto& format : enc_formats) {
+  for (const EncodingFormat& format : enc_formats) {
     std::optional<VideoFrameBuffer::Type> expected_buffer_type =
         ToVideoFrameBufferType(format);
     if (!expected_buffer_type.has_value()) {
@@ -1912,7 +2010,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
       continue;
     }
 
-    auto raw_frame = frame_reader->PullFrame();
+    scoped_refptr<I420Buffer> raw_frame = frame_reader->PullFrame();
     scoped_refptr<VideoFrameBuffer> input_buffer =
         CreateAndPopulateFrameBuffer(*expected_buffer_type, *raw_frame);
     if (!input_buffer) {
@@ -1922,7 +2020,7 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
       continue;
     }
 
-    VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+    StaticEncoderSettings static_settings =
         StaticEncoderSettingsBuilder()
             .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
             .EncodingFormat(format)
@@ -1930,7 +2028,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
             .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
             .Build();
 
-    auto enc = factory_->CreateEncoder(static_settings, {});
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
 
     EncOut out;
     enc->Encode(
@@ -1949,13 +2048,12 @@ TEST_P(VideoEncoderFunctionalTest, SupportsAllEncodingFormats) {
   }
 }
 
+// Verifies constant QP (CQP) rate control mode at min and max QP bounds.
 TEST_P(VideoEncoderFunctionalTest, SupportsConstantQp) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& bc = capabilities.bitrate_control();
-  const auto& rc_modes = bc.rc_modes();
-  if (std::find(rc_modes.begin(), rc_modes.end(),
-                VideoEncoderFactoryInterface::RateControlMode::kCqp) ==
-      rc_modes.end()) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const BitrateControl& bc = capabilities.bitrate_control();
+  const std::vector<RateControlMode>& rc_modes = bc.rc_modes();
+  if (!absl::c_linear_search(rc_modes, RateControlMode::kCqp)) {
     GTEST_SKIP() << "CQP rate control mode is not supported.";
   }
 
@@ -1965,8 +2063,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantQp) {
                  << factory_->CodecName();
   }
 
-  auto frame_reader = CreateFrameReader();
-  auto static_settings =
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(kDefaultResolution)
           .EncodingFormat({.sub_sampling = EncodingFormat::SubSampling::k420,
@@ -1977,8 +2075,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantQp) {
 
   // Encode one frame with min QP.
   {
-    auto enc = factory_->CreateEncoder(static_settings, {});
-    auto frame = frame_reader->PullFrame();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
     EncOut out;
     enc->Encode(
         frame, TemporalUnitSettings(Timestamp::Millis(0)),
@@ -1993,8 +2092,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantQp) {
 
   // Encode one frame with max QP.
   {
-    auto enc = factory_->CreateEncoder(static_settings, {});
-    auto frame = frame_reader->PullFrame();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
     EncOut out;
     enc->Encode(
         frame, TemporalUnitSettings(Timestamp::Millis(0)),
@@ -2008,13 +2108,12 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantQp) {
   }
 }
 
+// Verifies constant bitrate (CBR) rate control mode.
 TEST_P(VideoEncoderFunctionalTest, SupportsConstantBitrate) {
-  auto capabilities = factory_->GetEncoderCapabilities();
-  const auto& bc = capabilities.bitrate_control();
-  const auto& rc_modes = bc.rc_modes();
-  if (std::find(rc_modes.begin(), rc_modes.end(),
-                VideoEncoderFactoryInterface::RateControlMode::kCbr) ==
-      rc_modes.end()) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const BitrateControl& bc = capabilities.bitrate_control();
+  const std::vector<RateControlMode>& rc_modes = bc.rc_modes();
+  if (!absl::c_linear_search(rc_modes, RateControlMode::kCbr)) {
     GTEST_SKIP() << "CBR rate control mode is not supported.";
   }
 
@@ -2024,8 +2123,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantBitrate) {
                  << factory_->CodecName();
   }
 
-  auto frame_reader = CreateFrameReader();
-  auto static_settings =
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(kDefaultResolution)
           .EncodingFormat({.sub_sampling = EncodingFormat::SubSampling::k420,
@@ -2034,8 +2133,9 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantBitrate) {
           .MaxNumberOfThreads(1)
           .Build();
 
-  auto enc = factory_->CreateEncoder(static_settings, {});
-  auto frame = frame_reader->PullFrame();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
   EncOut out;
   Cbr cbr_settings{.duration = TimeDelta::Millis(100),
                    .target_bitrate = DataRate::KilobitsPerSec(1000)};
@@ -2048,14 +2148,16 @@ TEST_P(VideoEncoderFunctionalTest, SupportsConstantBitrate) {
   EXPECT_EQ(GetResolution(decoded), kDefaultResolution);
 }
 
+// Verifies that encode callbacks occur synchronously on the calling thread when
+// advertised.
 TEST_P(VideoEncoderFunctionalTest, EncodeCallbackHappensOnCallingThread) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   if (!capabilities.performance().encode_on_calling_thread()) {
     GTEST_SKIP() << "encode_on_calling_thread is false.";
   }
 
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
           .EncodingFormat(config.static_settings.encoding_format())
@@ -2063,7 +2165,8 @@ TEST_P(VideoEncoderFunctionalTest, EncodeCallbackHappensOnCallingThread) {
           .MaxNumberOfThreads(2)
           .Build();
 
-  auto enc = factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
 
   struct ThreadTrackingFrameOutput : public VideoEncoderInterface::FrameOutput {
     ThreadTrackingFrameOutput(std::optional<PlatformThreadId>& buffer_tid,
@@ -2091,8 +2194,8 @@ TEST_P(VideoEncoderFunctionalTest, EncodeCallbackHappensOnCallingThread) {
   std::optional<PlatformThreadId> complete_callback_thread_id;
   std::vector<uint8_t> bitstream;
 
-  auto frame_reader = CreateFrameReader();
-  auto frame = frame_reader->PullFrame();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
 
   PlatformThreadId calling_thread_id = CurrentThreadId();
   enc->Encode(
@@ -2120,8 +2223,10 @@ TEST_P(VideoEncoderFunctionalTest, EncodeCallbackHappensOnCallingThread) {
   EXPECT_EQ(GetResolution(decoded), kDefaultResolution);
 }
 
+// Verifies that increasing the effort level yields strictly higher or equal
+// quality (PSNR).
 TEST_P(VideoEncoderFunctionalTest, HigherEffortLevelYieldsHigherQualityFrames) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   std::pair<int, int> effort_range =
       capabilities.performance().min_max_effort_level();
   if (effort_range.first == effort_range.second) {
@@ -2130,16 +2235,15 @@ TEST_P(VideoEncoderFunctionalTest, HigherEffortLevelYieldsHigherQualityFrames) {
 
   constexpr int kNumFrames = 10;
   std::vector<scoped_refptr<I420Buffer>> input_frames;
-  auto frame_reader = CreateFrameReader();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
   for (int i = 0; i < kNumFrames; ++i) {
     input_frames.push_back(frame_reader->PullFrame());
   }
 
   TestConfig config;
-  const auto& rc_modes = capabilities.bitrate_control().rc_modes();
-  if (std::find(rc_modes.begin(), rc_modes.end(),
-                VideoEncoderFactoryInterface::RateControlMode::kCbr) !=
-      rc_modes.end()) {
+  const std::vector<RateControlMode>& rc_modes =
+      capabilities.bitrate_control().rc_modes();
+  if (absl::c_linear_search(rc_modes, RateControlMode::kCbr)) {
     config.static_settings =
         StaticEncoderSettingsBuilder()
             .MaxEncodeDimensions({.width = 640, .height = 360})
@@ -2147,7 +2251,7 @@ TEST_P(VideoEncoderFunctionalTest, HigherEffortLevelYieldsHigherQualityFrames) {
             .CbrRcMode(TimeDelta::Millis(1000), TimeDelta::Millis(600))
             .MaxNumberOfThreads(1)
             .Build();
-    config.rate_options = VideoEncoderInterface::FrameEncodeSettings::Cbr{
+    config.rate_options = FrameEncodeSettings::Cbr{
         .duration = TimeDelta::Millis(100),
         .target_bitrate = DataRate::KilobitsPerSec(1000)};
   } else {
@@ -2163,7 +2267,8 @@ TEST_P(VideoEncoderFunctionalTest, HigherEffortLevelYieldsHigherQualityFrames) {
     }
 
     double psnr_sum = 0;
-    auto enc = factory_->CreateEncoder(config.static_settings, {});
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(config.static_settings, {});
     for (int tu = 0; tu < kNumFrames; ++tu) {
       EncOut out;
       if (tu == 0) {
@@ -2197,10 +2302,12 @@ TEST_P(VideoEncoderFunctionalTest, HigherEffortLevelYieldsHigherQualityFrames) {
   }
 }
 
+// Verifies that the encoder can be configured with a high thread count without
+// failure.
 TEST_P(VideoEncoderFunctionalTest, SupportsHighNumberOfThreads) {
-  auto capabilities = factory_->GetEncoderCapabilities();
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
   TestConfig config = CreateTestConfig(capabilities);
-  VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
+  StaticEncoderSettings static_settings =
       StaticEncoderSettingsBuilder()
           .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
           .EncodingFormat(config.static_settings.encoding_format())
@@ -2208,7 +2315,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsHighNumberOfThreads) {
           .MaxNumberOfThreads(64)
           .Build();
 
-  auto enc = factory_->CreateEncoder(static_settings, {});
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
   ASSERT_NE(enc, nullptr);
 
   TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
@@ -2217,8 +2325,8 @@ TEST_P(VideoEncoderFunctionalTest, SupportsHighNumberOfThreads) {
                  << factory_->CodecName();
   }
 
-  auto frame_reader = CreateFrameReader();
-  auto frame = frame_reader->PullFrame();
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  scoped_refptr<I420Buffer> frame = frame_reader->PullFrame();
   EncOut out;
   enc->Encode(frame, TemporalUnitSettings(Timestamp::Millis(0)),
               ToVec({BuildSettings(

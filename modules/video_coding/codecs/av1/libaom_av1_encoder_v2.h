@@ -33,6 +33,8 @@ namespace webrtc {
 
 class LibaomAv1EncoderV2 : public VideoEncoderInterface {
  public:
+  static VideoEncoderFactoryInterface::Capabilities GetCapabilities();
+
   LibaomAv1EncoderV2() = default;
   ~LibaomAv1EncoderV2() override;
 
@@ -49,12 +51,12 @@ class LibaomAv1EncoderV2 : public VideoEncoderInterface {
   using aom_img_ptr = std::unique_ptr<aom_image_t, decltype(&aom_img_free)>;
 
   aom_img_ptr image_to_encode_ = aom_img_ptr(nullptr, aom_img_free);
-  aom_codec_ctx_t ctx_;
-  aom_codec_enc_cfg_t cfg_;
+  aom_codec_ctx_t ctx_{};
+  aom_codec_enc_cfg_t cfg_{};
 
   std::optional<ContentHint> content_type_;
   std::array<std::optional<int>, kMaxSpatialLayers> effort_level_by_spatial_id_;
-  int max_number_of_threads_;
+  int max_number_of_threads_ = 0;
   std::array<std::optional<Resolution>, kNumBuffers> last_resolution_in_buffer_;
   ReferenceBufferTracker reference_buffer_tracker_{kNumBuffers};
 };
