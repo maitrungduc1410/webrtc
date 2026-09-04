@@ -228,6 +228,11 @@ class ProxyAudioEncoder : public AudioEncoder {
     info.payload_type = frame->GetPayloadType();
     info.send_even_if_empty = true;
     info.speech = true;
+    info.audio_level_dbov_override = frame->AudioLevel();
+    info.absolute_capture_timestamp_ms_override =
+        frame->AbsoluteCaptureTimestamp();
+    info.csrcs_override.emplace(frame->GetContributingSources().begin(),
+                                frame->GetContributingSources().end());
     return info;
   }
 
