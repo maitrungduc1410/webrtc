@@ -1481,6 +1481,23 @@ rtc_library("fake_video_codecs") {
   ]
 }
 
+rtc_library("qp_parser_for_test") {
+  testonly = true
+  sources = [
+    "qp_parser_for_test.cc",
+    "qp_parser_for_test.h",
+  ]
+  deps = [
+    "../api/video:video_codec_constants",
+    "../api/video:video_frame",
+    "../api/video_codecs:video_codecs_api",
+    "../modules/video_coding:av1_qp_parser",
+    "../modules/video_coding:video_coding_utility",
+    "../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
 rtc_library("null_transport") {
   testonly = true
   sources = [

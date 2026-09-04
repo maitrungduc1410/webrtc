@@ -107,7 +107,7 @@ TEST(LibaomAv1EncoderFactory, ReportsCorrectCapabilities) {
   // Bitrate Control
   const BitrateControl& bc = capabilities.bitrate_control();
   EXPECT_EQ(bc.min_qp(), 0);
-  EXPECT_EQ(bc.max_qp(), 63);
+  EXPECT_EQ(bc.max_qp(), 255);
 
   const std::vector<RateControlMode>& rc_modes = bc.rc_modes();
   ASSERT_EQ(rc_modes.size(), 2u);

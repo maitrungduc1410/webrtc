@@ -12,6 +12,7 @@
 #define API_VIDEO_CODECS_TEST_VIDEO_CODEC_TEST_UTILS_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -27,6 +28,7 @@
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/video/encoded_image.h"
+#include "api/video/resolution.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/video_decoder.h"
@@ -44,6 +46,7 @@
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/event.h"
+#include "test/gmock.h"
 #include "test/testsupport/file_utils.h"
 #include "test/testsupport/frame_reader.h"
 
@@ -64,6 +67,23 @@ std::vector<VideoEncoderInterface::FrameEncodeSettings> ToVec(
   return std::vector<VideoEncoderInterface::FrameEncodeSettings>(
       std::make_move_iterator(std::begin(settings)),
       std::make_move_iterator(std::end(settings)));
+}
+
+constexpr Resolution kDefaultResolution = {.width = 640, .height = 360};
+
+inline Resolution GetResolution(const VideoFrame& frame) {
+  return {.width = frame.width(), .height = frame.height()};
+}
+
+MATCHER(HasBitstreamAndMetaData, "") {
+  return !arg.bitstream.empty() && std::holds_alternative<EncodedData>(arg.res);
+}
+
+MATCHER_P(QpIs, qp, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    return ed->encoded_qp == qp;
+  }
+  return false;
 }
 
 inline double Psnr(const scoped_refptr<I420BufferInterface>& ref_buffer,
