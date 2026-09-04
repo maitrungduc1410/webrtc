@@ -275,7 +275,7 @@ scoped_refptr<MockRtpReceiverInternal> CreateMockReceiver(
     int attachment_id) {
   auto receiver = make_ref_counted<MockRtpReceiverInternal>();
   EXPECT_CALL(*receiver, track()).WillRepeatedly(Return(track));
-  EXPECT_CALL(*receiver, ssrc()).WillRepeatedly([ssrc]() { return ssrc; });
+  EXPECT_CALL(*receiver, ssrc_s()).WillRepeatedly([ssrc]() { return ssrc; });
   EXPECT_CALL(*receiver, streams())
       .WillRepeatedly(
           Return(std::vector<scoped_refptr<MediaStreamInterface>>({})));
