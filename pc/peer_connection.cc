@@ -507,7 +507,7 @@ PeerConnection::PeerConnection(
   }
 
   if (tracer_) {
-    tracer_->OnSetConfiguration(configuration_);
+    tracer_->OnCreate(configuration_);
   }
 
   std::vector<IceParameters> pooled_credentials;
@@ -890,6 +890,9 @@ RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
     RTC_ALLOW_PLAN_B_DEPRECATION_END();
   }
   if (sender_or_error.ok()) {
+    if (tracer_) {
+      tracer_->OnAddTrack(*track, stream_ids);
+    }
     sdp_handler_->UpdateNegotiationNeeded();
     legacy_stats_->AddTrack(track.get());
   }
@@ -1156,7 +1159,12 @@ PeerConnection::AddTransceiver(MediaType media_type,
       /*initial_simulcast_layers=*/{}, sender_id);
   transceiver->internal()->set_direction(init.direction);
 
+  // Only the internal offerToReceive path passes update_negotiation_needed
+  // false, so it doubles as the "called by the application" condition.
   if (update_negotiation_needed) {
+    if (tracer_) {
+      tracer_->OnAddTransceiver(media_type, track.get(), init);
+    }
     sdp_handler_->UpdateNegotiationNeeded();
   }
 

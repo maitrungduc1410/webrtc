@@ -12,10 +12,14 @@
 #define API_PEER_CONNECTION_TRACER_INTERFACE_H_
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/data_channel_interface.h"
 #include "api/jsep.h"
+#include "api/media_stream_interface.h"
+#include "api/media_types.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtp_transceiver_interface.h"
@@ -54,6 +58,13 @@ class RTC_EXPORT PeerConnectionTracerInterface {
  public:
   virtual ~PeerConnectionTracerInterface() = default;
 
+  // The PeerConnection was constructed, with `configuration` as the
+  // application supplied it. Fired from the constructor, so it is the first
+  // event a tracer sees; OnClose() is its counterpart. Note that the
+  // embedder has not necessarily finished setting itself up at this point.
+  virtual void OnCreate(
+      const PeerConnectionInterface::RTCConfiguration& configuration) = 0;
+
   // CreateOffer was called by the application; OnCreateOfferSuccess /
   // OnCreateOfferFailure fires when the operation resolves. The SDP type
   // is recoverable via description->GetType() (returns webrtc::SdpType).
@@ -86,8 +97,7 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   virtual void OnSetRemoteDescriptionSuccess() = 0;
   virtual void OnSetRemoteDescriptionFailure(const RTCError& error) = 0;
 
-  // SetConfiguration was called. Fired only after configuration has been
-  // validated and applied successfully.
+  // SetConfiguration was called and succeeded.
   virtual void OnSetConfiguration(
       const PeerConnectionInterface::RTCConfiguration& configuration) = 0;
 
@@ -123,6 +133,18 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   // callback. `id` is the stream id its OPEN message arrived on.
   virtual void OnDataChannel(const DataChannelInterface& channel,
                              std::optional<int> id) = 0;
+
+  // The application called PeerConnection::AddTransceiver successfully.
+  // `track` is null for the media-type overloads, `init` is passed on before
+  // the encodings are normalized. The transceivers the legacy offerToReceive
+  // option creates internally are not traced.
+  virtual void OnAddTransceiver(MediaType media_type,
+                                const MediaStreamTrackInterface* track,
+                                const RtpTransceiverInit& init) = 0;
+
+  // The application called PeerConnection::AddTrack successfully.
+  virtual void OnAddTrack(const MediaStreamTrackInterface& track,
+                          const std::vector<std::string>& stream_ids) = 0;
 
   // A remote track was surfaced to the application (mirrors the
   // PeerConnectionObserver::OnTrack callback).
