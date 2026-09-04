@@ -342,8 +342,7 @@ GetBitrateAllocationCallbackType(const VideoSendStream::Config& config,
     return VideoStreamEncoder::BitrateAllocationCallbackType::
         kVideoBitrateAllocation;
   }
-  return VideoStreamEncoder::BitrateAllocationCallbackType::
-      kVideoBitrateAllocationWhenScreenSharing;
+  return VideoStreamEncoder::BitrateAllocationCallbackType::kNone;
 }
 
 RtpSenderFrameEncryptionConfig CreateFrameEncryptionConfig(

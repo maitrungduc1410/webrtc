@@ -85,8 +85,8 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
   // TODO(bugs.webrtc.org/12000): Reporting of VideoBitrateAllocation is being
   // deprecated. Instead VideoLayersAllocation should be reported.
   enum class BitrateAllocationCallbackType {
+    kNone,
     kVideoBitrateAllocation,
-    kVideoBitrateAllocationWhenScreenSharing,
     kVideoLayersAllocation
   };
   VideoStreamEncoder(

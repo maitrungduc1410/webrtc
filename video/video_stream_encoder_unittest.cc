@@ -940,8 +940,7 @@ class VideoStreamEncoderTest : public ::testing::Test {
       VideoEncoderConfig video_encoder_config,
       VideoStreamEncoder::BitrateAllocationCallbackType
           allocation_callback_type =
-              VideoStreamEncoder::BitrateAllocationCallbackType::
-                  kVideoBitrateAllocationWhenScreenSharing,
+              VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
       int num_cores = 1,
       const FieldTrialsView* field_trials = nullptr) {
     if (video_stream_encoder_)
@@ -976,18 +975,18 @@ class VideoStreamEncoderTest : public ::testing::Test {
     video_stream_encoder_->WaitUntilTaskQueueIsIdle();
   }
 
-  void ResetEncoder(const std::string& payload_name,
-                    size_t num_streams,
-                    size_t num_temporal_layers,
-                    unsigned char num_spatial_layers,
-                    bool screenshare,
-                    std::optional<int> max_frame_rate = kDefaultFramerate,
-                    VideoStreamEncoder::BitrateAllocationCallbackType
-                        allocation_callback_type =
-                            VideoStreamEncoder::BitrateAllocationCallbackType::
-                                kVideoBitrateAllocationWhenScreenSharing,
-                    int num_cores = 1,
-                    const FieldTrialsView* field_trials = nullptr) {
+  void ResetEncoder(
+      const std::string& payload_name,
+      size_t num_streams,
+      size_t num_temporal_layers,
+      unsigned char num_spatial_layers,
+      bool screenshare,
+      std::optional<int> max_frame_rate = kDefaultFramerate,
+      VideoStreamEncoder::BitrateAllocationCallbackType
+          allocation_callback_type =
+              VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
+      int num_cores = 1,
+      const FieldTrialsView* field_trials = nullptr) {
     video_send_config_.rtp.payload_name = payload_name;
 
     VideoEncoderConfig video_encoder_config;
@@ -6096,8 +6095,7 @@ TEST_F(VideoStreamEncoderTest, VerifyBitrateAllocationForTwoStreams) {
       "initial_bitrate_interval_ms:1000,initial_bitrate_factor:0.2");
   // Reset encoder for field trials to take effect.
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   // 2 TLs configured, temporal layers only supported for first stream.
@@ -6514,8 +6512,7 @@ TEST_F(VideoStreamEncoderTest, InitialFrameDropActivatesWhenBweDrops) {
       "initial_bitrate_interval_ms:1000,initial_bitrate_factor:0.2");
   // Reset encoder for field trials to take effect.
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   const int kNotTooLowBitrateForFrameSizeBps = kTargetBitrate.bps() * 0.2;
@@ -6558,8 +6555,7 @@ TEST_F(VideoStreamEncoderTest,
       "initial_bitrate_interval_ms:1000,initial_bitrate_factor:0.2");
   fake_encoder_.SetQualityScaling(false);
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   const int kNotTooLowBitrateForFrameSizeBps = kTargetBitrate.bps() * 0.2;
@@ -7205,8 +7201,7 @@ TEST_F(VideoStreamEncoderTest,
   // Reset encoder for new configuration to take effect.
   auto field_trials = SetFieldTrial("WebRTC-Video-QualityScaling", "Disabled");
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   AdaptingFrameForwarder source(&time_controller_);
@@ -8844,8 +8839,7 @@ TEST_F(VideoStreamEncoderTest,
 
   // Reset encoder for new configuration to take effect.
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9001,8 +8995,7 @@ TEST_F(VideoStreamEncoderTest,
 
   // Reset encoder for new configuration to take effect.
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   // The VideoStreamEncoder needs some bitrate before it can start encoding,
@@ -9077,8 +9070,7 @@ TEST_F(VideoStreamEncoderTest, NoPreferenceDefaultFallbackToVP8Enabled) {
 
   // Reset encoder for new configuration to take effect.
   ConfigureEncoder(video_encoder_config_.Copy(),
-                   VideoStreamEncoder::BitrateAllocationCallbackType::
-                       kVideoBitrateAllocationWhenScreenSharing,
+                   VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                    /* num_cores= */ 1, &field_trials);
 
   // The VideoStreamEncoder needs some bitrate before it can start encoding,
@@ -9528,8 +9520,7 @@ TEST_F(VideoStreamEncoderTest, QpAbsentParsingDisabled_QpAbsent) {
   auto field_trials = SetFieldTrial("WebRTC-QpParsingKillSwitch", "Enabled");
 
   ResetEncoder("VP8", 1, 1, 1, false, kDefaultFramerate,
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /* num_cores= */ 1, &field_trials);
 
   // Force encoder reconfig.
@@ -9791,8 +9782,7 @@ TEST_F(VideoStreamEncoderTest, NormalComplexityVP9WithMoreThanTwoCores) {
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/3);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9814,8 +9804,7 @@ TEST_F(VideoStreamEncoderTest,
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2, &field_trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9833,8 +9822,7 @@ TEST_F(VideoStreamEncoderTest, LowComplexityVP9WithTwoCores) {
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9857,8 +9845,7 @@ TEST_F(VideoStreamEncoderTest,
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2, &trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9880,8 +9867,7 @@ TEST_F(VideoStreamEncoderTest, DynamicSpeedCanOverrideVp9LowComplexity) {
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2, &trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9902,8 +9888,7 @@ TEST_F(VideoStreamEncoderTest, ConfiguresCameraEncoderComplexityViaFieldTrial) {
                /*num_spatial_layers=*/1,
                /*screenshare=*/false,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2, &field_trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -9925,8 +9910,7 @@ TEST_F(VideoStreamEncoderTest,
                /*num_spatial_layers=*/1,
                /*screenshare=*/true,
                kDefaultFramerate, /*allocation_callback_type=*/
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocationWhenScreenSharing,
+               VideoStreamEncoder::BitrateAllocationCallbackType::kNone,
                /*num_cores=*/2, &field_trials);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(

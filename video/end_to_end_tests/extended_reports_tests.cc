@@ -205,35 +205,17 @@ class RtcpXrObserver : public test::EndToEndTest {
   SimulatedNetworkInterface* send_simulated_network_ = nullptr;
 };
 
-TEST_F(ExtendedReportsEndToEndTest,
-       TestExtendedReportsWithRrtrWithoutTargetBitrate) {
+TEST_F(ExtendedReportsEndToEndTest, TestExtendedReportsWithRrtr) {
   RtcpXrObserver test(/*enable_rrtr=*/true, /*expect_target_bitrate=*/false,
                       /*enable_zero_target_bitrate=*/false,
                       VideoEncoderConfig::ContentType::kRealtimeVideo);
   RunBaseTest(&test);
 }
 
-TEST_F(ExtendedReportsEndToEndTest,
-       TestExtendedReportsWithoutRrtrWithoutTargetBitrate) {
+TEST_F(ExtendedReportsEndToEndTest, TestExtendedReportsWithoutRrtr) {
   RtcpXrObserver test(/*enable_rrtr=*/false, /*expect_target_bitrate=*/false,
                       /*enable_zero_target_bitrate=*/false,
                       VideoEncoderConfig::ContentType::kRealtimeVideo);
-  RunBaseTest(&test);
-}
-
-TEST_F(ExtendedReportsEndToEndTest,
-       TestExtendedReportsWithRrtrWithTargetBitrate) {
-  RtcpXrObserver test(/*enable_rrtr=*/true, /*expect_target_bitrate=*/true,
-                      /*enable_zero_target_bitrate=*/false,
-                      VideoEncoderConfig::ContentType::kScreen);
-  RunBaseTest(&test);
-}
-
-TEST_F(ExtendedReportsEndToEndTest,
-       TestExtendedReportsWithoutRrtrWithTargetBitrate) {
-  RtcpXrObserver test(/*enable_rrtr=*/false, /*expect_target_bitrate=*/true,
-                      /*enable_zero_target_bitrate=*/false,
-                      VideoEncoderConfig::ContentType::kScreen);
   RunBaseTest(&test);
 }
 
@@ -248,6 +230,7 @@ TEST_F(ExtendedReportsEndToEndTest,
 
 TEST_F(ExtendedReportsEndToEndTest,
        TestExtendedReportsCanSignalZeroTargetBitrate) {
+  field_trials().Set("WebRTC-Target-Bitrate-Rtcp", "Enabled");
   RtcpXrObserver test(/*enable_rrtr=*/false, /*expect_target_bitrate=*/true,
                       /*enable_zero_target_bitrate=*/true,
                       VideoEncoderConfig::ContentType::kScreen,
