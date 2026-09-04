@@ -1825,6 +1825,7 @@ if (rtc_include_tests) {
       "../modules/pacing",
       "../modules/rtp_rtcp",
       "../modules/rtp_rtcp:rtp_rtcp_format",
+      "../modules/video_coding:codec_globals_headers",
       "../modules/video_coding:nack_requester",
       "../rtc_base:logging",
       "../system_wrappers",

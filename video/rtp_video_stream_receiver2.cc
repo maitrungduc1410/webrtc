@@ -657,7 +657,14 @@ std::optional<int64_t> RtpVideoStreamReceiver2::UnwrapSequenceNumberOrRecover(
   // H264 keyframe classification may change in H264SpsPpsTracker.
   if (video_header != nullptr && (video_header->codec == kVideoCodecH264 ||
                                   video_header->codec == kVideoCodecH265)) {
-    return rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber());
+    const int64_t unwrapped_seq_num =
+        rtp_seq_num_unwrapper_.Unwrap(rtp_packet.SequenceNumber());
+    if (!newest_media_seq_num_.has_value() ||
+        unwrapped_seq_num > *newest_media_seq_num_) {
+      newest_media_seq_num_ = unwrapped_seq_num;
+      newest_media_rtp_timestamp_ = rtp_packet.Timestamp();
+    }
+    return unwrapped_seq_num;
   }
 
   int64_t unwrapped_seq_num =
@@ -1565,29 +1572,44 @@ void RtpVideoStreamReceiver2::FrameContinuous(int64_t picture_id) {
 
 void RtpVideoStreamReceiver2::FrameDecoded(int64_t picture_id) {
   RTC_DCHECK_RUN_ON(worker_queue_);
-  int seq_num = -1;
-  std::optional<uint32_t> rtp_timestamp;
   auto seq_num_it = last_seq_num_for_pic_id_.find(picture_id);
-  if (seq_num_it != last_seq_num_for_pic_id_.end()) {
-    seq_num = seq_num_it->second;
-    last_seq_num_for_pic_id_.erase(last_seq_num_for_pic_id_.begin(),
-                                   ++seq_num_it);
+  if (seq_num_it == last_seq_num_for_pic_id_.end()) {
+    RTC_LOG(LS_WARNING) << "Frame with id " << picture_id
+                        << " not found in frame history maps.";
+    return;
   }
+
+  const uint16_t seq_num = seq_num_it->second;
+  std::optional<uint32_t> rtp_timestamp;
   auto ts_it = last_timestamp_for_pic_id_.find(picture_id);
   if (ts_it != last_timestamp_for_pic_id_.end()) {
     rtp_timestamp = ts_it->second;
+  }
+
+  const int64_t unwrapped_seq_num = rtp_seq_num_unwrapper_.PeekUnwrap(seq_num);
+  if (newest_media_seq_num_.has_value() &&
+      unwrapped_seq_num > *newest_media_seq_num_) {
+    // Delayed feedback from an older sequence-number epoch may unwrap ahead
+    // of every received media packet. It must not advance cleanup state.
+    RTC_LOG(LS_WARNING) << "Ignoring stale FrameDecoded cleanup: picture_id="
+                        << picture_id << " seq=" << seq_num
+                        << " unwrapped=" << unwrapped_seq_num
+                        << " newest=" << *newest_media_seq_num_;
+    last_seq_num_for_pic_id_.erase(seq_num_it);
+    if (ts_it != last_timestamp_for_pic_id_.end()) {
+      last_timestamp_for_pic_id_.erase(ts_it);
+    }
+    return;
+  }
+
+  last_seq_num_for_pic_id_.erase(last_seq_num_for_pic_id_.begin(),
+                                 ++seq_num_it);
+  if (ts_it != last_timestamp_for_pic_id_.end()) {
     last_timestamp_for_pic_id_.erase(last_timestamp_for_pic_id_.begin(),
                                      ++ts_it);
   }
-
-  if (seq_num != -1) {
-    int64_t unwrapped_rtp_seq_num = rtp_seq_num_unwrapper_.Unwrap(seq_num);
-    packet_buffer_.ClearTo(unwrapped_rtp_seq_num);
-    reference_finder_->ClearTo(seq_num, rtp_timestamp);
-  } else {
-    RTC_LOG(LS_WARNING) << "Frame with id " << picture_id
-                        << " not found in frame history maps.";
-  }
+  packet_buffer_.ClearTo(unwrapped_seq_num);
+  reference_finder_->ClearTo(seq_num, rtp_timestamp);
 }
 
 void RtpVideoStreamReceiver2::SignalNetworkState(NetworkState state) {

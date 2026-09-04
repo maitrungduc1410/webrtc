@@ -1035,6 +1035,66 @@ TEST_F(RtpVideoStreamReceiver2Test,
 }
 
 TEST_F(RtpVideoStreamReceiver2Test,
+       DelayedVp9FrameDecodedDoesNotClearPastNewestReceivedPacket) {
+  const CopyOnWriteBuffer data("1234");
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(data);
+
+  int num_complete_frames = 0;
+  int64_t delayed_picture_id = -1;
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame)
+      .Times(5)
+      .WillRepeatedly([&](EncodedFrame* frame) {
+        ++num_complete_frames;
+        if (delayed_picture_id == -1) {
+          delayed_picture_id = frame->Id();
+        } else {
+          EXPECT_LT(frame->Id(), delayed_picture_id);
+          rtp_video_stream_receiver_->FrameDecoded(frame->Id());
+        }
+      });
+
+  auto inject_keyframe = [&](uint16_t seq, uint32_t rtp_timestamp,
+                             int picture_id) {
+    RtpPacketReceived rtp_packet;
+    rtp_packet.SetPayloadType(kPayloadType);
+    rtp_packet.SetSequenceNumber(seq);
+    rtp_packet.SetTimestamp(rtp_timestamp);
+    rtp_packet.SetSsrc(kSsrc);
+
+    RTPVideoHeader video_header;
+    video_header.codec = kVideoCodecVP9;
+    video_header.frame_type = VideoFrameType::kVideoFrameKey;
+    video_header.is_first_packet_in_frame = true;
+    video_header.is_last_packet_in_frame = true;
+    RTPVideoHeaderVP9 vp9_header;
+    vp9_header.InitRTPVideoHeaderVP9();
+    vp9_header.flexible_mode = true;
+    vp9_header.picture_id = picture_id;
+    vp9_header.temporal_idx = 0;
+    vp9_header.spatial_idx = 0;
+    video_header.video_type_header = vp9_header;
+    rtp_video_stream_receiver_->OnReceivedPayloadDataForTesting(
+        data, rtp_packet, video_header);
+  };
+
+  // A smaller Picture ID space arrives under the same SSRC. Keep the old
+  // frame undecoded while the new frames are decoded and RTP sequence numbers
+  // advance normally by more than half of their 16-bit range.
+  inject_keyframe(20'352, 740'278'071, 13'600);
+  inject_keyframe(40'000, 740'281'071, 100);
+  inject_keyframe(60'000, 740'284'071, 101);
+  inject_keyframe(61'934, 740'285'921, 102);
+  ASSERT_THAT(num_complete_frames, Eq(4));
+  ASSERT_NE(delayed_picture_id, -1);
+
+  // Unwrapping the delayed frame's sequence number relative to 61934 must not
+  // move PacketBuffer's cleared boundary into the future sequence epoch.
+  rtp_video_stream_receiver_->FrameDecoded(delayed_picture_id);
+  inject_keyframe(61'935, 740'288'921, 103);
+  EXPECT_THAT(num_complete_frames, Eq(5));
+}
+
+TEST_F(RtpVideoStreamReceiver2Test,
        NoInfiniteRecursionOnEncapsulatedRedPacket) {
   const std::vector<uint8_t> data({
       0x80,              // RTP version.
