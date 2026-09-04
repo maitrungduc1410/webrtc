@@ -356,6 +356,10 @@ if (rtc_include_tests) {
       ]
       configs += [ ":apm_debug_dump" ]
       defines = [ "WEBRTC_AUDIOPROC_DEBUG_DUMP" ]
+      data_deps = [ "../../resources:audio_processing_unittests_data" ]
+      if (is_ios) {
+        deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
+      }
     }
 
     rtc_cc_test("splitting_filter_unittest") {
@@ -442,6 +446,10 @@ if (rtc_include_tests) {
         "../audio_coding:neteq_input_audio_tools",
         "agc:gain_control_interface",
       ]
+      data_deps = [ "../../resources:audio_processing_unittests_data" ]
+      if (is_ios) {
+        deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
+      }
     }
 
     rtc_cc_test("high_pass_filter_unittest") {
@@ -454,6 +462,10 @@ if (rtc_include_tests) {
         "../../api/audio:audio_processing",
         "../../test:test_support",
       ]
+      data_deps = [ "../../resources:audio_processing_unittests_data" ]
+      if (is_ios) {
+        deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
+      }
     }
 
     rtc_cc_test("post_filter_unittest") {
@@ -575,6 +587,10 @@ if (rtc_include_tests) {
           "../../test:test_support",
           "aec3/neural_residual_echo_estimator:neural_residual_echo_estimator_test_helper",
         ]
+        data_deps = [ "../../resources:audio_processing_unittests_data" ]
+        if (is_ios) {
+          deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
+        }
       }
 
       rtc_cc_test("audio_processing_unittest") {
@@ -951,10 +967,6 @@ rtc_library("audioproc_test_utils") {
     "//testing/gtest",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
-  data_deps = [ "../../resources:audio_processing_unittests_data" ]
-  if (is_ios) {
-    deps += [ "../../resources:audio_processing_unittests_bundle_data" ]
-  }
 }
 
 rtc_library("aec3_config_json") {
