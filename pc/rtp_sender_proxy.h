@@ -19,6 +19,7 @@
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/encoded_audio_frame_injector_interface.h"
 #include "api/encoded_video_frame_injector_interface.h"
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
@@ -77,6 +78,9 @@ PROXY_METHOD2(scoped_refptr<EncodedVideoFrameInjectorInterface>,
               CreateEncodedVideoFrameInjector,
               KeyFrameCallback,
               BitrateInfoCallback)
+PROXY_METHOD1(scoped_refptr<EncodedAudioFrameInjectorInterface>,
+              CreateEncodedAudioFrameInjector,
+              TargetBitrateCallback)
 END_PROXY_MAP(RtpSender)
 
 }  // namespace webrtc

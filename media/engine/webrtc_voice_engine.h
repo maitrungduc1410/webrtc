@@ -263,6 +263,10 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
 
   bool SenderNackEnabled() const override;
   bool SenderNonSenderRttEnabled() const override;
+  bool SetEncoderFactoryOverride(
+      uint32_t ssrc,
+      absl_nonnull scoped_refptr<AudioEncoderFactory> encoder_factory) override;
+  void ResetEncoderFactoryOverride(uint32_t ssrc) override;
 
  private:
   bool SetOptions(const AudioOptions& options);

@@ -20,11 +20,13 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/functional/any_invocable.h"
+#include "api/audio_codecs/audio_encoder_factory.h"
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/encoded_audio_frame_injector_interface.h"
 #include "api/encoded_video_frame_injector_interface.h"
 #include "api/environment/environment.h"
 #include "api/frame_transformer_interface.h"
@@ -68,6 +70,7 @@
 #include "pc/audio_rtp_receiver.h"
 #include "pc/audio_track.h"
 #include "pc/dtls_srtp_transport.h"
+#include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
 #include "pc/local_audio_source.h"
 #include "pc/media_stream.h"
@@ -137,6 +140,28 @@ class MockVideoMediaSendChannel : public FakeVideoMediaSendChannel {
 
   scoped_refptr<FrameEncryptorInterface> last_set_frame_encryptor_;
   std::unique_ptr<VideoEncoderFactory> last_encoder_factory_override_;
+  bool reset_encoder_factory_called_ = false;
+};
+
+class MockVoiceMediaSendChannel : public FakeVoiceMediaSendChannel {
+ public:
+  MockVoiceMediaSendChannel(const AudioOptions& options,
+                            TaskQueueBase* network_thread)
+      : FakeVoiceMediaSendChannel(options, network_thread) {}
+
+  bool SetEncoderFactoryOverride(
+      uint32_t ssrc,
+      scoped_refptr<AudioEncoderFactory> encoder_factory) override {
+    last_encoder_factory_override_ = std::move(encoder_factory);
+    return true;
+  }
+
+  void ResetEncoderFactoryOverride(uint32_t ssrc) override {
+    reset_encoder_factory_called_ = true;
+    last_encoder_factory_override_ = nullptr;
+  }
+
+  scoped_refptr<AudioEncoderFactory> last_encoder_factory_override_;
   bool reset_encoder_factory_called_ = false;
 };
 
@@ -1478,6 +1503,142 @@ TEST_F(RtpSenderReceiverTest,
   EXPECT_TRUE(mock_channel_ptr->last_encoder_factory_override_);
 
   DestroyVideoRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, CreateAudioFrameInjector) {
+  CreateAudioRtpSenderWithNoTrack();
+
+  int32_t last_allocated_bitrate = 0;
+  TargetBitrateCallback bitrate_callback =
+      [&last_allocated_bitrate](int32_t allocated_bitrate) {
+        last_allocated_bitrate = allocated_bitrate;
+      };
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(
+      std::move(bitrate_callback));
+  ASSERT_TRUE(injector);
+
+  // When frame injector is active, public track API returns nullptr.
+  EXPECT_FALSE(audio_rtp_sender_->track());
+
+  // Test callback routes correctly.
+  auto* injector_impl = static_cast<EncodedAudioFrameInjector*>(injector.get());
+  injector_impl->InvokeBitrateInfoCallback(12345);
+  EXPECT_EQ(12345, last_allocated_bitrate);
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, CreateAudioFrameInjectorInvalidStates) {
+  CreateAudioRtpSender();
+
+  // 1. Cannot create injector on a stopped sender
+  audio_rtp_sender_->Stop();
+  EXPECT_FALSE(audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr));
+
+  DestroyAudioRtpSender();
+  CreateAudioRtpSenderWithNoTrack();
+
+  // 2. Cannot create injector if one is already active.
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  ASSERT_TRUE(injector);
+  EXPECT_FALSE(audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr));
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, CreateAudioFrameInjectorTrackPresent) {
+  CreateAudioRtpSender();
+
+  // Cannot create injector if a track is already present on the sender
+  EXPECT_FALSE(audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr));
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, SetTrackClearsAudioFrameInjector) {
+  CreateAudioRtpSenderWithNoTrack();
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  ASSERT_TRUE(injector);
+
+  // Attach a track, which should clear the frame injector
+  scoped_refptr<AudioTrackInterface> other_track =
+      AudioTrack::Create(kAudioTrackId, nullptr);
+  audio_rtp_sender_->SetTrack(other_track.get());
+
+  // Verify the frame injector is cleared by ensuring we can create a new one
+  // after clearing the track
+  audio_rtp_sender_->SetTrack(nullptr);
+  auto injector3 = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  EXPECT_TRUE(injector3);
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, SetSsrcPropagatesAudioEncoderFactory) {
+  auto mock_channel = std::make_unique<MockVoiceMediaSendChannel>(
+      AudioOptions(), network_thread_.get());
+  MockVoiceMediaSendChannel* mock_channel_ptr = mock_channel.get();
+  voice_media_send_channel_ = std::move(mock_channel);
+
+  CreateAudioRtpSenderWithNoTrack();
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  ASSERT_TRUE(injector);
+
+  mock_channel_ptr->AddSendStream(StreamParams::CreateLegacy(kAudioSsrc));
+  SetSsrc(kAudioSsrc, *audio_rtp_sender_);
+
+  EXPECT_TRUE(mock_channel_ptr->last_encoder_factory_override_);
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest,
+       ClearAudioFrameInjectorResetsAudioEncoderFactory) {
+  auto mock_channel = std::make_unique<MockVoiceMediaSendChannel>(
+      AudioOptions(), network_thread_.get());
+  MockVoiceMediaSendChannel* mock_channel_ptr = mock_channel.get();
+  voice_media_send_channel_ = std::move(mock_channel);
+
+  CreateAudioRtpSenderWithNoTrack();
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  ASSERT_TRUE(injector);
+
+  mock_channel_ptr->AddSendStream(StreamParams::CreateLegacy(kAudioSsrc));
+  SetSsrc(kAudioSsrc, *audio_rtp_sender_);
+  EXPECT_TRUE(mock_channel_ptr->last_encoder_factory_override_);
+
+  scoped_refptr<AudioTrackInterface> other_track =
+      AudioTrack::Create(kAudioTrackId, nullptr);
+  audio_rtp_sender_->SetTrack(other_track.get());
+
+  EXPECT_TRUE(mock_channel_ptr->reset_encoder_factory_called_);
+  EXPECT_FALSE(mock_channel_ptr->last_encoder_factory_override_);
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest,
+       CreateAudioFrameInjectorAfterSsrcPropagatesAudioEncoderFactory) {
+  auto mock_channel = std::make_unique<MockVoiceMediaSendChannel>(
+      AudioOptions(), network_thread_.get());
+  MockVoiceMediaSendChannel* mock_channel_ptr = mock_channel.get();
+  voice_media_send_channel_ = std::move(mock_channel);
+
+  CreateAudioRtpSenderWithNoTrack();
+
+  mock_channel_ptr->AddSendStream(StreamParams::CreateLegacy(kAudioSsrc));
+  SetSsrc(kAudioSsrc, *audio_rtp_sender_);
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(nullptr);
+  ASSERT_TRUE(injector);
+
+  EXPECT_TRUE(mock_channel_ptr->last_encoder_factory_override_);
+
+  DestroyAudioRtpSender();
 }
 
 TEST_F(RtpSenderReceiverTest, VideoSenderCanSetParametersAsync) {

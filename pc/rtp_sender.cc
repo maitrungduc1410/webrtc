@@ -18,15 +18,19 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/string_view.h"
+#include "api/audio_codecs/audio_encoder_factory.h"
 #include "api/audio_options.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/encoded_audio_frame_injector_interface.h"
 #include "api/encoded_video_frame_injector_interface.h"
 #include "api/environment/environment.h"
 #include "api/frame_transformer_interface.h"
@@ -48,6 +52,7 @@
 #include "media/base/media_channel.h"
 #include "media/base/media_engine.h"
 #include "pc/dtmf_sender.h"
+#include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
 #include "pc/legacy_stats_collector_interface.h"
 #include "pc/scoped_operations_batcher.h"
@@ -756,6 +761,34 @@ bool RtpSenderBase::SetTrack(MediaStreamTrackInterface* track) {
   return true;
 }
 
+std::tuple<std::unique_ptr<VideoEncoderFactory>,
+           scoped_refptr<AudioEncoderFactory>>
+RtpSenderBase::MaybeCreateFactoryOverride() {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  std::unique_ptr<VideoEncoderFactory> video_encoder_factory;
+  scoped_refptr<AudioEncoderFactory> audio_encoder_factory;
+  if (frame_injector_.has_value()) {
+    if (media_type() == MediaType::VIDEO) {
+      RTC_CHECK(
+          std::holds_alternative<scoped_refptr<EncodedVideoFrameInjector>>(
+              frame_injector_.value()));
+      video_encoder_factory =
+          std::get<scoped_refptr<EncodedVideoFrameInjector>>(
+              frame_injector_.value())
+              ->CreateEncoderFactory();
+    } else if (media_type() == MediaType::AUDIO) {
+      RTC_CHECK(
+          std::holds_alternative<scoped_refptr<EncodedAudioFrameInjector>>(
+              frame_injector_.value()));
+      audio_encoder_factory =
+          std::get<scoped_refptr<EncodedAudioFrameInjector>>(
+              frame_injector_.value())
+              ->CreateEncoderFactory();
+    }
+  }
+  return {std::move(video_encoder_factory), std::move(audio_encoder_factory)};
+}
+
 void RtpSenderBase::SetSsrc(uint32_t ssrc) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   TRACE_EVENT0("webrtc", "RtpSenderBase::SetSsrc");
@@ -779,14 +812,13 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
   RtpParameters current_parameters;
   bool params_modified = false;
 
-  std::unique_ptr<VideoEncoderFactory> video_encoder_factory_override;
-  if (frame_injector_ && media_type() == MediaType::VIDEO) {
-    video_encoder_factory_override = frame_injector_->CreateEncoderFactory();
-  }
+  auto [video_factory, audio_factory] = MaybeCreateFactoryOverride();
 
   worker_thread_->BlockingCall([&, ssrc = ssrc_,
-                                video_encoder_factory_override = std::move(
-                                    video_encoder_factory_override)]() mutable {
+                                video_encoder_factory_override =
+                                    std::move(video_factory),
+                                audio_encoder_factory_override =
+                                    std::move(audio_factory)]() mutable {
     RTC_DCHECK_RUN_ON(worker_thread_);
     if (!init_parameters_.encodings.empty() ||
         init_parameters_.degradation_preference.has_value()) {
@@ -846,6 +878,11 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
         video_channel->SetEncoderFactoryOverride(
             ssrc, std::move(video_encoder_factory_override));
       }
+    } else if (audio_encoder_factory_override) {
+      if (auto* voice_channel = media_channel_->AsVoiceSendChannel()) {
+        voice_channel->SetEncoderFactoryOverride(
+            ssrc, std::move(audio_encoder_factory_override));
+      }
     }
   });
   if (params_modified) {
@@ -877,13 +914,10 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
     AddTrackToStats();
   }
 
-  std::unique_ptr<VideoEncoderFactory> video_encoder_factory_override;
-  if (frame_injector_ && media_type() == MediaType::VIDEO) {
-    video_encoder_factory_override = frame_injector_->CreateEncoderFactory();
-  }
-  return [this, ssrc,
-          video_encoder_factory_override =
-              std::move(video_encoder_factory_override)]() mutable
+  auto [video_factory, audio_factory] = MaybeCreateFactoryOverride();
+
+  return [this, ssrc, video_encoder_factory_override = std::move(video_factory),
+          audio_encoder_factory_override = std::move(audio_factory)]() mutable
              -> RTCErrorOr<ScopedOperationsBatcher::FinalizerTask> {
     RTC_DCHECK_RUN_ON(worker_thread_);
 
@@ -947,6 +981,11 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
       if (auto* video_channel = media_channel_->AsVideoSendChannel()) {
         video_channel->SetEncoderFactoryOverride(
             ssrc, std::move(video_encoder_factory_override));
+      }
+    } else if (audio_encoder_factory_override != nullptr) {
+      if (auto* voice_channel = media_channel_->AsVoiceSendChannel()) {
+        voice_channel->SetEncoderFactoryOverride(
+            ssrc, std::move(audio_encoder_factory_override));
       }
     }
 
@@ -1113,15 +1152,16 @@ RtpSenderBase::CreateEncodedVideoFrameInjector(
   if (!SetTrack(video_frame_injector->GetVideoTrack().get())) {
     return nullptr;
   }
-  frame_injector_ = std::move(video_frame_injector);
+  frame_injector_ = video_frame_injector;
+  RTC_CHECK(video_frame_injector);
 
   if (ssrc_ == 0) {
-    return frame_injector_;
+    return video_frame_injector;
   }
 
   // set the encoder factory if ssrc is set
   std::unique_ptr<VideoEncoderFactory> encoder_factory =
-      frame_injector_->CreateEncoderFactory();
+      video_frame_injector->CreateEncoderFactory();
   worker_thread_->BlockingCall(
       [&, ssrc = ssrc_,
        encoder_factory = std::move(encoder_factory)]() mutable {
@@ -1133,17 +1173,60 @@ RtpSenderBase::CreateEncodedVideoFrameInjector(
           }
         }
       });
-  return frame_injector_;
+  return video_frame_injector;
+}
+
+scoped_refptr<EncodedAudioFrameInjectorInterface>
+RtpSenderBase::CreateEncodedAudioFrameInjector(
+    TargetBitrateCallback bitrate_callback) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+
+  if (stopped_ || media_type() != MediaType::AUDIO || track_ ||
+      frame_injector_) {
+    return nullptr;
+  }
+
+  auto audio_frame_injector = EncodedAudioFrameInjector::Create(
+      std::move(bitrate_callback), worker_thread_);
+  if (!SetTrack(audio_frame_injector->GetAudioTrack().get())) {
+    return nullptr;
+  }
+  frame_injector_ = audio_frame_injector;
+  RTC_CHECK(audio_frame_injector);
+
+  if (ssrc_ == 0) {
+    return audio_frame_injector;
+  }
+
+  // set the encoder factory if ssrc is set
+  scoped_refptr<AudioEncoderFactory> encoder_factory =
+      audio_frame_injector->CreateEncoderFactory();
+  worker_thread_->BlockingCall(
+      [&, ssrc = ssrc_,
+       encoder_factory = std::move(encoder_factory)]() mutable {
+        RTC_DCHECK_RUN_ON(worker_thread_);
+        if (media_channel_) {
+          if (auto* voice_channel = media_channel_->AsVoiceSendChannel()) {
+            voice_channel->SetEncoderFactoryOverride(
+                ssrc, std::move(encoder_factory));
+          }
+        }
+      });
+  return audio_frame_injector;
 }
 
 void RtpSenderBase::ClearFrameInjector() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  if (!frame_injector_ || media_type() != MediaType::VIDEO) {
+  if (!frame_injector_) {
+    return;
+  }
+  // media_type() must be either VIDEO or AUDIO.
+  if (media_type() != MediaType::VIDEO && media_type() != MediaType::AUDIO) {
     return;
   }
 
   if (!ssrc_ || stopped_) {
-    frame_injector_ = nullptr;
+    frame_injector_.reset();
     return;
   }
 
@@ -1153,7 +1236,7 @@ void RtpSenderBase::ClearFrameInjector() {
       media_channel_->ResetEncoderFactoryOverride(ssrc);
     }
   });
-  frame_injector_ = nullptr;
+  frame_injector_.reset();
 }
 
 RTCErrorOr<scoped_refptr<SframeEncryptorInterface>>

@@ -1170,6 +1170,23 @@ class WebRtcVoiceSendChannel::WebRtcAudioSendStream : public AudioSource::Sink {
     ReconfigureAudioSendStream(nullptr);
   }
 
+  void SetEncoderFactoryOverride(
+      absl_nonnull scoped_refptr<AudioEncoderFactory> encoder_factory) {
+    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+    RTC_DCHECK(!default_encoder_factory_);
+    default_encoder_factory_ = config_.encoder_factory;
+    config_.encoder_factory = std::move(encoder_factory);
+    ReconfigureAudioSendStream(nullptr);
+  }
+
+  void ResetEncoderFactoryOverride() {
+    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+    RTC_DCHECK(default_encoder_factory_);
+    config_.encoder_factory = std::move(default_encoder_factory_);
+    default_encoder_factory_ = nullptr;
+    ReconfigureAudioSendStream(nullptr);
+  }
+
  private:
   void UpdateSendState() {
     RTC_DCHECK_RUN_ON(&worker_thread_checker_);
@@ -1281,6 +1298,9 @@ class WebRtcVoiceSendChannel::WebRtcAudioSendStream : public AudioSource::Sink {
   // has been removed.
   std::optional<std::string> audio_network_adaptor_config_from_options_;
   std::atomic<int> num_encoded_channels_{-1};
+  // reference to the default encoder factory, stored here if an override is
+  // set.
+  scoped_refptr<AudioEncoderFactory> default_encoder_factory_;
 };
 
 WebRtcVoiceSendChannel::WebRtcVoiceSendChannel(
@@ -1930,6 +1950,32 @@ void WebRtcVoiceSendChannel::SetEncoderToPacketizerFrameTransformer(
   }
   matching_stream->second->SetEncoderToPacketizerFrameTransformer(
       std::move(frame_transformer));
+}
+
+bool WebRtcVoiceSendChannel::SetEncoderFactoryOverride(
+    uint32_t ssrc,
+    absl_nonnull scoped_refptr<AudioEncoderFactory> encoder_factory) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  auto matching_stream = send_streams_.find(ssrc);
+  if (matching_stream == send_streams_.end()) {
+    RTC_LOG(LS_ERROR)
+        << "No stream found to set audio encoder factory override";
+    return false;
+  }
+  matching_stream->second->SetEncoderFactoryOverride(
+      std::move(encoder_factory));
+  return true;
+}
+
+void WebRtcVoiceSendChannel::ResetEncoderFactoryOverride(uint32_t ssrc) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  auto matching_stream = send_streams_.find(ssrc);
+  if (matching_stream != send_streams_.end()) {
+    matching_stream->second->ResetEncoderFactoryOverride();
+  } else {
+    RTC_LOG(LS_ERROR)
+        << "No stream found to reset audio encoder factory override";
+  }
 }
 
 RtpParameters WebRtcVoiceSendChannel::GetRtpSendParameters(

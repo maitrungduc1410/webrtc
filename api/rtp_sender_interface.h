@@ -24,6 +24,7 @@
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/encoded_audio_frame_injector_interface.h"
 #include "api/encoded_video_frame_injector_interface.h"
 #include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
@@ -178,6 +179,19 @@ class RTC_EXPORT RtpSenderInterface : public RefCountInterface,
   virtual scoped_refptr<EncodedVideoFrameInjectorInterface>
   CreateEncodedVideoFrameInjector(KeyFrameCallback keyframe_callback,
                                   BitrateInfoCallback bitrate_callback) {
+    return nullptr;
+  }
+
+  // Creates and returns an injector that allows encoded audio frames to
+  // be sent on this sender.
+  //
+  // `bitrate_callback`: Callback invoked when the target bitrate is updated.
+  //
+  // Returns nullptr if creation fails (e.g. if the sender is stopped, has a
+  // track attached, is not an audio sender, or if an injector is already
+  // active).
+  virtual scoped_refptr<EncodedAudioFrameInjectorInterface>
+  CreateEncodedAudioFrameInjector(TargetBitrateCallback bitrate_callback) {
     return nullptr;
   }
 

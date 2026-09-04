@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "api/audio/audio_processing_statistics.h"
 #include "api/audio_codecs/audio_encoder.h"
+#include "api/audio_codecs/audio_encoder_factory.h"
 #include "api/audio_options.h"
 #include "api/call/audio_sink.h"
 #include "api/crypto/frame_decryptor_interface.h"
@@ -950,6 +951,14 @@ class VoiceMediaSendChannelInterface : public MediaSendChannelInterface {
   GetStatsTask() = 0;
   virtual bool SenderNackEnabled() const = 0;
   virtual bool SenderNonSenderRttEnabled() const = 0;
+  // Override encoder factory for a specific ssrc.
+  // Replaces the default encoder_factory in AudioSendStream::Config and
+  // Forces reconfiguration of the underlying AudioSendStream
+  virtual bool SetEncoderFactoryOverride(
+      uint32_t ssrc,
+      absl_nonnull scoped_refptr<AudioEncoderFactory> encoder_factory) {
+    return false;
+  }
   void ResetEncoderFactoryOverride(uint32_t ssrc) override {}
 };
 
