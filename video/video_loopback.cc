@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -20,11 +21,13 @@
 #include "api/test/video_quality_test_fixture.h"
 #include "api/transport/bitrate_settings.h"
 #include "api/units/data_rate.h"
+#include "api/units/time_delta.h"
 #include "api/video_codecs/scalability_mode.h"
 #include "api/video_codecs/video_codec.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/string_encode.h"
 #include "test/gtest.h"
 #include "test/run_test.h"
 #include "video/video_quality_test.h"
@@ -202,6 +205,19 @@ ABSL_FLAG(std::string,
           clip,
           "",
           "Name of the clip to show. If empty, using chroma generator.");
+
+ABSL_FLAG(std::string,
+          clips,
+          "",
+          "Comma-separated list of clips to switch between using "
+          "SwitchingFrameReader.");
+
+ABSL_FLAG(int,
+          camera_switching_interval_ms,
+          0,
+          "Interval in ms between camera switches when using "
+          "SwitchingFrameReader (defaults to 2000 ms if multiple clips are "
+          "provided).");
 
 ABSL_FLAG(std::string,
           scalability_mode,
@@ -400,7 +416,27 @@ void Loopback() {
   params.video[0].ulpfec = absl::GetFlag(FLAGS_use_ulpfec);
   params.video[0].flexfec = absl::GetFlag(FLAGS_use_flexfec);
   params.video[0].automatic_scaling = NumStreams() < 2;
-  params.video[0].clip_path = Clip();
+
+  int interval_ms = absl::GetFlag(FLAGS_camera_switching_interval_ms);
+  std::string clips_flag = absl::GetFlag(FLAGS_clips);
+  std::vector<std::string> clips;
+  if (!clips_flag.empty()) {
+    tokenize(clips_flag, ',', &clips);
+  } else if (!Clip().empty()) {
+    std::vector<std::string> parsed;
+    tokenize(Clip(), ',', &parsed);
+    if (parsed.size() > 1 || interval_ms > 0) {
+      clips = std::move(parsed);
+    }
+  }
+
+  if (!clips.empty()) {
+    params.video[0].clip_paths = std::move(clips);
+    params.video[0].camera_switching_interval =
+        TimeDelta::Millis(interval_ms > 0 ? interval_ms : 2000);
+  } else {
+    params.video[0].clip_path = Clip();
+  }
   params.video[0].capture_device_index = GetCaptureDevice();
   params.audio.enabled = absl::GetFlag(FLAGS_audio);
   params.audio.sync_video = absl::GetFlag(FLAGS_audio_video_sync);

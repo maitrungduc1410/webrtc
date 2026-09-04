@@ -27,6 +27,7 @@
 #include "api/test/simulated_network.h"
 #include "api/transport/bitrate_settings.h"
 #include "api/transport/network_control.h"
+#include "api/units/time_delta.h"
 #include "api/video_codecs/scalability_mode.h"
 #include "api/video_codecs/spatial_layer.h"
 #include "api/video_codecs/video_codec.h"
@@ -67,6 +68,8 @@ class VideoQualityTestFixtureInterface {
       bool flexfec = false;
       bool automatic_scaling = false;
       std::string clip_path;  // "Generator" to generate frames instead.
+      std::vector<std::string> clip_paths;
+      TimeDelta camera_switching_interval = TimeDelta::Zero();
       size_t capture_device_index = 0;
       CodecParameterMap sdp_params;
       double encoder_overshoot_factor = 0.0;
