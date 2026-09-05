@@ -676,6 +676,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "rtc_base:async_tcp_socket_unittest",
       "rtc_base:async_udp_socket_unittest",
       "rtc_base:callback_list_unittests",
+      "rtc_base:clock_aligner_unittest",
       "rtc_base:rtc_base_approved_unittests",
       "rtc_base:rtc_base_unittests",
       "rtc_base:rtc_json_unittests",

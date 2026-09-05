@@ -1409,6 +1409,23 @@ rtc_library("async_tcp_socket") {
   ]
 }
 
+rtc_library("clock_aligner") {
+  visibility = [ "*" ]
+  sources = [
+    "clock_aligner.cc",
+    "clock_aligner.h",
+  ]
+  deps = [
+    ":checks",
+    ":macromagic",
+    "../api:sequence_checker",
+    "../api/environment",
+    "../api/units:time_delta",
+    "../api/units:timestamp",
+    "system:no_unique_address",
+  ]
+}
+
 rtc_library("async_udp_socket") {
   visibility = [ "*" ]
   sources = [
@@ -1419,6 +1436,7 @@ rtc_library("async_udp_socket") {
     ":async_packet_socket",
     ":buffer",
     ":checks",
+    ":clock_aligner",
     ":logging",
     ":macromagic",
     ":socket",
@@ -1426,7 +1444,6 @@ rtc_library("async_udp_socket") {
     ":socket_factory",
     "../api:sequence_checker",
     "../api/environment",
-    "../api/units:time_delta",
     "../api/units:timestamp",
     "network:received_packet",
     "network:sent_packet",
@@ -1488,6 +1505,21 @@ if (rtc_include_tests) {
       "../test:test_support",
       "network:received_packet",
       "//third_party/abseil-cpp/absl/memory",
+    ]
+  }
+
+  rtc_library("clock_aligner_unittest") {
+    testonly = true
+    sources = [ "clock_aligner_unittest.cc" ]
+    deps = [
+      ":clock_aligner",
+      "../api/environment",
+      "../api/units:time_delta",
+      "../api/units:timestamp",
+      "../system_wrappers",
+      "../test:create_test_environment",
+      "../test:near_matcher",
+      "../test:test_support",
     ]
   }
   rtc_library("async_tcp_socket_unittest") {
