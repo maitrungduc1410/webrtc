@@ -17,6 +17,7 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "modules/congestion_controller/scream/scream_v2_parameters.h"
 
 namespace webrtc {
 
@@ -36,9 +37,10 @@ struct ScreamFeedback {
   // not have ECN marking).
   DataSize acked_not_marked_size = DataSize::Zero();
 
-  // Aggregated delay & RTT metrics.
+  // Aggregated delay & RTT metrics calculated over the recent burst / tail
+  // window.
   TimeDelta min_one_way_delay = TimeDelta::PlusInfinity();
-  TimeDelta max_one_way_delay = TimeDelta::Zero();
+  TimeDelta max_one_way_delay = TimeDelta::MinusInfinity();
 
   // The duration between the receive times of the first and last packets in
   // this feedback, including the last packet's receiver delay
@@ -53,6 +55,8 @@ struct ScreamFeedback {
 };
 
 // Free function helper to convert original feedback into the flat struct.
+ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg,
+                                   const ScreamV2Parameters& params);
 ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg);
 
 }  // namespace webrtc

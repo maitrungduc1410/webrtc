@@ -17,10 +17,19 @@
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "modules/congestion_controller/scream/scream_v2_parameters.h"
+#include "rtc_base/checks.h"
 
 namespace webrtc {
 
 ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg) {
+  return ParseScreamFeedback(msg, ScreamV2Parameters());
+}
+
+ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg,
+                                   const ScreamV2Parameters& params) {
+  RTC_DCHECK_LE(params.burst_window_min.Get(), params.burst_window_max.Get());
+
   ScreamFeedback parsed;
   parsed.feedback_time = msg.feedback_time;
   parsed.data_in_flight = msg.data_in_flight;
@@ -54,13 +63,6 @@ ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg) {
         parsed.num_ce_marked_packets++;
       }
 
-      TimeDelta one_way_delay =
-          packet.receive_time - packet.sent_packet.send_time;
-      parsed.min_one_way_delay =
-          std::min(parsed.min_one_way_delay, one_way_delay);
-      parsed.max_one_way_delay =
-          std::max(parsed.max_one_way_delay, one_way_delay);
-
       // Replicate exact ReceiveTimeOrder tie-breaking logic to find first &
       // last packets.
       if (!first_packet || order(packet, *first_packet)) {
@@ -69,6 +71,47 @@ ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg) {
       if (!last_packet || order(*last_packet, packet)) {
         last_packet = &packet;
       }
+    }
+  }
+
+  // Calculate min and max delay for packets sent within a window of the
+  // latest received packet. Feedback is typically received every ~25ms, but
+  // can span significantly longer (e.g. 100-250ms) at low packet rates,
+  // such as audio-only or application-limited periods. Earlier packets in
+  // such sparse feedback are excluded to prevent natural route jitter over
+  // long intervals from being falsely interpreted as burst queueing delay,
+  // and to avoid lag in queue delay estimation.
+  Timestamp latest_send_time = Timestamp::MinusInfinity();
+  Timestamp newer_send_time = Timestamp::MinusInfinity();
+
+  for (auto it = msg.packet_feedbacks.rbegin();
+       it != msg.packet_feedbacks.rend(); ++it) {
+    const PacketResult& packet = *it;
+    if (!packet.IsReceived()) {
+      continue;
+    }
+
+    if (!latest_send_time.IsFinite()) {
+      latest_send_time = packet.sent_packet.send_time;
+      newer_send_time = packet.sent_packet.send_time;
+    }
+
+    TimeDelta delta_from_latest =
+        latest_send_time - packet.sent_packet.send_time;
+    TimeDelta gap = newer_send_time - packet.sent_packet.send_time;
+
+    if (delta_from_latest <= params.burst_window_min.Get() ||
+        (delta_from_latest <= params.burst_window_max.Get() &&
+         gap <= params.burst_window_max_gap.Get())) {
+      TimeDelta one_way_delay =
+          packet.receive_time - packet.sent_packet.send_time;
+      parsed.min_one_way_delay =
+          std::min(parsed.min_one_way_delay, one_way_delay);
+      parsed.max_one_way_delay =
+          std::max(parsed.max_one_way_delay, one_way_delay);
+      newer_send_time = packet.sent_packet.send_time;
+    } else {
+      break;
     }
   }
 

@@ -57,7 +57,7 @@ void ScreamV2::OnPacketSent(DataSize data_in_flight) {
 }
 
 void ScreamV2::OnTransportPacketsFeedback(const TransportPacketsFeedback& msg) {
-  ScreamFeedback feedback = ParseScreamFeedback(msg);
+  ScreamFeedback feedback = ParseScreamFeedback(msg, params_);
   if (feedback.num_received_packets == 0) {
     RTC_LOG(LS_INFO) << "No received packets in feedback, ignoring.";
     return;

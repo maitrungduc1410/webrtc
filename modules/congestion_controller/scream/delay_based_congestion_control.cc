@@ -45,7 +45,8 @@ void DelayBasedCongestionControl::Update(const ScreamFeedback& feedback,
   UpdateQueueDelayAverage(std::min(min_queue_delay, last_queue_delay_sample_));
   last_queue_delay_sample_ = min_queue_delay;
   UpdateQueueDelayMinAverage(min_queue_delay);
-  UpdateLatencyDifferenceAverage(feedback.min_one_way_delay.IsFinite()
+  UpdateLatencyDifferenceAverage(feedback.min_one_way_delay.IsFinite() &&
+                                         feedback.max_one_way_delay.IsFinite()
                                      ? feedback.max_one_way_delay -
                                            feedback.min_one_way_delay
                                      : TimeDelta::Zero());
