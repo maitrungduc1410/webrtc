@@ -3549,7 +3549,6 @@ void SdpOfferAnswerHandler::AddIceCandidate(
             this_weak_ptr
                 ? this_weak_ptr->AddIceCandidateInternal(candidate.get())
                 : kAddIceCandidateFailClosed;
-        operations_chain_callback();
         switch (result) {
           case AddIceCandidateResult::kAddIceCandidateSuccess:
           case AddIceCandidateResult::kAddIceCandidateFailNotReady:
@@ -3587,6 +3586,9 @@ void SdpOfferAnswerHandler::AddIceCandidate(
           default:
             RTC_DCHECK_NOTREACHED();
         }
+        // Declared complete only after `callback` has run, so that two
+        // AddIceCandidate() calls resolve in the order they were chained in.
+        operations_chain_callback();
       });
 }
 

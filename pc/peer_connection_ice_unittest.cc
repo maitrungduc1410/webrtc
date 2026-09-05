@@ -880,6 +880,36 @@ TEST_P(PeerConnectionIceTest,
   EXPECT_TRUE(operation_completed);
 }
 
+TEST_P(PeerConnectionIceTest, AsyncAddIceCandidateCompletesInOrder) {
+  auto candidate = CreateLocalUdpCandidate(SocketAddress("1.1.1.1", 1111));
+
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto callee = CreatePeerConnectionWithAudioVideo();
+
+  ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+
+  // Chain an operation that will block both AddIceCandidate() calls, so that
+  // they are queued behind it rather than executing immediately.
+  auto answer_observer = make_ref_counted<MockCreateSessionDescriptionObserver>(
+      main_.QuitClosure());
+  callee->pc()->CreateAnswer(answer_observer.get(), RTCOfferAnswerOptions());
+
+  std::vector<int> completion_order;
+  for (int i = 0; i < 2; ++i) {
+    callee->pc()->AddIceCandidate(
+        callee->CreateJsepCandidateForFirstTransport(&candidate),
+        [&completion_order, i](RTCError result) {
+          completion_order.push_back(i);
+        });
+  }
+  ASSERT_THAT(completion_order, IsEmpty());
+
+  main_.Run();
+  // The operations chain runs them in order, so they must also complete in
+  // order.
+  EXPECT_THAT(completion_order, ElementsAre(0, 1));
+}
+
 TEST_P(PeerConnectionIceTest,
        AsyncAddIceCandidateFailsBeforeSetRemoteDescription) {
   auto candidate = CreateLocalUdpCandidate(SocketAddress("1.1.1.1", 1111));
