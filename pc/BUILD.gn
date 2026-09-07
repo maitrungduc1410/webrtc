@@ -2048,6 +2048,7 @@ rtc_library("remote_audio_source") {
   deps = [
     "../api:call_api",
     "../api:media_stream_interface",
+    "../api:rtp_packet_info",
     "../api:scoped_refptr",
     "../api:sequence_checker",
     "../api/task_queue",
@@ -2333,6 +2334,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":typed_codec_vendor",
       ":video_rtp_receiver",
       "../api:audio_options_api",
+      "../api:call_api",
       "../api:candidate",
       "../api:datagram_connection",
       "../api:dtls_transport_interface",
@@ -2351,6 +2353,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:rtc_error_matchers",
       "../api:rtp_header_extension_id",
       "../api:rtp_headers",
+      "../api:rtp_packet_info",
       "../api:rtp_parameters",
       "../api:rtp_transceiver_direction",
       "../api:rtp_transport_factory",

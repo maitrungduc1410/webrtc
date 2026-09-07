@@ -11,16 +11,23 @@
 #include "pc/audio_rtp_receiver.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "api/call/audio_sink.h"
 #include "api/make_ref_counted.h"
+#include "api/media_stream_interface.h"
+#include "api/rtp_packet_info.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include "media/base/media_channel.h"
 #include "pc/test/mock_voice_media_receive_channel_interface.h"
 #include "rtc_base/thread.h"
@@ -110,6 +117,74 @@ TEST_F(AudioRtpReceiverTest, VolumesSetBeforeStartingAreRespected) {
 
   auto setup_task = receiver_->GetSetupForMediaChannel(kSsrc);
   worker_thread_->BlockingCall([&]() { std::move(setup_task)(); });
+}
+
+TEST(AudioRtpReceiver, PropagatesPacketInfosToTrackSink) {
+  test::RunLoop loop;
+
+  std::unique_ptr<Thread> worker_thread = Thread::Create();
+  worker_thread->Start();
+  MockVoiceMediaReceiveChannelInterface receive_channel;
+  auto receiver = make_ref_counted<AudioRtpReceiver>(
+      worker_thread.get(), std::string(), std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/nullptr);
+
+  std::unique_ptr<AudioSinkInterface> audio_sink;
+  EXPECT_CALL(receive_channel, SetRawAudioSink(kSsrc, _))
+      .WillOnce(
+          [&](uint32_t /* ssrc */, std::unique_ptr<AudioSinkInterface> sink) {
+            audio_sink = std::move(sink);
+          });
+  EXPECT_CALL(receive_channel, SetBaseMinimumPlayoutDelayMs(kSsrc, _));
+
+  class TestTrackSink : public AudioTrackSinkInterface {
+   public:
+    using AudioTrackSinkInterface::OnData;
+    void OnData(const void* /* audio_data */,
+                int /* bits_per_sample */,
+                int /* sample_rate */,
+                size_t /* number_of_channels */,
+                size_t /* number_of_frames */,
+                std::optional<int64_t> /* absolute_capture_timestamp_ms */,
+                const RtpPacketInfos& packet_infos) override {
+      called_ = true;
+      received_packet_infos_ = packet_infos;
+    }
+    bool called_ = false;
+    RtpPacketInfos received_packet_infos_;
+  };
+
+  TestTrackSink sink;
+  receiver->audio_track()->AddSink(&sink);
+  receiver->track()->set_enabled(true);
+  worker_thread->BlockingCall(
+      [&]() { receiver->SetMediaChannel(&receive_channel); });
+  auto setup_task = receiver->GetSetupForMediaChannel(kSsrc);
+  worker_thread->BlockingCall([&]() { std::move(setup_task)(); });
+
+  ASSERT_TRUE(audio_sink != nullptr);
+
+  RtpPacketInfos::vector_type infos_vec;
+  infos_vec.emplace_back(
+      RtpPacketInfo(/*ssrc=*/kSsrc, /*csrcs=*/{5678},
+                    /*rtp_timestamp=*/9999,
+                    /*receive_time=*/Timestamp::Millis(100)));
+  RtpPacketInfos packet_infos(std::move(infos_vec));
+
+  int16_t dummy_data[160] = {0};
+  AudioSinkInterface::Data audio_data(dummy_data, 160, 16000, 1, 9999,
+                                      &packet_infos);
+  audio_sink->OnData(audio_data);
+
+  EXPECT_TRUE(sink.called_);
+  ASSERT_EQ(sink.received_packet_infos_.size(), 1u);
+  EXPECT_EQ(sink.received_packet_infos_[0].ssrc(), kSsrc);
+  EXPECT_THAT(sink.received_packet_infos_[0].csrcs(),
+              ::testing::ElementsAre(5678));
+
+  receiver->audio_track()->RemoveSink(&sink);
+  EXPECT_CALL(receive_channel, SetOutputVolume(kSsrc, kVolumeMuted));
+  worker_thread->BlockingCall([&]() { receiver->SetMediaChannel(nullptr); });
 }
 
 // Tests that OnChanged notifications are processed correctly on the worker

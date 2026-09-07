@@ -452,17 +452,77 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
     call_stats_.DecodedByNetEq(audio_frame->speech_type_, audio_frame->muted());
   }
 
+  bool has_capture_time = false;
+  for (const auto& packet_info : audio_frame->packet_infos_) {
+    if (packet_info.absolute_capture_time().has_value()) {
+      has_capture_time = true;
+      break;
+    }
+  }
+
+  if (capture_start_rtp_time_stamp_ < 0 && audio_frame->timestamp_ != 0) {
+    // The first frame with a valid rtp timestamp.
+    capture_start_rtp_time_stamp_ = audio_frame->timestamp_;
+  }
+
+  const bool has_valid_timestamp = capture_start_rtp_time_stamp_ >= 0;
+
+  // Update capture clock offsets and NTP estimate under a single ts_stats_lock_
+  // acquisition to minimize lock contention and avoid taking the lock inside
+  // loops.
+  if (has_capture_time || has_valid_timestamp) {
+    MutexLock lock(&ts_stats_lock_);
+    if (has_capture_time) {
+      RtpPacketInfos::vector_type packet_infos;
+      packet_infos.reserve(audio_frame->packet_infos_.size());
+      for (const auto& packet_info : audio_frame->packet_infos_) {
+        RtpPacketInfo new_packet_info(packet_info);
+        if (packet_info.absolute_capture_time().has_value()) {
+          new_packet_info.set_local_capture_clock_offset(
+              CaptureClockOffsetUpdater::ConvertToTimeDelta(
+                  capture_clock_offset_updater_
+                      .AdjustEstimatedCaptureClockOffset(
+                          packet_info.absolute_capture_time()
+                              ->estimated_capture_clock_offset)));
+        }
+        packet_infos.push_back(std::move(new_packet_info));
+      }
+      audio_frame->packet_infos_ = RtpPacketInfos(std::move(packet_infos));
+    }
+
+    if (has_valid_timestamp) {
+      // audio_frame.timestamp_ should be valid from now on.
+      // Compute elapsed time.
+      int64_t unwrap_timestamp =
+          rtp_ts_wraparound_handler_.Unwrap(audio_frame->timestamp_);
+      audio_frame->elapsed_time_ms_ =
+          (unwrap_timestamp - capture_start_rtp_time_stamp_) /
+          (GetRtpTimestampRateHz() / 1000);
+
+      // Compute ntp time.
+      audio_frame->ntp_time_ms_ =
+          ntp_estimator_.Estimate(audio_frame->timestamp_);
+      // `ntp_time_ms_` won't be valid until at least 2 RTCP SRs are received.
+      if (audio_frame->ntp_time_ms_ > 0) {
+        // Compute `capture_start_ntp_time_ms_` so that
+        // `capture_start_ntp_time_ms_` + `elapsed_time_ms_` == `ntp_time_ms_`
+        capture_start_ntp_time_ms_ =
+            audio_frame->ntp_time_ms_ - audio_frame->elapsed_time_ms_;
+      }
+    }
+  }
+
   {
     // Pass the audio buffers to an optional sink callback, before applying
     // scaling/panning, as that applies to the mix operation.
     // External recipients of the audio (e.g. via AudioTrack), will do their
     // own mixing/dynamic processing.
     MutexLock lock(&audio_sink_mutex_);
-    if (audio_sink_) {
+    if (audio_sink_ != nullptr) {
       AudioSinkInterface::Data data(
           audio_frame->data(), audio_frame->samples_per_channel_,
           audio_frame->sample_rate_hz_, audio_frame->num_channels_,
-          audio_frame->timestamp_);
+          audio_frame->timestamp_, &audio_frame->packet_infos_);
       audio_sink_->OnData(data);
     }
   }
@@ -480,50 +540,6 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
   // https://crbug.com/webrtc/7517).
   output_audio_level_.ComputeLevel(*audio_frame, kAudioSampleDurationSeconds);
 
-  if (capture_start_rtp_time_stamp_ < 0 && audio_frame->timestamp_ != 0) {
-    // The first frame with a valid rtp timestamp.
-    capture_start_rtp_time_stamp_ = audio_frame->timestamp_;
-  }
-
-  if (capture_start_rtp_time_stamp_ >= 0) {
-    // audio_frame.timestamp_ should be valid from now on.
-    // Compute elapsed time.
-    int64_t unwrap_timestamp =
-        rtp_ts_wraparound_handler_.Unwrap(audio_frame->timestamp_);
-    audio_frame->elapsed_time_ms_ =
-        (unwrap_timestamp - capture_start_rtp_time_stamp_) /
-        (GetRtpTimestampRateHz() / 1000);
-
-    {
-      MutexLock lock(&ts_stats_lock_);
-      // Compute ntp time.
-      audio_frame->ntp_time_ms_ =
-          ntp_estimator_.Estimate(audio_frame->timestamp_);
-      // `ntp_time_ms_` won't be valid until at least 2 RTCP SRs are received.
-      if (audio_frame->ntp_time_ms_ > 0) {
-        // Compute `capture_start_ntp_time_ms_` so that
-        // `capture_start_ntp_time_ms_` + `elapsed_time_ms_` == `ntp_time_ms_`
-        capture_start_ntp_time_ms_ =
-            audio_frame->ntp_time_ms_ - audio_frame->elapsed_time_ms_;
-      }
-    }
-  }
-
-  // Fill in local capture clock offset in `audio_frame->packet_infos_`.
-  RtpPacketInfos::vector_type packet_infos;
-  for (auto& packet_info : audio_frame->packet_infos_) {
-    RtpPacketInfo new_packet_info(packet_info);
-    if (packet_info.absolute_capture_time().has_value()) {
-      MutexLock lock(&ts_stats_lock_);
-      new_packet_info.set_local_capture_clock_offset(
-          CaptureClockOffsetUpdater::ConvertToTimeDelta(
-              capture_clock_offset_updater_.AdjustEstimatedCaptureClockOffset(
-                  packet_info.absolute_capture_time()
-                      ->estimated_capture_clock_offset)));
-    }
-    packet_infos.push_back(std::move(new_packet_info));
-  }
-  audio_frame->packet_infos_ = RtpPacketInfos(std::move(packet_infos));
   if (!audio_frame->packet_infos_.empty() && on_frame_delivered_callback_) {
     on_frame_delivered_callback_(audio_frame->packet_infos_, now);
   }

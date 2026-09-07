@@ -1322,6 +1322,7 @@ if (rtc_include_tests) {
 
     deps = [
       ":media_stream_interface",
+      ":rtp_packet_info",
       "../test:test_support",
     ]
   }

@@ -22,9 +22,11 @@
 #include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
+#include "api/call/audio_sink.h"
 #include "api/call/transport.h"
 #include "api/crypto/crypto_options.h"
 #include "api/make_ref_counted.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/test/mock_frame_transformer.h"
 #include "api/units/time_delta.h"
@@ -99,12 +101,15 @@ class ChannelReceiveTest : public Test {
            kSampleRateHz;
   }
 
-  RtpPacketReceived CreateRtpPacket() {
+  RtpPacketReceived CreateRtpPacket(std::span<const uint32_t> csrcs = {}) {
     RtpPacketReceived packet;
     packet.set_arrival_time(time_controller_.GetClock()->CurrentTime());
     packet.SetTimestamp(RtpNow());
     packet.SetSsrc(kLocalSsrc);
     packet.SetPayloadType(kPayloadType);
+    if (!csrcs.empty()) {
+      packet.SetCsrcs(csrcs);
+    }
     // Packet size should be enough to give at least 10 ms of data.
     // For PCMA, that's 80 bytes; this should be enough.
     uint8_t* datapos = packet.SetPayloadSize(100);
@@ -329,6 +334,36 @@ TEST_F(ChannelReceiveTest, GetPlayoutRtpTimestamp) {
   // Stopping playout clears playout timestamp.
   channel->StopPlayout();
   EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+}
+
+TEST_F(ChannelReceiveTest, AudioSinkReceivesPacketInfos) {
+  class TestAudioSink : public AudioSinkInterface {
+   public:
+    void OnData(const Data& audio) override {
+      data_called_ = true;
+      if (audio.packet_infos != nullptr) {
+        last_packet_infos_ = *audio.packet_infos;
+      }
+    }
+    bool data_called_ = false;
+    RtpPacketInfos last_packet_infos_;
+  };
+
+  auto channel = CreateTestChannelReceive();
+  TestAudioSink sink;
+  channel->SetSink(&sink);
+  channel->StartPlayout();
+
+  const uint32_t kCsrcs[] = {1111, 2222};
+  channel->OnRtpPacket(CreateRtpPacket(kCsrcs));
+
+  AudioFrame audio_frame;
+  channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame);
+
+  EXPECT_TRUE(sink.data_called_);
+  ASSERT_EQ(sink.last_packet_infos_.size(), 1u);
+  EXPECT_THAT(sink.last_packet_infos_[0].csrcs(),
+              ::testing::ElementsAre(1111, 2222));
 }
 
 }  // namespace
