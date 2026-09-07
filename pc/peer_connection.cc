@@ -1468,6 +1468,11 @@ PeerConnection::CreateDataChannelOrError(const std::string& label,
 
 void PeerConnection::RestartIce() {
   RTC_DCHECK_RUN_ON(signaling_thread());
+  // Traced first because RestartIce() may synchronously fire
+  // OnNegotiationNeeded().
+  if (tracer_) {
+    tracer_->OnRestartIce();
+  }
   sdp_handler_->RestartIce();
 }
 
@@ -1664,38 +1669,30 @@ RTCError PeerConnection::SetConfiguration(
 bool PeerConnection::AddIceCandidate(const IceCandidate* ice_candidate) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   ClearStatsCache();
-  bool succeeded = sdp_handler_->AddIceCandidate(ice_candidate);
-  if (tracer_ && ice_candidate != nullptr) {
-    tracer_->OnAddIceCandidate(*ice_candidate, succeeded);
-  }
-  return succeeded;
+  return sdp_handler_->AddIceCandidate(ice_candidate);
 }
 
 void PeerConnection::AddIceCandidate(std::unique_ptr<IceCandidate> candidate,
                                      std::function<void(RTCError)> callback) {
   RTC_DCHECK_RUN_ON(signaling_thread());
+  // Traced before chaining, so the order is the one the application called in.
   const bool trace_candidate = tracer_ != nullptr && candidate != nullptr;
-  std::string sdp_mid;
-  int sdp_mline_index = 0;
-  Candidate candidate_copy;
   if (trace_candidate) {
-    sdp_mid = candidate->sdp_mid();
-    sdp_mline_index = candidate->sdp_mline_index();
-    candidate_copy = candidate->candidate();
+    tracer_->OnAddIceCandidate(*candidate);
   }
   sdp_handler_->AddIceCandidate(
       std::move(candidate),
       [this, safety = signaling_thread_safety_.flag(),
-       callback = std::move(callback), sdp_mid = std::move(sdp_mid),
-       sdp_mline_index, candidate_copy = std::move(candidate_copy),
-       trace_candidate](RTCError result) {
+       callback = std::move(callback), trace_candidate](RTCError result) {
         RTC_DCHECK_RUN_ON(signaling_thread());
         if (safety->alive()) {
           ClearStatsCache();
           if (trace_candidate) {
-            IceCandidate reconstructed(sdp_mid, sdp_mline_index,
-                                       candidate_copy);
-            tracer_->OnAddIceCandidate(reconstructed, result.ok());
+            if (result.ok()) {
+              tracer_->OnAddIceCandidateSuccess();
+            } else {
+              tracer_->OnAddIceCandidateFailure(result);
+            }
           }
         }
         callback(result);
@@ -3164,7 +3161,7 @@ bool PeerConnection::ShouldFireNegotiationNeededEvent(uint32_t event_id) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   bool should_fire = sdp_handler_->ShouldFireNegotiationNeededEvent(event_id);
   if (should_fire && tracer_) {
-    tracer_->OnNegotiationNeededEvent();
+    tracer_->OnNegotiationNeeded();
   }
   return should_fire;
 }

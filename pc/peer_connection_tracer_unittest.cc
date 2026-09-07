@@ -65,9 +65,12 @@ class CountingTracer : public PeerConnectionTracerInterface {
     int set_remote_description_failure = 0;
     int create = 0;
     int set_configuration = 0;
+    int restart_ice = 0;
     int close = 0;
     int ice_candidate = 0;
     int add_ice_candidate = 0;
+    int add_ice_candidate_success = 0;
+    int add_ice_candidate_failure = 0;
     int ice_candidate_error = 0;
     int data_channel_created_local = 0;
     int data_channel_created_remote = 0;
@@ -142,10 +145,17 @@ class CountingTracer : public PeerConnectionTracerInterface {
       const PeerConnectionInterface::RTCConfiguration&) override {
     counts_.set_configuration++;
   }
+  void OnRestartIce() override { counts_.restart_ice++; }
   void OnClose() override { counts_.close++; }
   void OnIceCandidate(const IceCandidate&) override { counts_.ice_candidate++; }
-  void OnAddIceCandidate(const IceCandidate&, bool) override {
+  void OnAddIceCandidate(const IceCandidate&) override {
     counts_.add_ice_candidate++;
+  }
+  void OnAddIceCandidateSuccess() override {
+    counts_.add_ice_candidate_success++;
+  }
+  void OnAddIceCandidateFailure(const RTCError&) override {
+    counts_.add_ice_candidate_failure++;
   }
   void OnIceCandidateError(absl::string_view,
                            int,
@@ -192,9 +202,7 @@ class CountingTracer : public PeerConnectionTracerInterface {
       PeerConnectionInterface::IceGatheringState) override {
     counts_.ice_gathering_state_changed++;
   }
-  void OnNegotiationNeededEvent() override {
-    counts_.negotiation_needed_event++;
-  }
+  void OnNegotiationNeeded() override { counts_.negotiation_needed_event++; }
 
  private:
   Counts counts_;
@@ -332,6 +340,16 @@ TEST_F(PeerConnectionTracerTest, FiresOnSetConfiguration) {
   EXPECT_EQ(Counts(*pc).set_configuration, 1);
 }
 
+// RestartIce should fire OnRestartIce.
+TEST_F(PeerConnectionTracerTest, FiresOnRestartIce) {
+  auto pc = CreatePeerConnection();
+  ASSERT_TRUE(pc);
+  ASSERT_EQ(Counts(*pc).restart_ice, 0);
+
+  pc->pc()->RestartIce();
+  EXPECT_EQ(Counts(*pc).restart_ice, 1);
+}
+
 // Close should fire OnClose once and at least one signaling-state transition
 // (to "closed").
 TEST_F(PeerConnectionTracerTest, FiresOnClose) {
@@ -391,6 +409,28 @@ TEST_F(PeerConnectionTracerTest, FiresOnSetRemoteDescription) {
   EXPECT_TRUE(WaitUntil([&] { return set_observer->called(); }));
   EXPECT_EQ(Counts(*callee).set_remote_description_success, 1);
   EXPECT_EQ(Counts(*callee).set_remote_description_failure, 0);
+}
+
+// AddIceCandidate is traced as a call plus a separate outcome, so a candidate
+// that is rejected still shows up as having been added.
+TEST_F(PeerConnectionTracerTest, FiresOnAddIceCandidateFailure) {
+  auto pc = CreatePeerConnection();
+  ASSERT_TRUE(pc);
+  // No remote description, so the candidate cannot be accepted.
+  std::unique_ptr<IceCandidate> candidate(CreateIceCandidate(
+      "0", 0, "candidate:a0+B/1 1 udp 2130706432 192.168.1.1 1234 typ host",
+      nullptr));
+  ASSERT_TRUE(candidate);
+
+  std::optional<RTCError> result;
+  pc->pc()->AddIceCandidate(std::move(candidate),
+                            [&](RTCError error) { result = error; });
+  EXPECT_EQ(Counts(*pc).add_ice_candidate, 1);
+
+  EXPECT_TRUE(WaitUntil([&] { return result.has_value(); }));
+  EXPECT_FALSE(result->ok());
+  EXPECT_EQ(Counts(*pc).add_ice_candidate_success, 0);
+  EXPECT_EQ(Counts(*pc).add_ice_candidate_failure, 1);
 }
 
 // AddTransceiver fires OnAddTransceiver with the init it was called with.

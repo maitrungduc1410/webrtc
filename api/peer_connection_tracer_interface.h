@@ -101,6 +101,9 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   virtual void OnSetConfiguration(
       const PeerConnectionInterface::RTCConfiguration& configuration) = 0;
 
+  // RestartIce was called by the application.
+  virtual void OnRestartIce() = 0;
+
   // PeerConnection::Close was called.
   virtual void OnClose() = 0;
 
@@ -109,11 +112,10 @@ class RTC_EXPORT PeerConnectionTracerInterface {
   // callback).
   virtual void OnIceCandidate(const IceCandidate& candidate) = 0;
 
-  // The application called PeerConnection::AddIceCandidate with a
-  // candidate received from the remote peer over signaling. `succeeded`
-  // indicates whether the candidate was accepted.
-  virtual void OnAddIceCandidate(const IceCandidate& candidate,
-                                 bool succeeded) = 0;
+  // AddIceCandidate was called by the application.
+  virtual void OnAddIceCandidate(const IceCandidate& candidate) = 0;
+  virtual void OnAddIceCandidateSuccess() = 0;
+  virtual void OnAddIceCandidateFailure(const RTCError& error) = 0;
 
   // Local ICE candidate gathering produced an error.
   virtual void OnIceCandidateError(absl::string_view address,
@@ -164,7 +166,7 @@ class RTC_EXPORT PeerConnectionTracerInterface {
       PeerConnectionInterface::IceGatheringState state) = 0;
 
   // Gated by ShouldFireNegotiationNeededEvent().
-  virtual void OnNegotiationNeededEvent() = 0;
+  virtual void OnNegotiationNeeded() = 0;
 };
 
 }  // namespace webrtc
