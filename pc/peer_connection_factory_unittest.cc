@@ -26,9 +26,7 @@
 #include "api/create_modular_peer_connection_factory.h"
 #include "api/create_peerconnection_factory.h"
 #include "api/data_channel_interface.h"
-#include "api/enable_media.h"
 #include "api/enable_media_with_defaults.h"
-#include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
 #include "api/field_trials_view.h"
 #include "api/jsep.h"
@@ -58,7 +56,6 @@
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
 #include "p2p/test/fake_port_allocator.h"
-#include "pc/connection_context.h"
 #include "pc/test/fake_audio_capture_module.h"
 #include "pc/test/fake_video_track_source.h"
 #include "rtc_base/event.h"
@@ -277,36 +274,6 @@ class PeerConnectionFactoryTest : public ::testing::Test {
   FakePortAllocator* raw_port_allocator_;
 };
 
-// Since there is no public PeerConnectionFactory API to control RTX usage, need
-// to reconstruct factory with our own ConnectionContext.
-scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactoryWithRtxDisabled() {
-  PeerConnectionFactoryDependencies pcf_dependencies;
-  pcf_dependencies.signaling_thread = Thread::Current();
-  pcf_dependencies.worker_thread = Thread::Current();
-  pcf_dependencies.network_thread = Thread::Current();
-
-  pcf_dependencies.adm = FakeAudioCaptureModule::Create();
-  pcf_dependencies.audio_encoder_factory = CreateBuiltinAudioEncoderFactory();
-  pcf_dependencies.audio_decoder_factory = CreateBuiltinAudioDecoderFactory();
-  pcf_dependencies.video_encoder_factory =
-      std::make_unique<VideoEncoderFactoryTemplate<
-          LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
-          OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
-  pcf_dependencies.video_decoder_factory =
-      std::make_unique<VideoDecoderFactoryTemplate<
-          LibvpxVp8DecoderTemplateAdapter, LibvpxVp9DecoderTemplateAdapter,
-          OpenH264DecoderTemplateAdapter, Dav1dDecoderTemplateAdapter>>(),
-  EnableMedia(pcf_dependencies);
-
-  Environment env = CreateTestEnvironment();
-  scoped_refptr<ConnectionContext> context =
-      ConnectionContext::Create(env, &pcf_dependencies);
-  context->set_use_rtx(false);
-  return make_ref_counted<PeerConnectionFactory>(env, context,
-                                                 &pcf_dependencies);
-}
-
 // Verify creation of PeerConnection using internal ADM, video factory and
 // internal libjingle threads.
 // TODO(henrika): disabling this test since relying on real audio can result in
@@ -378,16 +345,6 @@ TEST_F(PeerConnectionFactoryTest, CheckRtpSenderRtxEnabledCapabilities) {
   EXPECT_TRUE(it != video_capabilities.codecs.end());
 }
 
-TEST(PeerConnectionFactoryTestInternal, CheckRtpSenderRtxDisabledCapabilities) {
-  auto factory = CreatePeerConnectionFactoryWithRtxDisabled();
-  RtpCapabilities video_capabilities =
-      factory->GetRtpSenderCapabilities(MediaType::VIDEO);
-  const auto it = std::find_if(
-      video_capabilities.codecs.begin(), video_capabilities.codecs.end(),
-      [](const auto& c) { return c.name == kRtxCodecName; });
-  EXPECT_TRUE(it == video_capabilities.codecs.end());
-}
-
 TEST_F(PeerConnectionFactoryTest, CheckRtpSenderDataCapabilities) {
   RtpCapabilities data_capabilities =
       factory_->GetRtpSenderCapabilities(MediaType::DATA);
@@ -428,17 +385,6 @@ TEST_F(PeerConnectionFactoryTest, CheckRtpReceiverRtxEnabledCapabilities) {
       video_capabilities.codecs.begin(), video_capabilities.codecs.end(),
       [](const auto& c) { return c.name == kRtxCodecName; });
   EXPECT_TRUE(it != video_capabilities.codecs.end());
-}
-
-TEST(PeerConnectionFactoryTestInternal,
-     CheckRtpReceiverRtxDisabledCapabilities) {
-  auto factory = CreatePeerConnectionFactoryWithRtxDisabled();
-  RtpCapabilities video_capabilities =
-      factory->GetRtpReceiverCapabilities(MediaType::VIDEO);
-  const auto it = std::find_if(
-      video_capabilities.codecs.begin(), video_capabilities.codecs.end(),
-      [](const auto& c) { return c.name == kRtxCodecName; });
-  EXPECT_TRUE(it == video_capabilities.codecs.end());
 }
 
 TEST_F(PeerConnectionFactoryTest, CheckRtpReceiverDataCapabilities) {

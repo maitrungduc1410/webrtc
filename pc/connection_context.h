@@ -111,14 +111,6 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
     return call_factory_.get();
   }
   UniqueRandomIdGenerator* ssrc_generator() { return &ssrc_generator_; }
-  // Note: There is lots of code that wants to know whether or not we
-  // use RTX, but so far, no code has been found that sets it to false.
-  // Kept in the API in order to ease introduction if we want to resurrect
-  // the functionality.
-  bool use_rtx() const { return use_rtx_; }
-
-  // For use by tests.
-  void set_use_rtx(bool use_rtx) { use_rtx_ = use_rtx; }
 
   // Apply global audio options. Must be called on the worker thread.
   void ApplyGlobalAudioOptions(const AudioOptions& options);
@@ -176,10 +168,6 @@ class ConnectionContext final : public RefCountedNonVirtual<ConnectionContext> {
   std::unique_ptr<PacketSocketFactory> default_socket_factory_
       RTC_GUARDED_BY(signaling_thread_);
   std::unique_ptr<SctpTransportFactoryInterface> const sctp_factory_;
-
-  // Controls whether to announce support for the the rfc4588 payload format
-  // for retransmitted video packets.
-  bool use_rtx_;
 
   // Stored global audio options applied to the media engine upon
   // initialization.
