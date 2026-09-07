@@ -4150,9 +4150,7 @@ int NacksSentCount(PeerConnectionIntegrationWrapper& pc) {
   return *receiver_stats[0]->nack_count;
 }
 
-// Test disabled because it is flaky.
-TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
-       DISABLED_AudioPacketLossCausesNack) {
+TEST_F(PeerConnectionIntegrationTestUnifiedPlan, AudioPacketLossCausesNack) {
   RTCConfiguration config;
   ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
   ConnectFakeSignaling();
