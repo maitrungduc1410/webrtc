@@ -508,6 +508,10 @@ PeerConnectionIntegrationWrapper::ice_gathering_state() {
 }
 
 void PeerConnectionIntegrationWrapper::ResetRtpReceiverObservers() {
+  for (const scoped_refptr<RtpReceiverInterface>& receiver :
+       pc()->GetReceivers()) {
+    receiver->SetObserver(nullptr);
+  }
   rtp_receiver_observers_.clear();
   for (const scoped_refptr<RtpReceiverInterface>& receiver :
        pc()->GetReceivers()) {

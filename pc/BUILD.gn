@@ -2355,6 +2355,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:rtp_headers",
       "../api:rtp_packet_info",
       "../api:rtp_parameters",
+      "../api:rtp_receiver_interface",
       "../api:rtp_transceiver_direction",
       "../api:rtp_transport_factory",
       "../api:scoped_refptr",

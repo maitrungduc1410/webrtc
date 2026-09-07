@@ -199,6 +199,54 @@ TEST_P(PeerConnectionIntegrationTest,
                      }));
 }
 
+// Test the OnSourceChanged callback from audio/video RtpReceivers.
+TEST_P(PeerConnectionIntegrationTest, RtpReceiverObserverOnSourceChanged) {
+  ASSERT_TRUE(CreatePeerConnectionWrappers());
+  ConnectFakeSignaling();
+  caller()->AddAudioVideoTracks();
+  callee()->AddAudioVideoTracks();
+  // Start offer/answer exchange and wait for it to complete.
+  caller()->CreateAndSetAndSignalOffer();
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); }));
+  EXPECT_EQ(2U, caller()->rtp_receiver_observers().size());
+  EXPECT_EQ(2U, callee()->rtp_receiver_observers().size());
+  // Wait for all "source changed" callbacks to be fired.
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return absl::c_all_of(
+            caller()->rtp_receiver_observers(),
+            [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
+              return o->source_changed() && o->last_ssrc_changed();
+            });
+      },
+      {.timeout = kMaxWaitForFrames}));
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return absl::c_all_of(
+            callee()->rtp_receiver_observers(),
+            [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
+              return o->source_changed() && o->last_ssrc_changed();
+            });
+      },
+      {.timeout = kMaxWaitForFrames}));
+  // If new observers are set after sources have already arrived, the
+  // callback should still be invoked.
+  caller()->ResetRtpReceiverObservers();
+  callee()->ResetRtpReceiverObservers();
+  EXPECT_EQ(2U, caller()->rtp_receiver_observers().size());
+  EXPECT_EQ(2U, callee()->rtp_receiver_observers().size());
+  EXPECT_TRUE(
+      absl::c_all_of(caller()->rtp_receiver_observers(),
+                     [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
+                       return o->source_changed() && o->last_ssrc_changed();
+                     }));
+  EXPECT_TRUE(
+      absl::c_all_of(callee()->rtp_receiver_observers(),
+                     [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
+                       return o->source_changed() && o->last_ssrc_changed();
+                     }));
+}
+
 TEST_P(PeerConnectionIntegrationTest,
        RtpReceiverObserverOnFirstPacketReceivedAfterInactive) {
   if (sdp_semantics_ != SdpSemantics::kUnifiedPlan) {

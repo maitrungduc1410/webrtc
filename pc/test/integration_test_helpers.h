@@ -195,17 +195,28 @@ class MockRtpReceiverObserver : public RtpReceiverObserverInterface {
     ASSERT_EQ(expected_media_type_, media_type);
     first_packet_received_after_receptive_change_ = true;
   }
+  void OnSourceChanged(bool ssrc_changed, bool csrc_changed) override {
+    source_changed_ = true;
+    last_ssrc_changed_ = ssrc_changed;
+    last_csrc_changed_ = csrc_changed;
+  }
 
   bool first_packet_received() const { return first_packet_received_; }
   bool first_packet_received_after_receptive_change() const {
     return first_packet_received_after_receptive_change_;
   }
+  bool source_changed() const { return source_changed_; }
+  bool last_ssrc_changed() const { return last_ssrc_changed_; }
+  bool last_csrc_changed() const { return last_csrc_changed_; }
 
   ~MockRtpReceiverObserver() override {}
 
  private:
   bool first_packet_received_ = false;
   bool first_packet_received_after_receptive_change_ = false;
+  bool source_changed_ = false;
+  bool last_ssrc_changed_ = false;
+  bool last_csrc_changed_ = false;
   webrtc::MediaType expected_media_type_;
 };
 

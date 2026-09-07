@@ -24,7 +24,6 @@
 #include "api/media_types.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
-#include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/video/video_frame.h"
@@ -86,15 +85,11 @@ class VideoRtpReceiver : public RtpReceiverBase {
   absl::AnyInvocable<void() &&> GetSetupForUnsignaledMediaChannel() override;
   MediaReceiveChannelInterface* media_channel() const override
       RTC_RUN_ON(worker_thread_);
-  void NotifyFirstPacketReceived(uint32_t ssrc) override;
-  void NotifyFirstPacketReceivedAfterReceptiveChange(uint32_t ssrc) override;
   void set_stream_ids(std::vector<std::string> stream_ids) override;
   void set_transport(
       scoped_refptr<DtlsTransportInterface> dtls_transport) override;
   void SetStreams(
       const std::vector<scoped_refptr<MediaStreamInterface>>& streams) override;
-
-  void SetObserver(RtpReceiverObserverInterface* observer) override;
 
   void SetJitterBufferMinimumDelay(
       std::optional<double> delay_seconds) override;
@@ -148,10 +143,6 @@ class VideoRtpReceiver : public RtpReceiverBase {
   const scoped_refptr<VideoTrackProxyWithInternal<VideoTrack>> track_;
   std::vector<scoped_refptr<MediaStreamInterface>> streams_
       RTC_GUARDED_BY(&signaling_thread_checker_);
-  RtpReceiverObserverInterface* observer_
-      RTC_GUARDED_BY(&signaling_thread_checker_) = nullptr;
-  bool received_first_packet_ RTC_GUARDED_BY(&signaling_thread_checker_) =
-      false;
   const int attachment_id_;
   scoped_refptr<DtlsTransportInterface> dtls_transport_
       RTC_GUARDED_BY(&signaling_thread_checker_);

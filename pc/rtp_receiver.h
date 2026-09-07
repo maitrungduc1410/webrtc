@@ -140,6 +140,11 @@ class RtpReceiverBase : public RtpReceiverInternal {
 
   std::vector<RtpSource> GetSources() const override;
 
+  void SetObserver(RtpReceiverObserverInterface* observer) override;
+
+  void NotifyFirstPacketReceived(uint32_t ssrc) override;
+  void NotifyFirstPacketReceivedAfterReceptiveChange(uint32_t ssrc) override;
+
   void SetFrameTransformer(
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
@@ -159,6 +164,10 @@ class RtpReceiverBase : public RtpReceiverInternal {
       RTC_GUARDED_BY(worker_thread_);
 
  private:
+  RtpReceiverObserverInterface* observer_
+      RTC_GUARDED_BY(&signaling_thread_checker_) = nullptr;
+  bool received_first_packet_ RTC_GUARDED_BY(&signaling_thread_checker_) =
+      false;
   absl::AnyInvocable<RTCError()> enable_sframe_at_owner_
       RTC_GUARDED_BY(signaling_thread_checker_);
 };

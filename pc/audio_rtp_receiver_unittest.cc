@@ -22,8 +22,10 @@
 #include "api/call/audio_sink.h"
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
+#include "api/media_types.h"
 #include "api/rtp_packet_info.h"
 #include "api/rtp_packet_infos.h"
+#include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
@@ -219,6 +221,113 @@ TEST(AudioRtpReceiver, OnChangedNotificationsAfterConstruction) {
 
   EXPECT_CALL(receive_channel, SetDefaultOutputVolume(kVolumeMuted)).Times(1);
   worker_thread->BlockingCall([&]() { receiver->SetMediaChannel(nullptr); });
+}
+
+class FakeRtpReceiverObserver : public RtpReceiverObserverInterface {
+ public:
+  void OnFirstPacketReceived(MediaType media_type) override {}
+  void OnSourceChanged(bool ssrc_changed, bool csrc_changed) override {
+    source_changed_count_++;
+    last_ssrc_changed_ = ssrc_changed;
+    last_csrc_changed_ = csrc_changed;
+  }
+
+  int source_changed_count() const { return source_changed_count_; }
+  bool last_ssrc_changed() const { return last_ssrc_changed_; }
+  bool last_csrc_changed() const { return last_csrc_changed_; }
+
+ private:
+  int source_changed_count_ = 0;
+  bool last_ssrc_changed_ = false;
+  bool last_csrc_changed_ = false;
+};
+
+class AudioRtpReceiverSourceTrackerTest : public ::testing::Test {
+ protected:
+  AudioRtpReceiverSourceTrackerTest()
+      : worker_thread_(Thread::Create()),
+        receiver_(make_ref_counted<AudioRtpReceiver>(
+            worker_thread_.get(),
+            std::string(),
+            std::vector<std::string>(),
+            /*enable_sframe_at_owner=*/nullptr)) {
+    worker_thread_->Start();
+  }
+
+  test::RunLoop loop_;
+  std::unique_ptr<Thread> worker_thread_;
+  scoped_refptr<AudioRtpReceiver> receiver_;
+};
+
+TEST_F(AudioRtpReceiverSourceTrackerTest, SourceChangeNotification) {
+  FakeRtpReceiverObserver observer;
+  receiver_->SetObserver(&observer);
+
+  // Deliver initial packet info.
+  receiver_->OnFrameDelivered(
+      RtpPacketInfos({RtpPacketInfo(kSsrc, {}, 100, Timestamp::Millis(100))}),
+      Timestamp::Millis(100));
+
+  EXPECT_EQ(observer.source_changed_count(), 1);
+  EXPECT_TRUE(observer.last_ssrc_changed());
+  EXPECT_FALSE(observer.last_csrc_changed());
+
+  // Subsequent frame with same SSRC should not fire callback.
+  receiver_->OnFrameDelivered(
+      RtpPacketInfos({RtpPacketInfo(kSsrc, {}, 101, Timestamp::Millis(120))}),
+      Timestamp::Millis(120));
+
+  EXPECT_EQ(observer.source_changed_count(), 1);
+
+  // Frame with CSRC change should fire callback.
+  receiver_->OnFrameDelivered(RtpPacketInfos({RtpPacketInfo(
+                                  kSsrc, {1234}, 102, Timestamp::Millis(140))}),
+                              Timestamp::Millis(140));
+
+  EXPECT_EQ(observer.source_changed_count(), 2);
+  EXPECT_FALSE(observer.last_ssrc_changed());
+  EXPECT_TRUE(observer.last_csrc_changed());
+
+  receiver_->SetObserver(nullptr);
+}
+
+TEST_F(AudioRtpReceiverSourceTrackerTest, LateObserverRegistration) {
+  FakeRtpReceiverObserver observer;
+
+  // Frame delivered before observer is registered.
+  receiver_->OnFrameDelivered(
+      RtpPacketInfos({RtpPacketInfo(kSsrc, {}, 100, Timestamp::Millis(100))}),
+      Timestamp::Millis(100));
+
+  EXPECT_EQ(observer.source_changed_count(), 0);
+
+  // Setting observer should trigger callback for existing source.
+  receiver_->SetObserver(&observer);
+
+  EXPECT_EQ(observer.source_changed_count(), 1);
+  EXPECT_TRUE(observer.last_ssrc_changed());
+  EXPECT_FALSE(observer.last_csrc_changed());
+
+  receiver_->SetObserver(nullptr);
+}
+
+TEST_F(AudioRtpReceiverSourceTrackerTest, ObserverTeardownStopsNotifications) {
+  FakeRtpReceiverObserver observer;
+  receiver_->SetObserver(&observer);
+
+  receiver_->OnFrameDelivered(
+      RtpPacketInfos({RtpPacketInfo(kSsrc, {}, 100, Timestamp::Millis(100))}),
+      Timestamp::Millis(100));
+  EXPECT_EQ(observer.source_changed_count(), 1);
+
+  receiver_->SetObserver(nullptr);
+
+  // New SSRC after observer is cleared should not reach observer.
+  receiver_->OnFrameDelivered(RtpPacketInfos({RtpPacketInfo(
+                                  kSsrc + 1, {}, 101, Timestamp::Millis(120))}),
+                              Timestamp::Millis(120));
+
+  EXPECT_EQ(observer.source_changed_count(), 1);
 }
 
 }  // namespace webrtc

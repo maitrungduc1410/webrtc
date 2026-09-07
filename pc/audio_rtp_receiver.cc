@@ -24,7 +24,6 @@
 #include "api/media_stream_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtp_parameters.h"
-#include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
@@ -319,15 +318,6 @@ void AudioRtpReceiver::Reconfigure(bool track_enabled) {
   }
 }
 
-void AudioRtpReceiver::SetObserver(RtpReceiverObserverInterface* observer) {
-  RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
-  observer_ = observer;
-  // Deliver any notifications the observer may have missed by being set late.
-  if (received_first_packet_ && observer_) {
-    observer_->OnFirstPacketReceived(media_type());
-  }
-}
-
 void AudioRtpReceiver::SetJitterBufferMinimumDelay(
     std::optional<double> delay_seconds) {
   RTC_DCHECK_RUN_ON(worker_thread_);
@@ -349,22 +339,6 @@ void AudioRtpReceiver::SetMediaChannel(
                 : worker_thread_safety_->SetNotAlive();
   media_channel_ =
       static_cast<VoiceMediaReceiveChannelInterface*>(media_channel);
-}
-
-void AudioRtpReceiver::NotifyFirstPacketReceived(uint32_t ssrc) {
-  RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
-  if (observer_) {
-    observer_->OnFirstPacketReceived(media_type());
-  }
-  received_first_packet_ = true;
-}
-
-void AudioRtpReceiver::NotifyFirstPacketReceivedAfterReceptiveChange(
-    uint32_t ssrc) {
-  RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
-  if (observer_) {
-    observer_->OnFirstPacketReceivedAfterReceptiveChange(media_type());
-  }
 }
 
 }  // namespace webrtc
