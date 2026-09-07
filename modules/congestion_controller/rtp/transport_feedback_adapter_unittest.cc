@@ -1026,6 +1026,176 @@ TEST(TransportFeedbackAdapterCongestionFeedbackTest,
   // The arrival_time_offset should be clamped to max expected ATO
   // (feedback_delta + 1ms = 31ms) rather than remaining 400ms.
   EXPECT_LE(*packet_feedback->arrival_time_offset, TimeDelta::Millis(31));
+  EXPECT_FALSE(packet_feedback->ambiguous_receive_time);
+}
+
+TEST(TransportFeedbackAdapterTest,
+     AmbiguousReceiveTimeForRetransmissionWithoutRtx) {
+  SimulatedClock clock(Timestamp::Millis(100));
+  TransportFeedbackAdapter adapter;
+
+  // Packet 1: Original audio packet
+  PacketTemplate packet_1 = {
+      .ssrc = 1234,
+      .transport_sequence_number = 1,
+      .rtp_sequence_number = 101,
+      .send_timestamp = Timestamp::Millis(100),
+      .receive_timestamp = Timestamp::Millis(120),
+      .is_audio = true,
+  };
+  adapter.AddPacket(CreatePacketToSend(packet_1), packet_1.pacing_info,
+                    /*overhead_bytes=*/0u, TimeNow());
+  adapter.ProcessSentPacket(SentPacketInfo(packet_1.transport_sequence_number,
+                                           packet_1.send_timestamp.ms()));
+
+  // Packet 2: Retransmission of packet 1 without RTX (same SSRC and sequence
+  // number)
+  PacketTemplate packet_2 = packet_1;
+  packet_2.transport_sequence_number = 2;
+  packet_2.send_timestamp = Timestamp::Millis(150);
+  RtpPacketToSend resend_packet = CreatePacketToSend(packet_2);
+  resend_packet.set_packet_type(RtpPacketMediaType::kRetransmission);
+  adapter.AddPacket(resend_packet, packet_2.pacing_info,
+                    /*overhead_bytes=*/0u, TimeNow());
+  adapter.ProcessSentPacket(SentPacketInfo(packet_2.transport_sequence_number,
+                                           packet_2.send_timestamp.ms()));
+
+  // Feedback received for the RTP packet
+  rtcp::CongestionControlFeedback::PacketInfo packet_info = {
+      .ssrc = 1234,
+      .sequence_number = 101,
+      .arrival_time_offset = TimeDelta::Millis(10),
+      .ecn = EcnMarking::kNotEct};
+  uint32_t compact_ntp =
+      CompactNtp(clock.ConvertTimestampToNtpTime(Timestamp::Millis(160)));
+  rtcp::CongestionControlFeedback feedback({packet_info}, compact_ntp);
+
+  std::optional<TransportPacketsFeedback> result =
+      adapter.ProcessCongestionControlFeedback(feedback,
+                                               Timestamp::Millis(200));
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->packet_feedbacks.size(), 1u);
+  EXPECT_TRUE(result->packet_feedbacks[0].ambiguous_receive_time);
+}
+
+TEST(TransportFeedbackAdapterTest,
+     AmbiguousReceiveTimeForRetransmissionWhenOriginalAlreadyAcked) {
+  SimulatedClock clock(Timestamp::Millis(100));
+  TransportFeedbackAdapter adapter;
+
+  // Packet 1: Original audio packet.
+  PacketTemplate packet_1 = {
+      .ssrc = 1234,
+      .transport_sequence_number = 1,
+      .rtp_sequence_number = 101,
+      .send_timestamp = clock.CurrentTime(),
+      .receive_timestamp = clock.CurrentTime() + TimeDelta::Millis(20),
+      .is_audio = true,
+  };
+  adapter.AddPacket(CreatePacketToSend(packet_1), packet_1.pacing_info,
+                    /*overhead_bytes=*/0u, clock.CurrentTime());
+  adapter.ProcessSentPacket(SentPacketInfo(packet_1.transport_sequence_number,
+                                           packet_1.send_timestamp.ms()));
+
+  // Feedback received for packet 1.
+  clock.AdvanceTime(TimeDelta::Millis(30));
+  rtcp::CongestionControlFeedback::PacketInfo packet_info_1 = {
+      .ssrc = 1234,
+      .sequence_number = 101,
+      .arrival_time_offset = TimeDelta::Millis(10),
+      .ecn = EcnMarking::kNotEct};
+  uint32_t compact_ntp_1 =
+      CompactNtp(clock.ConvertTimestampToNtpTime(clock.CurrentTime()));
+  rtcp::CongestionControlFeedback feedback_1({packet_info_1}, compact_ntp_1);
+  std::optional<TransportPacketsFeedback> result_1 =
+      adapter.ProcessCongestionControlFeedback(feedback_1, clock.CurrentTime());
+  ASSERT_TRUE(result_1.has_value());
+  EXPECT_FALSE(result_1->packet_feedbacks[0].ambiguous_receive_time);
+
+  // 1ms later, a queued/spurious retransmission of packet 1 without RTX is
+  // sent.
+  clock.AdvanceTime(TimeDelta::Millis(1));
+  PacketTemplate packet_2 = packet_1;
+  packet_2.transport_sequence_number = 2;
+  packet_2.send_timestamp = clock.CurrentTime();
+  RtpPacketToSend resend_packet = CreatePacketToSend(packet_2);
+  resend_packet.set_packet_type(RtpPacketMediaType::kRetransmission);
+  resend_packet.set_original_ssrc(1234);
+  adapter.AddPacket(resend_packet, packet_2.pacing_info,
+                    /*overhead_bytes=*/0u, clock.CurrentTime());
+  adapter.ProcessSentPacket(SentPacketInfo(packet_2.transport_sequence_number,
+                                           packet_2.send_timestamp.ms()));
+
+  // Feedback received for the retransmission.
+  clock.AdvanceTime(TimeDelta::Millis(30));
+  rtcp::CongestionControlFeedback::PacketInfo packet_info_2 = {
+      .ssrc = 1234,
+      .sequence_number = 101,
+      .arrival_time_offset = TimeDelta::Millis(10),
+      .ecn = EcnMarking::kNotEct};
+  uint32_t compact_ntp_2 =
+      CompactNtp(clock.ConvertTimestampToNtpTime(clock.CurrentTime()));
+  rtcp::CongestionControlFeedback feedback_2({packet_info_2}, compact_ntp_2);
+  std::optional<TransportPacketsFeedback> result_2 =
+      adapter.ProcessCongestionControlFeedback(feedback_2, clock.CurrentTime());
+  ASSERT_TRUE(result_2.has_value());
+  ASSERT_EQ(result_2->packet_feedbacks.size(), 1u);
+  EXPECT_TRUE(result_2->packet_feedbacks[0].ambiguous_receive_time);
+}
+
+TEST(TransportFeedbackAdapterTest, VideoRtxIsNotAmbiguous) {
+  SimulatedClock clock(Timestamp::Millis(100));
+  TransportFeedbackAdapter adapter;
+
+  // Video packet
+  PacketTemplate packet_1 = {
+      .ssrc = 1234,
+      .transport_sequence_number = 1,
+      .rtp_sequence_number = 101,
+      .send_timestamp = Timestamp::Millis(100),
+      .receive_timestamp = Timestamp::Millis(120),
+      .is_audio = false,
+  };
+  adapter.AddPacket(CreatePacketToSend(packet_1), packet_1.pacing_info,
+                    /*overhead_bytes=*/0u, TimeNow());
+  adapter.ProcessSentPacket(SentPacketInfo(packet_1.transport_sequence_number,
+                                           packet_1.send_timestamp.ms()));
+
+  // RTX packet sent on RTX SSRC 5678 with sequence number 501
+  PacketTemplate rtx_template = {
+      .ssrc = 5678,
+      .transport_sequence_number = 2,
+      .rtp_sequence_number = 501,
+      .send_timestamp = Timestamp::Millis(150),
+      .receive_timestamp = Timestamp::Millis(170),
+      .is_audio = false,
+  };
+  RtpPacketToSend rtx_packet = CreatePacketToSend(rtx_template);
+  rtx_packet.set_packet_type(RtpPacketMediaType::kRetransmission);
+  rtx_packet.set_original_ssrc(1234);
+  rtx_packet.set_retransmitted_sequence_number(101);
+  adapter.AddPacket(rtx_packet, rtx_template.pacing_info,
+                    /*overhead_bytes=*/0u, TimeNow());
+  adapter.ProcessSentPacket(
+      SentPacketInfo(rtx_template.transport_sequence_number,
+                     rtx_template.send_timestamp.ms()));
+
+  // Feedback received for RTX packet on RTX SSRC
+  rtcp::CongestionControlFeedback::PacketInfo rtx_feedback_info = {
+      .ssrc = 5678,
+      .sequence_number = 501,
+      .arrival_time_offset = TimeDelta::Millis(10),
+      .ecn = EcnMarking::kNotEct};
+  uint32_t compact_ntp =
+      CompactNtp(clock.ConvertTimestampToNtpTime(Timestamp::Millis(180)));
+  rtcp::CongestionControlFeedback feedback({rtx_feedback_info}, compact_ntp);
+
+  std::optional<TransportPacketsFeedback> result =
+      adapter.ProcessCongestionControlFeedback(feedback,
+                                               Timestamp::Millis(200));
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->packet_feedbacks.size(), 1u);
+  EXPECT_FALSE(result->packet_feedbacks[0].ambiguous_receive_time);
 }
 
 }  // namespace webrtc

@@ -64,12 +64,14 @@ ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg,
       }
 
       // Replicate exact ReceiveTimeOrder tie-breaking logic to find first &
-      // last packets.
-      if (!first_packet || order(packet, *first_packet)) {
-        first_packet = &packet;
-      }
-      if (!last_packet || order(*last_packet, packet)) {
-        last_packet = &packet;
+      // last packets among packets with unambiguous receive times.
+      if (!packet.ambiguous_receive_time) {
+        if (!first_packet || order(packet, *first_packet)) {
+          first_packet = &packet;
+        }
+        if (!last_packet || order(*last_packet, packet)) {
+          last_packet = &packet;
+        }
       }
     }
   }
@@ -83,11 +85,13 @@ ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg,
   // and to avoid lag in queue delay estimation.
   Timestamp latest_send_time = Timestamp::MinusInfinity();
   Timestamp newer_send_time = Timestamp::MinusInfinity();
+  TimeDelta min_one_way_delay = TimeDelta::PlusInfinity();
+  TimeDelta max_one_way_delay = TimeDelta::MinusInfinity();
 
   for (auto it = msg.packet_feedbacks.rbegin();
        it != msg.packet_feedbacks.rend(); ++it) {
     const PacketResult& packet = *it;
-    if (!packet.IsReceived()) {
+    if (!packet.IsReceived() || packet.ambiguous_receive_time) {
       continue;
     }
 
@@ -105,31 +109,33 @@ ScreamFeedback ParseScreamFeedback(const TransportPacketsFeedback& msg,
          gap <= params.burst_window_max_gap.Get())) {
       TimeDelta one_way_delay =
           packet.receive_time - packet.sent_packet.send_time;
-      parsed.min_one_way_delay =
-          std::min(parsed.min_one_way_delay, one_way_delay);
-      parsed.max_one_way_delay =
-          std::max(parsed.max_one_way_delay, one_way_delay);
+      min_one_way_delay = std::min(min_one_way_delay, one_way_delay);
+      max_one_way_delay = std::max(max_one_way_delay, one_way_delay);
       newer_send_time = packet.sent_packet.send_time;
     } else {
       break;
     }
   }
 
-  // Directly calculate feedback hold time of this feedback.
-  if (first_packet && last_packet) {
-    parsed.last_packet_receive_time = last_packet->receive_time;
-    parsed.feedback_hold_time =
+  if (last_packet != nullptr) {
+    RTC_DCHECK(first_packet != nullptr);
+    RTC_DCHECK(min_one_way_delay.IsFinite());
+    RTC_DCHECK(max_one_way_delay.IsFinite());
+    TimeDelta feedback_hold_time =
         last_packet->receive_time +
         last_packet->arrival_time_offset.value_or(TimeDelta::Zero()) -
         first_packet->receive_time;
-  }
-
-  // Directly calculate the RTT sample of this feedback.
-  if (last_packet) {
-    parsed.rtt_sample = std::max(
+    TimeDelta rtt_sample = std::max(
         msg.feedback_time - last_packet->sent_packet.send_time -
             last_packet->arrival_time_offset.value_or(TimeDelta::Zero()),
         TimeDelta::Zero());
+    parsed.delay_metrics = ScreamFeedback::DelayMetrics{
+        .min_one_way_delay = min_one_way_delay,
+        .max_one_way_delay = max_one_way_delay,
+        .feedback_hold_time = feedback_hold_time,
+        .rtt_sample = rtt_sample,
+        .last_packet_receive_time = last_packet->receive_time,
+    };
   }
 
   return parsed;

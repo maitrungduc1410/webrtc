@@ -13,6 +13,8 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "api/transport/network_types.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
@@ -37,21 +39,27 @@ struct ScreamFeedback {
   // not have ECN marking).
   DataSize acked_not_marked_size = DataSize::Zero();
 
-  // Aggregated delay & RTT metrics calculated over the recent burst / tail
-  // window.
-  TimeDelta min_one_way_delay = TimeDelta::PlusInfinity();
-  TimeDelta max_one_way_delay = TimeDelta::MinusInfinity();
+  // Metrics that depend on at least one packet with an unambiguous receive
+  // time. All fields are guaranteed to be valid and finite when present.
+  struct DelayMetrics {
+    // Aggregated delay & RTT metrics calculated over the recent burst / tail
+    // window.
+    TimeDelta min_one_way_delay;
+    TimeDelta max_one_way_delay;
 
-  // The duration between the receive times of the first and last packets in
-  // this feedback, including the last packet's receiver delay
-  // (arrival_time_offset).
-  TimeDelta feedback_hold_time = TimeDelta::Zero();
+    // The duration between the receive times of the first and last packets in
+    // this feedback, including the last packet's receiver delay
+    // (arrival_time_offset).
+    TimeDelta feedback_hold_time;
 
-  // The calculated RTT sample of this feedback.
-  TimeDelta rtt_sample = TimeDelta::Zero();
+    // The calculated RTT sample of this feedback.
+    TimeDelta rtt_sample;
 
-  // Receive timestamp of the latest packet received in this feedback.
-  Timestamp last_packet_receive_time = Timestamp::MinusInfinity();
+    // Receive timestamp of the latest packet received in this feedback.
+    Timestamp last_packet_receive_time;
+  };
+
+  std::optional<DelayMetrics> delay_metrics;
 };
 
 // Free function helper to convert original feedback into the flat struct.

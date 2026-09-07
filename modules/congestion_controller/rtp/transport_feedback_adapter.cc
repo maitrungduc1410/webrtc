@@ -153,12 +153,29 @@ void TransportFeedbackAdapter::AddPacket(const RtpPacketToSend& packet_to_send,
     history_.erase(history_.begin());
   }
   // Note that it can happen that the same SSRC and sequence number is sent
-  // again. e.g, audio retransmission.
-  rtp_to_transport_sequence_number_.emplace(
+  // again, e.g., audio retransmission. Delay metrics from such packets are
+  // ambiguous, since it is not specified which of the two packets was
+  // received.
+  auto [it, inserted] = rtp_to_transport_sequence_number_.emplace(
       SsrcAndRtpSequencenumber(
           {.ssrc = feedback.ssrc,
            .rtp_sequence_number = feedback.rtp_sequence_number}),
       feedback.sent.sequence_number);
+  if (!inserted) {
+    feedback.ambiguous_receive_time = true;
+    auto prev_it = history_.find(it->second);
+    if (prev_it != history_.end()) {
+      prev_it->second.ambiguous_receive_time = true;
+    }
+  } else if (feedback.is_retransmission &&
+             (!packet_to_send.original_ssrc().has_value() ||
+              packet_to_send.original_ssrc() == packet_to_send.Ssrc())) {
+    // A retransmission without RTX (same SSRC and sequence number) whose
+    // original packet is no longer in `rtp_to_transport_sequence_number_`
+    // (e.g., the original packet was already acknowledged and removed from
+    // history).
+    feedback.ambiguous_receive_time = true;
+  }
   history_.emplace(feedback.sent.sequence_number, feedback);
 }
 
@@ -257,6 +274,7 @@ TransportFeedbackAdapter::ProcessTransportFeedback(
           .ssrc = packet_feedback->ssrc,
           .rtp_sequence_number = packet_feedback->rtp_sequence_number,
           .is_retransmission = packet_feedback->is_retransmission};
+      result.ambiguous_receive_time = packet_feedback->ambiguous_receive_time;
       packet_result_vector.push_back(result);
     } else {
       ++ignored;
@@ -366,6 +384,7 @@ TransportFeedbackAdapter::ProcessCongestionControlFeedback(
       supports_ecn &= packet_info.ecn != EcnMarking::kNotEct;
       result.arrival_time_offset = arrival_time_offset;
     }
+    result.ambiguous_receive_time = packet_feedback->ambiguous_receive_time;
     result.ecn = packet_info.ecn;
     result.sent_with_ect1 = packet_feedback->sent_with_ect1;
     result.reported_recovered_for_the_first_time =
