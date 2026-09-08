@@ -490,8 +490,10 @@ int RunLoopbackTest(int argc, char* argv[]) {
   if (absl::GetFlag(FLAGS_logs)) {
     // Make sure log level is set, otherwise --logs does not work for release
     // builds.
-    LogMessage::LogToDebug(LoggingSeverity::LS_INFO);
-    LogMessage::SetLogToStderr(true);
+    LoggingConfig config;
+    config.set_min_severity(LoggingSeverity::LS_INFO);
+    config.set_debug_severity(LoggingSeverity::LS_INFO);
+    InitializeLogging(std::move(config));
   }
 
   test::RunTest(Loopback);
