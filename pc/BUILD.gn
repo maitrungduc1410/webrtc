@@ -711,6 +711,7 @@ rtc_library("sctp_utils") {
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
+
 rtc_library("srtp_session") {
   visibility = [ ":*" ]
   sources = [
@@ -743,6 +744,7 @@ rtc_library("srtp_session") {
     deps += [ "//third_party/libsrtp" ]
   }
 }
+
 rtc_library("srtp_transport") {
   visibility = [ ":*" ]
   sources = [
@@ -1143,6 +1145,7 @@ rtc_library("sdp_munging_detector") {
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
+
 rtc_library("sdp_offer_answer") {
   visibility = [ ":*" ]
   sources = [
@@ -1277,9 +1280,11 @@ rtc_library("sdp_payload_type_suggester") {
 rtc_source_set("jsep_ice_candidate") {
   visibility = [ ":*" ]
 }
+
 rtc_source_set("jsep_session_description") {
   visibility = [ ":*" ]
 }
+
 rtc_library("local_audio_source") {
   visibility = [ ":*" ]
   sources = [
@@ -1293,6 +1298,7 @@ rtc_library("local_audio_source") {
     "../api:scoped_refptr",
   ]
 }
+
 rtc_library("peer_connection") {
   visibility = [ ":*" ]
   sources = [
@@ -1439,6 +1445,7 @@ rtc_library("simulcast_sdp_serializer") {
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
+
 rtc_library("sdp_utils") {
   sources = [
     "sdp_utils.cc",
@@ -1453,6 +1460,7 @@ rtc_library("sdp_utils") {
     "//third_party/abseil-cpp/absl/base:core_headers",
   ]
 }
+
 rtc_library("legacy_stats_collector") {
   visibility = [ ":*" ]
   sources = [
@@ -1510,6 +1518,7 @@ rtc_library("legacy_stats_collector") {
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
+
 rtc_source_set("stream_collection") {
   visibility = [ ":*" ]
   sources = [ "stream_collection.h" ]
@@ -1520,6 +1529,7 @@ rtc_source_set("stream_collection") {
     "../api:scoped_refptr",
   ]
 }
+
 rtc_library("track_media_info_map") {
   visibility = [ ":*" ]
   sources = [
@@ -1612,6 +1622,7 @@ rtc_library("media_stream_observer") {
     "//third_party/abseil-cpp/absl/algorithm:container",
   ]
 }
+
 rtc_library("peer_connection_factory") {
   # TODO(bugs.webrtc.org/13661): Reduce visibility if possible
   visibility = [ "*" ]  # Known to be used externally
@@ -2219,7 +2230,6 @@ rtc_library("datagram_connection_internal") {
     ":dtls_srtp_transport",
     ":dtls_transport",
     ":ice_transport",
-    "../api:array_view",
     "../api:candidate",
     "../api:datagram_connection",
     "../api:dtls_transport_interface",
@@ -2577,6 +2587,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "//third_party/abseil-cpp/absl/strings",
     ]
   }
+
   rtc_cc_test("dtmf_sender_unittest") {
     sources = [ "dtmf_sender_unittest.cc" ]
     deps = [
@@ -3502,6 +3513,7 @@ if (rtc_include_tests && !build_with_chromium) {
   }
 
   rtc_stats_traversal_unittest = [ "rtc_stats_traversal_unittest.cc" ]
+
   rtc_cc_test("rtc_stats_traversal_unittest") {
     sources = rtc_stats_traversal_unittest
     deps = [

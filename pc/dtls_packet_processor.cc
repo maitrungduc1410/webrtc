@@ -12,8 +12,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/logging.h"
@@ -27,7 +27,7 @@ constexpr size_t kDataHeaderSize = 3;
 }  // namespace
 
 CopyOnWriteBuffer DtlsPacketProcessor::ProcessOutgoingPacket(
-    ArrayView<const uint8_t> payload,
+    std::span<const uint8_t> payload,
     Timestamp /*send_time*/) {
   const uint16_t seq = next_transport_seq_++;
 

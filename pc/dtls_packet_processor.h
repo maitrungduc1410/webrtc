@@ -12,8 +12,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 
-#include "api/array_view.h"
 #include "api/units/timestamp.h"
 #include "pc/packet_processor.h"
 #include "rtc_base/copy_on_write_buffer.h"
@@ -46,7 +46,7 @@ class DtlsPacketProcessor : public PacketProcessor {
   DtlsPacketProcessor& operator=(const DtlsPacketProcessor&) = delete;
 
   // PacketProcessor implementation.
-  CopyOnWriteBuffer ProcessOutgoingPacket(ArrayView<const uint8_t> payload,
+  CopyOnWriteBuffer ProcessOutgoingPacket(std::span<const uint8_t> payload,
                                           Timestamp send_time) override;
   std::optional<CopyOnWriteBuffer> ProcessIncomingPacket(
       CopyOnWriteBuffer packet,
