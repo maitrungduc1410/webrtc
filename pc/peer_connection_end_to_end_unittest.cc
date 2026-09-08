@@ -68,6 +68,7 @@ using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::IsTrue;
 using ::testing::Ne;
+using ::testing::NotNull;
 using ::testing::SizeIs;
 using ::testing::StrictMock;
 using ::testing::Values;
@@ -706,14 +707,20 @@ TEST_P(PeerConnectionEndToEndTest, TooManyDataChannelsOpenedBeforeConnecting) {
       caller_->pc()->GetSctpTransport();
   scoped_refptr<SctpTransportInterface> callee_transport =
       callee_->pc()->GetSctpTransport();
-  std::optional<int> caller_channels =
-      caller_transport->Information().MaxChannels();
-  std::optional<int> callee_channels =
-      callee_transport->Information().MaxChannels();
-  ASSERT_TRUE(caller_channels.has_value());
-  ASSERT_TRUE(callee_channels.has_value());
-  EXPECT_THAT(caller_channels.value(), Eq(kReducedMaxSctpStreams));
-  EXPECT_THAT(callee_channels.value(), Eq(kReducedMaxSctpStreams));
+  ASSERT_THAT(caller_transport, NotNull());
+  ASSERT_THAT(callee_transport, NotNull());
+  // SCTP handshake completes asynchronously after ICE connection; wait for
+  // MaxChannels to be negotiated.
+  EXPECT_THAT(
+      WaitUntil([&] { return caller_transport->Information().MaxChannels(); },
+                Eq(kReducedMaxSctpStreams),
+                {.timeout = TimeDelta::Millis(kMaxWait)}),
+      IsRtcOk());
+  EXPECT_THAT(
+      WaitUntil([&] { return callee_transport->Information().MaxChannels(); },
+                Eq(kReducedMaxSctpStreams),
+                {.timeout = TimeDelta::Millis(kMaxWait)}),
+      IsRtcOk());
   EXPECT_THAT(WaitUntil([&] { return callee_signaled_data_channels_; },
                         SizeIs(Ge(kReducedMaxSctpStreams / 2)),
                         {.timeout = TimeDelta::Millis(kMaxWait)}),
