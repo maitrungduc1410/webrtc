@@ -26,6 +26,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -2071,17 +2072,27 @@ void PeerConnection::ReportFirstConnectUsageMetrics() {
     // that the ufrag/pwd consists of a valid ice-char or one of the four
     // not allowed characters since we have passed the IsIceChar check done
     // by the p2p transport description on setRemoteDescription calls.
-    auto ice_parameters = transport_infos[0].description.GetIceParameters();
+    // The ice-options are not validated when parsing so any character may
+    // show up there, RFC 8839 section 5.6 defines them as 1*ice-char.
+    const TransportDescription& description = transport_infos[0].description;
     auto is_invalid_char = [](char c) {
       return c == '-' || c == '=' || c == '#' || c == '_';
     };
-    bool isUsingInvalidIceCharInUfrag =
-        absl::c_any_of(ice_parameters.ufrag, is_invalid_char);
-    bool isUsingInvalidIceCharInPwd =
-        absl::c_any_of(ice_parameters.pwd, is_invalid_char);
-    RTC_HISTOGRAM_BOOLEAN(
-        "WebRTC.PeerConnection.ValidIceChars",
-        !(isUsingInvalidIceCharInUfrag || isUsingInvalidIceCharInPwd));
+    auto is_valid_ice_char = [](char c) {
+      return absl::ascii_isalnum(c) || c == '+' || c == '/';
+    };
+    bool valid_ufrag = absl::c_none_of(description.ice_ufrag, is_invalid_char);
+    bool valid_pwd = absl::c_none_of(description.ice_pwd, is_invalid_char);
+    bool valid_ice_options = true;
+    for (const std::string& option : description.transport_options) {
+      valid_ice_options &=
+          !option.empty() && absl::c_all_of(option, is_valid_ice_char);
+    }
+    RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.ValidIceChars.Ufrag",
+                          valid_ufrag);
+    RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.ValidIceChars.Pwd", valid_pwd);
+    RTC_HISTOGRAM_BOOLEAN("WebRTC.PeerConnection.ValidIceChars.IceOptions",
+                          valid_ice_options);
 
     // Record whether the hash algorithm of the first transport's
     // DTLS fingerprint is still using SHA-1.
