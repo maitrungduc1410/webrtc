@@ -39,6 +39,7 @@
 #include "api/task_queue/task_queue_factory.h"
 #include "api/test/create_frame_generator.h"
 #include "api/test/simulated_network.h"
+#include "api/test/time_controller.h"
 #include "api/transport/bitrate_settings.h"
 #include "api/units/time_delta.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
@@ -62,6 +63,7 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/network/sent_packet.h"
+#include "rtc_base/null_socket_server.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
 #include "test/create_test_environment.h"
@@ -182,9 +184,28 @@ class SendingTransportToNetworkPacketBridge
   const Environment& env_;
 };
 
+namespace {
+CreateTestEnvironmentOptions GetTestEnvironmentOptions(
+    TimeController* time_controller,
+    const FieldTrials* field_trials) {
+  CreateTestEnvironmentOptions options{.field_trials = field_trials};
+  if (time_controller != nullptr) {
+    options.time = time_controller;
+  }
+  return options;
+}
+}  // namespace
+
 CallTest::CallTest(FieldTrials field_trials)
-    : field_trials_(std::move(field_trials)),
-      env_(CreateTestEnvironment({.field_trials = &field_trials_})),
+    : CallTest(/*time_controller=*/static_cast<TimeController*>(nullptr),
+               std::move(field_trials)) {}
+
+CallTest::CallTest(TimeController* time_controller, FieldTrials field_trials)
+    : owned_time_controller_(nullptr),
+      time_controller_(time_controller),
+      field_trials_(std::move(field_trials)),
+      env_(CreateTestEnvironment(
+          GetTestEnvironmentOptions(time_controller_, &field_trials_))),
       send_env_(env_),
       recv_env_(env_),
       audio_send_config_(/*send_transport=*/nullptr),
@@ -208,13 +229,27 @@ CallTest::CallTest(FieldTrials field_trials)
       num_flexfec_streams_(0),
       audio_decoder_factory_(CreateBuiltinAudioDecoderFactory()),
       audio_encoder_factory_(CreateBuiltinAudioEncoderFactory()),
-      network_thread_(Thread::CreateWithSocketServer()),
-      transport_thread_(Thread::Create()),
+      network_thread_(time_controller_ != nullptr
+                          ? time_controller_->CreateThread(
+                                "CallNetwork",
+                                std::make_unique<NullSocketServer>())
+                          : Thread::CreateWithSocketServer()),
+      transport_thread_(time_controller_ != nullptr
+                            ? time_controller_->CreateThread("CallTransport")
+                            : Thread::Create()),
       task_queue_(env_.task_queue_factory().CreateTaskQueue(
           "CallTestTaskQueue",
           TaskQueueFactory::Priority::kNormal)) {
-  network_thread_->Start();
-  transport_thread_->Start();
+  if (time_controller_ == nullptr) {
+    network_thread_->Start();
+    transport_thread_->Start();
+  }
+}
+
+CallTest::CallTest(std::unique_ptr<TimeController> time_controller,
+                   FieldTrials field_trials)
+    : CallTest(time_controller.get(), std::move(field_trials)) {
+  owned_time_controller_ = std::move(time_controller);
 }
 
 CallTest::~CallTest() = default;
@@ -255,6 +290,7 @@ void CallTest::RegisterRtpExtension(const RtpExtension& extension) {
 }
 
 void CallTest::RunBaseTest(BaseTest* test) {
+  test->SetTimeController(time_controller_);
   SendTask(task_queue(), [this, test]() {
     num_video_streams_ = test->GetNumVideoStreams();
     num_audio_streams_ = test->GetNumAudioStreams();

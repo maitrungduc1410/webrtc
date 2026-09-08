@@ -34,6 +34,7 @@
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/test/simulated_network.h"
+#include "api/test/time_controller.h"
 #include "api/test/video/function_video_decoder_factory.h"
 #include "api/test/video/function_video_encoder_factory.h"
 #include "api/transport/bitrate_settings.h"
@@ -74,11 +75,16 @@ class TransportToNetworkPacketBridge;
 class CallTest : public ::testing::Test, public RtpPacketSinkInterface {
  public:
   explicit CallTest(FieldTrials field_trials = CreateTestFieldTrials(""));
+  explicit CallTest(TimeController* time_controller,
+                    FieldTrials field_trials = CreateTestFieldTrials(""));
+  explicit CallTest(std::unique_ptr<TimeController> time_controller,
+                    FieldTrials field_trials = CreateTestFieldTrials(""));
   ~CallTest() override;
 
   static const std::map<uint8_t, MediaType> payload_type_map_;
 
  protected:
+  TimeController* time_controller() const { return time_controller_; }
   const Environment& env() const { return env_; }
   FieldTrials& field_trials() { return field_trials_; }
 
@@ -226,6 +232,8 @@ class CallTest : public ::testing::Test, public RtpPacketSinkInterface {
   void OnRtpPacket(const RtpPacketReceived& packet) override;
 
   test::RunLoop loop_;
+  std::unique_ptr<TimeController> owned_time_controller_;
+  TimeController* const time_controller_;
   FieldTrials field_trials_;
   Environment env_;
   Environment send_env_;
@@ -362,6 +370,14 @@ class BaseTest : public RtpRtcpObserver {
       FrameGeneratorCapturer* frame_generator_capturer);
 
   virtual void OnStreamsStopped();
+
+  TimeController* time_controller() const { return time_controller_; }
+  void SetTimeController(TimeController* time_controller) {
+    time_controller_ = time_controller;
+  }
+
+ private:
+  TimeController* time_controller_ = nullptr;
 };
 
 class SendTest : public BaseTest {
