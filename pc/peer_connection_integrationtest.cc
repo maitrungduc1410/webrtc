@@ -2142,6 +2142,86 @@ INSTANTIATE_TEST_SUITE_P(
                    std::make_pair("IPv4 with STUN", kFlagsIPv4Stun))));
 
 // This test sets up a call between two parties with audio and video.
+// During the call, the caller restarts ICE and a candidate with the same remote
+// address is applied on the callee side. This test verifies that there is
+// no ICE disconnection for both caller and callee during the ICE restart.
+TEST_P(PeerConnectionIntegrationTest, NoDisconnectionDuringIceRestart) {
+  ASSERT_TRUE(CreatePeerConnectionWrappers());
+  ConnectFakeSignaling();
+  // Do normal offer/answer and wait for ICE to complete.
+  caller()->AddAudioVideoTracks();
+  callee()->AddAudioVideoTracks();
+  caller()->CreateAndSetAndSignalOffer();
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); }));
+  EXPECT_THAT(WaitUntil([&] { return caller()->ice_connection_state(); },
+                        Eq(PeerConnectionInterface::kIceConnectionCompleted),
+                        {.timeout = kMaxWaitForFrames}),
+              IsRtcOk());
+  EXPECT_THAT(WaitUntil([&] { return callee()->ice_connection_state(); },
+                        Eq(PeerConnectionInterface::kIceConnectionConnected),
+                        {.timeout = kMaxWaitForFrames}),
+              IsRtcOk());
+
+  // Save the caller's address for injection into callee's candidate.
+  const IceCandidateCollection* audio_candidates_caller =
+      caller()->pc()->local_description()->candidates(0);
+  const SocketAddress caller_address_pre_restart =
+      audio_candidates_caller->at(0)->candidate().address();
+
+  // Have the caller initiate an ICE restart.
+  caller()->SetOfferAnswerOptions(IceRestartOfferAnswerOptions());
+
+  // Trigger the code path for the case where a new ICE generation has a
+  // candidate with the same address as the old generation for
+  // https://issues.webrtc.org/issues/543082385
+  // In this simulated network the restart does not naturally reuse the
+  // caller's transport address (VirtualSocketServer assigns a new ephemeral
+  // port per bind, so re-gathered candidates get a new port), hence the
+  // candidate is injected explicitly.
+  Candidate same_address_candidate;
+  same_address_candidate.set_component(ICE_CANDIDATE_COMPONENT_DEFAULT);
+  same_address_candidate.set_protocol(UDP_PROTOCOL_NAME);
+  same_address_candidate.set_address(caller_address_pre_restart);
+  // The candidate belongs to the new ICE generation, so it replaces the old
+  // connection instead of being treated as a duplicate candidate.
+  same_address_candidate.set_generation(1);
+  std::optional<RTCError> add_candidate_result;
+  callee()->SetRemoteOfferHandler([&] {
+    callee()->pc()->AddIceCandidate(
+        CreateIceCandidate("", 0, same_address_candidate),
+        [&add_candidate_result](RTCError r) { add_candidate_result = r; });
+  });
+
+  caller()->CreateAndSetAndSignalOffer();
+
+  // Verify that the same-address candidate is applied inside
+  // setRemoteDescription(offer) on the callee.
+  ASSERT_TRUE(WaitUntil([&] { return add_candidate_result.has_value(); },
+                        {.timeout = kMaxWaitForFrames}));
+  ASSERT_TRUE(add_candidate_result.value().ok());
+
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); },
+                        {.timeout = kMaxWaitForFrames}));
+  EXPECT_THAT(WaitUntil([&] { return caller()->ice_connection_state(); },
+                        Eq(PeerConnectionInterface::kIceConnectionCompleted),
+                        {.timeout = kMaxWaitForFrames}),
+              IsRtcOk());
+  EXPECT_THAT(WaitUntil([&] { return callee()->ice_connection_state(); },
+                        Eq(PeerConnectionInterface::kIceConnectionConnected),
+                        {.timeout = kMaxWaitForFrames}),
+              IsRtcOk());
+
+  // The caller and callee should not have disconnected. Both sides should be
+  // able to send data during the ICE restart, per RFC 8445.
+  EXPECT_THAT(
+      caller()->ice_connection_state_history(),
+      Not(Contains(PeerConnectionInterface::kIceConnectionDisconnected)));
+  EXPECT_THAT(
+      callee()->ice_connection_state_history(),
+      Not(Contains(PeerConnectionInterface::kIceConnectionDisconnected)));
+}
+
+// This test sets up a call between two parties with audio and video.
 // During the call, the caller restarts ICE and the test verifies that
 // new ICE candidates are generated and audio and video still can flow, and the
 // ICE state reaches completed again.
@@ -2161,7 +2241,6 @@ TEST_P(PeerConnectionIntegrationTest, MediaContinuesFlowingAfterIceRestart) {
                         Eq(PeerConnectionInterface::kIceConnectionConnected),
                         {.timeout = kMaxWaitForFrames}),
               IsRtcOk());
-
   // To verify that the ICE restart actually occurs, get
   // ufrag/password/candidates before and after restart.
   // Create an SDP string of the first audio candidate for both clients.
@@ -2182,7 +2261,6 @@ TEST_P(PeerConnectionIntegrationTest, MediaContinuesFlowingAfterIceRestart) {
   desc = callee()->pc()->local_description()->description();
   std::string callee_ufrag_pre_restart =
       desc->transport_infos()[0].description.ice_ufrag;
-
   EXPECT_EQ(caller()->ice_candidate_pair_change_history().size(), 1u);
   // Have the caller initiate an ICE restart.
   caller()->SetOfferAnswerOptions(IceRestartOfferAnswerOptions());
@@ -2196,7 +2274,6 @@ TEST_P(PeerConnectionIntegrationTest, MediaContinuesFlowingAfterIceRestart) {
                         Eq(PeerConnectionInterface::kIceConnectionConnected),
                         {.timeout = kMaxWaitForFrames}),
               IsRtcOk());
-
   // Grab the ufrags/candidates again.
   audio_candidates_caller = caller()->pc()->local_description()->candidates(0);
   audio_candidates_callee = callee()->pc()->local_description()->candidates(0);
@@ -2222,7 +2299,6 @@ TEST_P(PeerConnectionIntegrationTest, MediaContinuesFlowingAfterIceRestart) {
           [&] { return caller()->ice_candidate_pair_change_history().size(); },
           Gt(1U), {.timeout = kMaxWaitForFrames}),
       IsRtcOk());
-
   // Ensure that additional frames are received after the ICE restart.
   MediaExpectations media_expectations;
   media_expectations.ExpectBidirectionalAudioAndVideo();
