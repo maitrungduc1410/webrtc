@@ -1475,6 +1475,21 @@ TEST_F(TurnPortTest, TestSocketCloseWillDestroyConnection) {
       {.timeout = kConnectionDestructionDelay, .clock = &time_controller_}));
 }
 
+TEST_F(TurnPortTest, TestUdpSocketCloseFailsPendingAllocateRequest) {
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  ASSERT_FALSE(turn_ready_);
+
+  turn_port_->socket()->NotifyClosedForTest(1);
+
+  // Without advancing the clock, except for the posted NotifyPortError().
+  EXPECT_EQ(error_event_.error_code, STUN_ERROR_SERVER_NOT_REACHABLE);
+  EXPECT_EQ(error_event_.error_text, "Socket was closed");
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+  EXPECT_TRUE(turn_error_);
+  EXPECT_EQ(turn_port_->Candidates().size(), 0U);
+}
+
 // Test try-alternate-server feature.
 TEST_F(TurnPortTest, TestTurnAlternateServerUDP) {
   TestTurnAlternateServer(PROTO_UDP);
