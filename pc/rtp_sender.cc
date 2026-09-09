@@ -17,7 +17,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -52,13 +51,10 @@
 #include "media/base/codec.h"
 #include "media/base/media_channel.h"
 #include "media/base/media_engine.h"
-#include "modules/sframe/sframe_encryptor.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "pc/dtmf_sender.h"
 #include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
 #include "pc/legacy_stats_collector_interface.h"
-#include "pc/proxy.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/simulcast_description.h"
 #include "rtc_base/checks.h"
@@ -72,11 +68,6 @@
 namespace webrtc {
 
 namespace {
-
-BEGIN_PRIMARY_PROXY_MAP(SframeEncryptor)
-PROXY_PRIMARY_THREAD_DESTRUCTOR()
-PROXY_METHOD2(RTCError, SetEncryptionKey, uint64_t, std::span<const uint8_t>)
-END_PROXY_MAP(SframeEncryptor)
 
 // This function is only expected to be called on the signaling thread.
 // On the other hand, some test or even production setups may use
@@ -893,9 +884,6 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
             ssrc, std::move(audio_encoder_factory_override));
       }
     }
-    if (sframe_encryptor_) {
-      media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
-    }
   });
   if (params_modified) {
     // As a result of the `SetRtpSendParameters` call, an async task will be
@@ -999,9 +987,6 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
         voice_channel->SetEncoderFactoryOverride(
             ssrc, std::move(audio_encoder_factory_override));
       }
-    }
-    if (sframe_encryptor_ != nullptr) {
-      media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
     }
 
     if (params_modified) {
@@ -1259,11 +1244,6 @@ RtpSenderBase::CreateSframeEncryptorOrError(
     const SframeEncryptorInit& options) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
 
-  if (stopped_) {
-    return RTCError::InvalidState()
-           << "Cannot create an Sframe encryptor on a stopped sender.";
-  }
-
   if (!enable_sframe_at_owner_) {
     return RTCError(RTCErrorType::INTERNAL_ERROR,
                     "Sender is not associated with a transceiver");
@@ -1274,22 +1254,9 @@ RtpSenderBase::CreateSframeEncryptorOrError(
     return error;
   }
 
-  scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor =
-      SframeEncryptor::Create(options.mode, options.cipher_suite);
-
-  worker_thread_->PostTask(
-      SafeTask(worker_safety_,
-               [this, sframe_encryptor = sframe_encryptor, ssrc = ssrc_] {
-                 RTC_DCHECK_RUN_ON(worker_thread_);
-                 sframe_encryptor_ = sframe_encryptor;
-
-                 if (media_channel_) {
-                   media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
-                 }
-               }));
-
-  return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorProxy::Create(
-      worker_thread_, std::move(sframe_encryptor)));
+  // TODO(bugs.webrtc.org/479862368): Implement Sframe encrypter creation.
+  return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
+                  "Sframe encrypter not yet implemented");
 }
 
 LocalAudioSinkAdapter::LocalAudioSinkAdapter() : sink_(nullptr) {}

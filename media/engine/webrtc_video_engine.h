@@ -63,7 +63,6 @@
 #include "media/base/media_engine.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/network_route.h"
@@ -238,10 +237,6 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   void SetFrameEncryptor(
       uint32_t ssrc,
       scoped_refptr<FrameEncryptorInterface> frame_encryptor) override;
-
-  void SetSframeEncryptor(
-      uint32_t ssrc,
-      scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) override;
 
   // note: The encoder_selector object must remain valid for the lifetime of the
   // MediaChannel, unless replaced.
