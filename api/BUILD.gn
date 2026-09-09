@@ -281,9 +281,11 @@ rtc_library("sframe_decryptor_interface") {
   visibility = [ "*" ]
   sources = [ "sframe/sframe_decryptor_interface.h" ]
   deps = [
+    ":frame_transformer_interface",
     ":ref_count",
     ":rtc_error",
     ":sframe_types",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
 

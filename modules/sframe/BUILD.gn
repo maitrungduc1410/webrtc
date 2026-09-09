@@ -11,6 +11,7 @@ import("../../webrtc.gni")
 group("sframe") {
   deps = [
     ":sframe_context_factory",
+    ":sframe_decrypt_error_reporter",
     ":sframe_decryptor",
     ":sframe_encryptor",
     ":sframe_media_decryptor_interface",
@@ -38,6 +39,20 @@ rtc_library("sframe_media_encryptor_interface") {
     "../../api:rtc_error",
     "../../api:sframe_encryptor_interface",
     "../../api:sframe_types",
+  ]
+}
+
+rtc_library("sframe_decrypt_error_reporter") {
+  visibility = [ "*" ]
+  sources = [
+    "sframe_decrypt_error_reporter.cc",
+    "sframe_decrypt_error_reporter.h",
+  ]
+  deps = [
+    "../../api:sequence_checker",
+    "../../api:sframe_decryptor_interface",
+    "../../rtc_base:macromagic",
+    "../../rtc_base/system:no_unique_address",
   ]
 }
 
@@ -94,11 +109,17 @@ rtc_library("sframe_decryptor") {
 if (rtc_include_tests) {
   rtc_library("sframe_unittests") {
     testonly = true
-    sources = [ "sframe_encryptor_decryptor_unittest.cc" ]
+    sources = [
+      "sframe_decrypt_error_reporter_unittest.cc",
+      "sframe_encryptor_decryptor_unittest.cc",
+    ]
     deps = [
+      ":sframe_decrypt_error_reporter",
       ":sframe_decryptor",
       ":sframe_encryptor",
       ":sframe_media_decryptor_interface",
+      "../../api:frame_transformer_interface",
+      "../../api:mock_transformable_frame",
       "../../api:rtc_error",
       "../../api:scoped_refptr",
       "../../api:sframe_decryptor_interface",

@@ -3579,6 +3579,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:rtp_receiver_interface",
       "../api:rtp_sender_interface",
       "../api:scoped_refptr",
+      "../api:sframe_decryptor_interface",
       "../api:sframe_encryptor_interface",
       "../api:sframe_types",
       "../api/audio_codecs:audio_codecs_api",
