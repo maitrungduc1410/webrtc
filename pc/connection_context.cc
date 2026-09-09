@@ -13,6 +13,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "api/audio_options.h"
 #include "api/environment/environment.h"
 #include "api/scoped_refptr.h"
@@ -82,7 +83,7 @@ std::unique_ptr<SctpTransportFactoryInterface> MaybeCreateSctpFactory(
 // Static
 scoped_refptr<ConnectionContext> ConnectionContext::Create(
     const Environment& env,
-    PeerConnectionFactoryDependencies* dependencies) {
+    PeerConnectionFactoryDependencies* absl_nonnull dependencies) {
   return scoped_refptr<ConnectionContext>(
       new ConnectionContext(env, dependencies));
 }
@@ -99,18 +100,14 @@ MediaEngineInterface* ConnectionContext::MediaEngineReference::media_engine()
 
 ConnectionContext::ConnectionContext(
     const Environment& env,
-    PeerConnectionFactoryDependencies* dependencies)
+    PeerConnectionFactoryDependencies* absl_nonnull dependencies)
     : is_configured_for_media_(dependencies->media_factory != nullptr),
       network_thread_(MaybeStartNetworkThread(dependencies->network_thread,
                                               owned_socket_factory_,
                                               owned_network_thread_)),
-      worker_thread_(dependencies->worker_thread,
-                     []() {
-                       auto thread_holder = Thread::Create();
-                       thread_holder->SetName("pc_worker_thread", nullptr);
-                       thread_holder->Start();
-                       return thread_holder;
-                     }),
+      worker_thread_(dependencies->worker_thread != nullptr
+                         ? dependencies->worker_thread
+                         : network_thread_),
       signaling_thread_(MaybeWrapThread(dependencies->signaling_thread,
                                         wraps_current_thread_)),
       media_engine_(
@@ -127,6 +124,8 @@ ConnectionContext::ConnectionContext(
           MaybeCreateSctpFactory(std::move(dependencies->sctp_factory),
                                  network_thread())) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
+  RTC_DCHECK(network_thread_ != nullptr);
+  RTC_DCHECK(worker_thread_ != nullptr);
   RTC_DCHECK(!(default_network_manager_ && network_monitor_factory_))
       << "You can't set both network_manager and network_monitor_factory.";
 
@@ -138,7 +137,7 @@ ConnectionContext::ConnectionContext(
     // network_thread_. In this case, no further action is required as
     // signaling_thread_ can already invoke network_thread_.
     network_thread_->PostTask(
-        [thread = network_thread_, worker_thread = worker_thread_.get()] {
+        [thread = network_thread_, worker_thread = worker_thread_] {
           thread->DisallowBlockingCalls();
           thread->DisallowAllInvokes();
           if (worker_thread == thread) {

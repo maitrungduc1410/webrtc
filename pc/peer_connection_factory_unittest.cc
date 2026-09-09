@@ -27,6 +27,7 @@
 #include "api/create_peerconnection_factory.h"
 #include "api/data_channel_interface.h"
 #include "api/enable_media_with_defaults.h"
+#include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
 #include "api/field_trials_view.h"
 #include "api/jsep.h"
@@ -56,6 +57,7 @@
 #include "p2p/base/port.h"
 #include "p2p/base/port_allocator.h"
 #include "p2p/test/fake_port_allocator.h"
+#include "pc/connection_context.h"
 #include "pc/test/fake_audio_capture_module.h"
 #include "pc/test/fake_video_track_source.h"
 #include "rtc_base/event.h"
@@ -805,6 +807,31 @@ TEST(PeerConnectionFactoryDependenciesTest,
   pcf = nullptr;
 }
 #endif
+
+TEST(ConnectionContextTest,
+     WorkerThreadDefaultsToNetworkThreadWhenWorkerThreadNotSet) {
+  Environment env = CreateTestEnvironment();
+  PeerConnectionFactoryDependencies dependencies;
+  dependencies.signaling_thread = Thread::Current();
+  auto context = ConnectionContext::Create(env, &dependencies);
+  ASSERT_THAT(context, NotNull());
+  EXPECT_THAT(context->network_thread(), NotNull());
+  EXPECT_EQ(context->worker_thread(), context->network_thread());
+}
+
+TEST(ConnectionContextTest, WorkerThreadUsesInjectedThreadWhenSet) {
+  Environment env = CreateTestEnvironment();
+  std::unique_ptr<Thread> custom_worker = Thread::Create();
+  custom_worker->Start();
+  PeerConnectionFactoryDependencies dependencies;
+  dependencies.signaling_thread = Thread::Current();
+  dependencies.worker_thread = custom_worker.get();
+  auto context = ConnectionContext::Create(env, &dependencies);
+  ASSERT_THAT(context, NotNull());
+  EXPECT_THAT(context->network_thread(), NotNull());
+  EXPECT_EQ(context->worker_thread(), custom_worker.get());
+  EXPECT_NE(context->worker_thread(), context->network_thread());
+}
 
 }  // namespace
 }  // namespace webrtc

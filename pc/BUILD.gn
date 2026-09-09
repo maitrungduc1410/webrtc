@@ -940,7 +940,7 @@ rtc_library("connection_context") {
     "../rtc_base:socket_server",
     "../rtc_base:threading",
     "../rtc_base:unique_id_generator",
-    "../rtc_base/memory:always_valid_pointer",
+    "//third_party/abseil-cpp/absl/base:nullability",
   ]
 }
 
