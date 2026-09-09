@@ -51,7 +51,7 @@ public class PeerConnectionFactory {
   @Nullable private static ThreadInfo staticWorkerThread;
   @Nullable private static ThreadInfo staticSignalingThread;
 
-  private long nativeFactory;
+  private final NativeLifecycleLock lifecycleLock;
   @Nullable private volatile ThreadInfo networkThread;
   @Nullable private volatile ThreadInfo workerThread;
   @Nullable private volatile ThreadInfo signalingThread;
@@ -385,7 +385,7 @@ public class PeerConnectionFactory {
     if (nativeFactory == 0) {
       throw new RuntimeException("Failed to initialize PeerConnectionFactory!");
     }
-    this.nativeFactory = nativeFactory;
+    this.lifecycleLock = new NativeLifecycleLock("PeerConnectionFactory", nativeFactory);
   }
 
   /**
@@ -395,19 +395,20 @@ public class PeerConnectionFactory {
   PeerConnection createPeerConnectionInternal(PeerConnection.RTCConfiguration rtcConfig,
       MediaConstraints constraints, PeerConnection.Observer observer,
       SSLCertificateVerifier sslCertificateVerifier) {
-    checkPeerConnectionFactoryExists();
-    long nativeObserver = PeerConnection.createNativePeerConnectionObserver(observer);
-    if (nativeObserver == 0) {
-      return null;
-    }
-    long nativePeerConnection =
-        PeerConnectionFactoryJni.get()
-            .createPeerConnection(
-                nativeFactory, rtcConfig, constraints, nativeObserver, sslCertificateVerifier);
-    if (nativePeerConnection == 0) {
-      return null;
-    }
-    return new PeerConnection(nativePeerConnection);
+    return lifecycleLock.call(factory -> {
+      long nativeObserver = PeerConnection.createNativePeerConnectionObserver(observer);
+      if (nativeObserver == 0) {
+        return null;
+      }
+      long nativePeerConnection =
+          PeerConnectionFactoryJni.get()
+              .createPeerConnection(
+                  factory, rtcConfig, constraints, nativeObserver, sslCertificateVerifier);
+      if (nativePeerConnection == 0) {
+        return null;
+      }
+      return new PeerConnection(nativePeerConnection);
+    });
   }
 
   /**
@@ -457,9 +458,9 @@ public class PeerConnectionFactory {
   }
 
   public MediaStream createLocalMediaStream(String label) {
-    checkPeerConnectionFactoryExists();
-    return new MediaStream(
-        PeerConnectionFactoryJni.get().createLocalMediaStream(nativeFactory, label));
+    return lifecycleLock.call(
+        factory -> new MediaStream(
+            PeerConnectionFactoryJni.get().createLocalMediaStream(factory, label)));
   }
 
   /**
@@ -470,10 +471,10 @@ public class PeerConnectionFactory {
    * webrtc::TimeNanos() when they arrive to the returned video source.
    */
   public VideoSource createVideoSource(boolean isScreencast, boolean alignTimestamps) {
-    checkPeerConnectionFactoryExists();
-    return new VideoSource(
-        PeerConnectionFactoryJni.get()
-            .createVideoSource(nativeFactory, isScreencast, alignTimestamps));
+    return lifecycleLock.call(
+        factory -> new VideoSource(
+            PeerConnectionFactoryJni.get()
+                .createVideoSource(factory, isScreencast, alignTimestamps)));
   }
 
   /**
@@ -486,76 +487,68 @@ public class PeerConnectionFactory {
   }
 
   public VideoTrack createVideoTrack(String id, VideoSource source) {
-    checkPeerConnectionFactoryExists();
-    return new VideoTrack(
-        PeerConnectionFactoryJni.get()
-            .createVideoTrack(nativeFactory, id, source.getNativeVideoTrackSource()));
+    return lifecycleLock.call(
+        factory -> new VideoTrack(
+            PeerConnectionFactoryJni.get()
+                .createVideoTrack(factory, id, source.getNativeVideoTrackSource())));
   }
 
   public AudioSource createAudioSource(MediaConstraints constraints) {
-    checkPeerConnectionFactoryExists();
-    return new AudioSource(
-        PeerConnectionFactoryJni.get().createAudioSource(nativeFactory, constraints));
+    return lifecycleLock.call(
+        factory -> new AudioSource(
+            PeerConnectionFactoryJni.get().createAudioSource(factory, constraints)));
   }
 
   public AudioTrack createAudioTrack(String id, AudioSource source) {
-    checkPeerConnectionFactoryExists();
-    return new AudioTrack(
-        PeerConnectionFactoryJni.get()
-            .createAudioTrack(nativeFactory, id, source.getNativeAudioSource()));
+    return lifecycleLock.call(
+        factory -> new AudioTrack(
+            PeerConnectionFactoryJni.get()
+                .createAudioTrack(factory, id, source.getNativeAudioSource())));
   }
 
   public RtpCapabilities getRtpReceiverCapabilities(MediaStreamTrack.MediaType mediaType) {
-    checkPeerConnectionFactoryExists();
-    return PeerConnectionFactoryJni.get().getRtpReceiverCapabilities(nativeFactory, mediaType);
+    return lifecycleLock.call(
+        factory -> PeerConnectionFactoryJni.get()
+                       .getRtpReceiverCapabilities(factory, mediaType));
   }
 
   public RtpCapabilities getRtpSenderCapabilities(MediaStreamTrack.MediaType mediaType) {
-    checkPeerConnectionFactoryExists();
-    return PeerConnectionFactoryJni.get().getRtpSenderCapabilities(nativeFactory, mediaType);
+    return lifecycleLock.call(
+        factory -> PeerConnectionFactoryJni.get()
+                       .getRtpSenderCapabilities(factory, mediaType));
   }
 
   // Starts recording an AEC dump. Ownership of the file is transfered to the
   // native code. If an AEC dump is already in progress, it will be stopped and
   // a new one will start using the provided file.
   public boolean startAecDump(int file_descriptor, int filesize_limit_bytes) {
-    checkPeerConnectionFactoryExists();
-    return PeerConnectionFactoryJni.get()
-        .startAecDump(nativeFactory, file_descriptor, filesize_limit_bytes);
+    return lifecycleLock.call(
+        factory -> PeerConnectionFactoryJni.get()
+            .startAecDump(factory, file_descriptor, filesize_limit_bytes));
   }
 
   // Stops recording an AEC dump. If no AEC dump is currently being recorded,
   // this call will have no effect.
   public void stopAecDump() {
-    checkPeerConnectionFactoryExists();
-    PeerConnectionFactoryJni.get().stopAecDump(nativeFactory);
+    lifecycleLock.run(factory -> PeerConnectionFactoryJni.get().stopAecDump(factory));
   }
 
   public void dispose() {
-    checkPeerConnectionFactoryExists();
-    PeerConnectionFactoryJni.get().freeFactory(nativeFactory);
+    lifecycleLock.dispose(factory -> PeerConnectionFactoryJni.get().freeFactory(factory));
     networkThread = null;
     workerThread = null;
     signalingThread = null;
-    nativeFactory = 0;
   }
 
   /** Returns a pointer to the native webrtc::PeerConnectionFactoryInterface. */
   public long getNativePeerConnectionFactory() {
-    checkPeerConnectionFactoryExists();
-    return PeerConnectionFactoryJni.get().getNativePeerConnectionFactory(nativeFactory);
+    return lifecycleLock.call(
+        factory -> PeerConnectionFactoryJni.get().getNativePeerConnectionFactory(factory));
   }
 
   /** Returns a pointer to the native OwnedFactoryAndThreads object */
   public long getNativeOwnedFactoryAndThreads() {
-    checkPeerConnectionFactoryExists();
-    return nativeFactory;
-  }
-
-  private void checkPeerConnectionFactoryExists() {
-    if (nativeFactory == 0) {
-      throw new IllegalStateException("PeerConnectionFactory has been disposed.");
-    }
+    return lifecycleLock.getNativePointer();
   }
 
   private static void printStackTrace(

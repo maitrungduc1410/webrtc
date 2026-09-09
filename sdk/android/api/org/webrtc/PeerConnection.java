@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.jni_zero.NativeMethods;
 
 /**
@@ -844,43 +843,18 @@ public class PeerConnection {
     }
   };
 
-  private interface NativeCallable<T> {
-    T call();
-  }
-
-  private interface NativeRunnable {
-    void run();
-  }
-
   private final List<MediaStream> localStreams = new ArrayList<>();
-  private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock();
-  private long nativePeerConnection;
+  private final NativeLifecycleLock lifecycleLock;
   private List<RtpSender> senders = new ArrayList<>();
   private List<RtpReceiver> receivers = new ArrayList<>();
   private List<RtpTransceiver> transceivers = new ArrayList<>();
 
-  private <T> T callWithNative(NativeCallable<T> callable) {
-    lifecycleLock.readLock().lock();
-    try {
-      if (nativePeerConnection == 0) {
-        throw new IllegalStateException("PeerConnection has been disposed.");
-      }
-      return callable.call();
-    } finally {
-      lifecycleLock.readLock().unlock();
-    }
+  private <T> T callWithNative(NativeLifecycleLock.NativeCallable<T> callable) {
+    return lifecycleLock.call(callable);
   }
 
-  private void runWithNative(NativeRunnable runnable) {
-    lifecycleLock.readLock().lock();
-    try {
-      if (nativePeerConnection == 0) {
-        throw new IllegalStateException("PeerConnection has been disposed.");
-      }
-      runnable.run();
-    } finally {
-      lifecycleLock.readLock().unlock();
-    }
+  private void runWithNative(NativeLifecycleLock.NativeRunnable runnable) {
+    lifecycleLock.run(runnable);
   }
 
   /**
@@ -892,7 +866,7 @@ public class PeerConnection {
   }
 
   PeerConnection(long nativePeerConnection) {
-    this.nativePeerConnection = nativePeerConnection;
+    this.lifecycleLock = new NativeLifecycleLock("PeerConnection", nativePeerConnection);
   }
 
   // JsepInterface.
@@ -1318,13 +1292,8 @@ public class PeerConnection {
    * 3721</a> for more details.
    */
   public void dispose() {
-    lifecycleLock.readLock().lock();
-    try {
-      if (nativePeerConnection == 0) {
-        return;
-      }
-    } finally {
-      lifecycleLock.readLock().unlock();
+    if (lifecycleLock.isDisposed()) {
+      return;
     }
     try {
       close();
@@ -1353,15 +1322,8 @@ public class PeerConnection {
     }
     transceivers.clear();
     receivers.clear();
-    lifecycleLock.writeLock().lock();
-    try {
-      if (nativePeerConnection != 0) {
-        PeerConnectionJni.get().freeOwnedPeerConnection(nativePeerConnection);
-        nativePeerConnection = 0;
-      }
-    } finally {
-      lifecycleLock.writeLock().unlock();
-    }
+    lifecycleLock.dispose(
+        ptr -> PeerConnectionJni.get().freeOwnedPeerConnection(ptr));
   }
 
   /** Returns a pointer to the native webrtc::PeerConnectionInterface. */
@@ -1371,7 +1333,7 @@ public class PeerConnection {
 
   @CalledByNative
   long getNativeOwnedPeerConnection() {
-    return nativePeerConnection;
+    return lifecycleLock.getNativePointer();
   }
 
   public static long createNativePeerConnectionObserver(Observer observer) {
