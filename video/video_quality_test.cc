@@ -88,6 +88,7 @@
 #include "test/platform_video_capturer.h"
 #include "test/test_flags.h"
 #include "test/testsupport/file_utils.h"
+#include "test/testsupport/pendulum_frame_generator.h"
 #include "test/testsupport/switching_frame_reader.h"
 #include "test/testsupport/y4m_frame_generator.h"
 #include "test/video_renderer.h"
@@ -1064,7 +1065,22 @@ VideoQualityTest::CreateFrameGenerator(size_t video_idx) {
   const size_t kWidth = 1850;
   const size_t kHeight = 1110;
   std::unique_ptr<test::FrameGeneratorInterface> frame_generator;
-  if (params_.screenshare[video_idx].generate_slides) {
+  if (params_.video[video_idx].pendulum.has_value()) {
+    const auto& pendulum = *params_.video[video_idx].pendulum;
+    test::PendulumFrameGenerator::Config config;
+    config.target_resolution = {.width = params_.video[video_idx].width,
+                                .height = params_.video[video_idx].height};
+    config.fps = params_.video[video_idx].fps;
+    config.source_image_path = pendulum.image_path;
+    config.source_resolution = {
+        .width = static_cast<size_t>(pendulum.image_width),
+        .height = static_cast<size_t>(pendulum.image_height)};
+    config.min_zoom = pendulum.min_zoom;
+    config.max_zoom = pendulum.max_zoom;
+    config.zoom_speed = pendulum.zoom_speed;
+    config.noise_level = pendulum.noise_level;
+    return test::CreatePendulumFrameGenerator(config);
+  } else if (params_.screenshare[video_idx].generate_slides) {
     frame_generator = test::CreateSlideFrameGenerator(
         kWidth, kHeight,
         params_.screenshare[video_idx].slide_change_interval *
@@ -1168,6 +1184,21 @@ void VideoQualityTest::CreateCapturers() {
           static_cast<int>(params_.video[video_idx].width),
           static_cast<int>(params_.video[video_idx].height),
           test::FrameGeneratorInterface::OutputType::kNV12, std::nullopt);
+    } else if (params_.video[video_idx].pendulum.has_value()) {
+      const auto& pendulum = *params_.video[video_idx].pendulum;
+      test::PendulumFrameGenerator::Config config;
+      config.target_resolution = {.width = params_.video[video_idx].width,
+                                  .height = params_.video[video_idx].height};
+      config.fps = params_.video[video_idx].fps;
+      config.source_image_path = pendulum.image_path;
+      config.source_resolution = {
+          .width = static_cast<size_t>(pendulum.image_width),
+          .height = static_cast<size_t>(pendulum.image_height)};
+      config.min_zoom = pendulum.min_zoom;
+      config.max_zoom = pendulum.max_zoom;
+      config.zoom_speed = pendulum.zoom_speed;
+      config.noise_level = pendulum.noise_level;
+      frame_generator = test::CreatePendulumFrameGenerator(config);
     } else if (!params_.video[video_idx].clip_paths.empty() ||
                params_.video[video_idx].camera_switching_interval >
                    TimeDelta::Zero() ||

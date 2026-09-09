@@ -224,6 +224,49 @@ ABSL_FLAG(std::string,
           "",
           "Scalability mode to use (e.g. 'L1T3').");
 
+ABSL_FLAG(bool,
+          synthetic_pendulum,
+          false,
+          "Use synthetic chaotic zoom/pan frame generator with double pendulum "
+          "physics.");
+
+ABSL_FLAG(std::string,
+          pendulum_image,
+          "",
+          "Path to YUV420 static image for synthetic pendulum capturer. If "
+          "empty, uses resources/difficult_photo_1850_1110.yuv.");
+
+ABSL_FLAG(int,
+          pendulum_image_width,
+          1850,
+          "Width of source image for synthetic pendulum capturer.");
+
+ABSL_FLAG(int,
+          pendulum_image_height,
+          1110,
+          "Height of source image for synthetic pendulum capturer.");
+
+ABSL_FLAG(double,
+          pendulum_min_zoom,
+          1.2,
+          "Minimum zoom factor for synthetic pendulum capturer (>= 1.0).");
+
+ABSL_FLAG(double,
+          pendulum_max_zoom,
+          3.0,
+          "Maximum zoom factor for synthetic pendulum capturer.");
+
+ABSL_FLAG(double,
+          pendulum_zoom_speed,
+          0.3,
+          "Zoom oscillation frequency in cycles/sec.");
+
+ABSL_FLAG(int,
+          pendulum_noise,
+          20,
+          "Luma white noise amplitude for synthetic pendulum capturer (0 to "
+          "disable).");
+
 namespace webrtc {
 namespace {
 
@@ -430,7 +473,19 @@ void Loopback() {
     }
   }
 
-  if (!clips.empty()) {
+  if (absl::GetFlag(FLAGS_synthetic_pendulum) || Clip() == "pendulum") {
+    params.video[0].pendulum = {
+        .image_path = absl::GetFlag(FLAGS_pendulum_image).empty()
+                          ? "resources/difficult_photo_1850_1110.yuv"
+                          : absl::GetFlag(FLAGS_pendulum_image),
+        .image_width = absl::GetFlag(FLAGS_pendulum_image_width),
+        .image_height = absl::GetFlag(FLAGS_pendulum_image_height),
+        .min_zoom = absl::GetFlag(FLAGS_pendulum_min_zoom),
+        .max_zoom = absl::GetFlag(FLAGS_pendulum_max_zoom),
+        .zoom_speed = absl::GetFlag(FLAGS_pendulum_zoom_speed),
+        .noise_level = absl::GetFlag(FLAGS_pendulum_noise),
+    };
+  } else if (!clips.empty()) {
     params.video[0].clip_paths = std::move(clips);
     params.video[0].camera_switching_interval =
         TimeDelta::Millis(interval_ms > 0 ? interval_ms : 2000);

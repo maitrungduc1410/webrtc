@@ -16,12 +16,14 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "api/environment/environment.h"
 #include "api/scoped_refptr.h"
 #include "api/units/data_rate.h"
 #include "api/units/data_size.h"
+#include "api/units/frequency.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/i420_buffer.h"
@@ -40,7 +42,10 @@
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/qp_parser_for_test.h"
+#include "test/testsupport/file_utils.h"
 #include "test/testsupport/frame_reader.h"
+#include "test/testsupport/pendulum_frame_generator.h"
+#include "test/testsupport/switching_frame_reader.h"
 
 // This file contains tests evaluating the rate control requirements in
 // `api/video_codecs/g3doc/video_encoder_api_v2.md`.
@@ -105,6 +110,11 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     current_timestamp_ = Timestamp::Zero();
     is_first_frame_ = true;
     encoded_frames_.clear();
+  }
+
+  void SetFrameReader(std::unique_ptr<test::FrameReader> frame_reader) {
+    RTC_CHECK(frame_reader != nullptr);
+    frame_reader_ = std::move(frame_reader);
   }
 
   void Encode(int num_frames,
@@ -356,8 +366,7 @@ TEST_P(FixedBitrateRateControlTest, AdheresToTargetBitrate) {
   const FixedBitrateTestParams& params = std::get<1>(GetParam());
   SetUpCbrEncoder(params.resolution);
 
-  constexpr int kFps = 30;
-  constexpr TimeDelta kFrameDuration = TimeDelta::Seconds(1) / kFps;
+  constexpr TimeDelta kFrameDuration = 1 / Frequency::Hertz(30);
   const int num_frames =
       (params.duration.us() + kFrameDuration.us() / 2) / kFrameDuration.us();
 
@@ -374,9 +383,8 @@ TEST_P(VideoEncoderRateControlTest, ChangingBitrateTargetVga) {
   }
   SetUpCbrEncoder(kVgaResolution);
 
-  constexpr int kFps = 30;
-  constexpr TimeDelta kFrameDuration = TimeDelta::Seconds(1) / kFps;
-  constexpr int kWindowFrames = 2 * kFps;  // 2-second sliding window.
+  constexpr TimeDelta kFrameDuration = 1 / Frequency::Hertz(30);
+  constexpr int kWindowFrames = 60;  // 2-second sliding window (30 fps).
 
   // 1. 500 kbps for 2s (60 frames).
   Encode(60, kFrameDuration, DataRate::KilobitsPerSec(500), kVgaResolution);
@@ -411,24 +419,24 @@ TEST_P(VideoEncoderRateControlTest, ChangingFramerateVga) {
 
   constexpr DataRate kTargetBitrate = DataRate::KilobitsPerSec(500);
 
-  auto encode_segment = [&](int fps, TimeDelta duration) {
-    TimeDelta frame_duration = TimeDelta::Seconds(1) / fps;
+  auto encode_segment = [&](Frequency framerate, TimeDelta duration) {
+    TimeDelta frame_duration = 1 / framerate;
     int num_frames =
         (duration.us() + frame_duration.us() / 2) / frame_duration.us();
     Encode(num_frames, frame_duration, kTargetBitrate, kVgaResolution);
   };
 
   // 1. 30 fps for 2s.
-  encode_segment(30, TimeDelta::Seconds(2));
+  encode_segment(Frequency::Hertz(30), TimeDelta::Seconds(2));
   // 2. Drop to 10 fps for 1s.
-  encode_segment(10, TimeDelta::Seconds(1));
+  encode_segment(Frequency::Hertz(10), TimeDelta::Seconds(1));
   // 3. Step up gradually back to 30 fps (15 fps, 20 fps, 25 fps for 200ms
   // each).
-  encode_segment(15, TimeDelta::Millis(200));
-  encode_segment(20, TimeDelta::Millis(200));
-  encode_segment(25, TimeDelta::Millis(200));
+  encode_segment(Frequency::Hertz(15), TimeDelta::Millis(200));
+  encode_segment(Frequency::Hertz(20), TimeDelta::Millis(200));
+  encode_segment(Frequency::Hertz(25), TimeDelta::Millis(200));
   // 4. Stay at 30 fps for 2s.
-  encode_segment(30, TimeDelta::Seconds(2));
+  encode_segment(Frequency::Hertz(30), TimeDelta::Seconds(2));
 
   // (1) Check that deviation from optimal behavior over any 1-second sliding
   // window does not exceed 20%.
@@ -440,9 +448,69 @@ TEST_P(VideoEncoderRateControlTest, ChangingFramerateVga) {
   VerifyTotalDeviation(/*max_deviation_pct=*/5.0);
 }
 
-// TODO(bugs.webrtc.org/496266459): Run at least a subset with varying content.
+// Verifies that the encoder adheres to CBR target bitrate when the video input
+// periodically switches between different camera views every 5 seconds.
+TEST_P(VideoEncoderRateControlTest, CameraSwitchingHd) {
+  if (!SupportsCbr()) {
+    GTEST_SKIP() << "Encoder does not support CBR mode.";
+  }
 
-// TODO(bugs.webrtc.org/496266459): Implement camera switching test.
+  constexpr Resolution kResolution = kHdResolution;
+  constexpr Frequency kFramerate = Frequency::Hertz(30);
+  constexpr TimeDelta kFrameDuration = 1 / kFramerate;
+  constexpr DataRate kTargetBitrate = DataRate::KilobitsPerSec(2000);
+  constexpr TimeDelta kDuration = TimeDelta::Seconds(30);
+  constexpr TimeDelta kSwitchInterval = TimeDelta::Seconds(5);
+  const int num_frames =
+      (kDuration.us() + kFrameDuration.us() / 2) / kFrameDuration.us();
+
+  const std::vector<std::string> clip_paths = {
+      test::ResourcePath("ConferenceMotion_1280_720_50", "yuv"),
+      test::ResourcePath("FourPeople_1280x720_30", "yuv"),
+      test::ResourcePath("reference_less_video_test_file", "y4m"),
+  };
+
+  std::unique_ptr<test::FrameReader> reader = test::CreateSwitchingFrameReader(
+      clip_paths, kResolution, kFramerate.hertz(), kSwitchInterval,
+      test::YuvFrameReaderImpl::RepeatMode::kPingPong);
+
+  SetUpCbrEncoder(kResolution);
+  SetFrameReader(std::move(reader));
+  Encode(num_frames, kFrameDuration, kTargetBitrate, kResolution);
+
+  VerifyTotalDeviation(/*max_deviation_pct=*/5.0);
+}
+
+// Verified that the encoder adheres to CBR target bitrate when the video input
+// has very high complexity both in terms of motion and high frequency detail.
+TEST_P(VideoEncoderRateControlTest, SyntheticChaoticMotionStressHd) {
+  constexpr Resolution kResolution = {.width = 1280, .height = 720};
+  constexpr Frequency kFramerate = Frequency::Hertz(30);
+  constexpr TimeDelta kFrameDuration = 1 / kFramerate;
+  constexpr DataRate kTargetBitrate = DataRate::KilobitsPerSec(2000);
+  constexpr TimeDelta kDuration = TimeDelta::Seconds(10);
+  const int num_frames =
+      (kDuration.us() + kFrameDuration.us() / 2) / kFrameDuration.us();
+
+  test::PendulumFrameGenerator::Config config;
+  config.target_resolution = {
+      .width = static_cast<size_t>(kResolution.width),
+      .height = static_cast<size_t>(kResolution.height)};
+  config.fps = kFramerate.hertz();
+  config.min_zoom = 1.2;
+  config.max_zoom = 3.0;
+  config.zoom_speed = 0.3;
+  config.noise_level = 20;
+
+  std::unique_ptr<test::FrameReader> reader =
+      test::CreatePendulumFrameReader(config);
+
+  SetUpCbrEncoder(kResolution);
+  SetFrameReader(std::move(reader));
+  Encode(num_frames, kFrameDuration, kTargetBitrate, kResolution);
+
+  VerifyTotalDeviation(/*max_deviation_pct=*/5.0);
+}
 
 // TODO(bugs.webrtc.org/496266459): Add temporal/spatial layer allocation test.
 

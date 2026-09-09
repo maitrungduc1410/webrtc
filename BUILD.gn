@@ -638,7 +638,13 @@ if (use_libfuzzer) {
 }
 
 if (rtc_include_tests && !build_with_chromium) {
-  rtc_unittests_resources = [ "resources/reference_video_640x360_30fps.y4m" ]
+  rtc_unittests_resources = [
+    "resources/ConferenceMotion_1280_720_50.yuv",
+    "resources/FourPeople_1280x720_30.yuv",
+    "resources/difficult_photo_1850_1110.yuv",
+    "resources/reference_less_video_test_file.y4m",
+    "resources/reference_video_640x360_30fps.y4m",
+  ]
 
   if (is_ios) {
     bundle_data("rtc_unittests_bundle_data") {

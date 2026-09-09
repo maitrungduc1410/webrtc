@@ -14,7 +14,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -268,32 +267,6 @@ TEST(SwitchingFrameReaderTest, ReadsFromMultipleResourceFiles) {
     EXPECT_EQ(frame->width(), kTargetResolution.width);
     EXPECT_EQ(frame->height(), kTargetResolution.height);
   }
-}
-
-TEST(SwitchingFrameReaderTest, ParseResolutionFromFileName) {
-  EXPECT_EQ(ParseResolutionFromFileName("vidyo1_1280x720_30.yuv"),
-            (Resolution{.width = 1280, .height = 720}));
-  EXPECT_EQ(ParseResolutionFromFileName("vidyo4_1280x720_30"),
-            (Resolution{.width = 1280, .height = 720}));
-  EXPECT_EQ(ParseResolutionFromFileName("vidyo1_320x180_15.yuv"),
-            (Resolution{.width = 320, .height = 180}));
-  EXPECT_EQ(ParseResolutionFromFileName("vidyo3_720p_60fps.y4m"),
-            (Resolution{.width = 1280, .height = 720}));
-  EXPECT_EQ(ParseResolutionFromFileName("ConferenceMotion_1280_720_50.yuv"),
-            (Resolution{.width = 1280, .height = 720}));
-  EXPECT_EQ(ParseResolutionFromFileName("difficult_photo_1850_1110.yuv"),
-            (Resolution{.width = 1850, .height = 1110}));
-  EXPECT_EQ(ParseResolutionFromFileName("foreman_128x96.yuv"),
-            (Resolution{.width = 128, .height = 96}));
-  EXPECT_EQ(ParseResolutionFromFileName("foreman_cif_short.yuv"),
-            (Resolution{.width = 352, .height = 288}));
-  EXPECT_EQ(ParseResolutionFromFileName("paris_qcif.yuv"),
-            (Resolution{.width = 176, .height = 144}));
-  EXPECT_EQ(ParseResolutionFromFileName("clip1_qvga.yuv"),
-            (Resolution{.width = 320, .height = 240}));
-  EXPECT_EQ(ParseResolutionFromFileName("clip1_vga.yuv"),
-            (Resolution{.width = 640, .height = 480}));
-  EXPECT_EQ(ParseResolutionFromFileName("unknown_clip.yuv"), std::nullopt);
 }
 
 TEST(SwitchingFrameReaderTest, MixesYuvAndY4mClips) {

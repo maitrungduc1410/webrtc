@@ -16,7 +16,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/strings/string_view.h"
 #include "api/scoped_refptr.h"
 #include "api/test/frame_generator_interface.h"
 #include "api/units/time_delta.h"
@@ -26,10 +25,6 @@
 
 namespace webrtc {
 namespace test {
-
-// Parses video resolution from filename or path if present (e.g. "1280x720",
-// "1850_1110", "cif", "qcif", "720p").
-std::optional<Resolution> ParseResolutionFromFileName(absl::string_view path);
 
 // A composite FrameReader that holds multiple file-based frame readers and
 // periodically switches between them at a specified time interval (looping

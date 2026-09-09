@@ -547,6 +547,8 @@ rtc_library("video_test_support") {
     "testsupport/ivf_frame_reader.cc",
     "testsupport/ivf_frame_reader.h",
     "testsupport/mock/mock_frame_reader.h",
+    "testsupport/pendulum_frame_generator.cc",
+    "testsupport/pendulum_frame_generator.h",
     "testsupport/switching_frame_reader.cc",
     "testsupport/switching_frame_reader.h",
     "testsupport/y4m_frame_reader.cc",

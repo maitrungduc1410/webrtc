@@ -73,6 +73,16 @@ class VideoQualityTestFixtureInterface {
       size_t capture_device_index = 0;
       CodecParameterMap sdp_params;
       double encoder_overshoot_factor = 0.0;
+      struct PendulumConfig {
+        std::string image_path = "resources/difficult_photo_1850_1110.yuv";
+        int image_width = 1850;
+        int image_height = 1110;
+        double min_zoom = 1.2;
+        double max_zoom = 3.0;
+        double zoom_speed = 0.3;
+        int noise_level = 20;
+      };
+      std::optional<PendulumConfig> pendulum;
     } video[2];
     struct Audio {
       bool enabled = false;
