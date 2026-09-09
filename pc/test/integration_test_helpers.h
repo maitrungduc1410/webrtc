@@ -74,7 +74,6 @@
 #include "rtc_base/fake_mdns_responder.h"
 #include "rtc_base/fake_network.h"
 #include "rtc_base/firewall_socket_server.h"
-#include "rtc_base/logging.h"
 #include "rtc_base/net_helper.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/socket_server.h"
@@ -1055,8 +1054,6 @@ class PeerConnectionIntegrationTestBase : public ::testing::Test {
                                          int expected_cipher_suite);
 
  protected:
-  void OverrideLoggingLevelForTest(LoggingSeverity new_severity);
-
   SdpSemantics sdp_semantics_;
   const Environment env_;
 
@@ -1064,12 +1061,6 @@ class PeerConnectionIntegrationTestBase : public ::testing::Test {
                            absl::AnyInvocable<void()> task) = 0;
 
  private:
-  // Support for optionally changing the default logging level for the duration
-  // of the test. Scoped wider than other member variables to also affect
-  // logging that's done in destructors.
-  class ScopedSetLoggingLevel;
-  std::unique_ptr<ScopedSetLoggingLevel> overridden_logging_level_;
-
   // `ss_` is used by `network_thread_` so it must be destroyed later.
   std::unique_ptr<VirtualSocketServer> ss_;
   std::unique_ptr<FirewallSocketServer> fss_;

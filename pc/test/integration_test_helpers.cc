@@ -1164,21 +1164,6 @@ bool PeerConnectionIntegrationWrapper::IdExists(
 
 namespace internal {
 
-// Utility class for tests that run multiple operations that cause excessive
-// logging at the INFO level or below. Use to raise the logging level to e.g.
-// LS_WARNING or above. Once an instance of ScopedSetLoggingLevel goes out of
-// scope, the logging level is restored to what it was previously set to.
-class PeerConnectionIntegrationTestBase::ScopedSetLoggingLevel {
- public:
-  explicit ScopedSetLoggingLevel(LoggingSeverity new_severity) {
-    LogMessage::LogToDebug(new_severity);
-  }
-  ~ScopedSetLoggingLevel() { LogMessage::LogToDebug(previous_severity_); }
-
- private:
-  const LoggingSeverity previous_severity_ = LogMessage::GetLogToDebug();
-};
-
 PeerConnectionIntegrationTestBase::PeerConnectionIntegrationTestBase(
     Environment env,
     SdpSemantics sdp_semantics)
@@ -1514,13 +1499,6 @@ void PeerConnectionIntegrationTestBase::DestroyTurnServers() {
 void PeerConnectionIntegrationTestBase::DestroyThreads() {
   worker_thread_.reset();
   network_thread_.reset();
-}
-
-void PeerConnectionIntegrationTestBase::OverrideLoggingLevelForTest(
-    LoggingSeverity new_severity) {
-  RTC_DCHECK(!overridden_logging_level_);
-  overridden_logging_level_ =
-      std::make_unique<ScopedSetLoggingLevel>(new_severity);
 }
 
 void PeerConnectionIntegrationTestBase::DestroyPeerConnections() {

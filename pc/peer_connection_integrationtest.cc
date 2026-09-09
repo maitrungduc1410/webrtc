@@ -3677,8 +3677,6 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
 
 TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
        RenegotiateManyAudioTransceivers) {
-  OverrideLoggingLevelForTest(LS_WARNING);
-
   PeerConnectionInterface::RTCConfiguration config;
   config.sdp_semantics = SdpSemantics::kUnifiedPlan;
   ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
@@ -3713,8 +3711,6 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
 
 TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
        DISABLED_RenegotiateManyVideoTransceivers) {
-  OverrideLoggingLevelForTest(LS_WARNING);
-
   PeerConnectionInterface::RTCConfiguration config;
   config.sdp_semantics = SdpSemantics::kUnifiedPlan;
   ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
@@ -3751,8 +3747,6 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
 
 TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
        RenegotiateManyVideoTransceiversAndWatchAudioDelay) {
-  OverrideLoggingLevelForTest(LS_WARNING);
-
   PeerConnectionInterface::RTCConfiguration config;
   config.sdp_semantics = SdpSemantics::kUnifiedPlan;
   ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
