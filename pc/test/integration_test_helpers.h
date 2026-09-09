@@ -719,8 +719,13 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
   // Variables for tracking delay stats on an audio track
   int audio_packets_stat_ = 0;
   double audio_delay_stat_ = 0.0;
+  // Trailing counters from the most recent renegotiation step.
   uint64_t audio_samples_stat_ = 0;
   uint64_t audio_concealed_stat_ = 0;
+  // Baseline counters captured at the start of watching delay stats, used to
+  // compute cumulative sample metrics across all renegotiation steps.
+  uint64_t initial_audio_samples_stat_ = 0;
+  uint64_t initial_audio_concealed_stat_ = 0;
   std::string rtp_stats_id_;
   bool audio_delay_stats_percentage_checked_ = false;
 
