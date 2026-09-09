@@ -2711,6 +2711,7 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   std::vector<scoped_refptr<RtpTransceiverInterface>> remove_list;
   std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
+  ScopedOperationsBatcher network_tasks(context_->network_thread());
   ScopedOperationsBatcher worker_tasks(context_->worker_thread());
   flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
       GetDtlsTransports(*transceivers(), context_->network_thread(),
@@ -2814,11 +2815,14 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
           !media_desc->sframe_enabled() && !transceiver->stopped()) {
         RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                          << " since the remote answer does not include Sframe.";
-        transceiver->ClearChannel();
+        network_tasks.Add(transceiver->GetClearChannelNetworkTask());
+        worker_tasks.Add(transceiver->GetDeleteChannelWorkerTask(
+            /*stop_senders=*/false));
         worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
       }
     }
-    if (!content->rejected && RtpTransceiverDirectionHasRecv(local_direction)) {
+    if (!content->rejected && !transceiver->stopped() &&
+        RtpTransceiverDirectionHasRecv(local_direction)) {
       if (!media_desc->streams().empty() &&
           media_desc->streams()[0].has_ssrcs()) {
         uint32_t ssrc = media_desc->streams()[0].first_ssrc();
@@ -2831,7 +2835,10 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     }
   }
 
-  worker_tasks.Run();
+  RTCError error = network_tasks.Run();
+  RTC_DCHECK(error.ok());
+  error = worker_tasks.Run();
+  RTC_DCHECK(error.ok());
 
   if (auto* tracer = pc_->tracer()) {
     for (const auto& transceiver : now_receiving_transceivers) {
