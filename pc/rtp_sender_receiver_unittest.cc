@@ -1344,7 +1344,10 @@ TEST_F(RtpSenderReceiverTest, InjectVideoFrameOnDifferentThread) {
                 (override));
     MOCK_METHOD(void, OnFrameDropped, (uint32_t, int, bool), (override));
   };
-  MockEncodedImageCallback image_callback;
+  ::testing::NiceMock<MockEncodedImageCallback> image_callback;
+  ON_CALL(image_callback, OnEncodedImage)
+      .WillByDefault(::testing::Return(
+          EncodedImageCallback::Result(EncodedImageCallback::Result::OK)));
 
   std::unique_ptr<VideoEncoder> encoder;
   worker_thread_->BlockingCall([&] {
