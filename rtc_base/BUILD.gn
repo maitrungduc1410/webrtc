@@ -353,23 +353,10 @@ if (rtc_rust) {
     visibility = [ "*" ]
   }
 
-  rtc_rust_library("rate_tracker_ffi_rust") {
-    allow_unsafe = true
-    crate_root = "rate_tracker_ffi.rs"
-    sources = [ "rate_tracker_ffi.rs" ]
-    deps = [
-      ":rate_tracker_rust",
-      "../api/units:time_delta_rs",
-      "../api/units:timestamp_rs",
-      "//build/rust:cxx_rustdeps",
-    ]
-  }
-
   rtc_rust_cxx_bridge("rate_tracker_ffi") {
     allow_unsafe = true
     source = "rate_tracker_ffi.rs"
     deps = [
-      ":rate_tracker_ffi_rust",
       ":rate_tracker_rust",
       "../api/units:time_delta",
       "../api/units:time_delta_ffi",
@@ -1522,6 +1509,7 @@ if (rtc_include_tests) {
       "../test:test_support",
     ]
   }
+
   rtc_library("async_tcp_socket_unittest") {
     testonly = true
     sources = [ "async_tcp_socket_unittest.cc" ]
@@ -2016,6 +2004,7 @@ if (rtc_include_tests) {
       ]
     }
   }
+
   rtc_library("untyped_function_unittest") {
     testonly = true
     sources = [ "untyped_function_unittest.cc" ]
@@ -2507,6 +2496,7 @@ if (rtc_include_tests) {
 
 if (is_android) {
   import("//third_party/jni_zero/jni_zero.gni")
+
   generate_jni("base_java_jni") {
     sources = [ "java/src/org/webrtc/Logging.java" ]
     namespace = "webrtc::jni"
@@ -2527,6 +2517,7 @@ if (is_android) {
       "//third_party/jni_zero:jni_zero_java",
     ]
   }
+
   java_cpp_enum("network_monitor_enums") {
     sources = [ "network_monitor.h" ]
     visibility = [ "*" ]
