@@ -552,6 +552,8 @@ rtc_library("video_test_support") {
     "testsupport/switching_frame_reader.cc",
     "testsupport/switching_frame_reader.h",
     "testsupport/y4m_frame_reader.cc",
+    "testsupport/y4m_header_parser.cc",
+    "testsupport/y4m_header_parser.h",
     "testsupport/yuv_frame_reader.cc",
   ]
 
@@ -565,10 +567,13 @@ rtc_library("video_test_support") {
     "../api:sequence_checker",
     "../api/environment",
     "../api/test/video:video_frame_writer",
+    "../api/units:data_size",
+    "../api/units:frequency",
     "../api/units:time_delta",
     "../api/video:encoded_image",
     "../api/video:resolution",
     "../api/video:video_frame",
+    "../api/video:video_rtp_headers",
     "../api/video_codecs:video_codecs_api",
     "../common_video",
     "../modules/video_coding:video_codec_interface",
@@ -1122,6 +1127,20 @@ if (rtc_include_tests) {
       }
     }
 
+    rtc_cc_test("y4m_header_parser_unittest") {
+      sources = [ "testsupport/y4m_header_parser_unittest.cc" ]
+      deps = [
+        ":fileutils",
+        ":test_support",
+        ":video_test_support",
+        "../api/units:data_size",
+        "../api/units:frequency",
+        "../api/video:resolution",
+        "../api/video:video_rtp_headers",
+        "//testing/gtest",
+      ]
+    }
+
     rtc_cc_test("yuv_frame_reader_unittest") {
       sources = [ "testsupport/yuv_frame_reader_unittest.cc" ]
       deps = [
@@ -1295,6 +1314,7 @@ if (rtc_include_tests) {
         ":y4m_frame_generator_test",
         ":y4m_frame_reader_unittest",
         ":y4m_frame_writer_unittest",
+        ":y4m_header_parser_unittest",
         ":yuv_frame_reader_unittest",
         ":yuv_frame_writer_unittest",
         ":video_codec_tester_unittest",
