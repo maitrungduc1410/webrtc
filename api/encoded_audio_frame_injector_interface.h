@@ -21,7 +21,8 @@
 namespace webrtc {
 
 // Callback invoked by webrtc to notify of an update to target bitrate.
-using TargetBitrateCallback = absl::AnyInvocable<void(int32_t target_bitrate)>;
+using TargetBitrateCallback =
+    absl::AnyInvocable<void(int32_t target_bitrate) const>;
 
 // Interface that allows injecting encoded audio frames on a sender.
 class EncodedAudioFrameInjectorInterface : public RefCountInterface {

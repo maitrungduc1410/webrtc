@@ -69,7 +69,7 @@ class RTC_EXPORT EncodedAudioFrameInjector
   RTC_NO_UNIQUE_ADDRESS SequenceChecker encoder_sequence_checker_{
       SequenceChecker::kDetached};
 
-  TargetBitrateCallback bitrate_callback_;
+  const TargetBitrateCallback bitrate_callback_;
 };
 
 }  // namespace webrtc

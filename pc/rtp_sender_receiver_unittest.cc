@@ -8,6 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -21,7 +22,9 @@
 #include "absl/algorithm/container.h"
 #include "absl/functional/any_invocable.h"
 #include "api/audio_codecs/audio_encoder_factory.h"
+#include "api/audio_codecs/audio_format.h"
 #include "api/audio_options.h"
+#include "api/call/bitrate_allocation.h"
 #include "api/crypto/crypto_options.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/crypto/frame_encryptor_interface.h"
@@ -44,6 +47,7 @@
 #include "api/test/fake_frame_encryptor.h"
 #include "api/test/mock_transformable_video_frame.h"
 #include "api/test/rtc_error_matchers.h"
+#include "api/units/data_rate.h"
 #include "api/units/timestamp.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "api/video/encoded_image.h"
@@ -1528,6 +1532,61 @@ TEST_F(RtpSenderReceiverTest, CreateAudioFrameInjector) {
   auto* injector_impl = static_cast<EncodedAudioFrameInjector*>(injector.get());
   injector_impl->InvokeBitrateInfoCallback(12345);
   EXPECT_EQ(12345, last_allocated_bitrate);
+
+  DestroyAudioRtpSender();
+}
+
+TEST_F(RtpSenderReceiverTest, ProxyAudioEncoderInvokesBitrateCallback) {
+  CreateAudioRtpSenderWithNoTrack();
+
+  std::atomic<int32_t> last_allocated_bitrate = 0;
+  TargetBitrateCallback bitrate_callback =
+      [&last_allocated_bitrate](int32_t allocated_bitrate) {
+        last_allocated_bitrate = allocated_bitrate;
+      };
+
+  auto injector = audio_rtp_sender_->CreateEncodedAudioFrameInjector(
+      std::move(bitrate_callback));
+  ASSERT_TRUE(injector);
+
+  auto* injector_impl = static_cast<EncodedAudioFrameInjector*>(injector.get());
+  auto encoder_factory = injector_impl->CreateEncoderFactory();
+  ASSERT_TRUE(encoder_factory);
+  auto encoder =
+      encoder_factory->Create(env_, SdpAudioFormat("opus", 48000, 2), {});
+  ASSERT_TRUE(encoder);
+
+  // Verify that the callback is invoked no matter which method is called on the
+  // proxy encoder, including when called from different threads.
+  encoder->OnReceivedTargetAudioBitrate(32000);
+  EXPECT_EQ(32000, last_allocated_bitrate.load());
+
+  BitrateAllocationUpdate update;
+  update.target_bitrate = DataRate::BitsPerSec(64000);
+  encoder->OnReceivedUplinkAllocation(update);
+  EXPECT_EQ(64000, last_allocated_bitrate.load());
+
+  worker_thread_->BlockingCall(
+      [&] { encoder->OnReceivedTargetAudioBitrate(48000); });
+  EXPECT_EQ(48000, last_allocated_bitrate.load());
+
+  worker_thread_->BlockingCall([&] {
+    BitrateAllocationUpdate worker_update;
+    worker_update.target_bitrate = DataRate::BitsPerSec(96000);
+    encoder->OnReceivedUplinkAllocation(worker_update);
+  });
+  EXPECT_EQ(96000, last_allocated_bitrate.load());
+
+  network_thread_->BlockingCall(
+      [&] { encoder->OnReceivedTargetAudioBitrate(50000); });
+  EXPECT_EQ(50000, last_allocated_bitrate.load());
+
+  network_thread_->BlockingCall([&] {
+    BitrateAllocationUpdate network_update;
+    network_update.target_bitrate = DataRate::BitsPerSec(100000);
+    encoder->OnReceivedUplinkAllocation(network_update);
+  });
+  EXPECT_EQ(100000, last_allocated_bitrate.load());
 
   DestroyAudioRtpSender();
 }
