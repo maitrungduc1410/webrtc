@@ -15,7 +15,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '34204b996b7faf98ebc9ea7e1bd2566043cafff7',
+  'chromium_revision': 'de383d292c36071c7f339e86643648ad7130be11',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -74,7 +74,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@1deee6343dd35020e6072f8ef09d63b1069b6eb6',
+    'https://chromium.googlesource.com/chromium/src/build@aa37fbfbed902759718cdf281dea5d58bb8fd5d9',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@c202b4a9dac30e789ed6e3b2354efa94357a56f3',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -83,13 +83,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@b61cc4783df241bbdebf0a9ce4add8829b4cd7bc',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@4b3f93d5884a1f6fed0b9500cb6879c2062977fb',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@d477a5baad6fd6b2a4e82d0bbd051a3ac6f7b58e',
+    'https://chromium.googlesource.com/chromium/src/testing@c6288d61abfc384b4100ddc2e40eb31464f596f1',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@628012d6d9edefecabb8480cf23ecc7f78033776',
+    'https://chromium.googlesource.com/chromium/src/third_party@b1f74303882c9b2b7530997bd602e5b941bc501c',
 
   'src/buildtools/third_party/mold/cipd': {
       'packages': [
@@ -105,7 +105,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:f99972118649814cd21b180eab5ae84df3c5fac7',
+        'version': 'git_revision:0625da07ece7b1a374ec0719b6f40ebe3d0950c1',
       }
     ],
     'dep_type': 'cipd',
@@ -115,7 +115,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:f99972118649814cd21b180eab5ae84df3c5fac7',
+        'version': 'git_revision:0625da07ece7b1a374ec0719b6f40ebe3d0950c1',
       }
     ],
     'dep_type': 'cipd',
@@ -125,7 +125,7 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:f99972118649814cd21b180eab5ae84df3c5fac7',
+        'version': 'git_revision:0625da07ece7b1a374ec0719b6f40ebe3d0950c1',
       }
     ],
     'dep_type': 'cipd',
@@ -526,13 +526,13 @@ deps = {
   'src/third_party/crc32c/src':
     'https://chromium.googlesource.com/external/github.com/google/crc32c.git@2bbb3be42e20a0e6c0f7b39dc07dc863d9ffbc07',
   'src/third_party/depot_tools':
-    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@1e5e3539fa466cb2e2e203f9eff5886bb581145d',
+    'https://chromium.googlesource.com/chromium/tools/depot_tools.git@08f3e8c0eb66d6de3a048a757d0ff708dbc8ea34',
   'src/third_party/ffmpeg':
     'https://chromium.googlesource.com/chromium/third_party/ffmpeg.git@ba5e7eaea38b6a54157870e0085b2e8c75aa6bcb',
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@615c1fd5e486125b0ec7dd873a5d9854c6cb536a',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@a65db1b513baec11e0d9a726cd4f482f780c88e9',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -542,7 +542,7 @@ deps = {
   'src/third_party/freetype/src':
     'https://chromium.googlesource.com/chromium/src/third_party/freetype2.git@5c79d6cd1ac73d70a55f3d963fb568aa32f6d794',
   'src/third_party/harfbuzz/src':
-    'https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git@46ea946ab4ad4d01fd83df7a6add740fd2590a73',
+    'https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git@f5efbbef3841bdcdc6427bde7c2971f62ac8c8f1',
   'src/third_party/google_benchmark/src': {
     'url': 'https://chromium.googlesource.com/external/github.com/google/benchmark.git@8abf1e701fbd88c8170f48fe0558247e2e5f8e7d',
   },
@@ -720,7 +720,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@0c5c85c698a806bead822eefbf6aa3a349bfdeea',
+    'https://chromium.googlesource.com/chromium/src/tools@5139c2ad5afd3326ee38b6042b43d7176b437a46',
 
   'src/third_party/espresso': {
       'packages': [
@@ -759,7 +759,7 @@ deps = {
     'packages': [
       {
           'package': 'chromium/third_party/androidx',
-          'version': 'Sb5Bagf0XbVAvJB_16gC0U7qRp2uKs35tBTX15kD3xwC',
+          'version': 'B8AcZ1jNq7w5WmVpFSPqfX55cJ0lPw2l8N_YHf-jMPcC',
       },
     ],
     'condition': 'checkout_android and non_git_source',
@@ -895,7 +895,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/android_deps/autorolled',
-              'version': 'JetADwuF_leE4vCWOHphTdfAtNxKScZBb6peZEwoXiQC',
+              'version': 'M5geAdO5h5u6qMhI5HJjtl2hy2rurxM_De07GBeU8rQC',
           },
       ],
       'condition': 'checkout_android and non_git_source',
@@ -917,7 +917,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + '66ee79c038d70dad9f08705b2c9b3e58f6d8f512',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '68db0e246aeea98fe8d323cd63375d99cd20102e',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '198a61f683db5b914e9e62d090be6b4dc5ffc012',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '782eea126dc5c755827be751a099eb01826175cf',
