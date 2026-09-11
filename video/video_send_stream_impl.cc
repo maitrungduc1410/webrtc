@@ -338,10 +338,6 @@ GetBitrateAllocationCallbackType(const VideoSendStream::Config& config,
     return VideoStreamEncoder::BitrateAllocationCallbackType::
         kVideoLayersAllocation;
   }
-  if (field_trials.IsEnabled("WebRTC-Target-Bitrate-Rtcp")) {
-    return VideoStreamEncoder::BitrateAllocationCallbackType::
-        kVideoBitrateAllocation;
-  }
   return VideoStreamEncoder::BitrateAllocationCallbackType::kNone;
 }
 
