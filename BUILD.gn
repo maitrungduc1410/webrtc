@@ -645,8 +645,10 @@ if (rtc_include_tests && !build_with_chromium) {
     "resources/ConferenceMotion_1280_720_50.yuv",
     "resources/FourPeople_1280x720_30.yuv",
     "resources/difficult_photo_1850_1110.yuv",
+    "resources/presentation_1850_1110.yuv",
     "resources/reference_less_video_test_file.y4m",
     "resources/reference_video_640x360_30fps.y4m",
+    "resources/web_screenshot_1850_1110.yuv",
   ]
 
   if (is_ios) {

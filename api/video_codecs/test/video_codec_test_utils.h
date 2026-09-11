@@ -25,6 +25,7 @@
 #include "absl/strings/match.h"
 #include "api/environment/environment.h"
 #include "api/scoped_refptr.h"
+#include "api/test/frame_generator_interface.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/video/encoded_image.h"
@@ -49,6 +50,7 @@
 #include "test/gmock.h"
 #include "test/testsupport/file_utils.h"
 #include "test/testsupport/frame_reader.h"
+#include "test/testsupport/y4m_frame_generator.h"
 
 namespace webrtc {
 
@@ -95,6 +97,12 @@ inline std::unique_ptr<test::FrameReader> CreateFrameReader() {
   return CreateY4mFrameReader(
       test::ResourcePath("reference_video_640x360_30fps", "y4m"),
       test::YuvFrameReaderImpl::RepeatMode::kPingPong);
+}
+
+inline std::unique_ptr<test::FrameGeneratorInterface> CreateFrameGenerator() {
+  return std::make_unique<test::Y4mFrameGenerator>(
+      test::ResourcePath("reference_video_640x360_30fps", "y4m"),
+      test::Y4mFrameGenerator::RepeatMode::kPingPong);
 }
 
 inline std::unique_ptr<VideoDecoderFactory> CreateTestDecoderFactory() {
