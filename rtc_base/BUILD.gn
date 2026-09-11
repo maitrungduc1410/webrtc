@@ -379,15 +379,10 @@ if (rtc_rust) {
       "../api/units:timestamp_rs",
     ]
   }
+}
 
-  rtc_rust_test_suite("rust_unit_tests") {
-    deps = [ ":rate_tracker_rust_tests" ]
-  }
-} else {
-  # This target is required for the bot configuration as it is always
-  # present in the more_configs_tests test suite even if Rust is disabled.
-  group("rust_unit_tests") {
-  }
+rtc_rust_test_suite("rust_unit_tests") {
+  deps = [ ":rate_tracker_rust_tests" ]
 }
 
 rtc_library("rate_tracker") {
