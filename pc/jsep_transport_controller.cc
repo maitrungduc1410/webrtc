@@ -55,6 +55,7 @@
 #include "pc/dtls_srtp_transport.h"
 #include "pc/dtls_transport.h"
 #include "pc/jsep_transport.h"
+#include "pc/media_protocol_names.h"
 #include "pc/rtp_transport.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/sctp_transport.h"
@@ -71,6 +72,21 @@
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
+namespace {
+
+bool BundleUsesCryptex(const SessionDescription& description,
+                       const ContentGroup& bundle_group) {
+  for (const std::string& mid : bundle_group.content_names()) {
+    const ContentInfo* content = description.GetContentByName(mid);
+    if (content && !content->rejected &&
+        IsRtpProtocol(content->media_description()->protocol())) {
+      return content->media_description()->cryptex();
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 JsepTransportController::JsepTransportController(
     const Environment& env,
@@ -785,7 +801,9 @@ RTCError JsepTransportController::ApplyDescription_n(
     JsepTransportDescription jsep_description = CreateJsepTransportDescription(
         content_info, transport_info, extension_ids);
     jsep_description.transport_desc.cryptex =
-        content_info.media_description()->cryptex();
+        established_bundle_group
+            ? BundleUsesCryptex(*description, *established_bundle_group)
+            : content_info.media_description()->cryptex();
     if (local) {
       error =
           transport->SetLocalJsepTransportDescription(jsep_description, type);

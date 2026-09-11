@@ -762,7 +762,7 @@ RTCError ValidateCryptex(
     const ContentInfo* first_media_content = nullptr;
     for (const std::string& name : bundle->content_names()) {
       const ContentInfo* content = description->GetContentByName(name);
-      if (content && content->media_description()->type() != MediaType::DATA) {
+      if (content && IsRtpProtocol(content->media_description()->protocol())) {
         first_media_content = content;
         break;
       }

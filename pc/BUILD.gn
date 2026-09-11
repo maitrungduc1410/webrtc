@@ -277,6 +277,7 @@ rtc_library("jsep_transport_controller") {
     ":dtls_transport",
     ":jsep_transport",
     ":jsep_transport_collection",
+    ":media_protocol_names",
     ":rtp_transport",
     ":rtp_transport_internal",
     ":sctp_transport",
