@@ -134,6 +134,7 @@ namespace webrtc {
 
 using ::testing::_;
 using ::testing::AllOf;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::Ge;
@@ -773,7 +774,7 @@ class SimpleVideoStreamEncoderFactory {
                                                   /*stats_proxy=*/nullptr),
         std::move(zero_hertz_adapter), std::move(encoder_queue),
         VideoStreamEncoder::BitrateAllocationCallbackType::
-            kVideoBitrateAllocation);
+            kVideoLayersAllocation);
     result->SetSink(&sink_, /*rotation_applied=*/false);
     return result;
   }
@@ -808,8 +809,6 @@ class SimpleVideoStreamEncoderFactory {
         bool is_svc,
         VideoEncoderConfig::ContentType content_type,
         int min_transmit_bitrate_bps) override {}
-    void OnBitrateAllocationUpdated(
-        const VideoBitrateAllocation& allocation) override {}
     void OnVideoLayersAllocationUpdated(
         VideoLayersAllocation allocation) override {}
     Result OnEncodedImage(
@@ -1089,16 +1088,6 @@ class VideoStreamEncoderTest : public ::testing::Test {
                                    Event* destruction_event) const {
     return CreateFakeNativeFrame(ntp_time_ms, destruction_event, codec_width_,
                                  codec_height_);
-  }
-
-  void VerifyAllocatedBitrate(const VideoBitrateAllocation& expected_bitrate) {
-    video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
-        kTargetBitrate, kTargetBitrate, 0, 0, 0);
-
-    video_source_.IncomingCapturedFrame(
-        CreateFrame(1, codec_width_, codec_height_));
-    WaitForEncodedFrame(1);
-    EXPECT_EQ(expected_bitrate, sink_.GetLastVideoBitrateAllocation());
   }
 
   void WaitForEncodedFrame(int64_t expected_ntp_time) {
@@ -1590,16 +1579,6 @@ class VideoStreamEncoderTest : public ::testing::Test {
       return std::move(last_encoded_image_data_);
     }
 
-    VideoBitrateAllocation GetLastVideoBitrateAllocation() {
-      MutexLock lock(&mutex_);
-      return last_bitrate_allocation_;
-    }
-
-    int number_of_bitrate_allocations() const {
-      MutexLock lock(&mutex_);
-      return number_of_bitrate_allocations_;
-    }
-
     VideoLayersAllocation GetLastVideoLayersAllocation() {
       MutexLock lock(&mutex_);
       return last_layers_allocation_;
@@ -1677,13 +1656,6 @@ class VideoStreamEncoderTest : public ::testing::Test {
       min_transmit_bitrate_bps_ = min_transmit_bitrate_bps;
     }
 
-    void OnBitrateAllocationUpdated(
-        const VideoBitrateAllocation& allocation) override {
-      MutexLock lock(&mutex_);
-      ++number_of_bitrate_allocations_;
-      last_bitrate_allocation_ = allocation;
-    }
-
     void OnVideoLayersAllocationUpdated(
         VideoLayersAllocation allocation) override {
       MutexLock lock(&mutex_);
@@ -1718,8 +1690,6 @@ class VideoStreamEncoderTest : public ::testing::Test {
     bool expect_frames_ = true;
     int number_of_reconfigurations_ = 0;
     int min_transmit_bitrate_bps_ = 0;
-    VideoBitrateAllocation last_bitrate_allocation_ RTC_GUARDED_BY(&mutex_);
-    int number_of_bitrate_allocations_ RTC_GUARDED_BY(&mutex_) = 0;
     VideoLayersAllocation last_layers_allocation_ RTC_GUARDED_BY(&mutex_);
     int number_of_layers_allocations_ RTC_GUARDED_BY(mutex_) = 0;
     int number_of_dropped_frames_ RTC_GUARDED_BY(mutex_) = 0;
@@ -5464,50 +5434,6 @@ TEST_F(VideoStreamEncoderTest,
             metrics::NumSamples("WebRTC.Video.CpuLimitedResolutionInPercent"));
 }
 
-TEST_F(VideoStreamEncoderTest, ReportsVideoBitrateAllocation) {
-  ResetEncoder("FAKE", 1, 1, 1, /*screenshare*/ false, kDefaultFramerate,
-               VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocation);
-
-  const int kDefaultFps = 30;
-  const VideoBitrateAllocation expected_bitrate =
-      SimulcastRateAllocator(env_, fake_encoder_.config())
-          .Allocate(VideoBitrateAllocationParameters(kLowTargetBitrate.bps(),
-                                                     kDefaultFps));
-
-  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
-      kLowTargetBitrate, kLowTargetBitrate, 0, 0, 0);
-
-  video_source_.IncomingCapturedFrame(
-      CreateFrame(CurrentTimeMs(), codec_width_, codec_height_));
-  WaitForEncodedFrame(CurrentTimeMs());
-  EXPECT_EQ(sink_.GetLastVideoBitrateAllocation(), expected_bitrate);
-  EXPECT_EQ(sink_.number_of_bitrate_allocations(), 1);
-
-  // Check that encoder has been updated too, not just allocation observer.
-  EXPECT_TRUE(fake_encoder_.GetAndResetLastRateControlSettings().has_value());
-  AdvanceTime(TimeDelta::Seconds(1) / kDefaultFps);
-
-  // VideoBitrateAllocation not updated on second frame.
-  video_source_.IncomingCapturedFrame(
-      CreateFrame(CurrentTimeMs(), codec_width_, codec_height_));
-  WaitForEncodedFrame(CurrentTimeMs());
-  EXPECT_EQ(sink_.number_of_bitrate_allocations(), 1);
-  AdvanceTime(TimeDelta::Millis(1) / kDefaultFps);
-
-  // VideoBitrateAllocation updated after a process interval.
-  const int64_t start_time_ms = CurrentTimeMs();
-  while (CurrentTimeMs() - start_time_ms < 5 * kProcessIntervalMs) {
-    video_source_.IncomingCapturedFrame(
-        CreateFrame(CurrentTimeMs(), codec_width_, codec_height_));
-    WaitForEncodedFrame(CurrentTimeMs());
-    AdvanceTime(TimeDelta::Millis(1) / kDefaultFps);
-  }
-  EXPECT_GT(sink_.number_of_bitrate_allocations(), 3);
-
-  video_stream_encoder_->Stop();
-}
-
 TEST_F(VideoStreamEncoderTest, ReportsVideoLayersAllocationForVP8Simulcast) {
   ResetEncoder("VP8", /*num_streams*/ 2, 1, 1, /*screenshare*/ false,
                kDefaultFramerate,
@@ -6052,23 +5978,32 @@ TEST_F(VideoStreamEncoderTest, TemporalLayersNotDisabledIfSupported) {
   ResetEncoder("VP8", 1, kNumTemporalLayers, 1, /*screenshare*/ false,
                kDefaultFramerate,
                VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocation);
+                   kVideoLayersAllocation);
   fake_encoder_.SetTemporalLayersSupported(0, true);
 
-  // Bitrate allocated across temporal layers.
-  const int kTl0Bps =
-      kTargetBitrate.bps() * SimulcastRateAllocator::GetTemporalRateAllocation(
-                                 kNumTemporalLayers, /*temporal_id*/ 0,
-                                 /*base_heavy_tl3_alloc*/ false);
-  const int kTl1Bps =
-      kTargetBitrate.bps() * SimulcastRateAllocator::GetTemporalRateAllocation(
-                                 kNumTemporalLayers, /*temporal_id*/ 1,
-                                 /*base_heavy_tl3_alloc*/ false);
-  VideoBitrateAllocation expected_bitrate;
-  expected_bitrate.SetBitrate(/*si*/ 0, /*ti*/ 0, kTl0Bps);
-  expected_bitrate.SetBitrate(/*si*/ 0, /*ti*/ 1, kTl1Bps - kTl0Bps);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
 
-  VerifyAllocatedBitrate(expected_bitrate);
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, codec_width_, codec_height_));
+  WaitForEncodedFrame(1);
+
+  // Bitrate allocated across temporal layers.
+  const DataRate kTl0 =
+      kTargetBitrate * SimulcastRateAllocator::GetTemporalRateAllocation(
+                           kNumTemporalLayers, /*temporal_id=*/0,
+                           /*base_heavy_tl3_alloc=*/false);
+  const DataRate kTl1 =
+      kTargetBitrate * SimulcastRateAllocator::GetTemporalRateAllocation(
+                           kNumTemporalLayers, /*temporal_id=*/1,
+                           /*base_heavy_tl3_alloc=*/false);
+
+  VideoLayersAllocation allocation = sink_.GetLastVideoLayersAllocation();
+  ASSERT_THAT(allocation.active_spatial_layers, SizeIs(1));
+  EXPECT_THAT(
+      allocation.active_spatial_layers[0].target_bitrate_per_temporal_layer,
+      ElementsAre(kTl0, kTl1));
+
   video_stream_encoder_->Stop();
 }
 
@@ -6077,15 +6012,24 @@ TEST_F(VideoStreamEncoderTest, TemporalLayersDisabledIfNotSupported) {
   ResetEncoder("VP8", 1, /*num_temporal_layers*/ 2, 1, /*screenshare*/ false,
                kDefaultFramerate,
                VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocation);
+                   kVideoLayersAllocation);
   fake_encoder_.SetTemporalLayersSupported(0, false);
+
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, codec_width_, codec_height_));
+  WaitForEncodedFrame(1);
 
   // Temporal layers not supported by the encoder.
   // Total bitrate should be at ti:0.
-  VideoBitrateAllocation expected_bitrate;
-  expected_bitrate.SetBitrate(/*si*/ 0, /*ti*/ 0, kTargetBitrate.bps());
+  VideoLayersAllocation allocation = sink_.GetLastVideoLayersAllocation();
+  ASSERT_THAT(allocation.active_spatial_layers, SizeIs(1));
+  EXPECT_THAT(
+      allocation.active_spatial_layers[0].target_bitrate_per_temporal_layer,
+      ElementsAre(kTargetBitrate));
 
-  VerifyAllocatedBitrate(expected_bitrate);
   video_stream_encoder_->Stop();
 }
 
@@ -6102,27 +6046,37 @@ TEST_F(VideoStreamEncoderTest, VerifyBitrateAllocationForTwoStreams) {
   ResetEncoder("VP8", 2, /*num_temporal_layers*/ 2, 1, /*screenshare*/ false,
                kDefaultFramerate,
                VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocation);
+                   kVideoLayersAllocation);
   fake_encoder_.SetTemporalLayersSupported(0, true);
   fake_encoder_.SetTemporalLayersSupported(1, false);
 
-  const int kS0Bps = 150000;
-  const int kS0Tl0Bps =
-      kS0Bps *
-      SimulcastRateAllocator::GetTemporalRateAllocation(
-          /*num_layers*/ 2, /*temporal_id*/ 0, /*base_heavy_tl3_alloc*/ false);
-  const int kS0Tl1Bps =
-      kS0Bps *
-      SimulcastRateAllocator::GetTemporalRateAllocation(
-          /*num_layers*/ 2, /*temporal_id*/ 1, /*base_heavy_tl3_alloc*/ false);
-  const int kS1Bps = kTargetBitrate.bps() - kS0Tl1Bps;
-  // Temporal layers not supported by si:1.
-  VideoBitrateAllocation expected_bitrate;
-  expected_bitrate.SetBitrate(/*si*/ 0, /*ti*/ 0, kS0Tl0Bps);
-  expected_bitrate.SetBitrate(/*si*/ 0, /*ti*/ 1, kS0Tl1Bps - kS0Tl0Bps);
-  expected_bitrate.SetBitrate(/*si*/ 1, /*ti*/ 0, kS1Bps);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
 
-  VerifyAllocatedBitrate(expected_bitrate);
+  video_source_.IncomingCapturedFrame(
+      CreateFrame(1, codec_width_, codec_height_));
+  WaitForEncodedFrame(1);
+
+  const DataRate kS0 = DataRate::BitsPerSec(150'000);
+  const DataRate kS0Tl0 =
+      kS0 *
+      SimulcastRateAllocator::GetTemporalRateAllocation(
+          /*num_layers=*/2, /*temporal_id=*/0, /*base_heavy_tl3_alloc=*/false);
+  const DataRate kS0Tl1 =
+      kS0 *
+      SimulcastRateAllocator::GetTemporalRateAllocation(
+          /*num_layers=*/2, /*temporal_id=*/1, /*base_heavy_tl3_alloc=*/false);
+  const DataRate kS1 = kTargetBitrate - kS0Tl1;
+  // Temporal layers not supported by si:1.
+  VideoLayersAllocation allocation = sink_.GetLastVideoLayersAllocation();
+  ASSERT_THAT(allocation.active_spatial_layers, SizeIs(2));
+  EXPECT_THAT(
+      allocation.active_spatial_layers[0].target_bitrate_per_temporal_layer,
+      ElementsAre(kS0Tl0, kS0Tl1));
+  EXPECT_THAT(
+      allocation.active_spatial_layers[1].target_bitrate_per_temporal_layer,
+      ElementsAre(kS1));
+
   video_stream_encoder_->Stop();
 }
 
@@ -8022,7 +7976,7 @@ TEST_F(VideoStreamEncoderTest, DoesNotUpdateBitrateAllocationWhenSuspended) {
   const int kFrameHeight = 720;
   ResetEncoder("FAKE", 1, 1, 1, false, kDefaultFramerate,
                VideoStreamEncoder::BitrateAllocationCallbackType::
-                   kVideoBitrateAllocation);
+                   kVideoLayersAllocation);
 
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
       kTargetBitrate, kTargetBitrate, 0, 0, 0);
@@ -8033,7 +7987,7 @@ TEST_F(VideoStreamEncoderTest, DoesNotUpdateBitrateAllocationWhenSuspended) {
   video_source_.IncomingCapturedFrame(
       CreateFrame(timestamp_ms, kFrameWidth, kFrameHeight));
   WaitForEncodedFrame(timestamp_ms);
-  EXPECT_EQ(sink_.number_of_bitrate_allocations(), 1);
+  EXPECT_EQ(sink_.number_of_layers_allocations(), 1);
 
   // Next, simulate video suspension due to pacer queue overrun.
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
@@ -8047,7 +8001,7 @@ TEST_F(VideoStreamEncoderTest, DoesNotUpdateBitrateAllocationWhenSuspended) {
   video_source_.IncomingCapturedFrame(
       CreateFrame(timestamp_ms, kFrameWidth, kFrameHeight));
   ExpectDroppedFrame();
-  EXPECT_EQ(sink_.number_of_bitrate_allocations(), 1);
+  EXPECT_EQ(sink_.number_of_layers_allocations(), 1);
 
   video_stream_encoder_->Stop();
 }
@@ -10647,7 +10601,7 @@ TEST(VideoStreamEncoderSimpleTest, CreateDestroy) {
       std::make_unique<CpuOveruseDetectorProxy>(env, &stats_proxy),
       std::move(adapter), std::move(encoder_queue),
       VideoStreamEncoder::BitrateAllocationCallbackType::
-          kVideoBitrateAllocation);
+          kVideoLayersAllocation);
 
   // Stop the encoder explicitly. This additional step tests if we could
   // hang when calling stop and the TQ has been stopped and/or isn't accepting
