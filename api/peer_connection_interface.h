@@ -1457,6 +1457,10 @@ struct RTC_EXPORT PeerConnectionFactoryDependencies final {
 
   // Optional dependencies
   Thread* network_thread = nullptr;
+  // Deprecated: Support for a worker thread that is distinct from the network
+  // thread is being removed. Applications must stop supplying a separate
+  // worker thread. See
+  // https://groups.google.com/g/discuss-webrtc/c/Fs_Hd5XNJh0
   Thread* worker_thread = nullptr;
   Thread* signaling_thread = nullptr;
   SocketFactory* socket_factory = nullptr;

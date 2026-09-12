@@ -934,6 +934,7 @@ rtc_library("connection_context") {
     "../media:rtc_data_sctp_transport_factory",
     "../p2p:basic_packet_socket_factory",
     "../rtc_base:checks",
+    "../rtc_base:logging",
     "../rtc_base:macromagic",
     "../rtc_base:network",
     "../rtc_base:socket_factory",
