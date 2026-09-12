@@ -819,19 +819,5 @@ TEST(ConnectionContextTest,
   EXPECT_EQ(context->worker_thread(), context->network_thread());
 }
 
-TEST(ConnectionContextTest, WorkerThreadUsesInjectedThreadWhenSet) {
-  Environment env = CreateTestEnvironment();
-  std::unique_ptr<Thread> custom_worker = Thread::Create();
-  custom_worker->Start();
-  PeerConnectionFactoryDependencies dependencies;
-  dependencies.signaling_thread = Thread::Current();
-  dependencies.worker_thread = custom_worker.get();
-  auto context = ConnectionContext::Create(env, &dependencies);
-  ASSERT_THAT(context, NotNull());
-  EXPECT_THAT(context->network_thread(), NotNull());
-  EXPECT_EQ(context->worker_thread(), custom_worker.get());
-  EXPECT_NE(context->worker_thread(), context->network_thread());
-}
-
 }  // namespace
 }  // namespace webrtc

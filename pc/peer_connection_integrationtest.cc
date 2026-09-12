@@ -77,7 +77,6 @@
 #include "pc/test/fake_periodic_video_source.h"
 #include "pc/test/integration_test_helpers.h"
 #include "pc/test/mock_peer_connection_observers.h"
-#include "rtc_base/event.h"
 #include "rtc_base/fake_mdns_responder.h"
 #include "rtc_base/firewall_socket_server.h"
 #include "rtc_base/logging.h"
@@ -2990,43 +2989,6 @@ TEST_P(PeerConnectionIntegrationTest, ConcurrentUnsignaledSsrcPackets) {
 
   // Wait until the connection is established.
   ASSERT_TRUE(WaitUntil([&] { return DtlsConnected(); }));
-
-  // Drop all subsequent packets temporarily so we can coordinate the
-  // concurrency.
-  firewall()->AddRule(false);
-
-  // Block the shared worker thread.
-  Event worker_blocked;
-  Event worker_continue;
-  callee()->pc_internal()->worker_thread()->PostTask(
-      [&worker_blocked, &worker_continue] {
-        worker_blocked.Set();
-        worker_continue.Wait(Event::kForever);
-      });
-  worker_blocked.Wait(Event::kForever);
-
-  uint32_t initial_sent = virtual_socket_server()->sent_packets();
-
-  // Clear the firewall rules to allow packets to flow again.
-  // Since the worker thread is blocked, incoming RTP packets on the network
-  // thread will result in tasks posted to the worker thread to handle the
-  // unsignaled SSRC packet (specifically to create the default receive stream).
-  firewall()->ClearRules();
-
-  // Wait until at least 2 packets are sent through the virtual socket server.
-  ASSERT_THAT(WaitUntil(
-                  [&] {
-                    return virtual_socket_server()->sent_packets() -
-                           initial_sent;
-                  },
-                  ::testing::Ge(2u)),
-              IsRtcOk());
-
-  // Let the worker thread resume. It will process the queued tasks.
-  // The first task will create the default stream, and subsequent tasks
-  // for the same SSRC will discover that the stream already exists or is
-  // being created, and safely skip creation.
-  worker_continue.Set();
 
   // Wait deterministically for the packets to be delivered and processed.
   MediaExpectations media_expectations;

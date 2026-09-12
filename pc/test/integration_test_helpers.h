@@ -547,7 +547,6 @@ class PeerConnectionIntegrationWrapper : public PeerConnectionObserver,
             PeerConnectionDependencies dependencies,
             SocketServer* socket_server,
             Thread* network_thread,
-            Thread* worker_thread,
             std::unique_ptr<FakeRtcEventLogFactory> event_log_factory,
             bool reset_encoder_factory,
             bool reset_decoder_factory,
@@ -1065,11 +1064,9 @@ class PeerConnectionIntegrationTestBase : public ::testing::Test {
   std::unique_ptr<VirtualSocketServer> ss_;
   std::unique_ptr<FirewallSocketServer> fss_;
 
-  // `network_thread_` and `worker_thread_` are used by both
-  // `caller_` and `callee_` so they must be destroyed
-  // later.
+  // `network_thread_` is used by both `caller_` and `callee_` so it must be
+  // destroyed later.
   std::unique_ptr<Thread> network_thread_;
-  std::unique_ptr<Thread> worker_thread_;
   // The turn servers and turn customizers should be accessed & deleted on the
   // network thread to avoid a race with the socket read/write that occurs
   // on the network thread.

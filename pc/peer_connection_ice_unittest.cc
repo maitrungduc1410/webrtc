@@ -161,10 +161,8 @@ class PeerConnectionIceBaseTest : public ::testing::Test {
   explicit PeerConnectionIceBaseTest(SdpSemantics sdp_semantics)
       : env_(CreateTestEnvironment()),
         network_thread_(new Thread(&vss_)),
-        worker_thread_(Thread::Create()),
         sdp_semantics_(sdp_semantics) {
     RTC_CHECK(network_thread_->Start());
-    RTC_CHECK(worker_thread_->Start());
 #ifdef WEBRTC_ANDROID
     InitializeAndroidObjects();
 #endif
@@ -186,7 +184,6 @@ class PeerConnectionIceBaseTest : public ::testing::Test {
                                   absl::string_view field_trials) {
     PeerConnectionFactoryDependencies pcf_deps;
     pcf_deps.network_thread = network_thread_.get();
-    pcf_deps.worker_thread = worker_thread_.get();
     pcf_deps.signaling_thread = Thread::Current();
     pcf_deps.socket_factory = &vss_;
     auto network_manager =
@@ -351,7 +348,6 @@ class PeerConnectionIceBaseTest : public ::testing::Test {
   test::RunLoop main_;
   VirtualSocketServer vss_;
   std::unique_ptr<Thread> network_thread_;
-  std::unique_ptr<Thread> worker_thread_;
   const SdpSemantics sdp_semantics_;
 };
 
@@ -1508,17 +1504,15 @@ INSTANTIATE_TEST_SUITE_P(PeerConnectionIceTest,
 class PeerConnectionIceConfigTest : public ::testing::Test {
  public:
   PeerConnectionIceConfigTest()
-      : worker_thread_(Thread::Create()),
-        socket_server_(CreateDefaultSocketServer()),
+      : socket_server_(CreateDefaultSocketServer()),
         network_thread_(new Thread(socket_server_.get())) {
     RTC_CHECK(network_thread_->Start());
-    RTC_CHECK(worker_thread_->Start());
   }
 
  protected:
   void SetUp() override {
     pc_factory_ = CreatePeerConnectionFactory(
-        network_thread_.get(), worker_thread_.get(), Thread::Current(),
+        network_thread_.get(), network_thread_.get(), Thread::Current(),
         FakeAudioCaptureModule::Create(), CreateBuiltinAudioEncoderFactory(),
         CreateBuiltinAudioDecoderFactory(),
         std::make_unique<VideoEncoderFactoryTemplate<

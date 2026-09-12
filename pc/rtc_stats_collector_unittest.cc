@@ -4251,7 +4251,7 @@ TEST(RTCStatsCollectorSafetyTest, CancelPendingRequestReturnsImmediately) {
 
   auto env = CreateTestEnvironment();
   auto pc = make_ref_counted<FakePeerConnectionForStats>(
-      env, worker_and_network.get(), worker_and_network.get());
+      env, worker_and_network.get());
   RTCStatsCollectorWrapper wrapper(pc, env);
   auto callback = make_ref_counted<MockStatsCollectorCallback>();
 

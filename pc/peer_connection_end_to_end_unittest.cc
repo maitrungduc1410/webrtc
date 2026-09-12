@@ -84,14 +84,12 @@ class PeerConnectionEndToEndBaseTest : public ::testing::Test {
 
   explicit PeerConnectionEndToEndBaseTest(SdpSemantics sdp_semantics)
       : env_(CreateTestEnvironment()),
-        network_thread_(std::make_unique<Thread>(&pss_)),
-        worker_thread_(Thread::Create()) {
+        network_thread_(std::make_unique<Thread>(&pss_)) {
     RTC_CHECK(network_thread_->Start());
-    RTC_CHECK(worker_thread_->Start());
     caller_ = make_ref_counted<PeerConnectionTestWrapper>(
-        "caller", env_, &pss_, network_thread_.get(), worker_thread_.get());
+        "caller", env_, &pss_, network_thread_.get());
     callee_ = make_ref_counted<PeerConnectionTestWrapper>(
-        "callee", env_, &pss_, network_thread_.get(), worker_thread_.get());
+        "callee", env_, &pss_, network_thread_.get());
     PeerConnectionInterface::IceServer ice_server;
     ice_server.uri = "stun:stun.l.google.com:19302";
     caller_config_.servers.push_back(ice_server);
@@ -252,7 +250,6 @@ class PeerConnectionEndToEndBaseTest : public ::testing::Test {
   PhysicalSocketServer pss_;
   Environment env_;
   std::unique_ptr<Thread> network_thread_;
-  std::unique_ptr<Thread> worker_thread_;
   scoped_refptr<PeerConnectionTestWrapper> caller_;
   scoped_refptr<PeerConnectionTestWrapper> callee_;
   DataChannelList caller_signaled_data_channels_;

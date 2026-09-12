@@ -761,7 +761,6 @@ bool PeerConnectionIntegrationWrapper::Init(
     PeerConnectionDependencies dependencies,
     SocketServer* socket_server,
     Thread* network_thread,
-    Thread* worker_thread,
     std::unique_ptr<FakeRtcEventLogFactory> event_log_factory,
     bool reset_encoder_factory,
     bool reset_decoder_factory,
@@ -786,7 +785,6 @@ bool PeerConnectionIntegrationWrapper::Init(
 
   PeerConnectionFactoryDependencies pc_factory_dependencies;
   pc_factory_dependencies.network_thread = network_thread;
-  pc_factory_dependencies.worker_thread = worker_thread;
   pc_factory_dependencies.signaling_thread = signaling_thread;
   pc_factory_dependencies.socket_factory = socket_server;
   pc_factory_dependencies.network_manager = std::move(network_manager);
@@ -1171,12 +1169,9 @@ PeerConnectionIntegrationTestBase::PeerConnectionIntegrationTestBase(
       env_(std::move(env)),
       ss_(new VirtualSocketServer()),
       fss_(new FirewallSocketServer(ss_.get(), nullptr, false)),
-      network_thread_(new Thread(fss_.get())),
-      worker_thread_(Thread::Create()) {
+      network_thread_(new Thread(fss_.get())) {
   network_thread_->SetName("PCNetworkThread", this);
-  worker_thread_->SetName("PCWorkerThread", this);
   RTC_CHECK(network_thread_->Start());
-  RTC_CHECK(worker_thread_->Start());
   metrics::Reset();
 }
 
@@ -1189,9 +1184,7 @@ PeerConnectionIntegrationTestBase::PeerConnectionIntegrationTestBase(
   fss_ = std::make_unique<FirewallSocketServer>(ss_.get(), nullptr, false);
   network_thread_ = time_controller->CreateThreadWithSocketServer(
       "PCNetworkThread", fss_.get());
-  worker_thread_ = time_controller->CreateThread("PCWorkerThread");
   network_thread_->SetName("PCNetworkThread", this);
-  worker_thread_->SetName("PCWorkerThread", this);
   metrics::Reset();
 }
 
@@ -1266,7 +1259,7 @@ PeerConnectionIntegrationTestBase::CreatePeerConnectionWrapper(
       CreatePeerConnectionWrapperInternal(debug_name, env.Create());
 
   if (!client->Init(options, &modified_config, std::move(dependencies),
-                    fss_.get(), network_thread_.get(), worker_thread_.get(),
+                    fss_.get(), network_thread_.get(),
                     std::move(event_log_factory), reset_encoder_factory,
                     reset_decoder_factory, create_media_engine)) {
     return nullptr;
@@ -1497,7 +1490,6 @@ void PeerConnectionIntegrationTestBase::DestroyTurnServers() {
 }
 
 void PeerConnectionIntegrationTestBase::DestroyThreads() {
-  worker_thread_.reset();
   network_thread_.reset();
 }
 
