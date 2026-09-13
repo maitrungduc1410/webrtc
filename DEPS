@@ -15,7 +15,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '63eab029b06988e3c0e053080041a95fa171fa16',
+  'chromium_revision': '716ea38d1839bfc4423e688c572498172c3e34e8',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -83,13 +83,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@2c1db80377685ac62b7ec5a13552deeab6ca6426',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@00578607edd7183ea880e6143475c5afdd5c5d9d',
     'condition': 'checkout_ios',
   },
   'src/testing':
     'https://chromium.googlesource.com/chromium/src/testing@c01a20cf7f873ca4f5388149528747d4826e9630',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@b338a5dbeec32d8e80efbc9a89281b1e28beab5a',
+    'https://chromium.googlesource.com/chromium/src/third_party@2c684efc18e29c0d08dd97bd6527cab2ad5df724',
 
   'src/buildtools/third_party/mold/cipd': {
       'packages': [
@@ -358,7 +358,7 @@ deps = {
   'src/third_party/libc++abi/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git@8ca7c6c3a4f615f5f9a487318e783efc0cfce5c2',
   'src/third_party/llvm-libc/src':
-    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@e0ab122977cc2cb86bb237ddd4defef0b446a019',
+    'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git@14df467afd9c07f1f277c6070189bf65dfdb8eaa',
   'src/third_party/libunwind/src':
     'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git@24a407d5353ad38f948f107c7d6bc2bcbb4bca24',
 
@@ -532,7 +532,7 @@ deps = {
   'src/third_party/flatbuffers/src':
     'https://chromium.googlesource.com/external/github.com/google/flatbuffers.git@a86afae9399bbe631d1ea0783f8816e780e236cc',
   'src/third_party/grpc/src': {
-    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@9f11b9a53fa2b7d6ee3fd84c183b3300b3ca3004',
+    'url': 'https://chromium.googlesource.com/external/github.com/grpc/grpc.git@b8f09d9168d856020d236bd32f39195f7b5aa2cf',
   },
   # Used for embedded builds. CrOS & Linux use the system version.
   'src/third_party/fontconfig/src': {
@@ -720,7 +720,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@7472e45ebfd69957440897e24754e8e320c51d44',
+    'https://chromium.googlesource.com/chromium/src/tools@04f04180a54eb6e34726936d9636c74b89387000',
 
   'src/third_party/espresso': {
       'packages': [
@@ -917,7 +917,7 @@ deps = {
     Var('chromium_git') + '/external/github.com/pytorch/cpuinfo.git' + '@' + '66ee79c038d70dad9f08705b2c9b3e58f6d8f512',
 
   'src/third_party/eigen3/src':
-    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '18f48c341b78b3e1f99a63b2058f183200116f1e',
+    Var('chromium_git') + '/external/gitlab.com/libeigen/eigen.git' + '@' + '9b196f65756803ab6b9ef60c9e75b6a197b8df8c',
 
   'src/third_party/fp16/src':
     Var('chromium_git') + '/external/github.com/Maratyszcza/FP16.git' + '@' + '782eea126dc5c755827be751a099eb01826175cf',
