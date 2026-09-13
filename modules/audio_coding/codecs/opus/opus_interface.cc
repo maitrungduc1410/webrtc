@@ -68,6 +68,9 @@ int16_t WebRtcOpus_EncoderCreate(OpusEncInst** inst,
   OpusEncInst* state =
       reinterpret_cast<OpusEncInst*>(calloc(1, sizeof(OpusEncInst)));
   RTC_DCHECK(state);
+  if (state == nullptr) {
+    return -1;
+  }
 
   int error;
   state->encoder = opus_encoder_create(
@@ -111,6 +114,9 @@ int16_t WebRtcOpus_MultistreamEncoderCreate(
   OpusEncInst* state =
       reinterpret_cast<OpusEncInst*>(calloc(1, sizeof(OpusEncInst)));
   RTC_DCHECK(state);
+  if (state == nullptr) {
+    return -1;
+  }
 
   int error;
   const int sample_rate_hz = 48000;
@@ -229,10 +235,10 @@ int16_t WebRtcOpus_SetMaxPlaybackRate(OpusEncInst* inst, int32_t frequency_hz) {
 }
 
 int16_t WebRtcOpus_GetMaxPlaybackRate(OpusEncInst* const inst,
-                                      int32_t* result_hz) {
+                                      int32_t* result_bandwidth) {
   if (inst->encoder) {
-    if (opus_encoder_ctl(inst->encoder, OPUS_GET_MAX_BANDWIDTH(result_hz)) ==
-        OPUS_OK) {
+    if (opus_encoder_ctl(inst->encoder,
+                         OPUS_GET_MAX_BANDWIDTH(result_bandwidth)) == OPUS_OK) {
       return 0;
     }
     return -1;
@@ -263,7 +269,7 @@ int16_t WebRtcOpus_GetMaxPlaybackRate(OpusEncInst* const inst,
     max_bandwidth = bandwidth;
     s++;
   }
-  *result_hz = max_bandwidth;
+  *result_bandwidth = max_bandwidth;
   return 0;
 }
 
@@ -384,6 +390,7 @@ int16_t WebRtcOpus_DecoderCreate(OpusDecInst** inst,
   if (inst != nullptr) {
     // Create Opus decoder state.
     state = reinterpret_cast<OpusDecInst*>(calloc(1, sizeof(OpusDecInst)));
+    RTC_DCHECK(state);
     if (state == nullptr) {
       return -1;
     }
@@ -421,6 +428,7 @@ int16_t WebRtcOpus_MultistreamDecoderCreate(
   if (inst != nullptr) {
     // Create Opus decoder state.
     state = reinterpret_cast<OpusDecInst*>(calloc(1, sizeof(OpusDecInst)));
+    RTC_DCHECK(state);
     if (state == nullptr) {
       return -1;
     }

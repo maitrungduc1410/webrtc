@@ -400,8 +400,6 @@ AudioEncoderOpusImpl::AudioEncoderOpusImpl(
   // of. See https://bugs.chromium.org/p/webrtc/issues/detail?id=7847
   RTC_CHECK(config_.payload_type == -1 || config_.payload_type == payload_type);
   RTC_CHECK(RecreateEncoderInstance());
-
-  SetProjectedPacketLossRate(packet_loss_rate_);
 }
 
 AudioEncoderOpusImpl::~AudioEncoderOpusImpl() {
@@ -581,9 +579,9 @@ AudioEncoder::EncodedInfo AudioEncoderOpusImpl::EncodeImpl(
         int status = WebRtcOpus_Encode(
             inst_, &input_buffer_[0],
             CheckedDivExact(input_buffer_.size(), config_.num_channels),
-            saturated_cast<int16_t>(max_encoded_bytes), encoded.data());
+            max_encoded_bytes, encoded.data());
 
-        RTC_CHECK_GE(status, 0);  // Fails only if fed invalid data.
+        RTC_CHECK_GE(status, 0);  // Fails on bad input or too small a buffer.
 
         return static_cast<size_t>(status);
       });
