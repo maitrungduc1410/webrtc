@@ -51,6 +51,7 @@
 #include "api/test/mock_async_dns_resolver.h"
 #include "api/test/mock_encoder_selector.h"
 #include "api/test/rtc_error_matchers.h"
+#include "api/transport/bitrate_settings.h"
 #include "api/transport/rtp/rtp_source.h"
 #include "api/uma_metrics.h"
 #include "api/units/data_rate.h"
@@ -3643,6 +3644,10 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
   config.sdp_semantics = SdpSemantics::kUnifiedPlan;
   ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
   ConnectFakeSignaling();
+  BitrateSettings bitrate;
+  bitrate.start_bitrate_bps = 1'000'000;
+  caller()->pc()->SetBitrate(bitrate);
+  callee()->pc()->SetBitrate(bitrate);
   caller()->pc()->AddTransceiver(MediaType::AUDIO);
 
   caller()->CreateAndSetAndSignalOffer();

@@ -4079,6 +4079,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:uma_metrics",
       "../api/crypto:options",
       "../api/rtc_event_log",
+      "../api/transport:bitrate_settings",
       "../api/transport/rtp:rtp_source",
       "../api/units:data_rate",
       "../api/units:time_delta",
