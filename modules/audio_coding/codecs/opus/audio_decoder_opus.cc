@@ -35,7 +35,7 @@ AudioDecoderOpusImpl::AudioDecoderOpusImpl(const FieldTrialsView& field_trials,
   RTC_DCHECK(num_channels == 1 || num_channels == 2);
   RTC_DCHECK(sample_rate_hz == 16000 || sample_rate_hz == 48000);
   RTC_CHECK_EQ(
-      0, WebRtcOpus_DecoderCreate(&dec_state_, channels_, sample_rate_hz_));
+      WebRtcOpus_DecoderCreate(&dec_state_, channels_, sample_rate_hz_), 0);
   WebRtcOpus_DecoderInit(dec_state_);
 }
 
