@@ -142,8 +142,6 @@ class RtpVideoSender : public RtpVideoSenderInterface,
                       int spatial_id,
                       bool is_end_of_temporal_unit) override;
 
-  void OnBitrateAllocationUpdated(const VideoBitrateAllocation& bitrate)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
   void OnVideoLayersAllocationUpdated(
       const VideoLayersAllocation& layers) override;
   void OnBitrateUpdated(BitrateAllocationUpdate update, int framerate)
