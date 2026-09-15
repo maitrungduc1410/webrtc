@@ -1837,6 +1837,7 @@ if (rtc_include_tests) {
       "video:video_broadcaster_unittest",
       "video:video_common_unittest",
       "video:video_frame",
+      "video:video_frame_buffer_unittest",
       "video:video_frame_metadata",
       "video:video_frame_metadata_unittest",
       "video:video_frame_type",
