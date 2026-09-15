@@ -75,7 +75,6 @@ class ScopedDav1dPicture : public RefCountedNonVirtual<ScopedDav1dPicture> {
   ~ScopedDav1dPicture() { dav1d_picture_unref(&picture_); }
 
   Dav1dPicture& Picture() { return picture_; }
-  using RefCountedNonVirtual<ScopedDav1dPicture>::HasOneRef;
 
  private:
   Dav1dPicture picture_ = {};
@@ -114,10 +113,8 @@ int32_t Dav1dDecoder::RegisterDecodeCompleteCallback(
 }
 
 int32_t Dav1dDecoder::Release() {
+  // dav1d_close() tolerates a null context and always resets the pointer.
   dav1d_close(&context_);
-  if (context_ != nullptr) {
-    return WEBRTC_VIDEO_CODEC_MEMORY;
-  }
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
