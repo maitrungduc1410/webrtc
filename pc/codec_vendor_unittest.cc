@@ -10,6 +10,7 @@
 
 #include "pc/codec_vendor.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -214,6 +215,54 @@ TEST(CodecVendorTest, PreferencesAffectCodecChoice) {
   EXPECT_THAT(offered_codecs.value(),
               Not(Contains(Field("name", &Codec::name, "vp8"))));
   EXPECT_THAT(offered_codecs.value().size(), Eq(1));
+}
+
+// Regression test for a crash in re-offers: the codecs of the previous local
+// description used to be added to the offer with the payload types they had
+// then, while the remaining codecs were added with the payload types of the
+// newly merged codec list. If a payload type had been reassigned to another
+// codec in between, the two disagreed and the offer ended up with one payload
+// type used by two codecs.
+TEST(CodecVendorTest, ReOfferUsesPayloadTypesOfMergedCodecList) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  std::vector<Codec> video_codecs({
+      CreateVideoCodec(97, "vp8"),
+      CreateVideoCodec(99, "vp9"),
+  });
+  media_engine.SetVideoSendCodecs(video_codecs);
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+  MediaDescriptionOptions options(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendOnly, false);
+  FakePayloadTypeSuggester pt_suggester;
+  // Record mappings where vp8 has moved to payload type 120, and the payload
+  // type it used to have (97) now belongs to vp9.
+  ASSERT_TRUE(
+      pt_suggester.AddLocalMapping("mid", 120, CreateVideoCodec(120, "vp8"))
+          .ok());
+  ASSERT_TRUE(
+      pt_suggester.AddLocalMapping("mid", 97, CreateVideoCodec(97, "vp9"))
+          .ok());
+
+  // The previous local description still has vp8 on payload type 97.
+  auto video_description = std::make_unique<VideoContentDescription>();
+  video_description->set_codecs({CreateVideoCodec(97, "vp8")});
+  ContentInfo current_content(MediaProtocolType::kRtp, "mid",
+                              std::move(video_description));
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(options, MediaSessionOptions(),
+                                               &current_content, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok());
+  // Both codecs are offered, each with the payload type of the merged codec
+  // list, so no payload type is used twice.
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(AllOf(Field("name", &Codec::name, "vp8"),
+                                Field("id", &Codec::id, 120)),
+                          AllOf(Field("name", &Codec::name, "vp9"),
+                                Field("id", &Codec::id, 97))));
 }
 
 TEST(CodecVendorTest, GetNegotiatedCodecsForAnswerSimple) {
@@ -448,6 +497,44 @@ TEST(CodecVendorMergeTest, MergeWithCollisionPicksFromTop) {
               Contains(AllOf(Field("name", &Codec::name, "bar"),
                              Field("id", &Codec::id, 127))));
 }
+
+#if GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+// A payload type conflict while merging means that codecs from different
+// payload type mappings have been combined, which is an internal error rather
+// than something an application can cause. It is fatal in debug builds; in
+// release builds the conflicting codec is left out of the list.
+TEST(CodecVendorMergeDeathTest, MergeAssertsOnPayloadTypeConflict) {
+  if (CreateTestFieldTrials().IsEnabled("WebRTC-PayloadTypesInTransport")) {
+    GTEST_SKIP();
+  }
+  CodecList reference_codecs;
+  const std::string mid = "mid";
+  CodecList merged_codecs;
+  FakePayloadTypeSuggester pt_suggester;
+  // Existing codec with PT 97.
+  Codec some_codec = CreateVideoCodec(97, "foo");
+  merged_codecs.push_back(some_codec);
+  RTC_CHECK(pt_suggester.AddLocalMapping(mid, 97, some_codec).ok());
+
+  // Force the suggester to hand out the payload type of "foo" for "bar", so
+  // that the merge ends up with two codecs claiming the same payload type.
+  pt_suggester.SetSuggestion(mid, "bar", PayloadType(97));
+  reference_codecs.push_back(CreateVideoCodec(97, "bar"));
+
+#if RTC_DCHECK_IS_ON
+  EXPECT_DEATH(
+      MergeCodecsForTesting(reference_codecs, mid, merged_codecs, pt_suggester)
+          .ok(),
+      "codec_vendor.cc");
+#else
+  RTCError error =
+      MergeCodecsForTesting(reference_codecs, mid, merged_codecs, pt_suggester);
+  EXPECT_TRUE(error.ok());
+  // "bar" was not added to the list.
+  EXPECT_THAT(merged_codecs.size(), Eq(1));
+#endif
+}
+#endif
 
 TEST(CodecVendorTest, ModifyVideoCodecsReplacesCodec) {
   FieldTrials trials =

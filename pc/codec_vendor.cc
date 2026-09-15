@@ -176,6 +176,27 @@ const RTCErrorOr<std::vector<const Codec*>> GetAssociatedCodecsForRed(
   return codecs;
 }
 
+// Adds `codec` to `codecs` unless a codec with the same payload type is
+// already present. A payload type that is used by a different codec means
+// that codecs from different payload type mappings have been combined, which
+// is an error in the payload type assignment rather than something an
+// application can cause.
+RTCError PushCodec(CodecList& codecs, const Codec& codec) {
+  if (codecs.PushIfNotPresent(codec) == CodecList::PushResult::kConflict) {
+    // The codec is left out of the list. Since this indicates an internal
+    // error, assert in debug builds.
+    // TODO: https://issues.webrtc.org/455503439 - consider reporting the
+    // conflict to the caller, so that the condition is also handled in
+    // release builds:
+    // return RTCError(RTCErrorType::INTERNAL_ERROR, "Payload type conflict");
+    RTC_DCHECK_NOTREACHED()
+        << "Conflicting payload type assignment. Could not add " << codec
+        << " since payload type " << codec.id
+        << " is already used by a different codec.";
+  }
+  return RTCError::OK();
+}
+
 RTCError MergeRtxCodec(const CodecConfiguration& config,
                        const Codec& primary_codec,
                        absl::string_view mid,
@@ -360,7 +381,10 @@ RTCError MergeCodecsFromConfigurations(
         return result.MoveError();
       }
       primary_codec.id = result.value();
-      offered_codecs.PushIfNotPresent(primary_codec);
+      RTCError error = PushCodec(offered_codecs, primary_codec);
+      if (!error.ok()) {
+        return error;
+      }
     } else {
       primary_codec = *primary_it;
     }
@@ -443,7 +467,10 @@ RTCError MergeCodecsLegacy(const CodecList& reference_codecs,
         return suggestion.MoveError();
       }
       codec.id = suggestion.value();
-      offered_codecs.PushIfNotPresent(codec);
+      RTCError error = PushCodec(offered_codecs, codec);
+      if (!error.ok()) {
+        return error;
+      }
     }
   }
 
@@ -475,7 +502,10 @@ RTCError MergeCodecsLegacy(const CodecList& reference_codecs,
         return suggestion.MoveError();
       }
       rtx_codec.id = suggestion.value();
-      offered_codecs.PushIfNotPresent(rtx_codec);
+      RTCError error = PushCodec(offered_codecs, rtx_codec);
+      if (!error.ok()) {
+        return error;
+      }
     } else if (reference_codec.GetResiliencyType() ==
                    Codec::ResiliencyType::kRed &&
                !FindMatchingCodec(reference_codecs, offered_codecs,
@@ -500,7 +530,10 @@ RTCError MergeCodecsLegacy(const CodecList& reference_codecs,
           return suggestion.MoveError();
         }
         red_codec.id = suggestion.value();
-        offered_codecs.PushIfNotPresent(red_codec);
+        RTCError error = PushCodec(offered_codecs, red_codec);
+        if (!error.ok()) {
+          return error;
+        }
         continue;
       }
       if (associated_codecs.value().size() < 2) {
@@ -536,7 +569,10 @@ RTCError MergeCodecsLegacy(const CodecList& reference_codecs,
         return suggestion.MoveError();
       }
       red_codec.id = suggestion.value();
-      offered_codecs.PushIfNotPresent(red_codec);
+      RTCError error = PushCodec(offered_codecs, red_codec);
+      if (!error.ok()) {
+        return error;
+      }
     }
   }
 
@@ -1044,9 +1080,12 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         pt_suggester.AddLocalMapping(mid, codec.id, codec);
       }
     }
-    MergeCodecsByDirection(media_description_options.type,
-                           media_description_options.direction, mid, codecs,
-                           pt_suggester, /*pick_from_top_of_range=*/false);
+    RTCError error = MergeCodecsByDirection(
+        media_description_options.type, media_description_options.direction,
+        mid, codecs, pt_suggester, /*pick_from_top_of_range=*/false);
+    if (!error.ok()) {
+      return error;
+    }
   } else {
     // LEGACY path: Assume codecs have PTs.
     // If current content exists and is not being recycled, use its codecs.
@@ -1058,29 +1097,42 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         return checked_codec_list.MoveError();
       }
       // Use MergeCodecsLegacy in order to handle PT clashes.
-      MergeCodecsLegacy(checked_codec_list.value(), mid, codecs, pt_suggester,
-                        /*pick_from_top_of_range=*/true);
+      RTCError error =
+          MergeCodecsLegacy(checked_codec_list.value(), mid, codecs,
+                            pt_suggester, /*pick_from_top_of_range=*/true);
+      if (!error.ok()) {
+        return error;
+      }
     }
     // Add our codecs that are not in the current description.
-    if (media_description_options.type == MediaType::AUDIO) {
-      MergeCodecsLegacy(audio_recv_codecs_.codecs(), mid, codecs, pt_suggester,
-                        /*pick_from_top_of_range=*/true);
-      MergeCodecsLegacy(audio_send_codecs_.codecs(), mid, codecs, pt_suggester,
-                        /*pick_from_top_of_range=*/true);
-    } else {
-      MergeCodecsLegacy(video_recv_codecs_.codecs(), mid, codecs, pt_suggester,
-                        /*pick_from_top_of_range=*/true);
-      MergeCodecsLegacy(video_send_codecs_.codecs(), mid, codecs, pt_suggester,
-                        /*pick_from_top_of_range=*/true);
+    const TypedCodecVendor& recv_codecs =
+        media_description_options.type == MediaType::AUDIO ? audio_recv_codecs_
+                                                           : video_recv_codecs_;
+    const TypedCodecVendor& send_codecs =
+        media_description_options.type == MediaType::AUDIO ? audio_send_codecs_
+                                                           : video_send_codecs_;
+    RTCError error =
+        MergeCodecsLegacy(recv_codecs.codecs(), mid, codecs, pt_suggester,
+                          /*pick_from_top_of_range=*/true);
+    if (!error.ok()) {
+      return error;
+    }
+    error = MergeCodecsLegacy(send_codecs.codecs(), mid, codecs, pt_suggester,
+                              /*pick_from_top_of_range=*/true);
+    if (!error.ok()) {
+      return error;
     }
   }
 
   CodecList filtered_codecs;
   CodecList supported_codecs;
   if (payload_types_in_transport_) {
-    MergeCodecsByDirection(
+    RTCError error = MergeCodecsByDirection(
         media_description_options.type, media_description_options.direction,
         mid, supported_codecs, pt_suggester, /*pick_from_top_of_range=*/true);
+    if (!error.ok()) {
+      return error;
+    }
   } else {
     supported_codecs =
         media_description_options.type == MediaType::AUDIO
@@ -1111,9 +1163,18 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         const MediaContentDescription* mcd =
             current_content->media_description();
         for (const Codec& codec : mcd->codecs()) {
-          if (FindMatchingCodec(mcd->codecs(), codecs.codecs(), codec)) {
-            filtered_codecs.push_back(codec);
-            pt_suggester.AddLocalMapping(mid, codec.id, codec);
+          // Take the codec from `codecs` rather than from the previous
+          // description: the payload type suggester may have mapped the codec
+          // to another payload type since, and mixing payload types from the
+          // two lists can assign one payload type to two different codecs.
+          std::optional<Codec> found_codec =
+              FindMatchingCodec(mcd->codecs(), codecs.codecs(), codec);
+          if (found_codec) {
+            RTCError error = PushCodec(filtered_codecs, *found_codec);
+            if (!error.ok()) {
+              return error;
+            }
+            pt_suggester.AddLocalMapping(mid, found_codec->id, *found_codec);
           }
         }
       }
@@ -1143,7 +1204,10 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
               }
             }
           }
-          filtered_codecs.PushIfNotPresent(*found_codec);
+          RTCError error = PushCodec(filtered_codecs, *found_codec);
+          if (!error.ok()) {
+            return error;
+          }
         }
       }
     }

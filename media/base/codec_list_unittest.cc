@@ -43,8 +43,41 @@ TEST(CodecList, RejectIllegalConstructorArguments) {
   EXPECT_EQ(checked_codec_list.error().type(), RTCErrorType::INVALID_PARAMETER);
 }
 
+TEST(CodecList, PushIfNotPresentAddsCodec) {
+  CodecList list;
+  Codec vp8 = CreateVideoCodec({SdpVideoFormat{"VP8"}});
+  vp8.id = 96;
+  EXPECT_EQ(list.PushIfNotPresent(vp8), CodecList::PushResult::kInserted);
+  EXPECT_EQ(list.size(), 1U);
+  EXPECT_EQ(list[0], vp8);
+}
+
+TEST(CodecList, PushIfNotPresentIgnoresIdenticalCodec) {
+  CodecList list;
+  Codec vp8 = CreateVideoCodec({SdpVideoFormat{"VP8"}});
+  vp8.id = 96;
+  EXPECT_EQ(list.PushIfNotPresent(vp8), CodecList::PushResult::kInserted);
+  EXPECT_EQ(list.PushIfNotPresent(vp8), CodecList::PushResult::kDuplicate);
+  EXPECT_EQ(list.size(), 1U);
+}
+
+// A payload type collision is reported to the caller, so that it can be
+// handled, rather than being fatal or silently dropping the codec.
+TEST(CodecList, PushIfNotPresentReportsPayloadTypeCollision) {
+  CodecList list;
+  Codec vp8 = CreateVideoCodec({SdpVideoFormat{"VP8"}});
+  vp8.id = 96;
+  Codec vp9 = CreateVideoCodec({SdpVideoFormat{"VP9"}});
+  vp9.id = 96;
+  EXPECT_EQ(list.PushIfNotPresent(vp8), CodecList::PushResult::kInserted);
+  EXPECT_EQ(list.PushIfNotPresent(vp9), CodecList::PushResult::kConflict);
+  // The codec that was already in the list is kept.
+  EXPECT_EQ(list.size(), 1U);
+  EXPECT_EQ(list[0], vp8);
+}
+
 #if GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
-TEST(CodecList, CrashOnIllegalConstructorArguments) {
+TEST(CodecListDeathTest, CrashOnIllegalConstructorArguments) {
   // This tests initializing a CodecList with a sequence that doesn't
   // satisfy its expected invariants.
   // Those invariants are only checked in debug mode.

@@ -118,15 +118,20 @@ RTCErrorOr<CodecList> CodecList::Create(std::span<const Codec> codecs) {
   return CodecList(codecs);
 }
 
-bool CodecList::PushIfNotPresent(const Codec& codec) {
+CodecList::PushResult CodecList::PushIfNotPresent(const Codec& codec) {
   for (const Codec& present_codec : codecs_) {
     if (present_codec.id == codec.id) {
-      RTC_DCHECK(present_codec == codec);
-      return false;
+      if (present_codec != codec) {
+        RTC_LOG(LS_ERROR) << "Payload type " << codec.id
+                          << " is already used by " << present_codec
+                          << ", not adding " << codec;
+        return PushResult::kConflict;
+      }
+      return PushResult::kDuplicate;
     }
   }
   push_back(codec);
-  return true;
+  return PushResult::kInserted;
 }
 
 void CodecList::CheckConsistency() {
