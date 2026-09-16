@@ -28,14 +28,14 @@ public class RtpReceiver {
       MediaStreamTrack.MediaType media_type) {}
   }
 
-  private long nativeRtpReceiver;
+  private final NativeLifecycleLock lifecycleLock;
   private long nativeObserver;
 
   @Nullable private final MediaStreamTrack cachedTrack;
 
   @CalledByNative
   public RtpReceiver(long nativeRtpReceiver) {
-    this.nativeRtpReceiver = nativeRtpReceiver;
+    this.lifecycleLock = new NativeLifecycleLock("RtpReceiver", nativeRtpReceiver);
     long nativeTrack = RtpReceiverJni.get().getTrack(nativeRtpReceiver);
     cachedTrack = MediaStreamTrack.createMediaStreamTrack(nativeTrack);
   }
@@ -46,52 +46,47 @@ public class RtpReceiver {
   }
 
   public RtpParameters getParameters() {
-    checkRtpReceiverExists();
-    return RtpReceiverJni.get().getParameters(nativeRtpReceiver);
+    return lifecycleLock.call(receiver -> RtpReceiverJni.get().getParameters(receiver));
   }
 
   public String id() {
-    checkRtpReceiverExists();
-    return RtpReceiverJni.get().getId(nativeRtpReceiver);
+    return lifecycleLock.call(receiver -> RtpReceiverJni.get().getId(receiver));
   }
 
   /** Returns a pointer to webrtc::RtpReceiverInterface. */
   long getNativeRtpReceiver() {
-    checkRtpReceiverExists();
-    return nativeRtpReceiver;
+    return lifecycleLock.getNativePointer();
   }
 
   @CalledByNative
   public void dispose() {
-    checkRtpReceiverExists();
-    cachedTrack.dispose();
-    if (nativeObserver != 0) {
-      RtpReceiverJni.get().unsetObserver(nativeRtpReceiver, nativeObserver);
-      nativeObserver = 0;
-    }
-    JniCommon.nativeReleaseRef(nativeRtpReceiver);
-    nativeRtpReceiver = 0;
+    lifecycleLock.dispose(
+        receiver -> {
+          cachedTrack.dispose();
+          if (nativeObserver != 0) {
+            RtpReceiverJni.get().unsetObserver(receiver, nativeObserver);
+            nativeObserver = 0;
+          }
+          JniCommon.nativeReleaseRef(receiver);
+        });
   }
 
   public void SetObserver(Observer observer) {
-    checkRtpReceiverExists();
-    // Unset the existing one before setting a new one.
-    if (nativeObserver != 0) {
-      RtpReceiverJni.get().unsetObserver(nativeRtpReceiver, nativeObserver);
-    }
-    nativeObserver = RtpReceiverJni.get().setObserver(nativeRtpReceiver, observer);
+    lifecycleLock.run(
+        receiver -> {
+          // Unset the existing one before setting a new one.
+          if (nativeObserver != 0) {
+            RtpReceiverJni.get().unsetObserver(receiver, nativeObserver);
+          }
+          nativeObserver = RtpReceiverJni.get().setObserver(receiver, observer);
+        });
   }
 
   public void setFrameDecryptor(FrameDecryptor frameDecryptor) {
-    checkRtpReceiverExists();
-    RtpReceiverJni.get()
-        .setFrameDecryptor(nativeRtpReceiver, frameDecryptor.getNativeFrameDecryptor());
-  }
-
-  private void checkRtpReceiverExists() {
-    if (nativeRtpReceiver == 0) {
-      throw new IllegalStateException("RtpReceiver has been disposed.");
-    }
+    lifecycleLock.run(
+        receiver ->
+            RtpReceiverJni.get()
+                .setFrameDecryptor(receiver, frameDecryptor.getNativeFrameDecryptor()));
   }
 
   @NativeMethods
