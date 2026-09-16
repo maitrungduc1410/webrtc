@@ -104,87 +104,89 @@ public class DataChannel {
     }
   }
 
-  private long nativeDataChannel;
+  private final NativeLifecycleLock lifecycleLock;
   private long nativeObserver;
 
   @CalledByNative
   public DataChannel(long nativeDataChannel) {
-    this.nativeDataChannel = nativeDataChannel;
+    this.lifecycleLock = new NativeLifecycleLock("DataChannel", nativeDataChannel);
   }
 
   /** Register `observer`, replacing any previously-registered observer. */
   public void registerObserver(Observer observer) {
-    checkDataChannelExists();
-    if (nativeObserver != 0) {
-      DataChannelJni.get().unregisterObserver(this, nativeObserver);
-    }
-    nativeObserver = DataChannelJni.get().registerObserver(this, observer);
+    lifecycleLock.run(
+        () -> {
+          if (nativeObserver != 0) {
+            DataChannelJni.get().unregisterObserver(this, nativeObserver);
+          }
+          nativeObserver = DataChannelJni.get().registerObserver(this, observer);
+        });
   }
 
   /** Unregister the (only) observer. */
   public void unregisterObserver() {
-    checkDataChannelExists();
-    DataChannelJni.get().unregisterObserver(this, nativeObserver);
-    nativeObserver = 0;
+    lifecycleLock.run(
+        () -> {
+          DataChannelJni.get().unregisterObserver(this, nativeObserver);
+          nativeObserver = 0;
+        });
   }
 
   public String label() {
-    checkDataChannelExists();
-    return DataChannelJni.get().label(this);
+    return lifecycleLock.call(() -> DataChannelJni.get().label(this));
   }
 
   public int id() {
-    checkDataChannelExists();
-    return DataChannelJni.get().id(this);
+    return lifecycleLock.call(() -> DataChannelJni.get().id(this));
   }
 
   public State state() {
-    checkDataChannelExists();
-    return DataChannelJni.get().state(this);
+    return lifecycleLock.call(() -> DataChannelJni.get().state(this));
   }
 
   /**
-   * Return the number of bytes of application data (UTF-8 text and binary data)
-   * that have been queued using SendBuffer but have not yet been transmitted
-   * to the network.
+   * Return the number of bytes of application data (UTF-8 text and binary data) that have been
+   * queued using SendBuffer but have not yet been transmitted to the network.
    */
   public long bufferedAmount() {
-    checkDataChannelExists();
-    return DataChannelJni.get().bufferedAmount(this);
+    return lifecycleLock.call(() -> DataChannelJni.get().bufferedAmount(this));
   }
 
   /** Close the channel. */
   public void close() {
-    checkDataChannelExists();
-    DataChannelJni.get().close(this);
+    lifecycleLock.run(() -> DataChannelJni.get().close(this));
   }
 
   /** Send `data` to the remote peer; return success. */
   public boolean send(Buffer buffer) {
-    checkDataChannelExists();
-    // TODO(fischman): this could be cleverer about avoiding copies if the
-    // ByteBuffer is direct and/or is backed by an array.
-    byte[] data = new byte[buffer.data.remaining()];
-    buffer.data.get(data);
-    return DataChannelJni.get().send(this, data, buffer.binary);
+    return lifecycleLock.call(
+        () -> {
+          // TODO(fischman): this could be cleverer about avoiding copies if the
+          // ByteBuffer is direct and/or is backed by an array.
+          byte[] data = new byte[buffer.data.remaining()];
+          buffer.data.get(data);
+          return DataChannelJni.get().send(this, data, buffer.binary);
+        });
   }
 
   /** Dispose of native resources attached to this channel. */
   public void dispose() {
-    checkDataChannelExists();
-    JniCommon.nativeReleaseRef(nativeDataChannel);
-    nativeDataChannel = 0;
+    if (lifecycleLock.isDisposed()) {
+      return;
+    }
+    if (nativeObserver != 0) {
+      try {
+        unregisterObserver();
+      } catch (IllegalStateException e) {
+        // Ignored if already disposed.
+      }
+    }
+    lifecycleLock.dispose(channel -> JniCommon.nativeReleaseRef(channel));
   }
 
   @CalledByNative
   long getNativeDataChannel() {
-    return nativeDataChannel;
-  }
-
-  private void checkDataChannelExists() {
-    if (nativeDataChannel == 0) {
-      throw new IllegalStateException("DataChannel has been disposed.");
-    }
+    return lifecycleLock.getNativePointer();
   }
 
   @NativeMethods
