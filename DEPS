@@ -74,7 +74,7 @@ vars = {
 
 deps = {
   'src/build':
-    'https://chromium.googlesource.com/chromium/src/build@e6aa79b579ec7536ac9cbb92b47c1d3c2ecec984',
+    'https://chromium.googlesource.com/chromium/src/build@a56d226360eb0b3eaf423bfbf3cfe35a19e4951a',
   'src/buildtools':
     'https://chromium.googlesource.com/chromium/src/buildtools@c202b4a9dac30e789ed6e3b2354efa94357a56f3',
   # Gradle 6.6.1. Used for testing Android Studio project generation for WebRTC.
@@ -1330,7 +1330,7 @@ hooks = [
     'name': 'vpython_common',
     'pattern': '.',
     'action': [ 'vpython3',
-                '-vpython-spec', 'src/.vpython3',
+                '-vpython-spec', 'src/vpython.toml',
                 '-vpython-tool', 'install',
     ],
   },
