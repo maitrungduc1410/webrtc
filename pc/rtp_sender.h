@@ -329,6 +329,14 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   MaybeCreateFactoryOverride();
   void ClearFrameInjector();
 
+  // Applies the encodings and degradation preference the application
+  // configured before negotiation to the send stream for `ssrc`, and clears
+  // them. A nullopt `ssrc` means that there is no send stream to apply them
+  // to. Returns the parameters the media channel ended up with, or nullopt if
+  // the media channel was left untouched.
+  std::optional<RtpParameters> ApplyInitParameters_w(
+      std::optional<uint32_t> ssrc) RTC_RUN_ON(worker_thread_);
+
   const Environment env_;
   TaskQueueBase* const signaling_thread_;
   Thread* const worker_thread_;
