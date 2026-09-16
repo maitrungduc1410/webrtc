@@ -117,6 +117,12 @@ class RtpPacketToSend : public RtpPacket {
   }
   bool is_first_packet_of_frame() const { return is_first_packet_of_frame_; }
 
+  // Indicates if packet is the last packet of a video frame.
+  void set_last_packet_of_frame(bool is_last_packet) {
+    is_last_packet_of_frame_ = is_last_packet;
+  }
+  bool is_last_packet_of_frame() const { return is_last_packet_of_frame_; }
+
   // Indicates if packet contains payload for a video key-frame.
   void set_is_key_frame(bool is_key_frame) { is_key_frame_ = is_key_frame; }
   bool is_key_frame() const { return is_key_frame_; }
@@ -162,6 +168,7 @@ class RtpPacketToSend : public RtpPacket {
   std::optional<uint16_t> retransmitted_sequence_number_;
   scoped_refptr<RefCountedBase> additional_data_;
   bool is_first_packet_of_frame_ = false;
+  bool is_last_packet_of_frame_ = false;
   bool is_key_frame_ = false;
   bool fec_protect_packet_ = false;
   bool is_red_ = false;

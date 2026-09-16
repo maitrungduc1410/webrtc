@@ -242,6 +242,8 @@ rtc_library("rtp_rtcp") {
     "source/rtp_packet_history.h",
     "source/rtp_packetizer_av1.cc",
     "source/rtp_packetizer_av1.h",
+    "source/rtp_packetizer_sframe.cc",
+    "source/rtp_packetizer_sframe.h",
     "source/rtp_rtcp_config.h",
     "source/rtp_rtcp_impl2.cc",
     "source/rtp_rtcp_impl2.h",
@@ -1225,6 +1227,19 @@ if (rtc_include_tests) {
     ]
   }
 
+  rtc_library("rtp_packetizer_sframe_unittest") {
+    testonly = true
+    sources = [ "source/rtp_packetizer_sframe_unittest.cc" ]
+    deps = [
+      ":rtp_rtcp",
+      ":rtp_rtcp_format",
+      ":sframe_descriptor",
+      "../../api:rtp_parameters",
+      "../../rtc_base:checks",
+      "../../test:test_support",
+    ]
+  }
+
   rtc_library("rtp_dependency_descriptor_extension_unittest") {
     testonly = true
     sources = [ "source/rtp_dependency_descriptor_extension_unittest.cc" ]
@@ -1878,6 +1893,7 @@ if (rtc_include_tests) {
       ":rtp_packet_history_unittest",
       ":rtp_packet_unittest",
       ":rtp_packetizer_av1_unittest",
+      ":rtp_packetizer_sframe_unittest",
       ":rtp_rtcp_impl2_unittest",
       ":rtp_sender_audio_unittest",
       ":rtp_sender_egress_unittest",
