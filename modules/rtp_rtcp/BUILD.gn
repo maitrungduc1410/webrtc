@@ -15,6 +15,32 @@ rtc_library("leb128") {
   ]
 }
 
+if (rtc_rust) {
+  rtc_rust_library("corruption_detection_extension") {
+    crate_root = "corruption_detection_extension.rs"
+    sources = [ "corruption_detection_extension.rs" ]
+  }
+
+  rtc_rust_unittest("corruption_detection_extension_test") {
+    crate_root = "corruption_detection_extension.rs"
+    sources = [ "corruption_detection_extension.rs" ]
+  }
+
+  rtc_rust_cxx_bridge("corruption_detection_extension_cxx") {
+    allow_unsafe = true
+    source = "corruption_detection_extension_cxx.rs"
+    deps = [
+      ":corruption_detection_extension",
+      "//build/rust:cxx_rustdeps",
+    ]
+  }
+
+  group("rust_unit_tests") {
+    testonly = true
+    deps = [ ":corruption_detection_extension_test" ]
+  }
+}
+
 rtc_library("rtp_rtcp_format") {
   visibility = [ "*" ]
   public = [
@@ -1897,5 +1923,9 @@ if (rtc_include_tests) {
       "../../api/transport/rtp:corruption_detection_message",
       "../../test:test_support",
     ]
+
+    if (rtc_rust) {
+      deps += [ ":corruption_detection_extension_cxx" ]
+    }
   }
 }
