@@ -189,6 +189,11 @@ class RTC_EXPORT VideoEncoder {
     // considerably, especially if `requested_resolution_alignment` is large.
     bool apply_alignment_to_all_simulcast_layers;
 
+    // The largest frame size, in pixels, the encoder is able to encode. If
+    // set, InitEncode with a larger resolution, or Encode with a larger frame,
+    // may fail. Unset means no known limit.
+    std::optional<size_t> max_pixels_per_frame;
+
     // If true, encoder supports working with a native handle (e.g. texture
     // handle for hw codecs) rather than requiring a raw I420 buffer.
     bool supports_native_handle;

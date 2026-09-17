@@ -1144,6 +1144,7 @@ class VideoStreamEncoderTest : public ::testing::Test {
       info.requested_resolution_alignment = requested_resolution_alignment_;
       info.apply_alignment_to_all_simulcast_layers =
           apply_alignment_to_all_simulcast_layers_;
+      info.max_pixels_per_frame = max_pixels_per_frame_;
       info.preferred_pixel_formats = preferred_pixel_formats_;
       info.enable_cpu_overuse_detection = enable_cpu_overuse_detection_;
       if (is_qp_trusted_.has_value()) {
@@ -1185,6 +1186,11 @@ class VideoStreamEncoderTest : public ::testing::Test {
     void SetApplyAlignmentToAllSimulcastLayers(bool b) {
       MutexLock lock(&local_mutex_);
       apply_alignment_to_all_simulcast_layers_ = b;
+    }
+
+    void SetMaxPixelsPerFrame(std::optional<size_t> max_pixels_per_frame) {
+      MutexLock lock(&local_mutex_);
+      max_pixels_per_frame_ = max_pixels_per_frame;
     }
 
     void SetIsHardwareAccelerated(bool is_hardware_accelerated) {
@@ -1443,6 +1449,7 @@ class VideoStreamEncoderTest : public ::testing::Test {
     uint32_t requested_resolution_alignment_ RTC_GUARDED_BY(local_mutex_) = 1;
     bool apply_alignment_to_all_simulcast_layers_ RTC_GUARDED_BY(local_mutex_) =
         false;
+    std::optional<size_t> max_pixels_per_frame_ RTC_GUARDED_BY(local_mutex_);
     bool is_hardware_accelerated_ RTC_GUARDED_BY(local_mutex_) = false;
     bool enable_cpu_overuse_detection_ RTC_GUARDED_BY(local_mutex_) = true;
     scoped_refptr<EncodedImageBufferInterface> encoded_image_data_
@@ -3086,6 +3093,52 @@ TEST_F(VideoStreamEncoderTest, SinkWantsRotationApplied) {
 TEST_F(VideoStreamEncoderTest, SinkWantsDefaultUnlimitedBeforeFirstFrame) {
   ASSERT_TRUE(video_source_.has_sinks());
   EXPECT_THAT(video_source_.sink_wants(), UnlimitedSinkWants());
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest, EncoderMaxPixelsPerFrameAppliedToSinkWants) {
+  constexpr int kMaxPixels = 640 * 360;
+  fake_encoder_.SetMaxPixelsPerFrame(kMaxPixels);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  // The first frame configures the encoder and pushes its limit to the source.
+  video_source_.IncomingCapturedFrame(CreateFrame(1, 1280, 720));
+  WaitForEncodedFrame(1);
+  EXPECT_EQ(video_source_.sink_wants().max_pixel_count, kMaxPixels);
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest, EncoderMaxPixelsPerFrameDownscalesSource) {
+  constexpr int kMaxPixels = 640 * 360;
+  fake_encoder_.SetMaxPixelsPerFrame(kMaxPixels);
+  video_source_.set_adaptation_enabled(true);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  int64_t timestamp_ms = kFrameIntervalMs;
+  video_source_.IncomingCapturedFrame(CreateFrame(timestamp_ms, 1280, 720));
+  WaitForEncodedFrame(timestamp_ms);
+
+  // The next frame is downscaled by the source to fit the encoder's limit.
+  timestamp_ms += kFrameIntervalMs;
+  video_source_.IncomingCapturedFrame(CreateFrame(timestamp_ms, 1280, 720));
+  WaitForEncodedFrame(timestamp_ms);
+  EXPECT_LE(
+      fake_encoder_.GetLastInputWidth() * fake_encoder_.GetLastInputHeight(),
+      kMaxPixels);
+  EXPECT_LT(fake_encoder_.GetLastInputWidth(), 1280);
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       EncoderWithoutMaxPixelsPerFrameLeavesSinkWantsUnlimited) {
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+  video_source_.IncomingCapturedFrame(CreateFrame(1, 1280, 720));
+  WaitForEncodedFrame(1);
+  EXPECT_EQ(video_source_.sink_wants().max_pixel_count,
+            std::numeric_limits<int>::max());
   video_stream_encoder_->Stop();
 }
 

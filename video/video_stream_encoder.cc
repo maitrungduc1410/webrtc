@@ -1308,17 +1308,25 @@ void VideoStreamEncoder::ReconfigureEncoder() {
                                      simulcastStream.height);
   }
 
+  // Never ask the source for more pixels than the encoder can encode.
+  std::optional<size_t> max_pixels_per_frame =
+      encoder_->GetEncoderInfo().max_pixels_per_frame;
+
   worker_queue_->PostTask(SafeTask(
       task_safety_.flag(),
-      [this, alignment,
+      [this, alignment, max_pixels_per_frame,
        encoder_resolutions = std::move(encoder_resolutions)]() mutable {
         RTC_DCHECK_RUN_ON(worker_queue_);
         if (alignment != video_source_sink_controller_.resolution_alignment() ||
             encoder_resolutions !=
-                video_source_sink_controller_.resolutions()) {
+                video_source_sink_controller_.resolutions() ||
+            max_pixels_per_frame !=
+                video_source_sink_controller_.pixels_per_frame_upper_limit()) {
           video_source_sink_controller_.SetResolutionAlignment(alignment);
           video_source_sink_controller_.SetResolutions(
               std::move(encoder_resolutions));
+          video_source_sink_controller_.SetPixelsPerFrameUpperLimit(
+              max_pixels_per_frame);
           video_source_sink_controller_.PushSourceSinkSettings();
         }
       }));
