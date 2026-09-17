@@ -14,6 +14,7 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -61,6 +62,12 @@
 namespace webrtc {
 namespace {
 
+// The CBR settings used by the tests in this file, see
+// `VideoEncoderFactoryInterface::StaticEncoderSettings::Cbr`.
+constexpr TimeDelta kCbrMaxBufferSize = TimeDelta::Millis(1000);
+constexpr TimeDelta kCbrTargetBufferSize = TimeDelta::Millis(600);
+constexpr double kMaxIntraBitrateFactor = 3.0;
+
 // Tracks accumulated data sizes and duration for actual encoded bytes and ideal
 // CBR bytes.
 struct AccumulatedData {
@@ -89,13 +96,18 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
   VideoEncoderRateControlTestBase() = default;
 
   bool SupportsCbr() const {
-    VideoEncoderFactoryInterface::Capabilities capabilities =
-        encoder_factory_->GetEncoderCapabilities();
-    const std::vector<VideoEncoderFactoryInterface::RateControlMode>& rc_modes =
-        capabilities.bitrate_control().rc_modes();
-    return std::find(rc_modes.begin(), rc_modes.end(),
-                     VideoEncoderFactoryInterface::RateControlMode::kCbr) !=
-           rc_modes.end();
+    return encoder_factory_->GetEncoderCapabilities()
+        .bitrate_control()
+        .rc_modes()
+        .contains(VideoEncoderFactoryInterface::RateControlMode::kCbr);
+  }
+
+  bool SupportsCbrSetting(
+      VideoEncoderFactoryInterface::CbrSetting setting) const {
+    return encoder_factory_->GetEncoderCapabilities()
+        .bitrate_control()
+        .supported_cbr_settings()
+        .contains(setting);
   }
 
   // TestDecoder is only needed in order to produce PSNR.
@@ -106,7 +118,9 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     RTC_CHECK(test_decoder_->IsSupported());
   }
 
-  void SetUpCbrEncoder(Resolution resolution) {
+  void SetUpCbrEncoder(
+      Resolution resolution,
+      double max_intra_bitrate_factor = kMaxIntraBitrateFactor) {
     ASSERT_TRUE(SupportsCbr());
 
     VideoEncoderFactoryInterface::StaticEncoderSettings static_settings =
@@ -114,7 +128,8 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
             .MaxEncodeDimensions(resolution)
             .EncodingFormat({.sub_sampling = EncodingFormat::SubSampling::k420,
                              .bit_depth = 8})
-            .CbrRcMode(TimeDelta::Millis(1000), TimeDelta::Millis(600))
+            .CbrRcMode(kCbrMaxBufferSize, kCbrTargetBufferSize,
+                       max_intra_bitrate_factor)
             .MaxNumberOfThreads(1)
             .Build();
 
@@ -334,11 +349,8 @@ class VideoEncoderRateControlTest
 TEST_P(VideoEncoderRateControlTest, ConstantQpMatchesBitstreamAndEncoderQp) {
   VideoEncoderFactoryInterface::Capabilities capabilities =
       encoder_factory_->GetEncoderCapabilities();
-  const std::vector<VideoEncoderFactoryInterface::RateControlMode>& rc_modes =
-      capabilities.bitrate_control().rc_modes();
-  if (std::find(rc_modes.begin(), rc_modes.end(),
-                VideoEncoderFactoryInterface::RateControlMode::kCqp) ==
-      rc_modes.end()) {
+  if (!capabilities.bitrate_control().rc_modes().contains(
+          VideoEncoderFactoryInterface::RateControlMode::kCqp)) {
     GTEST_SKIP() << "Encoder does not support CQP mode.";
   }
 
@@ -430,6 +442,36 @@ TEST_P(FixedBitrateRateControlTest, AdheresToTargetBitrate) {
           .frame_interval = kFrameInterval,
           .resolution = params.resolution});
   VerifyTotalDeviation(params.max_deviation_pct);
+}
+
+// Verifies that the intra frame allowance has an effect, by comparing the
+// keyframe produced with the smallest possible allowance against the one
+// produced with the default allowance.
+TEST_P(VideoEncoderRateControlTest, MaxIntraBitrateFactorLimitsKeyframeSize) {
+  if (!SupportsCbr()) {
+    GTEST_SKIP() << "Encoder does not support CBR mode.";
+  }
+  if (!SupportsCbrSetting(
+          VideoEncoderFactoryInterface::CbrSetting::kMaxIntraBitrateFactor)) {
+    GTEST_SKIP() << "Encoder does not limit the size of intra frames.";
+  }
+
+  constexpr TimeDelta kFrameInterval = 1 / Frequency::Hertz(30);
+  constexpr DataRate kTargetBitrate = DataRate::KilobitsPerSec(300);
+
+  auto encode_keyframe = [&](double max_intra_bitrate_factor) {
+    SetUpCbrEncoder(kQvgaResolution, max_intra_bitrate_factor);
+    Encode({.num_frames = 1,
+            .target_bitrate = kTargetBitrate,
+            .frame_interval = kFrameInterval,
+            .resolution = kQvgaResolution});
+    return encoded_frames_.front().actual;
+  };
+
+  DataSize keyframe_with_min_allowance = encode_keyframe(1.0);
+  DataSize keyframe_with_default_allowance =
+      encode_keyframe(kMaxIntraBitrateFactor);
+  EXPECT_LT(keyframe_with_min_allowance, keyframe_with_default_allowance);
 }
 
 // Verifies that dynamically changing the bitrate target follows the target

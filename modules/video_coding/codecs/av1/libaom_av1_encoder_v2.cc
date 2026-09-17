@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -81,6 +82,8 @@ constexpr int kMaxSpatialLayersLimit = 4;
 constexpr int kMaxTemporalLayers = 4;
 constexpr int kRtpTicksPerSecond = 90000;
 constexpr int kRtpTicksPerMs = kRtpTicksPerSecond / 1000;
+// Only used in CQP mode, where libaom requires a value but does not act on it.
+constexpr int kDefaultMaxIntraBitratePct = 300;
 
 static_assert(kMaxSpatialLayersLimit <= AOM_MAX_SS_LAYERS);
 static_assert(kMaxTemporalLayers <= AOM_MAX_TS_LAYERS);
@@ -160,6 +163,28 @@ ThreadTilesAndSuperblockSizeInfo GetThreadingTilesAndSuperblockSize(
                       << " res.superblock_size=" << res.superblock_size;
 
   return res;
+}
+
+bool ValidateCbrSettings(
+    const VideoEncoderFactoryInterface::StaticEncoderSettings::Cbr& cbr) {
+  if (!cbr.max_buffer_size.IsFinite() ||
+      cbr.max_buffer_size <= TimeDelta::Zero()) {
+    RTC_LOG(LS_ERROR) << "CBR max buffer size must be finite and positive.";
+    return false;
+  }
+  if (cbr.target_buffer_size <= TimeDelta::Zero() ||
+      cbr.target_buffer_size > cbr.max_buffer_size) {
+    RTC_LOG(LS_ERROR) << "CBR target buffer size must be positive and at most "
+                         "the max buffer size.";
+    return false;
+  }
+  if (!std::isfinite(cbr.max_intra_bitrate_factor) ||
+      cbr.max_intra_bitrate_factor < 1.0) {
+    RTC_LOG(LS_ERROR) << "CBR max intra bitrate factor must be finite and at "
+                         "least one frame worth of bits.";
+    return false;
+  }
+  return true;
 }
 
 bool ValidateEncodeParams(
@@ -603,6 +628,9 @@ LibaomAv1EncoderV2::GetCapabilities() {
             b.set_qp_range(0, kMaxQp);
             using enum VideoEncoderFactoryInterface::RateControlMode;
             b.set_rc_modes({kCbr, kCqp});
+            using enum VideoEncoderFactoryInterface::CbrSetting;
+            b.set_supported_cbr_settings(
+                {kBufferSizes, kMaxIntraBitrateFactor});
           })
       .WithPerformance(
           [](VideoEncoderFactoryInterface::Capabilities::Performance& p) {
@@ -659,6 +687,11 @@ bool LibaomAv1EncoderV2::InitEncode(
   auto* cbr =
       std::get_if<VideoEncoderFactoryInterface::StaticEncoderSettings::Cbr>(
           &settings.rc_mode());
+  if (cbr && !ValidateCbrSettings(*cbr)) {
+    return false;
+  }
+  // libaom has no separate initial buffer level, the buffer starts out at the
+  // target level.
   cfg_.rc_buf_initial_sz = cbr ? cbr->target_buffer_size.ms() : 600;
   cfg_.rc_buf_optimal_sz = cbr ? cbr->target_buffer_size.ms() : 600;
   cfg_.rc_buf_sz = cbr ? cbr->max_buffer_size.ms() : 1000;
@@ -683,7 +716,13 @@ bool LibaomAv1EncoderV2::InitEncode(
   SET_OR_RETURN_FALSE(AV1E_SET_DELTAQ_MODE, 0);
   SET_OR_RETURN_FALSE(AV1E_SET_ENABLE_ORDER_HINT, 0);
   SET_OR_RETURN_FALSE(AV1E_SET_AQ_MODE, 3);
-  SET_OR_RETURN_FALSE(AOME_SET_MAX_INTRA_BITRATE_PCT, 300);
+  // libaom expresses the intra frame allowance as a percentage of the per
+  // frame bit budget. In CQP mode the setting has no effect, but a value is
+  // still required.
+  SET_OR_RETURN_FALSE(
+      AOME_SET_MAX_INTRA_BITRATE_PCT,
+      cbr ? static_cast<int>(cbr->max_intra_bitrate_factor * 100)
+          : kDefaultMaxIntraBitratePct);
   SET_OR_RETURN_FALSE(AV1E_SET_COEFF_COST_UPD_FREQ, 3);
   SET_OR_RETURN_FALSE(AV1E_SET_MODE_COST_UPD_FREQ, 3);
   SET_OR_RETURN_FALSE(AV1E_SET_MV_COST_UPD_FREQ, 3);
