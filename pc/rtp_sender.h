@@ -79,8 +79,17 @@ class RtpSenderInternal : public RtpSenderInterface {
   // description).
   PLAN_B_ONLY virtual void SetSsrc(uint32_t ssrc) = 0;
 
+  // Same as `SetSsrc()` but performs the worker thread part of the work in a
+  // task that the caller must run on the worker thread.
+  // `layer_count` is the number of send layers that the applied local
+  // description describes for this sender, i.e. the number of primary SSRCs in
+  // the `StreamParams` for the stream the sender is being attached to. This is
+  // the same value that the media channel derives its encodings from (see
+  // `CreateRtpParametersWithEncodings()`), which allows the sender to
+  // reconcile the encodings the application asked for with what was negotiated
+  // without querying the media channel. Must be 0 when `ssrc` is 0.
   [[nodiscard]] virtual ScopedOperationsBatcher::BatchTaskWithFinalizer
-  SetSsrcTask(uint32_t ssrc) = 0;
+  SetSsrcTask(uint32_t ssrc, size_t layer_count) = 0;
 
   virtual void set_stream_ids(const std::vector<std::string>& stream_ids) = 0;
   virtual void set_init_send_encodings(
@@ -184,7 +193,8 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // description).
   PLAN_B_ONLY void SetSsrc(uint32_t ssrc) override;
   ScopedOperationsBatcher::BatchTaskWithFinalizer SetSsrcTask(
-      uint32_t ssrc) override;
+      uint32_t ssrc,
+      size_t layer_count) override;
 
   uint32_t ssrc() const override {
     RTC_DCHECK_RUN_ON(signaling_thread_);

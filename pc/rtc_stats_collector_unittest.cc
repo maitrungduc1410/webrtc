@@ -3989,7 +3989,7 @@ TEST_P(RTCStatsCollectorTest,
       fake_media_channel->AddSendStream(StreamParams::CreateLegacy(1234));
       sender->SetMediaChannel(fake_media_channel.get());
     });
-    worker_tasks.AddWithFinalizer(sender->SetSsrcTask(1234));
+    worker_tasks.AddWithFinalizer(sender->SetSsrcTask(1234, /*layer_count=*/1));
   }
   sender->SetTrack(track.get());
 

@@ -2486,15 +2486,23 @@ void SdpOfferAnswerHandler::UpdateSenderSsrcsFromLocalDescription() {
       // stream". Need to call this so the sender won't attempt to configure
       // a no longer existing stream and run into DCHECKs in the lower
       // layers.
-      worker_tasks.AddWithFinalizer(sender->SetSsrcTask(0));
+      worker_tasks.AddWithFinalizer(sender->SetSsrcTask(0, /*layer_count=*/0));
     } else {
       const std::vector<StreamParams>& streams =
           transceiver->channel_local_streams();
       sender->set_stream_ids(streams[0].stream_ids());
       std::vector<RtpEncodingParameters> encodings =
           sender->init_send_encodings();
+      // The local description is authoritative for the number of send layers.
+      // This is the same view that the media channel has, since the channel
+      // derives its encodings from these same `StreamParams` (see
+      // `CreateRtpParametersWithEncodings()`). Computing it here means the
+      // sender does not have to discover a mismatch on the worker thread,
+      // where the context needed to act on it is gone.
+      std::vector<uint32_t> primary_ssrcs;
+      streams[0].GetPrimarySsrcs(&primary_ssrcs);
       worker_tasks.AddWithFinalizer(
-          sender->SetSsrcTask(streams[0].first_ssrc()));
+          sender->SetSsrcTask(streams[0].first_ssrc(), primary_ssrcs.size()));
       if (!encodings.empty()) {
         transceivers()
             ->StableState(transceiver_ext)

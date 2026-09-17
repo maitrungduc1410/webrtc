@@ -878,10 +878,11 @@ std::optional<RtpParameters> RtpSenderBase::ApplyInitParameters_w(
         media_channel_->GetRtpSendParameters(*ssrc);
     // An empty result means that the media channel has no send stream for
     // `ssrc`, so there is nothing to apply the parameters to. A result that is
-    // shorter than `init_parameters_.encodings` means that the local
-    // description describes fewer layers than the application asked for, e.g.
-    // because simulcast was removed by SDP munging. Since the SDP is
-    // authoritative, apply the layers that fit and drop the rest rather than
+    // shorter than `init_parameters_.encodings` means that the media channel's
+    // view is narrower than what the application asked for. `SetSsrcTask()`
+    // reconciles the layer count against the local description before this
+    // runs, but `SetSsrc()` does not, and voice channels only ever report a
+    // single encoding. Apply the layers that fit and drop the rest rather than
     // failing.
     const size_t layers = std::min(current_parameters.encodings.size(),
                                    init_parameters_.encodings.size());
@@ -922,10 +923,27 @@ std::optional<RtpParameters> RtpSenderBase::ApplyInitParameters_w(
 }
 
 ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
-    uint32_t ssrc) {
+    uint32_t ssrc,
+    size_t layer_count) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   if (stopped_ || ssrc == ssrc_) {
     return nullptr;
+  }
+
+  // The applied local description is authoritative for the number of send
+  // layers. If it describes fewer layers than the application asked for, e.g.
+  // because simulcast was removed by SDP munging, drop the surplus here, where
+  // the mismatch is a negotiation outcome rather than an unexplained
+  // inconsistency on the worker thread. `init_parameters_` is read on the
+  // worker thread by the task returned below, but the signaling thread is
+  // blocked inside `ScopedOperationsBatcher::Run()` while that task runs, and
+  // this code runs before the task is handed to the batcher.
+  if (ssrc != 0 && layer_count < init_parameters_.encodings.size()) {
+    RTC_LOG(LS_WARNING) << "The local description describes " << layer_count
+                        << " send layer(s) but the sender was configured with "
+                        << init_parameters_.encodings.size()
+                        << ". Dropping the surplus layers.";
+    init_parameters_.encodings.resize(layer_count);
   }
 
   cached_parameters_.reset();
