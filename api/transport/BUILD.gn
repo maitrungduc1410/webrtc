@@ -82,7 +82,6 @@ rtc_library("goog_cc") {
     "..:field_trials_view",
     "..:network_state_predictor_api",
     "../../modules/congestion_controller/goog_cc",
-    "../../modules/congestion_controller/goog_cc_scream_network_controller",
     "../../modules/congestion_controller/scream:scream_network_controller",
     "../../rtc_base:logging",
     "../../rtc_base/experiments:field_trial_parser",
@@ -139,6 +138,7 @@ if (rtc_include_tests) {
       "../units:timestamp",
     ]
   }
+
   rtc_library("test_feedback_generator") {
     testonly = true
     sources = [

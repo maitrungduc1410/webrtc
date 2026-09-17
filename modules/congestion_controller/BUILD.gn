@@ -88,7 +88,6 @@ if (rtc_include_tests) {
       ":receive_side_congestion_controller_unittest",
       ":remb_throttler_unittest",
       "goog_cc:goog_cc_unittests",
-      "goog_cc_scream_network_controller:goog_cc_scream_network_controller_unittests",
       "pcc:pcc_unittests",
       "rtp:congestion_controller_unittests",
       "scream:scream_unittests",
