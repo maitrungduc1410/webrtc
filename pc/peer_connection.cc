@@ -1677,6 +1677,20 @@ bool PeerConnection::AddIceCandidate(const IceCandidate* ice_candidate) {
 
 void PeerConnection::AddIceCandidate(std::unique_ptr<IceCandidate> candidate,
                                      std::function<void(RTCError)> callback) {
+  AddIceCandidate(
+      std::move(candidate),
+      [callback = std::move(callback)](
+          RTCError result,
+          absl::AnyInvocable<void() &&> operation_complete_callback) mutable {
+        callback(std::move(result));
+        std::move(operation_complete_callback)();
+      });
+}
+
+void PeerConnection::AddIceCandidate(
+    std::unique_ptr<IceCandidate> candidate,
+    absl::AnyInvocable<void(RTCError, absl::AnyInvocable<void() &&>) &&>
+        callback) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   // Traced before chaining, so the order is the one the application called in.
   const bool trace_candidate = tracer_ != nullptr && candidate != nullptr;
@@ -1686,7 +1700,9 @@ void PeerConnection::AddIceCandidate(std::unique_ptr<IceCandidate> candidate,
   sdp_handler_->AddIceCandidate(
       std::move(candidate),
       [this, safety = signaling_thread_safety_.flag(),
-       callback = std::move(callback), trace_candidate](RTCError result) {
+       callback = std::move(callback), trace_candidate](
+          RTCError result,
+          absl::AnyInvocable<void() &&> operation_complete_callback) mutable {
         RTC_DCHECK_RUN_ON(signaling_thread());
         if (safety->alive()) {
           ClearStatsCache();
@@ -1698,7 +1714,8 @@ void PeerConnection::AddIceCandidate(std::unique_ptr<IceCandidate> candidate,
             }
           }
         }
-        callback(result);
+        std::move(callback)(std::move(result),
+                            std::move(operation_complete_callback));
       });
 }
 

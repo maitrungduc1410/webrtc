@@ -384,6 +384,7 @@ rtc_library("jsep") {
     "audio:audio_frame_api",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:nullability",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:str_format",
@@ -500,6 +501,7 @@ rtc_library("peer_connection_interface") {
     "video/timing:video_jitter_timing_factory",
     "video_codecs:video_codecs_api",
     "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
@@ -553,6 +555,7 @@ rtc_library("set_local_description_observer_interface") {
   deps = [
     ":ref_count",
     ":rtc_error",
+    "//third_party/abseil-cpp/absl/functional:any_invocable",
   ]
 }
 
