@@ -131,4 +131,16 @@ bool TransportPacketsFeedback::HasPacketWithEcnCe() const {
   return false;
 }
 
+bool TransportPacketsFeedback::HasPacketWithBleachedEct1() const {
+  for (const PacketResult& fb : packet_feedbacks) {
+    // Only received packets say anything about what the path did to the
+    // marking. Packets reported lost carry a defaulted Not-ECT marking and
+    // would otherwise be indistinguishable from bleached ones.
+    if (fb.sent_with_ect1 && fb.IsReceived() && fb.ecn == EcnMarking::kNotEct) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace webrtc

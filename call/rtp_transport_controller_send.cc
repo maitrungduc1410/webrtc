@@ -741,17 +741,19 @@ void RtpTransportControllerSend::HandleTransportPacketsFeedback(
   if (sending_packets_as_ect1_) {
     bool congestion_controller_support_ecn =
         controller_ && controller_->SupportsEcnAdaptation();
-    // If transport does not support ECN or congestion controller does not
-    // support adaption to ECN, packets should not be sent as ECT(1).
-    if (!feedback.transport_supports_ecn ||
-        !congestion_controller_support_ecn) {
+    bool transport_bleaches_ect1 = feedback.HasPacketWithBleachedEct1();
+    // If the transport bleaches the ECT(1) marking or the congestion
+    // controller does not support adaption to ECN, packets should not be sent
+    // as ECT(1).
+    if (transport_bleaches_ect1 || !congestion_controller_support_ecn) {
       sending_packets_as_ect1_ = false;
       packet_router_.ConfigureForRtcpFeedback(
           /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
           sending_packets_as_ect1_);
-      RTC_LOG(LS_INFO) << "Transport is "
-                       << (!feedback.transport_supports_ecn ? "not " : "")
-                       << "ECN capable. Congestion Controller does "
+      RTC_LOG(LS_INFO) << "Transport does "
+                       << (transport_bleaches_ect1 ? "not " : "")
+                       << "preserve the ECT(1) marking. Congestion Controller "
+                          "does "
                        << (congestion_controller_support_ecn ? "" : "not ")
                        << "support ECN. Stop sending ECT(1).";
     }
