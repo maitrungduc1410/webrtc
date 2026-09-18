@@ -413,9 +413,7 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
     RTC_LOG(LS_INFO)
         << "Enabling sending packets as ECT1 again after route change. ";
     sending_packets_as_ect1_ = true;
-    packet_router_.ConfigureForRtcpFeedback(
-        /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-        sending_packets_as_ect1_);
+    packet_router_.SetSendPacketsAsEct1(sending_packets_as_ect1_);
   }
 }
 
@@ -616,9 +614,9 @@ void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
     sending_packets_as_ect1_ = false;
     RTC_LOG_F(LS_INFO) << "Assume TWCC feedback.";
   }
-  packet_router_.ConfigureForRtcpFeedback(
-      /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-      sending_packets_as_ect1_);
+  packet_router_.SetGenerateTransportSequenceNumbers(
+      rfc_8888_feedback_negotiated_);
+  packet_router_.SetSendPacketsAsEct1(sending_packets_as_ect1_);
   // TODO: bugs.webrtc.org/447037083 - Remove method
   // IncludeOverheadInPacedSender once once support for
   // RFC8888 is per default enabled. Also remove or update and SetPacingFactor
@@ -747,9 +745,7 @@ void RtpTransportControllerSend::HandleTransportPacketsFeedback(
     // as ECT(1).
     if (transport_bleaches_ect1 || !congestion_controller_support_ecn) {
       sending_packets_as_ect1_ = false;
-      packet_router_.ConfigureForRtcpFeedback(
-          /*set_transport_seq=*/rfc_8888_feedback_negotiated_,
-          sending_packets_as_ect1_);
+      packet_router_.SetSendPacketsAsEct1(sending_packets_as_ect1_);
       RTC_LOG(LS_INFO) << "Transport does "
                        << (transport_bleaches_ect1 ? "not " : "")
                        << "preserve the ECT(1) marking. Congestion Controller "
