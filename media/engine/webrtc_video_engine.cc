@@ -1805,6 +1805,12 @@ void WebRtcVideoSendChannel::SetFrameEncryptor(
   }
 }
 
+void WebRtcVideoSendChannel::EnableSframe() {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  sframe_options_.required = true;
+  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+}
+
 void WebRtcVideoSendChannel::SetEncoderSelector(
     uint32_t ssrc,
     scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
@@ -3516,6 +3522,12 @@ void WebRtcVideoReceiveChannel::SetFrameDecryptor(
   if (matching_stream != receive_streams_.end()) {
     matching_stream->second->SetFrameDecryptor(frame_decryptor);
   }
+}
+
+void WebRtcVideoReceiveChannel::EnableSframe() {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  sframe_options_.required = true;
+  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
 }
 
 bool WebRtcVideoReceiveChannel::SetBaseMinimumPlayoutDelayMs(uint32_t ssrc,

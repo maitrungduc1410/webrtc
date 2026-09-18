@@ -1747,6 +1747,12 @@ void WebRtcVoiceSendChannel::SetFrameEncryptor(
   }
 }
 
+void WebRtcVoiceSendChannel::EnableSframe() {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  sframe_options_.required = true;
+  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+}
+
 bool WebRtcVoiceSendChannel::InsertDtmf(uint32_t ssrc,
                                         int event,
                                         int duration) {
@@ -2659,6 +2665,12 @@ void WebRtcVoiceReceiveChannel::SetFrameDecryptor(
   if (ssrc == 0) {
     unsignaled_frame_decryptor_ = frame_decryptor;
   }
+}
+
+void WebRtcVoiceReceiveChannel::EnableSframe() {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  sframe_options_.required = true;
+  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
 }
 
 void WebRtcVoiceReceiveChannel::OnPacketReceived(RtpPacketReceived packet) {

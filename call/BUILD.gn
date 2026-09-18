@@ -16,6 +16,10 @@ rtc_library("version") {
   visibility = [ ":*" ]
 }
 
+rtc_source_set("sframe_options") {
+  sources = [ "sframe_options.h" ]
+}
+
 rtc_library("call_interfaces") {
   sources = [
     "audio_receive_stream.cc",

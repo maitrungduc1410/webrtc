@@ -474,6 +474,7 @@ rtc_library("rtc_audio_video") {
     "../call:payload_type_picker",
     "../call:receive_stream_interface",
     "../call:rtp_interfaces",
+    "../call:sframe_options",
     "../call:video_receive_stream_api",
     "../call:video_send_stream_api",
     "../common_video",
