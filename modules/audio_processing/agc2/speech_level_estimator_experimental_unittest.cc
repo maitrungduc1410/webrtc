@@ -11,9 +11,12 @@
 #include <memory>
 
 #include "api/audio/audio_processing.h"
+#include "api/field_trials.h"
+#include "modules/audio_processing/agc2/speech_level_estimator.h"
 #include "modules/audio_processing/agc2/speech_level_estimator_experimental_impl.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 #include "rtc_base/checks.h"
+#include "test/create_test_field_trials.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -40,11 +43,13 @@ void RunOnConstantLevel(int num_iterations,
 // Level estimator with data dumper.
 struct TestLevelEstimator {
   explicit TestLevelEstimator(int adjacent_speech_frames_threshold)
-      : data_dumper(0),
+      : data_dumper(/*instance_index=*/0),
         estimator(std::make_unique<SpeechLevelEstimatorExperimentalImpl>(
             &data_dumper,
             AdaptiveDigitalConfig{},
-            adjacent_speech_frames_threshold)),
+            adjacent_speech_frames_threshold,
+            SpeechLevelEstimatorExperimentalImpl::
+                kDefaultBackgroundSpeakerOffsetDbfs)),
         initial_speech_level_dbfs(estimator->GetLevelDbfs()),
         level_rms_dbfs(initial_speech_level_dbfs / 2.0f),
         level_peak_dbfs(initial_speech_level_dbfs / 3.0f) {
@@ -174,6 +179,48 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   EXPECT_FALSE(level_estimator.estimator->IsBackgroundSpeaker());
   EXPECT_FLOAT_EQ(level_estimator.estimator->GetLevelDbfs(),
                   confident_level_dbfs);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     FactoryDefaultThresholdWhenEnabledWithoutParameters) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled/");
+  ApmDataDumper data_dumper(/*instance_index=*/0);
+  auto estimator = SpeechLevelEstimator::Create(
+      field_trials, &data_dumper, AdaptiveDigitalConfig{},
+      /*adjacent_speech_frames_threshold=*/1);
+  ASSERT_TRUE(estimator);
+  auto* experimental_estimator =
+      static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
+  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 10.0f);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     FactoryConfiguresOffsetViaFieldTrial) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,offset:15.0/");
+  ApmDataDumper data_dumper(/*instance_index=*/0);
+  auto estimator = SpeechLevelEstimator::Create(
+      field_trials, &data_dumper, AdaptiveDigitalConfig{},
+      /*adjacent_speech_frames_threshold=*/1);
+  ASSERT_TRUE(estimator);
+  auto* experimental_estimator =
+      static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
+  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 15.0f);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     FactoryFallbackOnInvalidFieldTrialValue) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,offset:-5.0/");
+  ApmDataDumper data_dumper(/*instance_index=*/0);
+  auto estimator = SpeechLevelEstimator::Create(
+      field_trials, &data_dumper, AdaptiveDigitalConfig{},
+      /*adjacent_speech_frames_threshold=*/1);
+  ASSERT_TRUE(estimator);
+  auto* experimental_estimator =
+      static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
+  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 10.0f);
 }
 
 }  // namespace

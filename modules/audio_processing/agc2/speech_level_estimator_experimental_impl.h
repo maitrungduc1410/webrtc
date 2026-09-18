@@ -23,10 +23,13 @@ class ApmDataDumper;
 // speech probability.
 class SpeechLevelEstimatorExperimentalImpl : public SpeechLevelEstimator {
  public:
+  static constexpr float kDefaultBackgroundSpeakerOffsetDbfs = 10.0f;
+
   SpeechLevelEstimatorExperimentalImpl(
       ApmDataDumper* apm_data_dumper,
       const AudioProcessing::Config::GainController2::AdaptiveDigital& config,
-      int adjacent_speech_frames_threshold);
+      int adjacent_speech_frames_threshold,
+      float background_speaker_offset_dbfs);
   SpeechLevelEstimatorExperimentalImpl(
       const SpeechLevelEstimatorExperimentalImpl&) = delete;
   SpeechLevelEstimatorExperimentalImpl& operator=(
@@ -40,6 +43,10 @@ class SpeechLevelEstimatorExperimentalImpl : public SpeechLevelEstimator {
   bool IsConfident() const override { return is_confident_; }
   // Returns true if the current speech is classified as a background speaker.
   bool IsBackgroundSpeaker() const override { return is_background_speaker_; }
+  // Returns the threshold offset in dBFS for background speaker detection.
+  float GetBackgroundSpeakerOffsetDbfs() const {
+    return background_speaker_offset_dbfs_;
+  }
 
   void Reset() override;
 
@@ -61,6 +68,7 @@ class SpeechLevelEstimatorExperimentalImpl : public SpeechLevelEstimator {
 
   const float initial_speech_level_dbfs_;
   const int adjacent_speech_frames_threshold_;
+  const float background_speaker_offset_dbfs_;
   LevelEstimatorState preliminary_state_;
   LevelEstimatorState reliable_state_;
   float level_dbfs_;

@@ -35,21 +35,23 @@ float GetInitialSpeechLevelEstimateDbfs(
 SpeechLevelEstimatorExperimentalImpl::SpeechLevelEstimatorExperimentalImpl(
     ApmDataDumper* apm_data_dumper,
     const AudioProcessing::Config::GainController2::AdaptiveDigital& config,
-    int adjacent_speech_frames_threshold)
+    int adjacent_speech_frames_threshold,
+    float background_speaker_offset_dbfs)
     : apm_data_dumper_(apm_data_dumper),
       initial_speech_level_dbfs_(GetInitialSpeechLevelEstimateDbfs(config)),
       adjacent_speech_frames_threshold_(adjacent_speech_frames_threshold),
+      background_speaker_offset_dbfs_(background_speaker_offset_dbfs),
       level_dbfs_(initial_speech_level_dbfs_),
       is_confident_(false),
       is_background_speaker_(false) {
   RTC_DCHECK(apm_data_dumper_);
   RTC_DCHECK_GE(adjacent_speech_frames_threshold_, 1);
+  RTC_DCHECK_GT(background_speaker_offset_dbfs_, 0.0f);
   Reset();
 }
 
 void SpeechLevelEstimatorExperimentalImpl::Update(float rms_dbfs,
                                                   float speech_probability) {
-  constexpr float kBackgroundSpeakerOffsetDbfs = 10.0f;
   constexpr int kFramesPerUpdate = 100;
 
   if (speech_probability < kVadConfidenceThreshold) {
@@ -74,7 +76,8 @@ void SpeechLevelEstimatorExperimentalImpl::Update(float rms_dbfs,
         const float reliable_level_dbfs = ClampLevelEstimateDbfs(
             reliable_state_.sum_of_levels_dbfs / reliable_state_.num_frames);
         if (is_confident_ &&
-            reliable_level_dbfs < level_dbfs_ - kBackgroundSpeakerOffsetDbfs) {
+            reliable_level_dbfs <
+                level_dbfs_ - background_speaker_offset_dbfs_) {
           is_background_speaker_ = true;
         } else {
           is_background_speaker_ = false;
