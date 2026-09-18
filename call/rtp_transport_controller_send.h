@@ -42,6 +42,7 @@
 #include "call/rtp_transport_config.h"
 #include "call/rtp_transport_controller_send_interface.h"
 #include "call/rtp_video_sender.h"
+#include "modules/congestion_controller/ect1_policy.h"
 #include "modules/congestion_controller/rtp/congestion_controller_feedback_stats.h"
 #include "modules/congestion_controller/rtp/control_handler.h"
 #include "modules/congestion_controller/rtp/transport_feedback_adapter.h"
@@ -164,7 +165,6 @@ class RtpTransportControllerSend final
   void UpdateNetworkAvailability() RTC_RUN_ON(worker_thread_);
   void UpdateInitialConstraints(TargetRateConstraints new_contraints)
       RTC_RUN_ON(worker_thread_);
-
   void StartProcessPeriodicTasks() RTC_RUN_ON(worker_thread_);
   void UpdateControllerWithTimeInterval() RTC_RUN_ON(worker_thread_);
 
@@ -240,7 +240,7 @@ class RtpTransportControllerSend final
   DataSize congestion_window_size_ RTC_GUARDED_BY(worker_thread_);
   bool is_congested_ RTC_GUARDED_BY(worker_thread_);
   bool rfc_8888_feedback_negotiated_ = false;
-  bool sending_packets_as_ect1_ = false;
+  Ect1Policy ect1_policy_ RTC_GUARDED_BY(worker_thread_);
   // Count of feedback messages received.
   int feedback_count_ RTC_GUARDED_BY(worker_thread_) = 0;
   int transport_cc_feedback_count_ RTC_GUARDED_BY(worker_thread_) = 0;

@@ -42,6 +42,16 @@ rtc_library("congestion_controller") {
   ]
 }
 
+rtc_library("ect1_policy") {
+  visibility = [ "*" ]
+  sources = [
+    "ect1_policy.cc",
+    "ect1_policy.h",
+  ]
+
+  deps = [ "../../rtc_base:logging" ]
+}
+
 if (rtc_include_tests) {
   rtc_library("receive_side_congestion_controller_unittest") {
     testonly = true
@@ -80,11 +90,21 @@ if (rtc_include_tests) {
     ]
   }
 
+  rtc_library("ect1_policy_unittest") {
+    testonly = true
+    sources = [ "ect1_policy_unittest.cc" ]
+    deps = [
+      ":ect1_policy",
+      "../../test:test_support",
+    ]
+  }
+
   rtc_library("congestion_controller_unittests") {
     testonly = true
 
     sources = []
     deps = [
+      ":ect1_policy_unittest",
       ":receive_side_congestion_controller_unittest",
       ":remb_throttler_unittest",
       "goog_cc:goog_cc_unittests",
