@@ -47,7 +47,6 @@ namespace {
 webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> CreateTestPCF(
     JNIEnv* jni,
     webrtc::Thread* network_thread,
-    webrtc::Thread* worker_thread,
     webrtc::Thread* signaling_thread,
     const Environment& env) {
   // talk/ assumes pretty widely that the current Thread is ThreadManager'd, but
@@ -59,7 +58,6 @@ webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> CreateTestPCF(
 
   PeerConnectionFactoryDependencies pcf_deps;
   pcf_deps.network_thread = network_thread;
-  pcf_deps.worker_thread = worker_thread;
   pcf_deps.signaling_thread = signaling_thread;
   pcf_deps.env = env;
 
@@ -94,22 +92,17 @@ TEST(PeerConnectionFactoryTest, NativeToJavaPeerConnectionFactory) {
   network_thread->SetName("network_thread", nullptr);
   RTC_CHECK(network_thread->Start()) << "Failed to start thread";
 
-  std::unique_ptr<webrtc::Thread> worker_thread = webrtc::Thread::Create();
-  worker_thread->SetName("worker_thread", nullptr);
-  RTC_CHECK(worker_thread->Start()) << "Failed to start thread";
-
   std::unique_ptr<webrtc::Thread> signaling_thread = webrtc::Thread::Create();
   signaling_thread->SetName("signaling_thread", NULL);
   RTC_CHECK(signaling_thread->Start()) << "Failed to start thread";
 
   const Environment env = CreateTestEnvironment();
   webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> factory =
-      CreateTestPCF(jni, network_thread.get(), worker_thread.get(),
-                    signaling_thread.get(), env);
+      CreateTestPCF(jni, network_thread.get(), signaling_thread.get(), env);
 
   jobject java_factory = NativeToJavaPeerConnectionFactory(
       jni, factory, std::move(socket_server), std::move(network_thread),
-      std::move(worker_thread), std::move(signaling_thread), env);
+      /*worker_thread=*/nullptr, std::move(signaling_thread), env);
 
   RTC_LOG(LS_INFO) << java_factory;
 

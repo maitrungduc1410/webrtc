@@ -53,7 +53,13 @@ class OwnedFactoryAndThreads {
   SocketFactory* socket_factory() { return socket_factory_.get(); }
   Thread* network_thread() { return network_thread_.get(); }
   Thread* signaling_thread() { return signaling_thread_.get(); }
-  Thread* worker_thread() { return worker_thread_.get(); }
+  // Callers may not supply a separate worker thread, in which case the network
+  // thread also acts as the worker thread. See
+  // https://groups.google.com/g/discuss-webrtc/c/Fs_Hd5XNJh0
+  Thread* worker_thread() {
+    return worker_thread_ != nullptr ? worker_thread_.get()
+                                     : network_thread_.get();
+  }
   std::optional<Environment> env() const { return env_; }
 
  private:

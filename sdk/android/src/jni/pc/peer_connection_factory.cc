@@ -284,10 +284,6 @@ ScopedJavaLocalRef<jobject> CreatePeerConnectionFactoryForJava(
   network_thread->SetName("network_thread", nullptr);
   RTC_CHECK(network_thread->Start()) << "Failed to start thread";
 
-  std::unique_ptr<Thread> worker_thread = Thread::Create();
-  worker_thread->SetName("worker_thread", nullptr);
-  RTC_CHECK(worker_thread->Start()) << "Failed to start thread";
-
   std::unique_ptr<Thread> signaling_thread = Thread::Create();
   signaling_thread->SetName("signaling_thread", NULL);
   RTC_CHECK(signaling_thread->Start()) << "Failed to start thread";
@@ -299,7 +295,6 @@ ScopedJavaLocalRef<jobject> CreatePeerConnectionFactoryForJava(
   dependencies.env = env;
   dependencies.socket_factory = socket_server.get();
   dependencies.network_thread = network_thread.get();
-  dependencies.worker_thread = worker_thread.get();
   dependencies.signaling_thread = signaling_thread.get();
   dependencies.event_log_factory = std::make_unique<RtcEventLogFactory>();
   dependencies.fec_controller_factory = std::move(fec_controller_factory);
@@ -344,7 +339,7 @@ ScopedJavaLocalRef<jobject> CreatePeerConnectionFactoryForJava(
 
   return NativeToScopedJavaPeerConnectionFactory(
       jni, factory, std::move(socket_server), std::move(network_thread),
-      std::move(worker_thread), std::move(signaling_thread), env);
+      /*worker_thread=*/nullptr, std::move(signaling_thread), env);
 }
 
 static jni_zero::ScopedJavaLocalRef<jobject>
