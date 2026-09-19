@@ -172,6 +172,9 @@ rtc_library("rtp_rtcp_format") {
     "//third_party/abseil-cpp/absl/container:inlined_vector",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
+  if (rtc_rust) {
+    deps += [ ":corruption_detection_extension_cxx" ]
+  }
 }
 
 rtc_library("rtp_rtcp") {
