@@ -907,17 +907,31 @@ std::optional<RtpParameters> RtpSenderBase::ApplyInitParameters_w(
               .ok()) {
         // The parameters may change as they're applied.
         applied_parameters = media_channel_->GetRtpSendParameters(*ssrc);
+      } else {
+        // The media channel rejected the parameters. Keep `init_parameters_`
+        // so that a later negotiation can apply them, rather than silently
+        // discarding what the application asked for.
+        RTC_LOG(LS_WARNING) << "Failed to apply the configured send parameters "
+                               "to ssrc "
+                            << *ssrc << ". Keeping them for the next attempt.";
+        return std::nullopt;
       }
     }
   }
 
-  // Clear the `init_parameters_` after they have been applied to the
-  // media channel. This prevents stale values from being used in
-  // subsequent calls to `SetSsrc`, which could happen if `SetSsrc` is
-  // called multiple times on the same sender. See
-  // https://issues.webrtc.org/issues/500993975 for details.
+  // Clear the `init_parameters_` encodings now that they have been applied to
+  // the media channel, or there was no send stream to apply them to. This
+  // prevents stale values from being used in subsequent calls to `SetSsrc`,
+  // which could happen if `SetSsrc` is called multiple times on the same
+  // sender. See https://issues.webrtc.org/issues/500993975 for details.
   init_parameters_.encodings.clear();
-  init_parameters_.degradation_preference = std::nullopt;
+  if (applied_parameters.has_value()) {
+    // The degradation preference is not tied to a specific send stream, so it
+    // is only dropped once it has been applied. Keeping it means that a
+    // preference the application configured before negotiation still takes
+    // effect if this sender is attached to a send stream later.
+    init_parameters_.degradation_preference = std::nullopt;
+  }
 
   return applied_parameters;
 }

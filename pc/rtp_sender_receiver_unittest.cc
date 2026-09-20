@@ -1962,6 +1962,80 @@ TEST_F(RtpSenderReceiverTest, VideoSenderWithSsrcUnknownToTheMediaChannel) {
   DestroyVideoRtpSender();
 }
 
+// The encodings the application configured before negotiation are kept when
+// the media channel rejects them, so that a later negotiation can apply them.
+TEST_F(RtpSenderReceiverTest, InitParametersSurviveARejectedUpdate) {
+  AddVideoTrack(/*is_screencast=*/false);
+
+  MockSetStreamsObserver set_streams_observer;
+  video_rtp_sender_ = VideoRtpSender::Create(
+      CreateTestEnvironment(), signaling_thread_, worker_thread_.get(),
+      video_track_->id(), &set_streams_observer,
+      /*enable_sframe_at_owner=*/nullptr, nullptr,
+      /*init_send_encodings=*/{}, /*simulcast_rejected=*/false,
+      /*initial_simulcast_layers=*/{});
+  ASSERT_TRUE(video_rtp_sender_->SetTrack(video_track_.get()));
+  EXPECT_CALL(set_streams_observer, OnSetStreams());
+  video_rtp_sender_->SetStreams({local_stream_->id()});
+
+  // A minimum bitrate above the maximum makes the media channel reject the
+  // parameters.
+  std::vector<RtpEncodingParameters> init_encodings(1);
+  init_encodings[0].min_bitrate_bps = 120000;
+  init_encodings[0].max_bitrate_bps = 60000;
+  video_rtp_sender_->set_init_send_encodings(init_encodings);
+
+  worker_thread_->BlockingCall([&] {
+    video_rtp_sender_->SetMediaChannel(
+        video_media_send_channel()->AsVideoSendChannel());
+  });
+  SetSsrc(kVideoSsrc, *video_rtp_sender_);
+
+  ASSERT_EQ(1u, video_rtp_sender_->init_send_encodings().size());
+  EXPECT_EQ(video_rtp_sender_->init_send_encodings()[0].max_bitrate_bps, 60000);
+
+  DestroyVideoRtpSender();
+}
+
+// A degradation preference that the application configured before negotiation
+// is kept when there is no send stream to apply it to, so that it still takes
+// effect once the sender is attached to one.
+TEST_F(RtpSenderReceiverTest, DegradationPreferenceSurvivesAMissingSendStream) {
+  AddVideoTrack(/*is_screencast=*/false);
+
+  MockSetStreamsObserver set_streams_observer;
+  video_rtp_sender_ = VideoRtpSender::Create(
+      CreateTestEnvironment(), signaling_thread_, worker_thread_.get(),
+      video_track_->id(), &set_streams_observer,
+      /*enable_sframe_at_owner=*/nullptr, nullptr,
+      /*init_send_encodings=*/{}, /*simulcast_rejected=*/false,
+      /*initial_simulcast_layers=*/{});
+  ASSERT_TRUE(video_rtp_sender_->SetTrack(video_track_.get()));
+  EXPECT_CALL(set_streams_observer, OnSetStreams());
+  video_rtp_sender_->SetStreams({local_stream_->id()});
+
+  RtpParameters params = video_rtp_sender_->GetParameters();
+  params.degradation_preference = DegradationPreference::MAINTAIN_FRAMERATE;
+  ASSERT_TRUE(video_rtp_sender_->SetParameters(params).ok());
+
+  worker_thread_->BlockingCall([&] {
+    video_rtp_sender_->SetMediaChannel(
+        video_media_send_channel()->AsVideoSendChannel());
+  });
+  // No send stream was ever added for `kVideoSsrcSimulcast`, so there is
+  // nothing to apply the preference to.
+  SetSsrc(kVideoSsrcSimulcast, *video_rtp_sender_);
+
+  // The next negotiation attaches the sender to a send stream that the media
+  // channel knows about, which is where the preference takes effect.
+  SetSsrc(kVideoSsrc, *video_rtp_sender_);
+
+  EXPECT_EQ(video_rtp_sender_->GetParameters().degradation_preference,
+            DegradationPreference::MAINTAIN_FRAMERATE);
+
+  DestroyVideoRtpSender();
+}
+
 TEST_F(RtpSenderReceiverTest,
        VideoSenderMustCallGetParametersBeforeSetParametersBeforeNegotiation) {
   video_rtp_sender_ = VideoRtpSender::Create(
