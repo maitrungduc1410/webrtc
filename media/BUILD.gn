@@ -42,6 +42,7 @@ rtc_library("rtc_sdp_video_format_utils") {
     "//third_party/abseil-cpp/absl/algorithm:container",
   ]
 }
+
 rtc_source_set("audio_source") {
   sources = [ "base/audio_source.h" ]
 }
@@ -637,6 +638,20 @@ rtc_source_set("rtc_media") {
   deps = [ ":rtc_audio_video" ]
 }
 
+rtc_library("fake_video_renderer") {
+  testonly = true
+  sources = [
+    "base/fake_video_renderer.cc",
+    "base/fake_video_renderer.h",
+  ]
+  deps = [
+    "../api:scoped_refptr",
+    "../api/video:video_frame",
+    "../api/video:video_rtp_headers",
+    "../rtc_base/synchronization:mutex",
+  ]
+}
+
 if (rtc_include_tests) {
   rtc_library("rtc_media_tests_utils") {
     testonly = true
@@ -750,8 +765,6 @@ if (rtc_include_tests) {
       "base/fake_network_interface.h",
       "base/fake_rtp.cc",
       "base/fake_rtp.h",
-      "base/fake_video_renderer.cc",
-      "base/fake_video_renderer.h",
       "base/test_utils.cc",
       "base/test_utils.h",
       "engine/fake_webrtc_call.cc",
@@ -788,6 +801,7 @@ if (rtc_include_tests) {
         ":audio_source",
         ":codec",
         ":codec_list",
+        ":fake_video_renderer",
         ":media_channel",
         ":media_constants",
         ":media_engine",

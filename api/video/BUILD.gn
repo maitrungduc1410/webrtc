@@ -556,6 +556,7 @@ if (rtc_include_tests) {
       ":video_rtp_headers",
       "..:scoped_refptr",
       "..:video_track_source_constraints",
+      "../../media:fake_video_renderer",
       "../../media:rtc_media_tests_utils",
       "../../rtc_base:checks",
       "../../test:test_support",

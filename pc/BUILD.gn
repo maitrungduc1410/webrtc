@@ -4599,6 +4599,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../call:call_interfaces",
       "../call:payload_type_picker",
       "../media:codec",
+      "../media:fake_video_renderer",
       "../media:media_channel",
       "../media:rtc_media_tests_utils",
       "../media:rtc_simulcast_encoder_adapter",
