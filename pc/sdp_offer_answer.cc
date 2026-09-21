@@ -3933,6 +3933,12 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   std::vector<scoped_refptr<MediaStreamInterface>> all_added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> all_removed_streams;
   std::vector<scoped_refptr<RtpReceiverInterface>> removed_receivers;
+  // Senders whose pre-offer encodings are restored after the channel teardown
+  // tasks below have run.
+  std::vector<std::pair<scoped_refptr<RtpSenderInternal>,
+                        std::vector<RtpEncodingParameters>>>
+      senders_to_restore;
+
   // Keep to-be-removed transceivers alive until after tasks for them have been
   // run.
   std::vector<RtpTransceiverProxyRefPtr> transceivers_to_remove;
@@ -3995,6 +4001,13 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
 
     RTC_DCHECK(transceiver->internal()->mid().has_value());
     network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
+    auto sender_internal = transceiver->internal()->sender_internal();
+    // The channel the sender was configured against is about to go away.
+    // Detach the sender from its send stream first, so that it returns to the
+    // un-negotiated state instead of holding on to an ssrc that no longer
+    // exists.
+    worker_tasks.AddWithFinalizer(
+        sender_internal->SetSsrcTask(0, /*layer_count=*/0));
     worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
         /*stop_senders=*/false));
 
@@ -4011,11 +4024,13 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
         transceivers_to_remove.push_back(transceiver);
       }
     }
-    auto sender_internal = transceiver->internal()->sender_internal();
     if (stable_state.init_send_encodings()) {
-      sender_internal->set_init_send_encodings(
-          stable_state.init_send_encodings().value());
+      // Restore the encodings once the tasks above have run, since detaching
+      // the sender from its send stream clears them.
+      senders_to_restore.emplace_back(std::move(sender_internal),
+                                      *stable_state.init_send_encodings());
     }
+
     transceiver->internal()->SetTransport(nullptr, std::nullopt);
     if (stable_state.has_m_section()) {
       transceiver->internal()->set_mid(stable_state.mid());
@@ -4027,6 +4042,10 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   RTC_DCHECK(e.ok());  // only void tasks queued.
   e = worker_tasks.Run();
   RTC_DCHECK(e.ok());  // only void tasks queued.
+
+  for (const auto& [sender, encodings] : senders_to_restore) {
+    sender->set_init_send_encodings(encodings);
+  }
   e = transport_controller_s()->RollbackTransports();
   if (!e.ok()) {
     return e;

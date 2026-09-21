@@ -666,4 +666,25 @@ TEST_F(PeerConnectionSimulcastTests, MungedLocalOfferWithFewerLayers) {
   EXPECT_THAT(transceiver->sender()->GetParameters().encodings, SizeIs(2));
 }
 
+// Rolling back a local offer detaches the sender from the send stream that the
+// offer described. A subsequent offer that describes fewer layers can then be
+// applied, rather than failing against a channel that no longer exists.
+TEST_F(PeerConnectionSimulcastTests,
+       MungedLocalOfferWithFewerLayersAfterRollback) {
+  // Munging allowed: kNumSimulcastLayers.
+  auto local = CreatePeerConnectionWrapper(
+      "WebRTC-NoSdpMangleAllowForTesting/Enabled,1/");
+  auto layers = CreateLayers({"1", "2", "3"}, true);
+  auto transceiver = AddTransceiver(local.get(), layers);
+  ASSERT_TRUE(local->SetLocalDescription(local->CreateOffer()));
+  ASSERT_TRUE(local->SetLocalDescription(local->CreateRollback()));
+
+  std::unique_ptr<SessionDescriptionInterface> munged_offer =
+      RemoveThirdLayer(*local->CreateOffer());
+  ASSERT_THAT(munged_offer, NotNull());
+  ASSERT_TRUE(local->SetLocalDescription(std::move(munged_offer)));
+
+  EXPECT_THAT(transceiver->sender()->GetParameters().encodings, SizeIs(2));
+}
+
 }  // namespace webrtc
