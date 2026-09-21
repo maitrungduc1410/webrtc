@@ -424,6 +424,10 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
       TimeController* time_controller,
       std::unique_ptr<FrameCadenceAdapterInterface> cadence_adapter,
       std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue,
+      // Points at `encoder_queue`, which is owned by VideoStreamEncoder. Passed
+      // separately because it has been moved by the time the members below are
+      // initialized.
+      TaskQueueBase* encoder_queue_ptr,
       SendStatisticsProxy* stats_proxy,
       VideoStreamEncoderSettings settings,
       VideoStreamEncoder::BitrateAllocationCallbackType
@@ -444,6 +448,7 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
             nullptr,  // encoder_selector
             std::move(encoder_switch_request_callback)),
         time_controller_(time_controller),
+        encoder_queue_ptr_(encoder_queue_ptr),
         fake_cpu_resource_(FakeResource::Create("FakeResource[CPU]")),
         fake_quality_resource_(FakeResource::Create("FakeResource[QP]")),
         fake_adaptation_constraint_("FakeAdaptationConstraint") {
@@ -488,14 +493,14 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
 
   // Triggers resource usage measurements on the fake CPU resource.
   void TriggerCpuOveruse() {
-    encoder_queue()->PostTask([this] {
+    encoder_queue_ptr_->PostTask([this] {
       fake_cpu_resource_->SetUsageState(ResourceUsageState::kOveruse);
     });
     WaitUntilTaskQueueIsIdle();
   }
 
   void TriggerCpuUnderuse() {
-    encoder_queue()->PostTask([this] {
+    encoder_queue_ptr_->PostTask([this] {
       fake_cpu_resource_->SetUsageState(ResourceUsageState::kUnderuse);
     });
     WaitUntilTaskQueueIsIdle();
@@ -503,20 +508,21 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
 
   // Triggers resource usage measurements on the fake quality resource.
   void TriggerQualityLow() {
-    encoder_queue()->PostTask([this] {
+    encoder_queue_ptr_->PostTask([this] {
       fake_quality_resource_->SetUsageState(ResourceUsageState::kOveruse);
     });
     WaitUntilTaskQueueIsIdle();
   }
 
   void TriggerQualityHigh() {
-    encoder_queue()->PostTask([this] {
+    encoder_queue_ptr_->PostTask([this] {
       fake_quality_resource_->SetUsageState(ResourceUsageState::kUnderuse);
     });
     WaitUntilTaskQueueIsIdle();
   }
 
   TimeController* const time_controller_;
+  TaskQueueBase* const encoder_queue_ptr_;
   CpuOveruseDetectorProxy* overuse_detector_proxy_;
   scoped_refptr<FakeResource> fake_cpu_resource_;
   scoped_refptr<FakeResource> fake_quality_resource_;
@@ -926,8 +932,8 @@ class VideoStreamEncoderTest : public ::testing::Test {
     VideoStreamEncoderSettings settings = video_send_config_.encoder_settings;
     video_stream_encoder_ = std::make_unique<VideoStreamEncoderUnderTest>(
         env_, &time_controller_, std::move(cadence_adapter),
-        std::move(encoder_queue), stats_proxy_.get(), std::move(settings),
-        allocation_callback_type, num_cores,
+        std::move(encoder_queue), encoder_queue_ptr, stats_proxy_.get(),
+        std::move(settings), allocation_callback_type, num_cores,
         std::move(encoder_switch_request_callback_));
     video_stream_encoder_->SetSink(&sink_, /*rotation_applied=*/false);
     video_stream_encoder_->SetSource(&video_source_,

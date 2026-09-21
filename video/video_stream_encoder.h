@@ -146,10 +146,6 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
  protected:
   friend class VideoStreamEncoderFrameCadenceRestrictionTest;
 
-  // Used for testing. For example the `ScalingObserverInterface` methods must
-  // be called on `encoder_queue_`.
-  TaskQueueBase* encoder_queue() { return encoder_queue_.get(); }
-
   void OnVideoSourceRestrictionsUpdated(
       VideoSourceRestrictions restrictions,
       const VideoAdaptationCounters& adaptation_counters,
