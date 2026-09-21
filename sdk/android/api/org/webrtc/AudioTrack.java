@@ -18,11 +18,11 @@ public class AudioTrack extends MediaStreamTrack {
     super(nativeTrack);
   }
 
-  /** Sets the volume for the underlying MediaSource. Volume is a gain value in the range
-   *  0 to 10.
+  /**
+   * Sets the volume for the underlying MediaSource. Volume is a gain value in the range 0 to 10.
    */
   public void setVolume(double volume) {
-    AudioTrackJni.get().setVolume(getNativeAudioTrack(), volume);
+    lifecycleLock.run(nativeTrack -> AudioTrackJni.get().setVolume(nativeTrack, volume));
   }
 
   /** Returns a pointer to webrtc::AudioTrackInterface. */

@@ -35,34 +35,49 @@ public class VideoTrack extends MediaStreamTrack {
     }
     // We allow calling addSink() with the same sink multiple times. This is similar to the C++
     // VideoTrack::AddOrUpdateSink().
-    if (!sinks.containsKey(sink)) {
-      final long nativeSink = VideoTrackJni.get().wrapSink(sink);
-      sinks.put(sink, nativeSink);
-      VideoTrackJni.get().addSink(getNativeMediaStreamTrack(), nativeSink);
-    }
+    lifecycleLock.run(
+        nativeTrack -> {
+          synchronized (sinks) {
+            if (!sinks.containsKey(sink)) {
+              final long nativeSink = VideoTrackJni.get().wrapSink(sink);
+              sinks.put(sink, nativeSink);
+              VideoTrackJni.get().addSink(nativeTrack, nativeSink);
+            }
+          }
+        });
   }
 
   /**
    * Removes a VideoSink from the track.
    *
-   * If the VideoSink was not attached to the track, this is a no-op.
+   * <p>If the VideoSink was not attached to the track, this is a no-op.
    */
   public void removeSink(VideoSink sink) {
-    final Long nativeSink = sinks.remove(sink);
-    if (nativeSink != null) {
-      VideoTrackJni.get().removeSink(getNativeMediaStreamTrack(), nativeSink);
-      VideoTrackJni.get().freeSink(nativeSink);
-    }
+    lifecycleLock.run(
+        nativeTrack -> {
+          synchronized (sinks) {
+            final Long nativeSink = sinks.remove(sink);
+            if (nativeSink != null) {
+              VideoTrackJni.get().removeSink(nativeTrack, nativeSink);
+              VideoTrackJni.get().freeSink(nativeSink);
+            }
+          }
+        });
   }
 
   @Override
   public void dispose() {
-    for (long nativeSink : sinks.values()) {
-      VideoTrackJni.get().removeSink(getNativeMediaStreamTrack(), nativeSink);
-      VideoTrackJni.get().freeSink(nativeSink);
-    }
-    sinks.clear();
-    super.dispose();
+    lifecycleLock.dispose(
+        nativeTrack -> {
+          synchronized (sinks) {
+            for (long nativeSink : sinks.values()) {
+              VideoTrackJni.get().removeSink(nativeTrack, nativeSink);
+              VideoTrackJni.get().freeSink(nativeSink);
+            }
+            sinks.clear();
+          }
+          JniCommon.nativeReleaseRef(nativeTrack);
+        });
   }
 
   /** Returns a pointer to webrtc::VideoTrackInterface. */

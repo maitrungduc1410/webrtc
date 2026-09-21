@@ -22,84 +22,94 @@ public class MediaStream {
   public final List<AudioTrack> audioTracks = new ArrayList<>();
   public final List<VideoTrack> videoTracks = new ArrayList<>();
   public final List<VideoTrack> preservedVideoTracks = new ArrayList<>();
-  private long nativeStream;
+  private final NativeLifecycleLock lifecycleLock;
 
   @CalledByNative
   public MediaStream(long nativeStream) {
-    this.nativeStream = nativeStream;
+    this.lifecycleLock = new NativeLifecycleLock("MediaStream", nativeStream);
   }
 
   public boolean addTrack(AudioTrack track) {
-    checkMediaStreamExists();
-    if (MediaStreamJni.get()
-        .addAudioTrackToNativeStream(nativeStream, track.getNativeAudioTrack())) {
-      audioTracks.add(track);
-      return true;
-    }
-    return false;
+    return lifecycleLock.call(
+        nativeStream -> {
+          if (MediaStreamJni.get()
+              .addAudioTrackToNativeStream(nativeStream, track.getNativeAudioTrack())) {
+            audioTracks.add(track);
+            return true;
+          }
+          return false;
+        });
   }
 
   public boolean addTrack(VideoTrack track) {
-    checkMediaStreamExists();
-    if (MediaStreamJni.get()
-        .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
-      videoTracks.add(track);
-      return true;
-    }
-    return false;
+    return lifecycleLock.call(
+        nativeStream -> {
+          if (MediaStreamJni.get()
+              .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
+            videoTracks.add(track);
+            return true;
+          }
+          return false;
+        });
   }
 
   // Tracks added in addTrack() call will be auto released once MediaStream.dispose()
   // is called. If video track need to be preserved after MediaStream is destroyed it
   // should be added to MediaStream using addPreservedTrack() call.
   public boolean addPreservedTrack(VideoTrack track) {
-    checkMediaStreamExists();
-    if (MediaStreamJni.get()
-        .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
-      preservedVideoTracks.add(track);
-      return true;
-    }
-    return false;
+    return lifecycleLock.call(
+        nativeStream -> {
+          if (MediaStreamJni.get()
+              .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
+            preservedVideoTracks.add(track);
+            return true;
+          }
+          return false;
+        });
   }
 
   public boolean removeTrack(AudioTrack track) {
-    checkMediaStreamExists();
-    audioTracks.remove(track);
-    return MediaStreamJni.get().removeAudioTrack(nativeStream, track.getNativeAudioTrack());
+    return lifecycleLock.call(
+        nativeStream -> {
+          audioTracks.remove(track);
+          return MediaStreamJni.get().removeAudioTrack(nativeStream, track.getNativeAudioTrack());
+        });
   }
 
   public boolean removeTrack(VideoTrack track) {
-    checkMediaStreamExists();
-    videoTracks.remove(track);
-    preservedVideoTracks.remove(track);
-    return MediaStreamJni.get().removeVideoTrack(nativeStream, track.getNativeVideoTrack());
+    return lifecycleLock.call(
+        nativeStream -> {
+          videoTracks.remove(track);
+          preservedVideoTracks.remove(track);
+          return MediaStreamJni.get().removeVideoTrack(nativeStream, track.getNativeVideoTrack());
+        });
   }
 
   @CalledByNative
   public void dispose() {
-    checkMediaStreamExists();
-    // Remove and release previously added audio and video tracks.
-    while (!audioTracks.isEmpty()) {
-      AudioTrack track = audioTracks.get(0 /* index */);
-      removeTrack(track);
-      track.dispose();
-    }
-    while (!videoTracks.isEmpty()) {
-      VideoTrack track = videoTracks.get(0 /* index */);
-      removeTrack(track);
-      track.dispose();
-    }
-    // Remove, but do not release preserved video tracks.
-    while (!preservedVideoTracks.isEmpty()) {
-      removeTrack(preservedVideoTracks.get(0 /* index */));
-    }
-    JniCommon.nativeReleaseRef(nativeStream);
-    nativeStream = 0;
+    lifecycleLock.dispose(
+        nativeStream -> {
+          // Remove and release previously added audio and video tracks.
+          while (!audioTracks.isEmpty()) {
+            AudioTrack track = audioTracks.get(0 /* index */);
+            removeTrack(track);
+            track.dispose();
+          }
+          while (!videoTracks.isEmpty()) {
+            VideoTrack track = videoTracks.get(0 /* index */);
+            removeTrack(track);
+            track.dispose();
+          }
+          // Remove, but do not release preserved video tracks.
+          while (!preservedVideoTracks.isEmpty()) {
+            removeTrack(preservedVideoTracks.get(0 /* index */));
+          }
+          JniCommon.nativeReleaseRef(nativeStream);
+        });
   }
 
   public String getId() {
-    checkMediaStreamExists();
-    return MediaStreamJni.get().getId(nativeStream);
+    return lifecycleLock.call(nativeStream -> MediaStreamJni.get().getId(nativeStream));
   }
 
   @Override
@@ -129,14 +139,7 @@ public class MediaStream {
 
   /** Returns a pointer to webrtc::MediaStreamInterface. */
   long getNativeMediaStream() {
-    checkMediaStreamExists();
-    return nativeStream;
-  }
-
-  private void checkMediaStreamExists() {
-    if (nativeStream == 0) {
-      throw new IllegalStateException("MediaStream has been disposed.");
-    }
+    return lifecycleLock.getNativePointer();
   }
 
   private static void removeMediaStreamTrack(

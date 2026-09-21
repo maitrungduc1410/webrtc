@@ -71,55 +71,42 @@ public class MediaStreamTrack {
     }
   }
 
-  private long nativeTrack;
+  final NativeLifecycleLock lifecycleLock;
 
   public MediaStreamTrack(long nativeTrack) {
     if (nativeTrack == 0) {
       throw new IllegalArgumentException("nativeTrack may not be null");
     }
-    this.nativeTrack = nativeTrack;
+    this.lifecycleLock = new NativeLifecycleLock("MediaStreamTrack", nativeTrack);
   }
 
   public String id() {
-    checkMediaStreamTrackExists();
-    return MediaStreamTrackJni.get().getId(nativeTrack);
+    return lifecycleLock.call(nativeTrack -> MediaStreamTrackJni.get().getId(nativeTrack));
   }
 
   public String kind() {
-    checkMediaStreamTrackExists();
-    return MediaStreamTrackJni.get().getKind(nativeTrack);
+    return lifecycleLock.call(nativeTrack -> MediaStreamTrackJni.get().getKind(nativeTrack));
   }
 
   public boolean enabled() {
-    checkMediaStreamTrackExists();
-    return MediaStreamTrackJni.get().getEnabled(nativeTrack);
+    return lifecycleLock.call(nativeTrack -> MediaStreamTrackJni.get().getEnabled(nativeTrack));
   }
 
   public boolean setEnabled(boolean enable) {
-    checkMediaStreamTrackExists();
-    return MediaStreamTrackJni.get().setEnabled(nativeTrack, enable);
+    return lifecycleLock.call(
+        nativeTrack -> MediaStreamTrackJni.get().setEnabled(nativeTrack, enable));
   }
 
   public State state() {
-    checkMediaStreamTrackExists();
-    return MediaStreamTrackJni.get().getState(nativeTrack);
+    return lifecycleLock.call(nativeTrack -> MediaStreamTrackJni.get().getState(nativeTrack));
   }
 
   public void dispose() {
-    checkMediaStreamTrackExists();
-    JniCommon.nativeReleaseRef(nativeTrack);
-    nativeTrack = 0;
+    lifecycleLock.dispose(JniCommon::nativeReleaseRef);
   }
 
   long getNativeMediaStreamTrack() {
-    checkMediaStreamTrackExists();
-    return nativeTrack;
-  }
-
-  private void checkMediaStreamTrackExists() {
-    if (nativeTrack == 0) {
-      throw new IllegalStateException("MediaStreamTrack has been disposed.");
-    }
+    return lifecycleLock.getNativePointer();
   }
 
   @NativeMethods
