@@ -21,10 +21,10 @@
 #include "api/audio/echo_canceller3_config.h"
 #include "api/audio/neural_residual_echo_estimator.h"
 #include "api/audio/tflite_model_handle.h"
+#include "api/environment/environment.h"
 #include "api/ref_count.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_base.h"
-#include "api/task_queue/task_queue_factory.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/neural_residual_echo_estimator/neural_feature_extractor.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
@@ -75,7 +75,7 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
   // `IsInitialized()` to poll for when the estimator starts producing real
   // estimates.
   static absl_nonnull std::unique_ptr<NeuralResidualEchoEstimator> CreateAsync(
-      TaskQueueFactory& task_queue_factory,
+      const Environment& env,
       std::unique_ptr<tflite::OpResolver> op_resolver,
       scoped_refptr<TfliteModelHandle> model_handle);
 
@@ -149,7 +149,7 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
 
   // Constructor used for async initialization. See CreateAsync for details.
   NeuralResidualEchoEstimatorImpl(
-      TaskQueueFactory& task_queue_factory,
+      const Environment& env,
       std::unique_ptr<tflite::OpResolver> op_resolver,
       scoped_refptr<TfliteModelHandle> model_handle);
 
