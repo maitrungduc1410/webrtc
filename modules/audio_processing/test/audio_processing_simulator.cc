@@ -417,7 +417,7 @@ void AudioProcessingSimulator::DetachAecDump() {
 }
 
 void AudioProcessingSimulator::ConfigureAudioProcessor() {
-  AudioProcessing::Config apm_config;
+  AudioProcessing::Config apm_config = ap_->GetConfig();
   if (settings_.use_ts) {
     apm_config.transient_suppression.enabled = *settings_.use_ts != 0;
   }

@@ -770,7 +770,9 @@ EchoCanceller3Config ReadAec3ConfigFromJsonFile(absl::string_view filename) {
 void SetDependencies(const SimulationSettings& settings,
                      BuiltinAudioProcessingBuilder& builder,
                      AudioProcessingBuilderState& builder_state) {
-  EchoCanceller3Config aec3_config;
+  EchoCanceller3Config aec3_config =
+      builder.echo_canceller_config().value_or(EchoCanceller3Config());
+  bool modify_aec_config = false;
   if (settings.neural_echo_residual_estimator_model) {
     tflite::ops::builtin::BuiltinOpResolver op_resolver;
     builder_state.model = tflite::FlatBufferModel::BuildFromFile(
@@ -788,10 +790,12 @@ void SetDependencies(const SimulationSettings& settings,
       std::cout << "Reading AEC Parameters from JSON input." << std::endl;
     }
     aec3_config = ReadAec3ConfigFromJsonFile(*settings.aec_settings_filename);
+    modify_aec_config = true;
   }
 
   if (settings.linear_aec_output_filename) {
     aec3_config.filter.export_linear_aec_output = true;
+    modify_aec_config = true;
   }
 
   if (settings.print_aec_parameter_values) {
@@ -800,7 +804,11 @@ void SetDependencies(const SimulationSettings& settings,
     }
     std::cout << Aec3ConfigToJsonString(aec3_config) << std::endl;
   }
-  builder.SetEchoCancellerConfig(aec3_config, std::nullopt);
+
+  if (modify_aec_config) {
+    builder.SetEchoCancellerConfig(
+        aec3_config, builder.echo_canceller_multichannel_config());
+  }
 
   if (settings.use_ed && *settings.use_ed) {
     builder.SetEchoDetector(CreateEchoDetector());
