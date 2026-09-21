@@ -670,8 +670,7 @@ TEST_F(SdpMungingTest, IceOptions) {
   std::unique_ptr<SessionDescriptionInterface> offer = pc->CreateOffer();
   auto& transport_infos = offer->description()->transport_infos();
   ASSERT_EQ(transport_infos.size(), 1u);
-  transport_infos[0].description.transport_options.push_back(
-      "something-unsupported");
+  transport_infos[0].description.AddOption("somethingunsupported");
   RTCError error;
   EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
   EXPECT_THAT(
@@ -688,8 +687,7 @@ TEST_F(SdpMungingTest, IceOptionsRenomination) {
   ASSERT_EQ(transport_infos.size(), 1u);
   ASSERT_THAT(transport_infos[0].description.transport_options,
               ElementsAre("trickle"));
-  transport_infos[0].description.transport_options.push_back(
-      ICE_OPTION_RENOMINATION);
+  transport_infos[0].description.AddOption(ICE_OPTION_RENOMINATION);
   RTCError error;
   EXPECT_TRUE(pc->SetLocalDescription(std::move(offer), &error));
   EXPECT_THAT(
@@ -742,7 +740,7 @@ TEST_F(SdpMungingTest, IceOptionsAddSpedDisallowed) {
   ASSERT_EQ(transport_infos.size(), 1u);
   ASSERT_THAT(transport_infos[0].description.transport_options,
               ElementsAre("trickle"));
-  transport_infos[0].description.transport_options.push_back("sped");
+  transport_infos[0].description.AddOption("sped");
   RTCError error;
   EXPECT_FALSE(pc->SetLocalDescription(std::move(offer), &error));
   EXPECT_THAT(
