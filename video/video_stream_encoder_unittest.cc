@@ -284,16 +284,14 @@ class CpuOveruseDetectorProxy : public OveruseFrameDetector {
   CpuOveruseDetectorProxy(const Environment& env,
                           CpuOveruseMetricsObserver* metrics_observer)
       : OveruseFrameDetector(env, metrics_observer),
-        last_target_framerate_fps_(-1),
-        framerate_updated_event_(true /* manual_reset */,
-                                 false /* initially_signaled */) {}
+        last_target_framerate_fps_(-1) {}
   ~CpuOveruseDetectorProxy() override {}
 
   void OnTargetFramerateUpdated(int framerate_fps) override {
     MutexLock lock(&lock_);
     last_target_framerate_fps_ = framerate_fps;
     OveruseFrameDetector::OnTargetFramerateUpdated(framerate_fps);
-    framerate_updated_event_.Set();
+    framerate_updated_ = true;
   }
 
   int GetLastTargetFramerate() {
@@ -303,12 +301,19 @@ class CpuOveruseDetectorProxy : public OveruseFrameDetector {
 
   CpuOveruseOptions GetOptions() { return options_; }
 
-  Event* framerate_updated_event() { return &framerate_updated_event_; }
+  // Returns whether OnTargetFramerateUpdated() has been called since the
+  // previous call to this method, and clears the flag.
+  bool ConsumeFramerateUpdated() {
+    MutexLock lock(&lock_);
+    bool framerate_updated = framerate_updated_;
+    framerate_updated_ = false;
+    return framerate_updated;
+  }
 
  private:
   Mutex lock_;
   int last_target_framerate_fps_ RTC_GUARDED_BY(lock_);
-  Event framerate_updated_event_;
+  bool framerate_updated_ RTC_GUARDED_BY(lock_) = false;
 };
 
 auto WantsFps(Matcher<int> fps_matcher) {
@@ -459,10 +464,9 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
   void SetSourceAndWaitForFramerateUpdated(
       VideoSourceInterface<VideoFrame>* source,
       const DegradationPreference& degradation_preference) {
-    overuse_detector_proxy_->framerate_updated_event()->Reset();
     SetSource(source, degradation_preference);
-    overuse_detector_proxy_->framerate_updated_event()->Wait(
-        TimeDelta::Seconds(5));
+    // The target framerate is updated on the encoder queue.
+    WaitUntilTaskQueueIsIdle();
   }
 
   void OnBitrateUpdatedAndWaitForManagedResources(DataRate target_bitrate,
@@ -484,43 +488,32 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
 
   // Triggers resource usage measurements on the fake CPU resource.
   void TriggerCpuOveruse() {
-    Event event;
-    encoder_queue()->PostTask([this, &event] {
+    encoder_queue()->PostTask([this] {
       fake_cpu_resource_->SetUsageState(ResourceUsageState::kOveruse);
-      event.Set();
     });
-    ASSERT_TRUE(event.Wait(TimeDelta::Seconds(5)));
-    time_controller_->AdvanceTime(TimeDelta::Zero());
+    WaitUntilTaskQueueIsIdle();
   }
 
   void TriggerCpuUnderuse() {
-    Event event;
-    encoder_queue()->PostTask([this, &event] {
+    encoder_queue()->PostTask([this] {
       fake_cpu_resource_->SetUsageState(ResourceUsageState::kUnderuse);
-      event.Set();
     });
-    ASSERT_TRUE(event.Wait(TimeDelta::Seconds(5)));
-    time_controller_->AdvanceTime(TimeDelta::Zero());
+    WaitUntilTaskQueueIsIdle();
   }
 
   // Triggers resource usage measurements on the fake quality resource.
   void TriggerQualityLow() {
-    Event event;
-    encoder_queue()->PostTask([this, &event] {
+    encoder_queue()->PostTask([this] {
       fake_quality_resource_->SetUsageState(ResourceUsageState::kOveruse);
-      event.Set();
     });
-    ASSERT_TRUE(event.Wait(TimeDelta::Seconds(5)));
-    time_controller_->AdvanceTime(TimeDelta::Zero());
+    WaitUntilTaskQueueIsIdle();
   }
+
   void TriggerQualityHigh() {
-    Event event;
-    encoder_queue()->PostTask([this, &event] {
+    encoder_queue()->PostTask([this] {
       fake_quality_resource_->SetUsageState(ResourceUsageState::kUnderuse);
-      event.Set();
     });
-    ASSERT_TRUE(event.Wait(TimeDelta::Seconds(5)));
-    time_controller_->AdvanceTime(TimeDelta::Zero());
+    WaitUntilTaskQueueIsIdle();
   }
 
   TimeController* const time_controller_;
@@ -6149,15 +6142,13 @@ TEST_F(VideoStreamEncoderTest,
                                           kMaxPayloadLength);
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-      ->Reset();
+  video_stream_encoder_->overuse_detector_proxy_->ConsumeFramerateUpdated();
   video_source_.IncomingCapturedFrame(
       CreateFrame(2, kFrameWidth, kFrameHeight));
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  EXPECT_FALSE(
-      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-          ->Wait(TimeDelta::Millis(10)));
+  EXPECT_FALSE(video_stream_encoder_->overuse_detector_proxy_
+                   ->ConsumeFramerateUpdated());
 
   video_stream_encoder_->Stop();
 }
@@ -6184,15 +6175,13 @@ TEST_F(VideoStreamEncoderTest,
                                           kMaxPayloadLength);
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-      ->Reset();
+  video_stream_encoder_->overuse_detector_proxy_->ConsumeFramerateUpdated();
   video_source_.IncomingCapturedFrame(
       CreateFrame(2, kFrameWidth, kFrameHeight));
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  EXPECT_FALSE(
-      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-          ->Wait(TimeDelta::Millis(10)));
+  EXPECT_FALSE(video_stream_encoder_->overuse_detector_proxy_
+                   ->ConsumeFramerateUpdated());
 
   fake_encoder_.SetEnableCpuOveruseDetection(true);
   video_encoder_config = video_encoder_config_.Copy();
@@ -6200,15 +6189,13 @@ TEST_F(VideoStreamEncoderTest,
                                           kMaxPayloadLength);
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-      ->Reset();
+  video_stream_encoder_->overuse_detector_proxy_->ConsumeFramerateUpdated();
   video_source_.IncomingCapturedFrame(
       CreateFrame(3, kFrameWidth, kFrameHeight));
   video_stream_encoder_->WaitUntilTaskQueueIsIdle();
 
-  EXPECT_TRUE(
-      video_stream_encoder_->overuse_detector_proxy_->framerate_updated_event()
-          ->Wait(TimeDelta::Millis(10)));
+  EXPECT_TRUE(video_stream_encoder_->overuse_detector_proxy_
+                  ->ConsumeFramerateUpdated());
 
   video_stream_encoder_->Stop();
 }
