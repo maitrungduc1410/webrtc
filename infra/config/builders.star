@@ -477,8 +477,8 @@ lkgr_config = {
                 "WebRTC Chromium FYI Mac Builder (dbg)",
                 "WebRTC Chromium FYI Mac Builder",
                 "WebRTC Chromium FYI Mac Tester",
-                "WebRTC Chromium FYI Win Builder (dbg)",
                 # TODO(b/562984134): Re-enable once the infra issue is resolved
+                # "WebRTC Chromium FYI Win Builder (dbg)",
                 # "WebRTC Chromium FYI Win Builder",
                 # "WebRTC Chromium FYI Win Tester",
                 # TODO(b/441273941): Re-enable once the ios infra issue is resolved
