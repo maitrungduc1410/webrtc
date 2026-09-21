@@ -26,6 +26,7 @@
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_certificate.h"
 #include "rtc_base/ssl_fingerprint.h"
+#include "rtc_base/ssl_stream_adapter.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -338,6 +339,9 @@ TEST_F(TransportDescriptionFactoryTest, AddsTrickleIceOption) {
 }
 
 TEST_F(TransportDescriptionFactoryTest, AddsGoogSpedV1OptionWhenEnabled) {
+  if (!SSLStreamAdapter::IsBoringSsl()) {
+    GTEST_SKIP() << "DTLS-in-STUN needs boringssl.";
+  }
   FieldTrials field_trials =
       CreateTestFieldTrials("WebRTC-IceHandshakeDtls/Enabled/");
   TransportDescriptionFactory f1(field_trials);
@@ -420,6 +424,9 @@ TEST_F(TransportDescriptionFactoryTest,
 TEST_F(
     TransportDescriptionFactoryTest,
     DoesNotAddGoogSpedV1OptionToAnswerDuringRenegotiationIfMissingInCurrent) {
+  if (!SSLStreamAdapter::IsBoringSsl()) {
+    GTEST_SKIP() << "DTLS-in-STUN needs boringssl.";
+  }
   FieldTrials field_trials =
       CreateTestFieldTrials("WebRTC-IceHandshakeDtls/Enabled/");
   TransportDescriptionFactory f1(field_trials);

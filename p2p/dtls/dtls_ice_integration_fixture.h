@@ -428,6 +428,9 @@ class Base {
 
   Thread* thread(Endpoint& ep) {
     if (ep.emulated_network_manager == nullptr) {
+      if (time_controller_ == nullptr) {
+        return nullptr;
+      }
       return time_controller_->GetMainThread();
     } else {
       return ep.emulated_network_manager->network_thread();

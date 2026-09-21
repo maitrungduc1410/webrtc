@@ -1737,6 +1737,9 @@ class DtlsEventOrderingTest
     if (pqc && ::testing::get<2>(GetParam()) != SSL_PROTOCOL_DTLS_13) {
       GTEST_SKIP() << "PQC requires DTLS1.3";
     }
+    if (pqc && !SSLStreamAdapter::IsBoringSsl()) {
+      GTEST_SKIP() << "PQC needs boringssl.";
+    }
 
     SetPqc(::testing::get<3>(GetParam()));
     SetMaxProtocolVersions(::testing::get<2>(GetParam()),
@@ -2096,6 +2099,12 @@ TEST_P(DtlsTransportInternalImplDtlsInStunTest, PartiallyPiggybacked) {
 
 TEST_P(DtlsTransportInternalImplDtlsInStunTest,
        DtlsDoesNotSignalWritableUnlessIceWritableOnce) {
+  if (!SSLStreamAdapter::IsBoringSsl() &&
+      std::get<0>(GetParam()).dtls_in_stun &&
+      std::get<1>(GetParam()).dtls_in_stun) {
+    GTEST_SKIP() << "DTLS-in-STUN needs boringssl.";
+  }
+
   Prepare(/* rtt_estimate= */ false);
   AddPacketLogging();
 
