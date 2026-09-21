@@ -84,7 +84,6 @@
 #include "call/adaptation/test/fake_adaptation_constraint.h"
 #include "call/adaptation/test/fake_resource.h"
 #include "call/adaptation/video_source_restrictions.h"
-#include "call/adaptation/video_stream_adapter.h"
 #include "call/video_send_stream.h"
 #include "common_video/h264/h264_common.h"
 #include "media/engine/webrtc_video_engine.h"
@@ -312,32 +311,6 @@ class CpuOveruseDetectorProxy : public OveruseFrameDetector {
   Event framerate_updated_event_;
 };
 
-class FakeVideoSourceRestrictionsListener
-    : public VideoSourceRestrictionsListener {
- public:
-  FakeVideoSourceRestrictionsListener()
-      : was_restrictions_updated_(false), restrictions_updated_event_() {}
-  ~FakeVideoSourceRestrictionsListener() override {
-    RTC_DCHECK(was_restrictions_updated_);
-  }
-
-  Event* restrictions_updated_event() { return &restrictions_updated_event_; }
-
-  // VideoSourceRestrictionsListener implementation.
-  void OnVideoSourceRestrictionsUpdated(
-      VideoSourceRestrictions restrictions,
-      const VideoAdaptationCounters& adaptation_counters,
-      scoped_refptr<Resource> reason,
-      const VideoSourceRestrictions& unfiltered_restrictions) override {
-    was_restrictions_updated_ = true;
-    restrictions_updated_event_.Set();
-  }
-
- private:
-  bool was_restrictions_updated_;
-  Event restrictions_updated_event_;
-};
-
 auto WantsFps(Matcher<int> fps_matcher) {
   return Field("max_framerate_fps", &VideoSinkWants::max_framerate_fps,
                fps_matcher);
@@ -478,11 +451,9 @@ class VideoStreamEncoderUnderTest : public VideoStreamEncoder {
   void SetSourceAndWaitForRestrictionsUpdated(
       VideoSourceInterface<VideoFrame>* source,
       const DegradationPreference& degradation_preference) {
-    FakeVideoSourceRestrictionsListener listener;
-    AddRestrictionsListenerForTesting(&listener);
     SetSource(source, degradation_preference);
-    listener.restrictions_updated_event()->Wait(TimeDelta::Seconds(5));
-    RemoveRestrictionsListenerForTesting(&listener);
+    // Restrictions are updated on the encoder queue.
+    WaitUntilTaskQueueIsIdle();
   }
 
   void SetSourceAndWaitForFramerateUpdated(

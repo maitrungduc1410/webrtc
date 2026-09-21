@@ -2686,30 +2686,6 @@ void VideoStreamEncoder::InjectAdaptationConstraint(
   event.Wait(Event::kForever);
 }
 
-void VideoStreamEncoder::AddRestrictionsListenerForTesting(
-    VideoSourceRestrictionsListener* restrictions_listener) {
-  Event event;
-  encoder_queue_->PostTask([this, restrictions_listener, &event] {
-    RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    RTC_DCHECK(resource_adaptation_processor_);
-    video_stream_adapter_->AddRestrictionsListener(restrictions_listener);
-    event.Set();
-  });
-  event.Wait(Event::kForever);
-}
-
-void VideoStreamEncoder::RemoveRestrictionsListenerForTesting(
-    VideoSourceRestrictionsListener* restrictions_listener) {
-  Event event;
-  encoder_queue_->PostTask([this, restrictions_listener, &event] {
-    RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    RTC_DCHECK(resource_adaptation_processor_);
-    video_stream_adapter_->RemoveRestrictionsListener(restrictions_listener);
-    event.Set();
-  });
-  event.Wait(Event::kForever);
-}
-
 // RTC_RUN_ON(&encoder_queue_)
 void VideoStreamEncoder::ProcessDroppedFrame(
     const VideoFrame& frame,

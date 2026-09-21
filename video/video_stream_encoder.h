@@ -162,11 +162,6 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
                                 VideoAdaptationReason reason);
   void InjectAdaptationConstraint(AdaptationConstraint* adaptation_constraint);
 
-  void AddRestrictionsListenerForTesting(
-      VideoSourceRestrictionsListener* restrictions_listener);
-  void RemoveRestrictionsListenerForTesting(
-      VideoSourceRestrictionsListener* restrictions_listener);
-
  private:
   class CadenceCallback : public FrameCadenceAdapterInterface::Callback {
    public:
