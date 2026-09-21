@@ -46,7 +46,6 @@
 #include "modules/rtp_rtcp/source/rtp_sender_video.h"
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
-#include "rtc_base/rate_limiter.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
@@ -93,7 +92,6 @@ class RtpVideoSender : public RtpVideoSenderInterface,
       Transport* send_transport,
       const RtpSenderObservers& observers,
       RtpTransportControllerSendInterface* transport,
-      RateLimiter* retransmission_limiter,  // move inside RtpTransport
       std::unique_ptr<FecController> fec_controller,
       FrameEncryptorInterface* frame_encryptor,
       const CryptoOptions& crypto_options,  // move inside RtpTransport

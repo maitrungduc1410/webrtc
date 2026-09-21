@@ -228,7 +228,6 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
     Transport* send_transport,
     RtpTransportControllerSendInterface* transport,
     const std::map<uint32_t, RtpState>& suspended_ssrcs,
-    RateLimiter* retransmission_rate_limiter,
     FrameEncryptorInterface* frame_encryptor,
     const CryptoOptions& crypto_options,
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
@@ -252,9 +251,6 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
   configuration.paced_sender = transport->packet_sender();
   configuration.send_bitrate_observer = observers.bitrate_observer;
   configuration.send_packet_observer = observers.send_packet_observer;
-  if (env.field_trials().IsDisabled("WebRTC-DisableRtxRateLimiter")) {
-    configuration.retransmission_rate_limiter = retransmission_rate_limiter;
-  }
   configuration.rtp_stats_callback = observers.rtp_stats;
   configuration.frame_encryptor = frame_encryptor;
   configuration.require_frame_encryption =
@@ -391,7 +387,6 @@ RtpVideoSender::RtpVideoSender(
     Transport* send_transport,
     const RtpSenderObservers& observers,
     RtpTransportControllerSendInterface* transport,
-    RateLimiter* retransmission_limiter,
     std::unique_ptr<FecController> fec_controller,
     FrameEncryptorInterface* frame_encryptor,
     const CryptoOptions& crypto_options,
@@ -411,7 +406,6 @@ RtpVideoSender::RtpVideoSender(
                                           send_transport,
                                           transport,
                                           suspended_ssrcs,
-                                          retransmission_limiter,
                                           frame_encryptor,
                                           crypto_options,
                                           std::move(frame_transformer))),

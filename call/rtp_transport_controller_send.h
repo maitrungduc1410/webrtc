@@ -54,7 +54,6 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
 #include "rtc_base/containers/flat_map.h"
 #include "rtc_base/network_route.h"
-#include "rtc_base/rate_limiter.h"
 #include "rtc_base/task_utils/repeating_task.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -244,9 +243,6 @@ class RtpTransportControllerSend final
   // Count of feedback messages received.
   int feedback_count_ RTC_GUARDED_BY(worker_thread_) = 0;
   int transport_cc_feedback_count_ RTC_GUARDED_BY(worker_thread_) = 0;
-
-  // Protected by internal locks.
-  RateLimiter retransmission_rate_limiter_;
 
   ScopedTaskSafety safety_;
 };

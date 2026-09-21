@@ -62,7 +62,6 @@
 
 namespace webrtc {
 namespace {
-const int64_t kRetransmitWindowSizeMs = 500;
 
 constexpr TimeDelta kPacerQueueUpdateInterval = TimeDelta::Millis(25);
 
@@ -119,8 +118,7 @@ RtpTransportControllerSend::RtpTransportControllerSend(
           env_.field_trials().IsEnabled("WebRTC-Bwe-ResetOnAdapterIdChange")),
       network_available_(false),
       congestion_window_size_(DataSize::PlusInfinity()),
-      is_congested_(false),
-      retransmission_rate_limiter_(&env_.clock(), kRetransmitWindowSizeMs) {
+      is_congested_(false) {
   RTC_DCHECK(worker_thread_);
   initial_config_.constraints =
       ConvertConstraints(config.bitrate_config, &env_.clock());
@@ -152,8 +150,7 @@ RtpVideoSenderInterface* RtpTransportControllerSend::CreateRtpVideoSender(
       rtcp_report_interval_ms, send_transport, observers,
       // TODO(holmer): Remove this circular dependency by injecting
       // the parts of RtpTransportControllerSendInterface that are really used.
-      this, &retransmission_rate_limiter_, std::move(fec_controller),
-      frame_encryption_config.frame_encryptor,
+      this, std::move(fec_controller), frame_encryption_config.frame_encryptor,
       frame_encryption_config.crypto_options, std::move(frame_transformer)));
   return video_rtp_senders_.back().get();
 }
@@ -207,7 +204,6 @@ void RtpTransportControllerSend::UpdateControlState() {
   std::optional<TargetTransferRate> update = control_handler_->GetUpdate();
   if (!update)
     return;
-  retransmission_rate_limiter_.SetMaxRate(update->target_rate.bps());
   // We won't create control_handler_ until we have an observers.
   RTC_DCHECK(observer_ != nullptr);
   observer_->OnTargetTransferRate(*update);
