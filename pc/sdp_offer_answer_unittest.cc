@@ -72,6 +72,7 @@ namespace webrtc {
 
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::NotNull;
 using ::testing::Optional;
@@ -751,14 +752,39 @@ TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsNegotiationNeeded) {
       caller->observer()->latest_negotiation_needed_event()));
 }
 
-TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsSetConfiguration) {
+TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsCanNotBeEnabledLater) {
   RTCConfiguration config;
   config.always_negotiate_data_channels = false;
   auto caller = CreatePeerConnection(config, /*field_trials=*/"");
 
   RTCConfiguration pc_config = caller->pc()->GetConfiguration();
   pc_config.always_negotiate_data_channels = true;
-  EXPECT_FALSE(caller->pc()->SetConfiguration(pc_config).ok());
+  EXPECT_EQ(caller->pc()->SetConfiguration(pc_config).type(),
+            RTCErrorType::INVALID_MODIFICATION);
+
+  // No data channels are created and none are negotiated.
+  auto offer = caller->CreateOffer();
+  ASSERT_THAT(offer, NotNull());
+  EXPECT_THAT(offer->description()->contents(), IsEmpty());
+}
+
+TEST_F(SdpOfferAnswerTest, AlwaysNegotiateDataChannelsCanNotBeDisabledLater) {
+  RTCConfiguration config;
+  config.always_negotiate_data_channels = true;
+  auto caller = CreatePeerConnection(config, /*field_trials=*/"");
+
+  RTCConfiguration pc_config = caller->pc()->GetConfiguration();
+  pc_config.always_negotiate_data_channels = false;
+  EXPECT_EQ(caller->pc()->SetConfiguration(pc_config).type(),
+            RTCErrorType::INVALID_MODIFICATION);
+
+  // No data channels are created but one is negotiated.
+  auto offer = caller->CreateOffer();
+  ASSERT_THAT(offer, NotNull());
+
+  auto& contents = offer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(1));
+  EXPECT_EQ(MediaProtocolType::kSctp, contents[0].type);
 }
 #endif  // WEBRTC_HAVE_SCTP
 

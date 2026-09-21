@@ -296,6 +296,10 @@ RTCError ValidateIceCandidatePoolSize(
 // If the result of creating a modified configuration doesn't pass the above
 // `operator==` test or a call to `ValidateConfiguration()`, then the function
 // will return an error. Otherwise, the return value will be the new config.
+// Properties left out of the copy list can not be modified after construction:
+//   - bundle_policy and rtcp_mux_policy, per RFC 8829 section 4.1.18.
+//   - always_negotiate_data_channels, similar to bundle_policy.
+//   - certificates.
 RTCErrorOr<PeerConnectionInterface::RTCConfiguration> ApplyConfiguration(
     const PeerConnectionInterface::RTCConfiguration& configuration,
     const PeerConnectionInterface::RTCConfiguration& existing_configuration) {
