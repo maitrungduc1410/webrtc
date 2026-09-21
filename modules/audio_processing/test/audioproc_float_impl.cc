@@ -264,10 +264,6 @@ ABSL_FLAG(bool,
           false,
           "Avoid producing information about the progress.");
 ABSL_FLAG(bool,
-          bitexactness_report,
-          false,
-          "Report bitexactness for aec dump result reproduction");
-ABSL_FLAG(bool,
           discard_settings_in_aecdump,
           false,
           "Discard any config settings specified in the aec dump");
@@ -505,7 +501,6 @@ SimulationSettings CreateSettings() {
       &settings.use_adaptive_stereo_downmixing_for_aec);
   settings.use_verbose_logging = absl::GetFlag(FLAGS_verbose);
   settings.use_quiet_output = absl::GetFlag(FLAGS_quiet);
-  settings.report_bitexactness = absl::GetFlag(FLAGS_bitexactness_report);
   settings.discard_all_settings_in_aecdump =
       absl::GetFlag(FLAGS_discard_settings_in_aecdump);
   settings.fixed_interface = absl::GetFlag(FLAGS_fixed_interface);
@@ -628,10 +623,6 @@ void PerformBasicParameterSanityChecks(const SimulationSettings& settings) {
           ((*settings.ns_level) < 0 || (*settings.ns_level) > 3),
       "Error: --ns_level must be specified between 0 and 3.\n");
 
-  ReportConditionalErrorAndExit(
-      settings.report_bitexactness && !settings.aec_dump_input_filename,
-      "Error: --bitexactness_report can only be used when operating on an "
-      "aecdump\n");
 
   ReportConditionalErrorAndExit(
       settings.call_order_input_filename && settings.aec_dump_input_filename,
@@ -865,13 +856,6 @@ int RunSimulation(
         *settings.performance_report_output_filename);
   }
 
-  if (settings.report_bitexactness && settings.aec_dump_input_filename) {
-    if (processor->OutputWasBitexact()) {
-      std::cout << "The processing was bitexact.";
-    } else {
-      std::cout << "The processing was not bitexact.";
-    }
-  }
   return 0;
 }
 
