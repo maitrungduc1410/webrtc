@@ -38,7 +38,7 @@ class RTC_LOCKABLE MutexImpl final {
   void Lock() RTC_EXCLUSIVE_LOCK_FUNCTION() {
     EnterCriticalSection(&critical_section_);
   }
-  ABSL_MUST_USE_RESULT bool TryLock() RTC_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
+  [[nodiscard]] bool TryLock() RTC_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
     return TryEnterCriticalSection(&critical_section_) != FALSE;
   }
   void AssertHeld() const RTC_ASSERT_EXCLUSIVE_LOCK() {}
