@@ -491,9 +491,8 @@ void AudioProcessingSimulator::ConfigureAudioProcessor() {
         *settings_.post_gain_factor;
   }
 
-  const bool use_aec = settings_.use_aec && *settings_.use_aec;
-  if (use_aec) {
-    apm_config.echo_canceller.enabled = true;
+  if (settings_.use_aec) {
+    apm_config.echo_canceller.enabled = *settings_.use_aec;
   }
   apm_config.echo_canceller.export_linear_aec_output =
       !!settings_.linear_aec_output_filename;
