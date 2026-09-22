@@ -17,6 +17,7 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
@@ -86,6 +87,16 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
     kNone,
     kVideoLayersAllocation
   };
+
+  // Adaptation resources and constraints to register while constructing the
+  // encoder. Only used by tests; production code leaves this empty.
+  // TODO(eshr): Move all adaptation tests out of VideoStreamEncoder tests.
+  struct AdaptationInjectionsForTest {
+    std::vector<std::pair<scoped_refptr<Resource>, VideoAdaptationReason>>
+        resources;
+    std::vector<AdaptationConstraint*> constraints;
+  };
+
   VideoStreamEncoder(
       const Environment& env,
       uint32_t number_of_cores,
@@ -97,7 +108,8 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
       BitrateAllocationCallbackType allocation_cb_type,
       scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
           encoder_selector = nullptr,
-      EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr);
+      EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
+      AdaptationInjectionsForTest adaptation_injections_for_test = {});
   ~VideoStreamEncoder() override;
 
   VideoStreamEncoder(const VideoStreamEncoder&) = delete;
@@ -151,12 +163,6 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
       const VideoAdaptationCounters& adaptation_counters,
       scoped_refptr<Resource> reason,
       const VideoSourceRestrictions& unfiltered_restrictions) override;
-
-  // Used for injected test resources.
-  // TODO(eshr): Move all adaptation tests out of VideoStreamEncoder tests.
-  void InjectAdaptationResource(scoped_refptr<Resource> resource,
-                                VideoAdaptationReason reason);
-  void InjectAdaptationConstraint(AdaptationConstraint* adaptation_constraint);
 
  private:
   class CadenceCallback : public FrameCadenceAdapterInterface::Callback {

@@ -61,7 +61,6 @@
 #include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder.h"
 #include "api/video_codecs/video_encoder_factory.h"
-#include "call/adaptation/adaptation_constraint.h"
 #include "call/adaptation/degradation_preference_provider.h"
 #include "call/adaptation/encoder_settings.h"
 #include "call/adaptation/resource_adaptation_processor.h"
@@ -674,7 +673,8 @@ VideoStreamEncoder::VideoStreamEncoder(
     BitrateAllocationCallbackType allocation_cb_type,
     scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
         encoder_selector,
-    EncoderSwitchRequestCallback encoder_switch_request_callback)
+    EncoderSwitchRequestCallback encoder_switch_request_callback,
+    AdaptationInjectionsForTest adaptation_injections_for_test)
     : env_(env),
       worker_queue_(TaskQueueBase::Current()),
       number_of_cores_(number_of_cores),
@@ -736,7 +736,8 @@ VideoStreamEncoder::VideoStreamEncoder(
   frame_cadence_adapter_->Initialize(&cadence_callback_);
   stream_resource_manager_.Initialize(encoder_queue_.get());
 
-  encoder_queue_->PostTask([this] {
+  encoder_queue_->PostTask([this, injections = std::move(
+                                      adaptation_injections_for_test)] {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
 
     resource_adaptation_processor_ =
@@ -754,6 +755,16 @@ VideoStreamEncoder::VideoStreamEncoder(
     // Add the stream resource manager's resources to the processor.
     adaptation_constraints_ = stream_resource_manager_.AdaptationConstraints();
     for (auto* constraint : adaptation_constraints_) {
+      video_stream_adapter_->AddAdaptationConstraint(constraint);
+    }
+
+    // Add any resources and constraints injected by tests.
+    for (const auto& [resource, reason] : injections.resources) {
+      additional_resources_.push_back(resource);
+      stream_resource_manager_.AddResource(resource, reason);
+    }
+    for (auto* constraint : injections.constraints) {
+      adaptation_constraints_.push_back(constraint);
       video_stream_adapter_->AddAdaptationConstraint(constraint);
     }
   });
@@ -2657,33 +2668,6 @@ void VideoStreamEncoder::ReleaseEncoder() {
   encoder_initialized_ = false;
   frame_instrumentation_generator_.reset();
   TRACE_EVENT0("webrtc", "VCMGenericEncoder::Release");
-}
-
-void VideoStreamEncoder::InjectAdaptationResource(
-    scoped_refptr<Resource> resource,
-    VideoAdaptationReason reason) {
-  encoder_queue_->PostTask([this, resource = std::move(resource), reason] {
-    RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    additional_resources_.push_back(resource);
-    stream_resource_manager_.AddResource(resource, reason);
-  });
-}
-
-void VideoStreamEncoder::InjectAdaptationConstraint(
-    AdaptationConstraint* adaptation_constraint) {
-  Event event;
-  encoder_queue_->PostTask([this, adaptation_constraint, &event] {
-    RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    if (!resource_adaptation_processor_) {
-      // The VideoStreamEncoder was stopped and the processor destroyed before
-      // this task had a chance to execute. No action needed.
-      return;
-    }
-    adaptation_constraints_.push_back(adaptation_constraint);
-    video_stream_adapter_->AddAdaptationConstraint(adaptation_constraint);
-    event.Set();
-  });
-  event.Wait(Event::kForever);
 }
 
 // RTC_RUN_ON(&encoder_queue_)
