@@ -13,6 +13,7 @@ modules_tests_resources = [
   "audio_coding/testfile32kHz.pcm",
   "audio_coding/teststereo32kHz.pcm",
 ]
+
 group("modules_tests_data") {
   data = modules_tests_resources
 }
@@ -88,6 +89,7 @@ audio_processing_unittests_resources = [
   "short_mixed_stereo_48.dat",
   "short_mixed_stereo_48.pcm",
 ]
+
 group("audio_processing_unittests_data") {
   data = audio_processing_unittests_resources
 }
@@ -99,7 +101,7 @@ if (is_ios) {
   }
 }
 
-modules_unittests_resources = [
+audio_coding_unittests_resources = [
   "audio_coding/neteq_opus.rtp",
   "audio_coding/neteq_opus_dtx.rtp",
   "audio_coding/neteq_universal_new.rtp",
@@ -110,13 +112,27 @@ modules_unittests_resources = [
   "audio_coding/testfile32kHz.pcm",
   "audio_coding/testfile_fake_stereo_32kHz.pcm",
   "audio_coding/teststereo32kHz.pcm",
+  "near48_mono.pcm",
+  "near48_stereo.pcm",
+]
+
+group("audio_coding_unittests_data") {
+  data = audio_coding_unittests_resources
+}
+if (is_ios) {
+  bundle_data("audio_coding_unittests_bundle_data") {
+    testonly = true
+    sources = audio_coding_unittests_resources
+    outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
+  }
+}
+
+modules_unittests_resources = [
   "audio_device/audio_short16.pcm",
   "audio_device/audio_short44.pcm",
   "audio_device/audio_short48.pcm",
   "foreman_cif.yuv",
   "foreman_cif_short.yuv",
-  "near48_mono.pcm",
-  "near48_stereo.pcm",
   "remote_bitrate_estimator/VideoSendersTest_BweTest_IncreasingChoke1_0_AST.bin",
   "remote_bitrate_estimator/VideoSendersTest_BweTest_IncreasingChoke1_0_TOF.bin",
   "remote_bitrate_estimator/VideoSendersTest_BweTest_IncreasingChoke1_1_AST.bin",
@@ -143,6 +159,7 @@ modules_unittests_resources = [
   "remote_bitrate_estimator/VideoSendersTest_BweTest_UnlimitedSpeed_0_TOF.bin",
   "voice_engine/audio_tiny48.wav",
 ]
+
 group("modules_unittests_data") {
   data = modules_unittests_resources
 }
@@ -167,6 +184,7 @@ webrtc_perf_tests_resources = [
   "voice_engine/audio_long16.pcm",
   "web_screenshot_1850_1110.yuv",
 ]
+
 group("webrtc_perf_tests_data") {
   data = webrtc_perf_tests_resources
 }
@@ -183,6 +201,7 @@ video_engine_tests_resources = [
   "foreman_cif_short.yuv",
   "voice_engine/audio_long16.pcm",
 ]
+
 group("video_engine_tests_data") {
   data = video_engine_tests_resources
 }
@@ -193,6 +212,7 @@ scenario_config_resources = [
   "presentation_1850_1110.yuv",
   "web_screenshot_1850_1110.yuv",
 ]
+
 group("scenario_config_resources") {
   data = scenario_config_resources
 }

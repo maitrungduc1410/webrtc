@@ -65,6 +65,7 @@ if (rtc_include_tests && !build_with_chromium) {
       tests += [ "video_coding:videocodec_test_videotoolbox" ]
     }
   }
+
   rtc_test("modules_unittests") {
     testonly = true
 
@@ -74,13 +75,11 @@ if (rtc_include_tests && !build_with_chromium) {
       ":module_common_types_public_unittest",
       "../test:run_loop",
       "../test:test_support",
-      "audio_coding:audio_coding_unittests",
       "audio_device:audio_device_unittests",
       "audio_mixer:audio_mixer_unittests",
       "congestion_controller:congestion_controller_unittests",
       "pacing:pacing_unittests",
       "remote_bitrate_estimator:remote_bitrate_estimator_unittests",
-      "rtp_rtcp:rtp_rtcp_unittests",
       "sframe:sframe_unittests",
       "video_coding:video_coding_unittests",
       "video_coding/timing:timing_unittests",
