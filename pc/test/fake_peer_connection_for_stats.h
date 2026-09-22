@@ -317,9 +317,7 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
         worker_thread_(network_thread_),
         signaling_thread_(Thread::Current()),
         // TODO(hta): remove separate thread variables and use context.
-        dependencies_(MakeDependencies(signaling_thread_,
-                                       worker_thread_,
-                                       network_thread_)),
+        dependencies_(MakeDependencies(signaling_thread_, network_thread_)),
         context_(ConnectionContext::Create(env, &dependencies_)),
         local_streams_(StreamCollection::Create()),
         remote_streams_(StreamCollection::Create()),
@@ -353,11 +351,9 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
 
   static PeerConnectionFactoryDependencies MakeDependencies(
       Thread* signaling_thread,
-      Thread* worker_thread,
       Thread* network_thread) {
     PeerConnectionFactoryDependencies dependencies;
     dependencies.network_thread = network_thread;
-    dependencies.worker_thread = worker_thread;
     dependencies.signaling_thread = signaling_thread;
     EnableFakeMedia(dependencies);
     return dependencies;
