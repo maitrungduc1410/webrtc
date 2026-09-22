@@ -176,8 +176,7 @@ RTCErrorOr<Codec> AssignPayloadType(const SdpVideoFormat& format,
                                     PayloadTypePicker& pt_mapper,
                                     const FieldTrialsView& trials) {
   Codec codec = CreateVideoCodec(format);
-  RTCErrorOr<PayloadType> result =
-      pt_mapper.SuggestMapping(codec, /* excluder= */ nullptr);
+  RTCErrorOr<PayloadType> result = pt_mapper.SuggestMapping(codec);
   if (!result.ok()) {
     return result.MoveError();
   }
@@ -191,8 +190,7 @@ RTCErrorOr<Codec> AssignPayloadType(const SdpVideoFormat& format,
 RTCErrorOr<Codec> AddRtx(const Codec& primary_codec,
                          PayloadTypePicker& pt_mapper) {
   Codec rtx_codec = CreateVideoRtxCodec(Codec::kIdNotSet, primary_codec.id);
-  RTCErrorOr<PayloadType> result =
-      pt_mapper.SuggestMapping(rtx_codec, /* excluder= */ nullptr);
+  RTCErrorOr<PayloadType> result = pt_mapper.SuggestMapping(rtx_codec);
   if (!result.ok()) {
     return result.MoveError();
   }

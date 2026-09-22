@@ -74,8 +74,7 @@ RTCErrorOr<PayloadType> SdpPayloadTypeSuggester::SuggestPayloadType(
     // Fall through to SuggestMapping.
   }
   RTCErrorOr<PayloadType> suggested_result =
-      payload_type_picker_.SuggestMapping(codec, &local_recorder,
-                                          pick_from_top_of_range);
+      payload_type_picker_.SuggestMapping(codec, pick_from_top_of_range);
   if (suggested_result.ok()) {
     local_recorder.AddMapping(suggested_result.value(), codec);
   }
@@ -178,11 +177,9 @@ SdpPayloadTypeSuggester::LookupBundleRecorder(absl::string_view mid) {
     // Not in a group.
     transport_mapped_name = mid;
   }
-  if (!recorder_by_mid_.contains(transport_mapped_name)) {
-    recorder_by_mid_.emplace(std::make_pair(
-        transport_mapped_name, BundleTypeRecorder(payload_type_picker_, env_)));
-  }
-  return recorder_by_mid_.at(transport_mapped_name);
+  return recorder_by_mid_
+      .try_emplace(std::move(transport_mapped_name), payload_type_picker_, env_)
+      .first->second;
 }
 
 }  // namespace webrtc

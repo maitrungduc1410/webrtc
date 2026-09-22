@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "api/audio_codecs/audio_format.h"
@@ -29,6 +30,7 @@
 #include "media/base/codec_comparators.h"
 #include "media/base/media_constants.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/containers/flat_set.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/string_encode.h"
@@ -207,11 +209,11 @@ PayloadTypePicker::PayloadTypePicker() {
   for (const MapTableEntry& entry : default_audio_mappings) {
     AddMapping(PayloadType(entry.payload_type), CreateAudioCodec(entry.format));
   }
+  default_payload_types_ = seen_payload_types_;
 }
 
 RTCErrorOr<PayloadType> PayloadTypePicker::SuggestMapping(
     Codec codec,
-    const PayloadTypeRecorder* excluder,
     bool pick_from_top_of_range) {
   // Test compatibility: If the codec contains a PT, and it is free and valid,
   // use it. This saves having to rewrite tests that set the codec ID
@@ -221,20 +223,24 @@ RTCErrorOr<PayloadType> PayloadTypePicker::SuggestMapping(
     AddMapping(PayloadType(codec.id), codec);
     return PayloadType(codec.id);
   }
-  // The first matching entry is returned, unless excluder
-  // maps it to something different.
+  // The first matching entry is returned.
   auto relaxed_comparator = [](PayloadType a, PayloadType b) {
     return a == b || a == PayloadType::NotSet() || b == PayloadType::NotSet();
   };
   for (const MapEntry& entry : entries_) {
     if (MatchesWithReferenceAttributesAndComparator(entry.codec(), codec,
                                                     relaxed_comparator)) {
-      if (excluder) {
-        auto result = excluder->LookupCodec(entry.payload_type());
+      bool pt_in_use_by_other_codec = false;
+      for (const PayloadTypeRecorder* recorder : recorders_) {
+        auto result = recorder->LookupCodec(entry.payload_type());
         if (result.ok() && !MatchesWithReferenceAttributesAndComparator(
                                result.value(), codec, relaxed_comparator)) {
-          continue;
+          pt_in_use_by_other_codec = true;
+          break;
         }
+      }
+      if (pt_in_use_by_other_codec) {
+        continue;
       }
       AddMapping(entry.payload_type(), codec);
       return entry.payload_type();
@@ -250,6 +256,8 @@ RTCErrorOr<PayloadType> PayloadTypePicker::SuggestMapping(
 }
 
 RTCError PayloadTypePicker::AddMapping(PayloadType payload_type, Codec codec) {
+  // The payload type is reserved whether or not the mapping is already known.
+  seen_payload_types_.insert(payload_type);
   // Completely duplicate mappings are ignored.
   // Multiple mappings for the same codec and the same PT are legal;
   for (const MapEntry& entry : entries_) {
@@ -259,8 +267,6 @@ RTCError PayloadTypePicker::AddMapping(PayloadType payload_type, Codec codec) {
     }
   }
   entries_.emplace_back(MapEntry(payload_type, codec));
-  // Add the mapping to "seen" if it is not already present.
-  seen_payload_types_.emplace(payload_type);
   return RTCError::OK();
 }
 
@@ -274,6 +280,29 @@ std::optional<Codec> PayloadTypePicker::LookupCodec(
     }
   }
   return result;
+}
+
+void PayloadTypePicker::RegisterRecorder(
+    const PayloadTypeRecorder* absl_nonnull recorder) {
+  RTC_DCHECK(!recorders_.contains(recorder));
+  recorders_.insert(recorder);
+}
+
+void PayloadTypePicker::UnregisterRecorder(
+    const PayloadTypeRecorder* absl_nonnull recorder) {
+  RTC_DCHECK(recorders_.contains(recorder));
+  recorders_.erase(recorder);
+}
+
+void PayloadTypePicker::ReleaseUnusedPayloadTypes() {
+  flat_set<PayloadType> in_use = default_payload_types_;
+  for (const PayloadTypeRecorder* recorder : recorders_) {
+    recorder->AddPayloadTypesTo(in_use);
+  }
+  // `entries_` is deliberately left alone. It is the record of which payload
+  // type a codec was given the last time around, and reusing that payload type
+  // is what keeps assignments stable across renegotiations.
+  seen_payload_types_ = std::move(in_use);
 }
 
 RTCError PayloadTypeRecorder::AddMapping(PayloadType payload_type,
@@ -307,6 +336,7 @@ RTCError PayloadTypeRecorder::AddMapping(PayloadType payload_type,
     // Accept redefinition.
     accepted_definitions_.emplace(payload_type);
     payload_type_to_codec_.insert_or_assign(payload_type, codec);
+    suggester_.AddMapping(payload_type, codec);
     return RTCError::OK();
   }
   accepted_definitions_.emplace(payload_type);
@@ -319,6 +349,20 @@ std::vector<std::pair<PayloadType, Codec>> PayloadTypeRecorder::GetMappings()
     const {
   return std::vector<std::pair<PayloadType, Codec>>(
       payload_type_to_codec_.begin(), payload_type_to_codec_.end());
+}
+
+void PayloadTypeRecorder::AddPayloadTypesTo(
+    flat_set<PayloadType>& payload_types) const {
+  for (const auto& [payload_type, codec] : payload_type_to_codec_) {
+    payload_types.insert(payload_type);
+  }
+}
+
+void PayloadTypeRecorder::RetainOnly(
+    const flat_set<PayloadType>& payload_types) {
+  EraseIf(payload_type_to_codec_, [&](const auto& element) {
+    return !payload_types.contains(element.first);
+  });
 }
 
 RTCErrorOr<PayloadType> PayloadTypeRecorder::LookupPayloadType(
