@@ -49,7 +49,11 @@ rtc_library("ect1_policy") {
     "ect1_policy.h",
   ]
 
-  deps = [ "../../rtc_base:logging" ]
+  deps = [
+    "../../api/units:time_delta",
+    "../../api/units:timestamp",
+    "../../rtc_base:logging",
+  ]
 }
 
 if (rtc_include_tests) {
@@ -95,6 +99,8 @@ if (rtc_include_tests) {
     sources = [ "ect1_policy_unittest.cc" ]
     deps = [
       ":ect1_policy",
+      "../../api/units:time_delta",
+      "../../api/units:timestamp",
       "../../test:test_support",
     ]
   }

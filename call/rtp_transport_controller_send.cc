@@ -594,6 +594,9 @@ void RtpTransportControllerSend::NotifyBweOfPacedSentPacket(
   transport_feedback_adapter_.AddPacket(packet, pacing_info,
                                         transport_overhead_per_packet_.bytes(),
                                         creation_time);
+
+  ect1_policy_.OnPacketSent(creation_time, packet.send_as_ect1());
+  packet_router_.SetSendPacketsAsEct1(ect1_policy_.ShouldSendEct1());
 }
 
 void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
@@ -729,7 +732,8 @@ void RtpTransportControllerSend::HandleTransportPacketsFeedback(
   if (controller_) {
     PostUpdates(controller_->OnTransportPacketsFeedback(feedback));
   }
-  ect1_policy_.OnPacketsFeedback(feedback.HasPacketWithBleachedEct1());
+  ect1_policy_.OnPacketsFeedback(feedback.HasPacketWithBleachedEct1(),
+                                 feedback.HasPacketWithEcn());
   packet_router_.SetSendPacketsAsEct1(ect1_policy_.ShouldSendEct1());
 
   // Only update outstanding data if any packet is first time acked.
