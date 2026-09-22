@@ -549,13 +549,14 @@ VideoSendStreamImpl::~VideoSendStreamImpl() {
 void VideoSendStreamImpl::AddAdaptationResource(
     scoped_refptr<Resource> resource) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  video_stream_encoder_->AddAdaptationResource(resource);
+  adaptation_resources_.push_back(resource);
+  video_stream_encoder_->AddAdaptationResource(std::move(resource));
 }
 
 std::vector<scoped_refptr<Resource>>
 VideoSendStreamImpl::GetAdaptationResources() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  return video_stream_encoder_->GetAdaptationResources();
+  return adaptation_resources_;
 }
 
 void VideoSendStreamImpl::SetSource(

@@ -857,24 +857,6 @@ void VideoStreamEncoder::AddAdaptationResource(
   });
 }
 
-std::vector<scoped_refptr<Resource>>
-VideoStreamEncoder::GetAdaptationResources() {
-  RTC_DCHECK_RUN_ON(worker_queue_);
-  // In practice, this method is only called by tests to verify operations that
-  // run on the encoder queue. So rather than force PostTask() operations to
-  // be accompanied by an event and a `Wait()`, we'll use PostTask + Wait()
-  // here.
-  Event event;
-  std::vector<scoped_refptr<Resource>> resources;
-  encoder_queue_->PostTask([&] {
-    RTC_DCHECK_RUN_ON(encoder_queue_.get());
-    resources = resource_adaptation_processor_->GetResources();
-    event.Set();
-  });
-  event.Wait(Event::kForever);
-  return resources;
-}
-
 void VideoStreamEncoder::SetSource(
     VideoSourceInterface<VideoFrame>* source,
     const DegradationPreference& degradation_preference) {

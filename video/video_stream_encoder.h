@@ -116,7 +116,6 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
   VideoStreamEncoder& operator=(const VideoStreamEncoder&) = delete;
 
   void AddAdaptationResource(scoped_refptr<Resource> resource) override;
-  std::vector<scoped_refptr<Resource>> GetAdaptationResources() override;
 
   void SetSource(VideoSourceInterface<VideoFrame>* source,
                  const DegradationPreference& degradation_preference) override;
