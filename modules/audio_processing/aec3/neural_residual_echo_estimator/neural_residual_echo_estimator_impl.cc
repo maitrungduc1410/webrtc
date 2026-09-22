@@ -523,31 +523,60 @@ NeuralResidualEchoEstimatorImpl::NeuralResidualEchoEstimatorImpl(
     const tflite::FlatBufferModel& model = model_handle->Get();
     std::unique_ptr<ModelRunner> model_runner =
         LoadTfLiteModel(&model, *resolver);
-    if (model_runner) {
-      auto bundle = std::make_unique<ModelBundle>();
-      bundle->model_handle = std::move(model_handle);
-      if (model_runner->GetMetadata().version() == 1) {
-        bundle->feature_extractor =
-            std::make_unique<TimeDomainFeatureExtractor>(
-                /*step_size=*/model_runner->StepSize());
-      } else {
-        bundle->feature_extractor =
-            std::make_unique<FrequencyDomainFeatureExtractor>(
-                /*step_size=*/model_runner->StepSize());
-      }
-      bundle->use_unbounded_mask =
-          !model_runner->GetOutput(ModelOutputEnum::kUnboundedEchoMask).empty();
-      bundle->model_runner = std::move(model_runner);
-
-      const int64_t duration_ms =
-          std::max<int64_t>(0, (env.clock().CurrentTime() - post_time).ms());
-      RTC_HISTOGRAM_COUNTS_10000(
-          "WebRTC.Audio.NeuralResidualEchoEstimator.InitDurationMs",
-          duration_ms);
-
-      cross_thread_state->Set(std::move(bundle));
+    if (!model_runner) {
+      cross_thread_state->MarkFailed();
+      RTC_HISTOGRAM_ENUMERATION(
+          "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+          static_cast<int>(
+              NeuralResidualEchoEstimatorInitResult::kModelLoadFailed),
+          static_cast<int>(
+              NeuralResidualEchoEstimatorInitResult::kNumCategories));
+      return;
     }
+
+    auto bundle = std::make_unique<ModelBundle>();
+    bundle->model_handle = std::move(model_handle);
+    if (model_runner->GetMetadata().version() == 1) {
+      bundle->feature_extractor = std::make_unique<TimeDomainFeatureExtractor>(
+          /*step_size=*/model_runner->StepSize());
+    } else {
+      bundle->feature_extractor =
+          std::make_unique<FrequencyDomainFeatureExtractor>(
+              /*step_size=*/model_runner->StepSize());
+    }
+
+    bundle->use_unbounded_mask =
+        !model_runner->GetOutput(ModelOutputEnum::kUnboundedEchoMask).empty();
+    bundle->model_runner = std::move(model_runner);
+
+    cross_thread_state->Set(std::move(bundle));
+
+    const int64_t duration_ms =
+        std::max<int64_t>(0, (env.clock().CurrentTime() - post_time).ms());
+    RTC_HISTOGRAM_COUNTS_10000(
+        "WebRTC.Audio.NeuralResidualEchoEstimator.InitDurationMs", duration_ms);
+    RTC_HISTOGRAM_ENUMERATION(
+        "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+        static_cast<int>(NeuralResidualEchoEstimatorInitResult::kSuccess),
+        static_cast<int>(
+            NeuralResidualEchoEstimatorInitResult::kNumCategories));
   });
+}
+
+NeuralResidualEchoEstimatorImpl::~NeuralResidualEchoEstimatorImpl() {
+  if (init_queue_) {
+    init_queue_.reset();
+    if (cross_thread_state_ && cross_thread_state_->GetResolution() ==
+                                   CrossThreadState::Resolution::kPending) {
+      cross_thread_state_->MarkFailed();
+      RTC_HISTOGRAM_ENUMERATION(
+          "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+          static_cast<int>(
+              NeuralResidualEchoEstimatorInitResult::kDestroyedBeforeResolved),
+          static_cast<int>(
+              NeuralResidualEchoEstimatorInitResult::kNumCategories));
+    }
+  }
 }
 
 bool NeuralResidualEchoEstimatorImpl::IsInitialized() {

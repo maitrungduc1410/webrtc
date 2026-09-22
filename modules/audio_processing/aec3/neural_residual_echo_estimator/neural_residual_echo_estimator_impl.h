@@ -41,6 +41,17 @@
 
 namespace webrtc {
 
+// Status categories for async neural residual echo estimator model
+// initialization.
+// Must match enum WebRtcNeuralResidualEchoEstimatorInitResult in
+// web_rtc/enums.xml.
+enum class NeuralResidualEchoEstimatorInitResult {
+  kSuccess = 0,
+  kModelLoadFailed = 1,
+  kDestroyedBeforeResolved = 2,
+  kNumCategories = 3,
+};
+
 // Implements the NeuralResidualEchoEstimator's virtual methods to estimate
 // residual echo not fully removed by the linear AEC3 estimator. It uses a
 // provided model to generate an echo residual mask from the linear AEC output
@@ -87,6 +98,7 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
   // Constructor used for synchronous initialization.
   explicit NeuralResidualEchoEstimatorImpl(
       std::unique_ptr<ModelRunner> model_runner);
+  ~NeuralResidualEchoEstimatorImpl() override;
 
   void Estimate(
       const Block& render,
@@ -127,6 +139,8 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
   // All state is guarded by mutex. Minimize access on realtime threads.
   struct CrossThreadState : public RefCountInterface {
    public:
+    enum class Resolution { kPending, kSuccess, kFailed };
+
     // Sets the initialized model data to be used for processing.
     // Should only be called once, as the capture thread will stop polling
     // `TryGet()` after receiving a model.
@@ -134,6 +148,12 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
       webrtc::MutexLock lock(&mutex_);
       RTC_DCHECK(!model_bundle_);
       model_bundle_ = std::move(bundle);
+      resolution_ = Resolution::kSuccess;
+    }
+
+    void MarkFailed() {
+      webrtc::MutexLock lock(&mutex_);
+      resolution_ = Resolution::kFailed;
     }
 
     // Retrieves the model data to be used for processing, if available.
@@ -142,9 +162,15 @@ class NeuralResidualEchoEstimatorImpl : public NeuralResidualEchoEstimator {
       return std::move(model_bundle_);
     }
 
+    Resolution GetResolution() const {
+      webrtc::MutexLock lock(&mutex_);
+      return resolution_;
+    }
+
    private:
     mutable webrtc::Mutex mutex_;
     std::unique_ptr<ModelBundle> model_bundle_ RTC_GUARDED_BY(mutex_);
+    Resolution resolution_ RTC_GUARDED_BY(mutex_) = Resolution::kPending;
   };
 
   // Constructor used for async initialization. See CreateAsync for details.

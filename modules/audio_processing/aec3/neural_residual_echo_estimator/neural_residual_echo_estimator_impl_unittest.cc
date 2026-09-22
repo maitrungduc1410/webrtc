@@ -568,6 +568,14 @@ TEST(NeuralResidualEchoEstimatorImplMetricsTest,
   EXPECT_GE(metrics::MinSample(
                 "WebRTC.Audio.NeuralResidualEchoEstimator.InitDurationMs"),
             0);
+  EXPECT_EQ(metrics::NumSamples(
+                "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult"),
+            1);
+  EXPECT_EQ(
+      metrics::NumEvents(
+          "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+          static_cast<int>(NeuralResidualEchoEstimatorInitResult::kSuccess)),
+      1);
 }
 
 TEST(NeuralResidualEchoEstimatorImplMetricsTest,
@@ -589,6 +597,14 @@ TEST(NeuralResidualEchoEstimatorImplMetricsTest,
   EXPECT_EQ(metrics::NumSamples(
                 "WebRTC.Audio.NeuralResidualEchoEstimator.InitDurationMs"),
             0);
+  EXPECT_EQ(metrics::NumSamples(
+                "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult"),
+            1);
+  EXPECT_EQ(metrics::NumEvents(
+                "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+                static_cast<int>(
+                    NeuralResidualEchoEstimatorInitResult::kModelLoadFailed)),
+            1);
 }
 
 TEST(NeuralResidualEchoEstimatorImplMetricsTest,
@@ -610,6 +626,15 @@ TEST(NeuralResidualEchoEstimatorImplMetricsTest,
   EXPECT_EQ(metrics::NumSamples(
                 "WebRTC.Audio.NeuralResidualEchoEstimator.InitDurationMs"),
             0);
+  EXPECT_EQ(metrics::NumSamples(
+                "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult"),
+            1);
+  EXPECT_EQ(
+      metrics::NumEvents(
+          "WebRTC.Audio.NeuralResidualEchoEstimator.InitResult",
+          static_cast<int>(
+              NeuralResidualEchoEstimatorInitResult::kDestroyedBeforeResolved)),
+      1);
 }
 
 }  // namespace
