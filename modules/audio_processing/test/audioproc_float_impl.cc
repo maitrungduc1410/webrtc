@@ -772,6 +772,8 @@ void SetDependencies(const SimulationSettings& settings,
                      AudioProcessingBuilderState& builder_state) {
   EchoCanceller3Config aec3_config =
       builder.echo_canceller_config().value_or(EchoCanceller3Config());
+  std::optional<EchoCanceller3Config> aec3_multichannel_config =
+      builder.echo_canceller_multichannel_config();
   bool modify_aec_config = false;
   if (settings.neural_echo_residual_estimator_model) {
     tflite::ops::builtin::BuiltinOpResolver op_resolver;
@@ -795,6 +797,9 @@ void SetDependencies(const SimulationSettings& settings,
 
   if (settings.linear_aec_output_filename) {
     aec3_config.filter.export_linear_aec_output = true;
+    if (aec3_multichannel_config) {
+      aec3_multichannel_config->filter.export_linear_aec_output = true;
+    }
     modify_aec_config = true;
   }
 
@@ -806,8 +811,7 @@ void SetDependencies(const SimulationSettings& settings,
   }
 
   if (modify_aec_config) {
-    builder.SetEchoCancellerConfig(
-        aec3_config, builder.echo_canceller_multichannel_config());
+    builder.SetEchoCancellerConfig(aec3_config, aec3_multichannel_config);
   }
 
   if (settings.use_ed && *settings.use_ed) {
