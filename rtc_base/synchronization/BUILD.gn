@@ -66,10 +66,6 @@ rtc_library("yield_policy") {
     "yield_policy.cc",
     "yield_policy.h",
   ]
-  deps = [
-    "//third_party/abseil-cpp/absl/base:config",
-    "//third_party/abseil-cpp/absl/base:core_headers",
-  ]
 }
 
 if (rtc_include_tests && rtc_enable_google_benchmarks) {

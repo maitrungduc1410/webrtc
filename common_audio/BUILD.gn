@@ -373,7 +373,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../test:rtc_expect_death",
       "../test:test_support",
       "//testing/gtest",
-      "//third_party/abseil-cpp/absl/base:core_headers",
     ]
   }
 }
