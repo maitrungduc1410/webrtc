@@ -12,7 +12,6 @@ rtc_library("default_video_jitter_timing") {
   visibility = [
     ":*",
     "../../modules/video_coding/timing:timing_module",
-    "../../modules/video_coding/timing:timing_unittests",
   ]
   sources = [
     "default_video_jitter_timing.cc",

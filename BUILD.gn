@@ -143,6 +143,7 @@ if (rtc_include_tests) {
       "//modules/audio_coding:audio_coding_unittests",
       "//modules/audio_processing:audio_processing_unittests",
       "//modules/rtp_rtcp:rtp_rtcp_unittests",
+      "//modules/video_coding:video_coding_unittests",
       "//pc:peerconnection_unittests",
       "//test:test_support_unittests",
       "//video:video_tests",

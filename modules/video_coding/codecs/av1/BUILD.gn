@@ -140,8 +140,16 @@ rtc_library("libaom_speed_config_factory") {
 }
 
 if (rtc_include_tests) {
-  rtc_library("av1_svc_config_unittest") {
-    testonly = true
+  video_codecs_tests_resources = [ "../../../../resources/photo_1850_1110.yuv" ]
+  if (is_ios) {
+    bundle_data("video_codecs_tests_resources_bundle_data") {
+      testonly = true
+      sources = video_codecs_tests_resources
+      outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
+    }
+  }
+
+  rtc_cc_test("av1_svc_config_unittest") {
     sources = [ "av1_svc_config_unittest.cc" ]
     deps = [
       ":av1_svc_config",
@@ -152,8 +160,7 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_library("dav1d_decoder_unittest") {
-    testonly = true
+  rtc_cc_test("dav1d_decoder_unittest") {
     sources = [ "dav1d_decoder_unittest.cc" ]
     deps = [
       ":dav1d_decoder",
@@ -170,8 +177,7 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_library("libaom_av1_encoder_unittest") {
-    testonly = true
+  rtc_cc_test("libaom_av1_encoder_unittest") {
     sources = [ "libaom_av1_encoder_unittest.cc" ]
     deps = [
       ":av1_svc_config",
@@ -202,10 +208,13 @@ if (rtc_include_tests) {
       "../../../../test:test_support",
       "../../../../test:video_test_support",
     ]
+    data = video_codecs_tests_resources
+    if (is_ios) {
+      deps += [ ":video_codecs_tests_resources_bundle_data" ]
+    }
   }
 
-  rtc_library("libaom_av1_unittest") {
-    testonly = true
+  rtc_cc_test("libaom_av1_unittest") {
     sources = [ "libaom_av1_unittest.cc" ]
     deps = [
       ":dav1d_decoder",
@@ -235,8 +244,7 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_library("libaom_speed_config_factory_unittest") {
-    testonly = true
+  rtc_cc_test("libaom_speed_config_factory_unittest") {
     sources = [ "libaom_speed_config_factory_unittest.cc" ]
     deps = [
       ":libaom_speed_config_factory",
@@ -246,24 +254,5 @@ if (rtc_include_tests) {
       "../../../../rtc_base:checks",
       "../../../../test:test_support",
     ]
-  }
-
-  rtc_library("video_coding_codecs_av1_tests") {
-    testonly = true
-
-    sources = []
-
-    deps = [
-      ":av1_svc_config_unittest",
-      ":dav1d_decoder_unittest",
-    ]
-
-    if (enable_libaom) {
-      deps += [
-        ":libaom_av1_encoder_unittest",
-        ":libaom_av1_unittest",
-        ":libaom_speed_config_factory_unittest",
-      ]
-    }
   }
 }
