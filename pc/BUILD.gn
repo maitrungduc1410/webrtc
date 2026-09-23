@@ -2292,6 +2292,16 @@ if (rtc_include_tests && !build_with_chromium) {
     ]
   }
 
+  rtc_source_set("full_codec_matrix") {
+    testonly = true
+    sources = [ "test/full_codec_matrix.h" ]
+    deps = [
+      "../api:payload_type",
+      "../api/video_codecs:video_codecs_api",
+      "../media:codec",
+    ]
+  }
+
   rtc_test("rtc_pc_unittests") {
     testonly = true
 
@@ -2332,6 +2342,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":datagram_connection_internal",
       ":dtls_srtp_transport",
       ":dtls_transport",
+      ":full_codec_matrix",
       ":ice_transport",
       ":jsep_transport",
       ":jsep_transport_controller",
@@ -3260,6 +3271,7 @@ if (rtc_include_tests && !build_with_chromium) {
     deps = [
       ":android_black_magic",
       ":enable_fake_media",
+      ":full_codec_matrix",
       ":media_session",
       ":pc_test_utils",
       ":peerconnection_wrapper",
@@ -3278,6 +3290,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:scoped_refptr",
       "../api/environment",
       "../api/rtc_event_log:rtc_event_log_factory",
+      "../api/video_codecs:video_codecs_api",
       "../media:codec",
       "../media:media_channel",
       "../media:media_constants",
