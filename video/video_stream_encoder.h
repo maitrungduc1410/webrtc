@@ -153,6 +153,8 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
                                double cwnd_reduce_ratio);
 
   void OnFramePrepared(size_t frame_identifier);
+  void OnFramePreparedOnEncoderQueue(size_t frame_identifier)
+      RTC_RUN_ON(encoder_queue_);
 
  protected:
   friend class VideoStreamEncoderFrameCadenceRestrictionTest;
@@ -488,6 +490,8 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
   };
 
   std::deque<PreparingFrame> pending_mapped_frames_;
+
+  std::atomic<bool> is_stopped_ = false;
 };
 
 }  // namespace webrtc

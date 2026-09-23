@@ -9075,6 +9075,8 @@ TEST_F(VideoStreamEncoderTest, NoPreferenceDefaultFallbackToVP8Enabled) {
   VideoFrame frame = CreateFrame(1, kDontCare, kDontCare);
   video_source_.IncomingCapturedFrame(frame);
 
+  AdvanceTime(TimeDelta::Zero());
+
   video_stream_encoder_->Stop();
   // The encoders produced by the VideoEncoderProxyFactory have a pointer back
   // to it's factory, so in order for the encoder instance in the
