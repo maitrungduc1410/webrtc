@@ -95,50 +95,6 @@ TEST(PayloadTypePicker, ModifyingPtIsAnErrorIfDisallowed) {
   recorder.ReallowRedefinition();
 }
 
-TEST(PayloadTypePicker, RollbackAndCommit) {
-  PayloadTypePicker picker;
-  PayloadTypeRecorder recorder(picker);
-  const PayloadType a_payload_type(123);
-  const PayloadType b_payload_type(124);
-
-  Codec a_codec = CreateVideoCodec(0, "vp8");
-
-  Codec b_codec = CreateVideoCodec(0, "vp9");
-  auto error = recorder.AddMapping(a_payload_type, a_codec);
-  ASSERT_TRUE(error.ok());
-  recorder.Commit();
-  ASSERT_TRUE(recorder.AddMapping(b_payload_type, b_codec).ok());
-  {
-    auto result = recorder.LookupCodec(a_payload_type);
-    ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result.value(), a_codec);
-  }
-  {
-    auto result = recorder.LookupCodec(b_payload_type);
-    ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result.value(), b_codec);
-  }
-  recorder.Rollback();
-  {
-    auto result = recorder.LookupCodec(a_payload_type);
-    ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result.value(), a_codec);
-  }
-  {
-    auto result = recorder.LookupCodec(b_payload_type);
-    ASSERT_FALSE(result.ok());
-  }
-  ASSERT_TRUE(recorder.AddMapping(b_payload_type, b_codec).ok());
-  // Rollback after a new checkpoint has no effect.
-  recorder.Commit();
-  recorder.Rollback();
-  {
-    auto result = recorder.LookupCodec(b_payload_type);
-    ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result.value(), b_codec);
-  }
-}
-
 TEST(PayloadTypePicker, StaticValueIsGood) {
   PayloadTypePicker picker;
   Codec a_codec = CreateAudioCodec(-1, kPcmuCodecName, 8000, 1);
@@ -240,6 +196,28 @@ TEST(PayloadTypePicker, ReleasedPayloadTypeReassignedDoesNotCollideOnReuse) {
 
   PayloadType a_new_pt = picker.SuggestMapping(a_codec).value();
   EXPECT_NE(a_new_pt, b_pt);
+}
+
+TEST(PayloadTypePicker, ReleasedPayloadTypeReassignedUpdatesMappingTable) {
+  PayloadTypePicker picker;
+  Codec a_codec = CreateAudioCodec(-1, "lyra", 8000, 1);
+  Codec b_codec = CreateAudioCodec(-1, "mlcodec", 8000, 1);
+  PayloadType a_pt = picker.SuggestMapping(a_codec).value();
+  EXPECT_EQ(picker.LookupCodec(a_pt), a_codec);
+
+  picker.ReleaseUnusedPayloadTypes();
+
+  PayloadType b_pt = picker.SuggestMapping(b_codec).value();
+  EXPECT_EQ(b_pt, a_pt);
+  EXPECT_EQ(picker.LookupCodec(b_pt), b_codec);
+
+  // Stringification should only contain the updated mapping for this payload
+  // type, not a stale entry for a_codec.
+  std::string stringified = absl::StrCat(picker);
+  EXPECT_THAT(stringified,
+              testing::HasSubstr(absl::StrCat("\n ", b_pt, ":", b_codec)));
+  EXPECT_THAT(stringified, testing::Not(testing::HasSubstr(
+                               absl::StrCat("\n ", a_pt, ":", a_codec))));
 }
 
 TEST(PayloadTypePicker, DefaultPayloadTypesStayReserved) {

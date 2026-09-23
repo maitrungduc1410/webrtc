@@ -68,6 +68,7 @@ class PayloadTypePicker final {
         : payload_type_(payload_type), codec_(std::move(codec)) {}
     PayloadType payload_type() const { return payload_type_; }
     Codec codec() const { return codec_; }
+    void set_codec(Codec codec) { codec_ = std::move(codec); }
 
    private:
     PayloadType payload_type_;
@@ -115,12 +116,10 @@ class PayloadTypeRecorder final {
   }
 
   RTCError AddMapping(PayloadType payload_type, Codec codec);
-  std::vector<std::pair<PayloadType, Codec>> GetMappings() const;
   // Adds the payload types that this recorder currently maps to
   // `payload_types`.
   void AddPayloadTypesTo(flat_set<PayloadType>& payload_types) const;
-  // Drops the mappings whose payload type is not in `payload_types`. The
-  // checkpoint that Rollback() restores is left alone.
+  // Drops the mappings whose payload type is not in `payload_types`.
   void RetainOnly(const flat_set<PayloadType>& payload_types);
   RTCErrorOr<PayloadType> LookupPayloadType(Codec codec) const;
   RTCErrorOr<Codec> LookupCodec(PayloadType payload_type) const;
@@ -132,16 +131,10 @@ class PayloadTypeRecorder final {
   // been called more times than Reallow, redefinition is prohibited.
   void DisallowRedefinition();
   void ReallowRedefinition();
-  // Transaction support.
-  // Commit() commits previous changes.
-  void Commit();
-  // Rollback() rolls back to the previous checkpoint.
-  void Rollback();
 
  private:
   PayloadTypePicker& suggester_;
   flat_map<PayloadType, Codec> payload_type_to_codec_;
-  flat_map<PayloadType, Codec> checkpoint_payload_type_to_codec_;
   int disallow_redefinition_level_ = 0;
   flat_set<PayloadType> accepted_definitions_;
 };
@@ -157,15 +150,10 @@ class RtpHeaderExtensionRecorder final {
   RTCErrorOr<RtpHeaderExtensionId> LookupId(absl::string_view uri,
                                             bool encrypt) const;
 
-  void Commit();
-  void Rollback();
-
  private:
   const Environment env_;
   // (uri, encrypt) -> id
   flat_map<std::pair<std::string, bool>, RtpHeaderExtensionId> uri_to_id_;
-  flat_map<std::pair<std::string, bool>, RtpHeaderExtensionId>
-      checkpoint_uri_to_id_;
 };
 
 class RtpHeaderExtensionPicker final {

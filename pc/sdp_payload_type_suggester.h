@@ -92,7 +92,7 @@ class SdpPayloadTypeSuggester : public PayloadTypeSuggester {
     PayloadTypeRecorder remote_payload_types_;
     RtpHeaderExtensionRecorder header_extensions_;
   };
-  void RecordRtpHeaderExtensions(const ContentInfo& content, SdpType type);
+  void RecordRtpHeaderExtensions(const ContentInfo& content);
   // Drops the recorders that `description` has no media section for.
   void EraseUnusedRecorders(const SessionDescription* absl_nonnull description);
   PayloadTypeRecorder& LookupRecorder(absl::string_view mid, bool local);

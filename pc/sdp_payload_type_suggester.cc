@@ -177,7 +177,7 @@ RTCError SdpPayloadTypeSuggester::Update(const SessionDescription* description,
     if (!error.ok()) {
       return error;
     }
-    RecordRtpHeaderExtensions(content, type);
+    RecordRtpHeaderExtensions(content);
   }
   // Payload types that `description` does not use are available again. They
   // belong either to codecs that have been negotiated away, or to codecs that
@@ -192,16 +192,12 @@ RTCError SdpPayloadTypeSuggester::Update(const SessionDescription* description,
 }
 
 void SdpPayloadTypeSuggester::RecordRtpHeaderExtensions(
-    const ContentInfo& content,
-    SdpType type) {
+    const ContentInfo& content) {
   BundleTypeRecorder& bundle_recorder = LookupBundleRecorder(content.mid());
   for (const auto& extension :
        content.media_description()->rtp_header_extensions()) {
     bundle_recorder.header_extensions().AddMapping(extension.id, extension.uri,
                                                    extension.encrypt);
-  }
-  if (type == SdpType::kAnswer) {
-    bundle_recorder.header_extensions().Commit();
   }
 }
 
