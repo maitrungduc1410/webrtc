@@ -702,33 +702,6 @@ rtc_library("webrtc_vp9") {
 }
 
 if (rtc_include_tests) {
-  video_coding_modules_tests_resources = [
-    "../../resources/foreman_128x96.yuv",
-    "../../resources/foreman_160x120.yuv",
-    "../../resources/foreman_176x144.yuv",
-    "../../resources/foreman_240x136.yuv",
-    "../../resources/foreman_320x240.yuv",
-    "../../resources/foreman_480x272.yuv",
-    "../../resources/foreman_cif.yuv",
-  ]
-  if (!is_android) {
-    video_coding_modules_tests_resources += [
-      "../../resources/ConferenceMotion_1280_720_50.yuv",
-      "../../resources/FourPeople_1280x720_30.yuv",
-    ]
-  }
-  if (rtc_libvpx_build_vp9) {
-    video_coding_modules_tests_resources +=
-        [ "../../resources/photo_1850_1110.yuv" ]
-  }
-  if (is_ios) {
-    bundle_data("video_coding_modules_tests_resources_bundle_data") {
-      testonly = true
-      sources = video_coding_modules_tests_resources
-      outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
-    }
-  }
-
   if (is_android) {
     rtc_library("android_codec_factory_helper") {
       sources = [
@@ -762,7 +735,7 @@ if (rtc_include_tests) {
         "../../test:fileutils",
         "../../test:test_support",
       ]
-      data = video_coding_modules_tests_resources
+      data_deps = [ "../../resources:video_coding_tests_data" ]
     }
   }
 
@@ -1050,6 +1023,7 @@ if (rtc_include_tests) {
       ":frame_helpers_unittest",
       ":framerate_controller_deprecated_unittest",
       ":generic_decoder_unittest",
+      ":h264_impl_unittest",
       ":h264_sprop_parameter_sets_unittest",
       ":h264_sps_pps_tracker_unittest",
       ":h26x_packet_buffer_unittest",
@@ -1071,12 +1045,16 @@ if (rtc_include_tests) {
       ":temporal_layer_rate_tracker_unittest",
       ":video_codec_initializer_unittest",
       ":video_decoder_database_unittest",
+      ":video_encoder_decoder_instantiation_tests",
       ":video_histogram_unittest",
       ":video_packet_buffer_unittest",
       ":video_receiver2_unittest",
+      ":videocodec_test_av1",
       ":videocodec_test_fixture_config_unittest",
+      ":videocodec_test_libvpx",
       ":videocodec_test_stats_impl_unittest",
       ":videoprocessor_unittest",
+      ":vp8_impl_unittest",
       ":vp9_uncompressed_header_parser_unittest",
       "codecs/av1:av1_svc_config_unittest",
       "codecs/av1:dav1d_decoder_unittest",
@@ -1094,10 +1072,17 @@ if (rtc_include_tests) {
       tests += [
         ":h264_encoder_impl_unittest",
         ":h264_simulcast_unittest",
+        ":videocodec_test_openh264",
       ]
     }
     if (rtc_libvpx_build_vp9) {
-      tests += [ ":vp9_frame_buffer_pool_unittest" ]
+      tests += [
+        ":vp9_frame_buffer_pool_unittest",
+        ":vp9_impl_unittest",
+      ]
+    }
+    if (is_ios || is_mac) {
+      tests += [ ":videocodec_test_videotoolbox" ]
     }
   }
 
@@ -1733,9 +1718,9 @@ if (rtc_include_tests) {
       "../../test:fileutils",
       "../../test:test_support",
     ]
-    data = video_coding_modules_tests_resources
+    data_deps = [ "../../resources:video_coding_tests_data" ]
     if (is_ios) {
-      deps += [ ":video_coding_modules_tests_resources_bundle_data" ]
+      deps += [ "../../resources:video_coding_tests_bundle_data" ]
     }
   }
 
@@ -1758,9 +1743,9 @@ if (rtc_include_tests) {
       "../../test:fileutils",
       "../../test:test_support",
     ]
-    data = video_coding_modules_tests_resources
+    data_deps = [ "../../resources:video_coding_tests_data" ]
     if (is_ios) {
-      deps += [ ":video_coding_modules_tests_resources_bundle_data" ]
+      deps += [ "../../resources:video_coding_tests_bundle_data" ]
     }
   }
 
@@ -1879,9 +1864,9 @@ if (rtc_include_tests) {
       if (rtc_build_libvpx) {
         deps += [ rtc_libvpx_dir ]
       }
-      data = video_coding_modules_tests_resources
+      data_deps = [ "../../resources:video_coding_tests_data" ]
       if (is_ios) {
-        deps += [ ":video_coding_modules_tests_resources_bundle_data" ]
+        deps += [ "../../resources:video_coding_tests_bundle_data" ]
       }
     }
   }

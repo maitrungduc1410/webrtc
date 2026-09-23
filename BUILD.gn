@@ -139,7 +139,6 @@ if (rtc_include_tests) {
       ":webrtc_nonparallel_tests",
       "//call:call_tests",
       "//call/adaptation:resource_adaptation_tests",
-      "//modules:modules_tests",
       "//modules/audio_coding:audio_coding_unittests",
       "//modules/audio_processing:audio_processing_unittests",
       "//modules/rtp_rtcp:rtp_rtcp_unittests",

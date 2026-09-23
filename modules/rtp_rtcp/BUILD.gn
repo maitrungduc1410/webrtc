@@ -1810,6 +1810,7 @@ if (rtc_include_tests) {
       ":rtp_packetizer_av1_unittest",
       ":rtp_packetizer_sframe_unittest",
       ":rtp_rtcp_impl2_unittest",
+      ":rtp_rtcp_modules_tests",
       ":rtp_sender_audio_unittest",
       ":rtp_sender_egress_unittest",
       ":rtp_sender_unittest",

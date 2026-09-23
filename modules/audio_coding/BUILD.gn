@@ -856,9 +856,9 @@ if (rtc_include_tests) {
       "//third_party/abseil-cpp/absl/strings",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
-    data_deps = [ "../../resources:modules_tests_data" ]
+    data_deps = [ "../../resources:audio_coding_unittests_data" ]
     if (is_ios) {
-      deps += [ "../../resources:modules_tests_bundle_data" ]
+      deps += [ "../../resources:audio_coding_unittests_bundle_data" ]
     }
     defines = audio_coding_defines
   }
@@ -1340,6 +1340,7 @@ if (rtc_include_tests) {
       ":acm_remixing_unittest",
       ":acm_resampler_unittest",
       ":audio_coding_module_unittest",
+      ":audio_coding_modules_tests",
       ":audio_decoder_multi_channel_opus_unittest",
       ":audio_decoder_opus_unittest",
       ":audio_encoder_cng_unittest",

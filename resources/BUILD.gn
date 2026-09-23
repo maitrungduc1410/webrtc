@@ -8,23 +8,6 @@
 
 import("../webrtc.gni")
 
-modules_tests_resources = [
-  "audio_coding/testfile16kHz.pcm",
-  "audio_coding/testfile32kHz.pcm",
-  "audio_coding/teststereo32kHz.pcm",
-]
-
-group("modules_tests_data") {
-  data = modules_tests_resources
-}
-if (is_ios) {
-  bundle_data("modules_tests_bundle_data") {
-    testonly = true
-    sources = modules_tests_resources
-    outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
-  }
-}
-
 audio_processing_unittests_resources = [
   "audio_processing/aec3/noop_ml_aec_model_for_testing.tflite",
   "audio_processing/agc/agc_audio.pcm",
@@ -220,6 +203,34 @@ if (is_ios) {
   bundle_data("scenario_config_resources_bundle_data") {
     testonly = true
     sources = scenario_config_resources
+    outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
+  }
+}
+
+video_coding_tests_resources = [
+  "foreman_128x96.yuv",
+  "foreman_160x120.yuv",
+  "foreman_176x144.yuv",
+  "foreman_240x136.yuv",
+  "foreman_320x240.yuv",
+  "foreman_480x272.yuv",
+  "foreman_cif.yuv",
+  "photo_1850_1110.yuv",
+]
+if (!is_android) {
+  video_coding_tests_resources += [
+    "ConferenceMotion_1280_720_50.yuv",
+    "FourPeople_1280x720_30.yuv",
+  ]
+}
+
+group("video_coding_tests_data") {
+  data = video_coding_tests_resources
+}
+if (is_ios) {
+  bundle_data("video_coding_tests_bundle_data") {
+    testonly = true
+    sources = video_coding_tests_resources
     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
   }
 }

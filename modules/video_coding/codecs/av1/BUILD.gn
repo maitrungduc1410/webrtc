@@ -140,15 +140,6 @@ rtc_library("libaom_speed_config_factory") {
 }
 
 if (rtc_include_tests) {
-  video_codecs_tests_resources = [ "../../../../resources/photo_1850_1110.yuv" ]
-  if (is_ios) {
-    bundle_data("video_codecs_tests_resources_bundle_data") {
-      testonly = true
-      sources = video_codecs_tests_resources
-      outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
-    }
-  }
-
   rtc_cc_test("av1_svc_config_unittest") {
     sources = [ "av1_svc_config_unittest.cc" ]
     deps = [
@@ -208,9 +199,9 @@ if (rtc_include_tests) {
       "../../../../test:test_support",
       "../../../../test:video_test_support",
     ]
-    data = video_codecs_tests_resources
+    data_deps = [ "../../../../resources:video_coding_tests_data" ]
     if (is_ios) {
-      deps += [ ":video_codecs_tests_resources_bundle_data" ]
+      deps += [ "../../../../resources:video_coding_tests_bundle_data" ]
     }
   }
 
