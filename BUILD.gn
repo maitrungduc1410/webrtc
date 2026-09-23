@@ -77,13 +77,10 @@ if (!build_with_chromium) {
         "pc:svc_tests",
         "rtc_tools:video_encoder",
         "rtc_tools:video_replay",
-        "stats:rtc_stats_unittests",
-        "system_wrappers:system_wrappers_unittests",
         "test",
         "video:screenshare_loopback",
         "video:sv_loopback",
         "video:video_loopback",
-        "video/timing:video_timing_tests",
       ]
       deps += [ "tools_webrtc:validate_test_registration" ]
       if (use_libfuzzer) {
@@ -144,9 +141,12 @@ if (rtc_include_tests) {
       "//modules/rtp_rtcp:rtp_rtcp_unittests",
       "//modules/video_coding:video_coding_unittests",
       "//pc:peerconnection_unittests",
+      "//stats:rtc_stats_unittests",
+      "//system_wrappers:system_wrappers_unittests",
       "//test:test_support_unittests",
       "//video:video_tests",
       "//video/adaptation:video_adaptation_tests",
+      "//video/timing:video_timing_tests",
     ]
     if (rtc_desktop_capture_supported) {
       deps += [
