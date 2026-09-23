@@ -23,7 +23,6 @@
 #include <sal.h>  // must come after windows headers.
 // clang-format on
 
-#include "absl/base/attributes.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {

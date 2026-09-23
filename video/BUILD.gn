@@ -277,7 +277,6 @@ rtc_library("frame_cadence_adapter") {
     "../rtc_base/task_utils:repeating_task",
     "../system_wrappers",
     "//third_party/abseil-cpp/absl/algorithm:container",
-    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/cleanup",
   ]
 }
@@ -309,7 +308,6 @@ rtc_library("video_stream_buffer_controller") {
     "../rtc_base:macromagic",
     "../rtc_base/system:no_unique_address",
     "../system_wrappers",
-    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/container:inlined_vector",
     "//third_party/abseil-cpp/absl/functional:bind_front",
   ]

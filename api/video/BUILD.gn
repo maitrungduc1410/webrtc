@@ -369,7 +369,6 @@ rtc_library("builtin_video_bitrate_allocator_factory") {
     "../../modules/video_coding/svc:svc_rate_allocator",
     "../environment",
     "../video_codecs:video_codecs_api",
-    "//third_party/abseil-cpp/absl/base:core_headers",
   ]
 }
 

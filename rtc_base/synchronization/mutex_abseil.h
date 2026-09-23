@@ -11,7 +11,6 @@
 #ifndef RTC_BASE_SYNCHRONIZATION_MUTEX_ABSEIL_H_
 #define RTC_BASE_SYNCHRONIZATION_MUTEX_ABSEIL_H_
 
-#include "absl/base/attributes.h"
 #include "absl/synchronization/mutex.h"
 #include "rtc_base/thread_annotations.h"
 

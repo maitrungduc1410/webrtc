@@ -111,7 +111,6 @@ rtc_library("aec_dump_interface") {
     ":audio_frame_view",
     "../../api/audio:audio_frame_api",
     "../../api/audio:audio_processing",
-    "//third_party/abseil-cpp/absl/base:core_headers",
   ]
 }
 
