@@ -964,7 +964,7 @@ void TurnPort::OnAllocateError(int error_code, absl::string_view reason) {
       SafeTask(task_safety_.flag(), [this] { NotifyPortError(this); }));
   std::string address = GetLocalAddress().HostAsSensitiveURIString();
   int port = GetLocalAddress().port();
-  if (server_address_.proto == PROTO_TCP &&
+  if (server_address_.proto != PROTO_UDP &&
       server_address_.address.IsPrivateIP()) {
     address.clear();
     port = 0;
