@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
 #include "api/field_trials.h"
@@ -566,6 +567,41 @@ TEST(CodecVendorTest, ModifyVideoCodecsReplacesCodec) {
 
   // Check that the second codec is NOT changed.
   EXPECT_THAT(new_send_codecs.codecs(), Contains(second_codec));
+}
+
+// Once every dynamic payload type is taken, offer creation must report the
+// exhaustion to the caller. Silently omitting the codecs that could not be
+// assigned a payload type produces an offer that mixes two payload type
+// mappings, which is how a BUNDLE group ends up using one payload type for two
+// different codecs.
+TEST(CodecVendorTest, OfferFailsWhenPayloadTypeSpaceIsExhausted) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetVideoSendCodecs({CreateVideoCodec(97, "vp8")});
+  media_engine.SetVideoRecvCodecs({CreateVideoCodec(97, "vp8")});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  // Occupy the whole dynamic payload type space with codecs that the media
+  // engine does not offer, so that no payload type is left for "vp8".
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateVideoCodec(pt, absl::StrCat("filler", filler++)));
+    }
+  }
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(
+          MediaDescriptionOptions(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendOnly, false),
+          MediaSessionOptions(), nullptr, pt_suggester);
+  EXPECT_THAT(offered_codecs.error(),
+              IsRtcErrorWithType(RTCErrorType::RESOURCE_EXHAUSTED));
 }
 
 }  // namespace

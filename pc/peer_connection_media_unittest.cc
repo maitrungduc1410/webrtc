@@ -2212,6 +2212,112 @@ TEST_F(PeerConnectionMediaTestUnifiedPlan, SetCodecPreferencesVideoNoRtx) {
   EXPECT_EQ(codecs[1].name, kRedCodecName);
 }
 
+// Returns the set of payload types used by all media sections of `description`.
+std::set<int> PayloadTypesIn(const SessionDescriptionInterface* description) {
+  std::set<int> payload_types;
+  for (const ContentInfo& content : description->description()->contents()) {
+    for (const Codec& codec : content.media_description()->codecs()) {
+      payload_types.insert(codec.id.value());
+    }
+  }
+  return payload_types;
+}
+
+// A peer that bundles many media sections and renegotiates repeatedly must
+// keep reusing the payload types it has already assigned. Allocating a new
+// payload type on every negotiation exhausts the 61 dynamic payload types,
+// after which createOffer fails with "All available dynamic PTs have been
+// assigned".
+TEST_F(PeerConnectionMediaTestUnifiedPlan,
+       RepeatedRenegotiationDoesNotExhaustPayloadTypes) {
+  constexpr int kSectionsPerMediaType = 7;
+  constexpr int kNegotiationRounds = 10;
+
+  auto make_engine = [] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetAudioCodecs({CreateAudioCodec(111, kOpusCodecName, 48000, 2),
+                            CreateAudioCodec(103, "isac", 16000, 1),
+                            CreateAudioCodec(0, kPcmuCodecName, 8000, 1)});
+    engine->SetVideoCodecs(
+        {CreateVideoCodec(96, "vp8"), CreateVideoRtxCodec(97, 96),
+         CreateVideoCodec(98, "vp9"), CreateVideoRtxCodec(99, 98),
+         CreateVideoCodec(100, "av1"), CreateVideoRtxCodec(101, 100)});
+    return engine;
+  };
+
+  RTCConfiguration config;
+  config.bundle_policy = PeerConnectionInterface::kBundlePolicyMaxBundle;
+  auto caller = CreatePeerConnection(config, make_engine());
+  auto callee = CreatePeerConnection(config, make_engine());
+  ASSERT_THAT(caller, NotNull());
+  ASSERT_THAT(callee, NotNull());
+
+  for (int i = 0; i < kSectionsPerMediaType; ++i) {
+    caller->AddTransceiver(MediaType::AUDIO);
+    caller->AddTransceiver(MediaType::VIDEO);
+  }
+
+  std::set<int> payload_types_of_first_offer;
+  for (int round = 0; round < kNegotiationRounds; ++round) {
+    ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()))
+        << "Negotiation round " << round << " failed";
+    std::set<int> payload_types =
+        PayloadTypesIn(caller->pc()->local_description());
+    if (round == 0) {
+      payload_types_of_first_offer = payload_types;
+      ASSERT_FALSE(payload_types_of_first_offer.empty());
+    } else {
+      EXPECT_EQ(payload_types, payload_types_of_first_offer)
+          << "Payload type assignment changed in negotiation round " << round;
+    }
+  }
+}
+
+TEST_F(PeerConnectionMediaTestUnifiedPlan,
+       RepeatedRenegotiationDoesNotExhaustPayloadTypesBalancedBundle) {
+  constexpr int kSectionsPerMediaType = 4;
+  constexpr int kNegotiationRounds = 5;
+
+  auto make_engine = [] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetAudioCodecs({CreateAudioCodec(111, kOpusCodecName, 48000, 2),
+                            CreateAudioCodec(103, "isac", 16000, 1),
+                            CreateAudioCodec(0, kPcmuCodecName, 8000, 1)});
+    engine->SetVideoCodecs(
+        {CreateVideoCodec(96, "vp8"), CreateVideoRtxCodec(97, 96),
+         CreateVideoCodec(98, "vp9"), CreateVideoRtxCodec(99, 98),
+         CreateVideoCodec(100, "av1"), CreateVideoRtxCodec(101, 100)});
+    return engine;
+  };
+
+  RTCConfiguration config;
+  config.bundle_policy = PeerConnectionInterface::kBundlePolicyBalanced;
+  auto caller = CreatePeerConnection(config, make_engine());
+  auto callee = CreatePeerConnection(config, make_engine());
+  ASSERT_THAT(caller, NotNull());
+  ASSERT_THAT(callee, NotNull());
+
+  for (int i = 0; i < kSectionsPerMediaType; ++i) {
+    caller->AddTransceiver(MediaType::AUDIO);
+    caller->AddTransceiver(MediaType::VIDEO);
+  }
+
+  std::set<int> payload_types_of_first_offer;
+  for (int round = 0; round < kNegotiationRounds; ++round) {
+    ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()))
+        << "Negotiation round " << round << " failed";
+    std::set<int> payload_types =
+        PayloadTypesIn(caller->pc()->local_description());
+    if (round == 0) {
+      payload_types_of_first_offer = payload_types;
+      ASSERT_FALSE(payload_types_of_first_offer.empty());
+    } else {
+      EXPECT_EQ(payload_types, payload_types_of_first_offer)
+          << "Payload type assignment changed in negotiation round " << round;
+    }
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(PeerConnectionMediaTest,
                          PeerConnectionMediaTest,
                          Values(SdpSemantics::kPlanB_DEPRECATED,

@@ -1276,6 +1276,10 @@ rtc_library("sdp_payload_type_suggester") {
     "../rtc_base:event_tracer",
     "../rtc_base:logging",
     "../rtc_base:threading",
+    "../rtc_base/containers:flat_map",
+    "../rtc_base/containers:flat_set",
+    "//third_party/abseil-cpp/absl/base:nullability",
+    "//third_party/abseil-cpp/absl/cleanup",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
@@ -3843,10 +3847,13 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:payload_type",
       "../api:peer_connection_interface",
       "../api:rtc_error",
+      "../api:rtc_error_matchers",
       "../media:codec",
       "../media:media_constants",
+      "../p2p:p2p_constants",
       "../test:create_test_environment",
       "../test:test_support",
+      "//third_party/abseil-cpp/absl/strings",
       "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }
