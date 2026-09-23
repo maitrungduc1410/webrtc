@@ -322,10 +322,6 @@ EchoCanceller3Config AdjustConfig(const EchoCanceller3Config& config,
     adjusted_cfg.filter.initial_state_seconds = 2.0f;
   }
 
-  if (field_trials.IsEnabled("WebRTC-Aec3HighPassFilterEchoReference")) {
-    adjusted_cfg.filter.high_pass_filter_echo_reference = true;
-  }
-
   if (field_trials.IsEnabled("WebRTC-Aec3EchoSaturationDetectionKillSwitch")) {
     adjusted_cfg.ep_strength.echo_can_saturate = false;
   }
