@@ -1231,18 +1231,6 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_cc_test("vp9_frame_buffer_pool_unittest") {
-    sources = [ "codecs/vp9/vp9_frame_buffer_pool_unittest.cc" ]
-    deps = [
-      ":webrtc_vp9",
-      "../../api/video:video_codec_constants",
-      "../../test:test_support",
-    ]
-    if (rtc_build_libvpx) {
-      deps += [ rtc_libvpx_dir ]
-    }
-  }
-
   rtc_cc_test("video_decoder_database_unittest") {
     sources = [ "decoder_database_unittest.cc" ]
     deps = [
@@ -1818,6 +1806,18 @@ if (rtc_include_tests) {
   }
 
   if (rtc_libvpx_build_vp9) {
+    rtc_cc_test("vp9_frame_buffer_pool_unittest") {
+      sources = [ "codecs/vp9/vp9_frame_buffer_pool_unittest.cc" ]
+      deps = [
+        ":webrtc_vp9",
+        "../../api/video:video_codec_constants",
+        "../../test:test_support",
+      ]
+      if (rtc_build_libvpx) {
+        deps += [ rtc_libvpx_dir ]
+      }
+    }
+
     rtc_cc_test("vp9_impl_unittest") {
       sources = [ "codecs/vp9/test/vp9_impl_unittest.cc" ]
       deps = [
