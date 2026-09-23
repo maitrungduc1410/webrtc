@@ -56,8 +56,7 @@ rtc_library("ect1_policy") {
 }
 
 if (rtc_include_tests) {
-  rtc_library("receive_side_congestion_controller_unittest") {
-    testonly = true
+  rtc_cc_test("receive_side_congestion_controller_unittest") {
     sources = [ "receive_side_congestion_controller_unittest.cc" ]
     deps = [
       ":congestion_controller",
@@ -80,8 +79,7 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_library("remb_throttler_unittest") {
-    testonly = true
+  rtc_cc_test("remb_throttler_unittest") {
     sources = [ "remb_throttler_unittest.cc" ]
     deps = [
       ":congestion_controller",
@@ -93,30 +91,13 @@ if (rtc_include_tests) {
     ]
   }
 
-  rtc_library("ect1_policy_unittest") {
-    testonly = true
+  rtc_cc_test("ect1_policy_unittest") {
     sources = [ "ect1_policy_unittest.cc" ]
     deps = [
       ":ect1_policy",
       "../../api/units:time_delta",
       "../../api/units:timestamp",
       "../../test:test_support",
-    ]
-  }
-
-  rtc_library("congestion_controller_unittests") {
-    testonly = true
-
-    sources = []
-    deps = [
-      ":ect1_policy_unittest",
-      ":receive_side_congestion_controller_unittest",
-      ":remb_throttler_unittest",
-      "goog_cc:goog_cc_unittests",
-      "pcc:pcc_unittests",
-      "rtp:congestion_controller_unittests",
-      "scream:scream_unittests",
-      "scream/test:cc_feedback_generator_unittests",
     ]
   }
 }

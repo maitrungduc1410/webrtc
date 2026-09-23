@@ -107,19 +107,23 @@ rtc_library("sframe_decryptor") {
 }
 
 if (rtc_include_tests) {
-  rtc_library("sframe_unittests") {
-    testonly = true
-    sources = [
-      "sframe_decrypt_error_reporter_unittest.cc",
-      "sframe_encryptor_decryptor_unittest.cc",
-    ]
+  rtc_cc_test("sframe_decrypt_error_reporter_unittest") {
+    sources = [ "sframe_decrypt_error_reporter_unittest.cc" ]
     deps = [
       ":sframe_decrypt_error_reporter",
+      "../../api:frame_transformer_interface",
+      "../../api:mock_transformable_frame",
+      "../../api:sframe_decryptor_interface",
+      "../../test:test_support",
+    ]
+  }
+
+  rtc_cc_test("sframe_encryptor_decryptor_unittest") {
+    sources = [ "sframe_encryptor_decryptor_unittest.cc" ]
+    deps = [
       ":sframe_decryptor",
       ":sframe_encryptor",
       ":sframe_media_decryptor_interface",
-      "../../api:frame_transformer_interface",
-      "../../api:mock_transformable_frame",
       "../../api:rtc_error",
       "../../api:scoped_refptr",
       "../../api:sframe_decryptor_interface",
