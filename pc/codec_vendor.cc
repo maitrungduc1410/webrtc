@@ -197,6 +197,20 @@ RTCError PushCodec(CodecList& codecs, const Codec& codec) {
   return RTCError::OK();
 }
 
+// Returns the codecs of `codecs` that are also in `offerable_codecs`, in the
+// order they appear in `codecs`. Both lists use the payload types that the
+// media engine assigned, so the codecs can be compared directly.
+CodecList KeepOfferableCodecs(const CodecList& codecs,
+                              const CodecList& offerable_codecs) {
+  CodecList kept;
+  for (const Codec& codec : codecs) {
+    if (FindMatchingCodec(codecs, offerable_codecs, codec).has_value()) {
+      kept.push_back(codec);
+    }
+  }
+  return kept;
+}
+
 RTCError MergeRtxCodec(const CodecConfiguration& config,
                        const Codec& primary_codec,
                        absl::string_view mid,
@@ -1064,6 +1078,7 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
 
   std::string mid = media_description_options.mid;
   CodecList codecs;
+  CodecList supported_codecs;
 
   if (payload_types_in_transport_) {
     // REDESIGN path: Assume codecs from TypedCodecVendor are NotSet.
@@ -1104,28 +1119,51 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
         return error;
       }
     }
-    // Add our codecs that are not in the current description.
+    // Add our codecs that are not in the current description. Only the codecs
+    // that survive the direction of the media section can end up in the offer,
+    // so the ones that do not are skipped; giving them a payload type would
+    // use up the dynamic payload type space for nothing.
+    supported_codecs =
+        media_description_options.type == MediaType::AUDIO
+            ? GetAudioCodecsForOffer(media_description_options.direction)
+            : GetVideoCodecsForOffer(media_description_options.direction);
+    CodecList offerable_codecs;
+    if (!media_description_options.codecs_to_include.empty()) {
+      RTCErrorOr<CodecList> codecs_from_arg =
+          CodecList::Create(media_description_options.codecs_to_include);
+      if (!codecs_from_arg.ok()) {
+        return codecs_from_arg.MoveError();
+      }
+      offerable_codecs = codecs_from_arg.MoveValue();
+    } else if (!media_description_options.codec_preferences.empty()) {
+      offerable_codecs =
+          MatchCodecPreference(media_description_options.codec_preferences,
+                               supported_codecs, supported_codecs);
+    } else {
+      offerable_codecs = supported_codecs;
+    }
+    RemoveRedCodecsWithoutPrimary(offerable_codecs.writable_codecs());
     const TypedCodecVendor& recv_codecs =
         media_description_options.type == MediaType::AUDIO ? audio_recv_codecs_
                                                            : video_recv_codecs_;
     const TypedCodecVendor& send_codecs =
         media_description_options.type == MediaType::AUDIO ? audio_send_codecs_
                                                            : video_send_codecs_;
-    RTCError error =
-        MergeCodecsLegacy(recv_codecs.codecs(), mid, codecs, pt_suggester,
-                          /*pick_from_top_of_range=*/true);
+    RTCError error = MergeCodecsLegacy(
+        KeepOfferableCodecs(recv_codecs.codecs(), offerable_codecs), mid,
+        codecs, pt_suggester, /*pick_from_top_of_range=*/true);
     if (!error.ok()) {
       return error;
     }
-    error = MergeCodecsLegacy(send_codecs.codecs(), mid, codecs, pt_suggester,
-                              /*pick_from_top_of_range=*/true);
+    error = MergeCodecsLegacy(
+        KeepOfferableCodecs(send_codecs.codecs(), offerable_codecs), mid,
+        codecs, pt_suggester, /*pick_from_top_of_range=*/true);
     if (!error.ok()) {
       return error;
     }
   }
 
   CodecList filtered_codecs;
-  CodecList supported_codecs;
   if (payload_types_in_transport_) {
     RTCError error = MergeCodecsByDirection(
         media_description_options.type, media_description_options.direction,
@@ -1133,11 +1171,6 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
     if (!error.ok()) {
       return error;
     }
-  } else {
-    supported_codecs =
-        media_description_options.type == MediaType::AUDIO
-            ? GetAudioCodecsForOffer(media_description_options.direction)
-            : GetVideoCodecsForOffer(media_description_options.direction);
   }
 
   if (media_description_options.codecs_to_include.empty()) {

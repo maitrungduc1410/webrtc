@@ -22,6 +22,7 @@
 #include "api/media_types.h"
 #include "api/payload_type.h"
 #include "api/rtc_error.h"
+#include "api/rtp_parameters.h"
 #include "api/rtp_transceiver_direction.h"
 #include "api/test/rtc_error_matchers.h"
 #include "call/fake_payload_type_suggester.h"
@@ -602,6 +603,209 @@ TEST(CodecVendorTest, OfferFailsWhenPayloadTypeSpaceIsExhausted) {
           MediaSessionOptions(), nullptr, pt_suggester);
   EXPECT_THAT(offered_codecs.error(),
               IsRtcErrorWithType(RTCErrorType::RESOURCE_EXHAUSTED));
+}
+
+// Codecs that the direction of the media section rules out never reach the
+// offer, so they must not be assigned a payload type either. A peer that
+// supports many codecs has no payload types to spare for codecs it does not
+// offer.
+TEST(CodecVendorTest, OfferDoesNotAssignPayloadTypesToUnofferedCodecs) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetVideoSendCodecs({CreateVideoCodec(96, "vp8")});
+  // A send only media section cannot offer the receive-only codecs.
+  media_engine.SetVideoRecvCodecs({CreateVideoCodec(96, "vp8"),
+                                   CreateVideoCodec(97, "vp9"),
+                                   CreateVideoCodec(98, "av1")});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  // Occupy the dynamic payload type space except for a single payload type,
+  // which leaves room for the one codec that the offer can contain.
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      if (pt == 35) {
+        continue;
+      }
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateVideoCodec(pt, "filler" + std::to_string(filler++)));
+    }
+  }
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(
+          MediaDescriptionOptions(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendOnly, false),
+          MediaSessionOptions(), nullptr, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok()) << offered_codecs.error().message();
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(Field(&Codec::name, Eq("vp8"))));
+}
+
+// Codecs excluded by transceiver codec preferences must not be assigned a
+// payload type when creating an offer.
+TEST(CodecVendorTest,
+     OfferDoesNotAssignPayloadTypesToCodecsExcludedByPreferences) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetVideoCodecs({CreateVideoCodec(96, "vp8"),
+                               CreateVideoCodec(97, "vp9"),
+                               CreateVideoCodec(98, "av1")});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      if (pt == 35) {
+        continue;
+      }
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateVideoCodec(pt, "filler" + std::to_string(filler++)));
+    }
+  }
+
+  MediaDescriptionOptions options(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendRecv, false);
+  RtpCodecCapability pref;
+  pref.name = "vp8";
+  pref.kind = MediaType::VIDEO;
+  pref.clock_rate = 90000;
+  options.codec_preferences = {pref};
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(options, MediaSessionOptions(),
+                                               nullptr, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok()) << offered_codecs.error().message();
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(Field(&Codec::name, Eq("vp8"))));
+}
+
+// RED codecs whose primary codecs are excluded by transceiver codec
+// preferences must not be assigned a payload type when creating an offer.
+TEST(CodecVendorTest, OfferDoesNotAssignPayloadTypesToDanglingRedCodecs) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetAudioCodecs({CreateAudioCodec(111, "opus", 48000, 2),
+                               CreateRedAudioCodec("111"),
+                               CreateAudioCodec(102, "G722", 16000, 1)});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      if (pt == 35) {
+        continue;
+      }
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateAudioCodec(pt, "filler" + std::to_string(filler++), 16000, 1));
+    }
+  }
+
+  MediaDescriptionOptions options(MediaType::AUDIO, "mid",
+                                  RtpTransceiverDirection::kSendRecv, false);
+  RtpCodecCapability red_pref;
+  red_pref.name = "red";
+  red_pref.kind = MediaType::AUDIO;
+  red_pref.clock_rate = 48000;
+  red_pref.num_channels = 2;
+  RtpCodecCapability g722_pref;
+  g722_pref.name = "G722";
+  g722_pref.kind = MediaType::AUDIO;
+  g722_pref.clock_rate = 16000;
+  g722_pref.num_channels = 1;
+  options.codec_preferences = {red_pref, g722_pref};
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(options, MediaSessionOptions(),
+                                               nullptr, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok()) << offered_codecs.error().message();
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(Field(&Codec::name, Eq("G722"))));
+}
+
+// Codecs excluded by `codecs_to_include` must not be assigned a payload type
+// when creating an offer.
+TEST(CodecVendorTest, OfferRespectsCodecsToInclude) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Disabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetVideoCodecs({CreateVideoCodec(96, "vp8"),
+                               CreateVideoCodec(97, "vp9"),
+                               CreateVideoCodec(98, "av1")});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      if (pt == 35) {
+        continue;
+      }
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateVideoCodec(pt, "filler" + std::to_string(filler++)));
+    }
+  }
+
+  MediaDescriptionOptions options(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendRecv, false);
+  options.codecs_to_include = {CreateVideoCodec(96, "vp8")};
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(options, MediaSessionOptions(),
+                                               nullptr, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok()) << offered_codecs.error().message();
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(Field(&Codec::name, Eq("vp8"))));
+}
+
+// When WebRTC-PayloadTypesInTransport is enabled, unoffered codecs must not be
+// assigned a payload type when creating an offer.
+TEST(CodecVendorTest, OfferRespectsDirectionWithPayloadTypesInTransport) {
+  Environment env = CreateTestEnvironment(
+      {.field_trials = "WebRTC-PayloadTypesInTransport/Enabled/"});
+  FakeMediaEngine media_engine;
+  media_engine.SetVideoSendCodecs({CreateVideoCodec(96, "vp8")});
+  media_engine.SetVideoRecvCodecs({CreateVideoCodec(96, "vp8"),
+                                   CreateVideoCodec(97, "vp9"),
+                                   CreateVideoCodec(98, "av1")});
+  CodecVendor codec_vendor(&media_engine, /* rtx_enabled= */ false,
+                           env.field_trials());
+
+  FakePayloadTypeSuggester pt_suggester;
+  int filler = 0;
+  for (auto [first, last] : {std::pair{35, 63}, std::pair{96, 127}}) {
+    for (int pt = first; pt <= last; ++pt) {
+      if (pt == 35) {
+        continue;
+      }
+      pt_suggester.AddLocalMapping(
+          "filler", PayloadType(pt),
+          CreateVideoCodec(pt, "filler" + std::to_string(filler++)));
+    }
+  }
+
+  RTCErrorOr<std::vector<Codec>> offered_codecs =
+      codec_vendor.GetNegotiatedCodecsForOffer(
+          MediaDescriptionOptions(MediaType::VIDEO, "mid",
+                                  RtpTransceiverDirection::kSendOnly, false),
+          MediaSessionOptions(), nullptr, pt_suggester);
+  ASSERT_TRUE(offered_codecs.ok()) << offered_codecs.error().message();
+  EXPECT_THAT(offered_codecs.value(),
+              ElementsAre(Field(&Codec::name, Eq("vp8"))));
 }
 
 }  // namespace
