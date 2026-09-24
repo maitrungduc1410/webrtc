@@ -29,7 +29,6 @@
 #include "rtc_base/network.h"
 #include "rtc_base/socket_factory.h"
 #include "rtc_base/socket_server.h"
-#include "rtc_base/system/ignore_warnings.h"
 #include "rtc_base/thread.h"
 
 namespace webrtc {
@@ -80,19 +79,6 @@ std::unique_ptr<SctpTransportFactoryInterface> MaybeCreateSctpFactory(
 #endif
 }
 
-// Returns the thread to use as the worker thread. Support for a worker thread
-// that is distinct from the network thread is being removed, so applications
-// should stop supplying one. Reading the deprecated member is confined to this
-// function in order to keep the warning suppression as narrow as possible.
-RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
-Thread* absl_nonnull ResolveWorkerThread(
-    const PeerConnectionFactoryDependencies& dependencies,
-    Thread* absl_nonnull network_thread) {
-  return dependencies.worker_thread != nullptr ? dependencies.worker_thread
-                                               : network_thread;
-}
-RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
-
 }  // namespace
 
 // Static
@@ -120,7 +106,9 @@ ConnectionContext::ConnectionContext(
       network_thread_(MaybeStartNetworkThread(dependencies->network_thread,
                                               owned_socket_factory_,
                                               owned_network_thread_)),
-      worker_thread_(ResolveWorkerThread(*dependencies, network_thread_)),
+      worker_thread_(dependencies->worker_thread != nullptr
+                         ? dependencies->worker_thread
+                         : network_thread_),
       signaling_thread_(MaybeWrapThread(dependencies->signaling_thread,
                                         wraps_current_thread_)),
       media_engine_(
@@ -142,7 +130,8 @@ ConnectionContext::ConnectionContext(
   RTC_DCHECK(!(default_network_manager_ && network_monitor_factory_))
       << "You can't set both network_manager and network_monitor_factory.";
 
-  if (worker_thread_ != network_thread_) {
+  if (dependencies->worker_thread != nullptr &&
+      dependencies->worker_thread != network_thread_) {
     RTC_LOG(LS_ERROR)
         << "\n"
         << "***************************************************************\n"

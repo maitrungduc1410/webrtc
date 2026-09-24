@@ -734,6 +734,7 @@ TEST(PeerConnectionFactoryDependenciesTest, RepeatMediaEngineInitialization) {
   PeerConnectionFactoryDependencies pcf_dependencies;
   pcf_dependencies.adm = adm;
   pcf_dependencies.signaling_thread = Thread::Current();
+  pcf_dependencies.worker_thread = Thread::Current();
   pcf_dependencies.network_thread = Thread::Current();
   pcf_dependencies.env = CreateTestEnvironment();
   EnableMediaWithDefaults(pcf_dependencies);
@@ -772,6 +773,7 @@ TEST(PeerConnectionFactoryDependenciesTest,
   pcf_dependencies.adm = FakeAudioCaptureModule::Create();
   pcf_dependencies.audio_processing_builder = std::move(ap_factory);
   pcf_dependencies.signaling_thread = Thread::Current();
+  pcf_dependencies.worker_thread = Thread::Current();
   pcf_dependencies.network_thread = Thread::Current();
   pcf_dependencies.env = CreateTestEnvironment();
   EnableMediaWithDefaults(pcf_dependencies);
