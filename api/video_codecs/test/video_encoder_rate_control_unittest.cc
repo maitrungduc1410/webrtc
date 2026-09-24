@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -35,6 +36,7 @@
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/libaom_av1_encoder_factory.h"
+#include "api/video_codecs/test/temporal_layer_pattern_for_test.h"
 #include "api/video_codecs/test/video_codec_test_utils.h"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_builders.h"
@@ -63,7 +65,10 @@ namespace webrtc {
 namespace {
 
 // The CBR settings used by the tests in this file, see
-// `VideoEncoderFactoryInterface::StaticEncoderSettings::Cbr`.
+// `VideoEncoderFactoryInterface::StaticEncoderSettings::Cbr`. The transmission
+// delay the buffer sizes allow for also bounds how uneven a temporal layer
+// allocation can reasonably be, since a frame asking for a significant part of
+// that budget cannot be delivered in time.
 constexpr TimeDelta kCbrMaxBufferSize = TimeDelta::Millis(1000);
 constexpr TimeDelta kCbrTargetBufferSize = TimeDelta::Millis(600);
 constexpr double kMaxIntraBitrateFactor = 3.0;
@@ -75,6 +80,8 @@ struct AccumulatedData {
   DataSize ideal = DataSize::Zero();
   TimeDelta duration = TimeDelta::Zero();
   std::optional<double> psnr;
+  int temporal_id = 0;
+  bool is_keyframe = false;
 
   void Add(const AccumulatedData& other) {
     actual += other.actual;
@@ -110,6 +117,22 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
         .contains(setting);
   }
 
+  int MaxTemporalLayers() const {
+    return encoder_factory_->GetEncoderCapabilities()
+        .prediction_constraints()
+        .max_temporal_layers();
+  }
+
+  bool SupportsTemporalLayers(int num_temporal_layers) const {
+    return MaxTemporalLayers() >= num_temporal_layers;
+  }
+
+  int NumReferenceBuffers() const {
+    return encoder_factory_->GetEncoderCapabilities()
+        .prediction_constraints()
+        .num_buffers();
+  }
+
   // TestDecoder is only needed in order to produce PSNR.
   void EnableDecoder() {
     decoder_factory_ = CreateTestDecoderFactory();
@@ -142,6 +165,7 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     test_decoder_.reset();
     decoder_factory_.reset();
     encoded_frames_.clear();
+    temporal_layer_pattern_.reset();
   }
 
   void SetFrameGenerator(
@@ -156,8 +180,10 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     DataRate target_bitrate = DataRate::Zero();
     // Time interval between the start of successive frames.
     TimeDelta frame_interval = TimeDelta::Zero();
-    // Nominal frame duration reported to the CBR rate controller. If
-    // omitted, defaults to `frame_interval`.
+    // Nominal frame duration reported to the CBR rate controller. If omitted,
+    // defaults to `frame_interval`. Must not be set together with
+    // `temporal_layer_pattern`, which derives the duration of each frame from
+    // `frame_interval`.
     std::optional<TimeDelta> frame_duration;
     Resolution resolution;
     VideoTrackInterface::ContentHint content_hint =
@@ -165,15 +191,21 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     // When true, repeats the same image buffer instead of generating new
     // frames.
     bool repeat_frame = false;
+    // When set, frames are encoded as the temporal layer structure of this
+    // pattern prescribes. Ownership is transferred to the fixture, which keeps
+    // the pattern alive so that it can span several `Encode` calls; a
+    // subsequent call leaving this unset continues the same pattern. If no
+    // pattern has been set, all frames are encoded in a single temporal layer,
+    // referencing and updating buffer 0.
+    std::unique_ptr<TemporalLayerPatternForTest> temporal_layer_pattern;
   };
 
-  void Encode(const EncodeSettings& settings) {
-    TimeDelta frame_duration =
-        settings.frame_duration.value_or(settings.frame_interval);
-    VideoEncoderInterface::FrameEncodeSettings::Cbr cbr_settings{
-        .duration = frame_duration,
-        .target_bitrate = settings.target_bitrate,
-    };
+  void Encode(EncodeSettings settings) {
+    ASSERT_TRUE(settings.temporal_layer_pattern == nullptr ||
+                !settings.frame_duration);
+    if (settings.temporal_layer_pattern != nullptr) {
+      temporal_layer_pattern_ = std::move(settings.temporal_layer_pattern);
+    }
 
     scoped_refptr<VideoFrameBuffer> frame;
     for (int i = 0; i < settings.num_frames; ++i) {
@@ -192,26 +224,50 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
         }
       }
 
-      EncOut out;
-      TemporalUnitSettings tu_settings(settings.content_hint,
-                                       current_timestamp_);
-      if (is_first_frame_) {
-        encoder_->Encode(frame, tu_settings,
-                         ToVec({Fb().Res(settings.resolution)
-                                    .Upd(0)
-                                    .Key()
-                                    .Cbr(cbr_settings)
-                                    .Out(out)}));
-        is_first_frame_ = false;
-      } else {
-        encoder_->Encode(frame, tu_settings,
-                         ToVec({Fb().Res(settings.resolution)
-                                    .Ref({0})
-                                    .Upd(0)
-                                    .Delta()
-                                    .Cbr(cbr_settings)
-                                    .Out(out)}));
+      std::optional<TemporalLayerPatternForTest::FrameConfig> frame_config;
+      if (temporal_layer_pattern_ != nullptr) {
+        frame_config = temporal_layer_pattern_->NextFrameConfig();
       }
+      const int temporal_id = frame_config ? frame_config->temporal_id : 0;
+      // A temporal layer is given a share of the stream bitrate, and the
+      // frames of the layer split that share between them. A layer that only
+      // holds every fourth frame therefore gives each of its frames four times
+      // the bit budget its share of the bitrate would suggest, which is what
+      // `frame_budget_factor` accounts for. The duration always stays the
+      // interval to the next frame of the stream.
+      const TimeDelta frame_duration =
+          settings.frame_duration.value_or(settings.frame_interval);
+      const DataRate target_bitrate =
+          frame_config ? settings.target_bitrate * frame_config->rate_factor
+                       : settings.target_bitrate;
+      const DataSize ideal_frame_size =
+          settings.target_bitrate * frame_duration *
+          (frame_config
+               ? temporal_layer_pattern_->frame_budget_factor(temporal_id)
+               : 1.0);
+
+      EncOut out;
+      Fb builder;
+      builder.Res(settings.resolution)
+          .T(temporal_id)
+          .Cbr({.duration = frame_duration, .target_bitrate = target_bitrate})
+          .Out(out);
+      const bool is_keyframe = is_first_frame_;
+      if (is_first_frame_) {
+        builder.Key().Upd(0);
+        is_first_frame_ = false;
+      } else if (frame_config) {
+        builder.Delta().Upd(frame_config->update_buffer);
+        if (frame_config->reference_buffer) {
+          builder.Ref({*frame_config->reference_buffer});
+        }
+      } else {
+        builder.Delta().Ref({0}).Upd(0);
+      }
+      encoder_->Encode(
+          frame,
+          TemporalUnitSettings(settings.content_hint, current_timestamp_),
+          ToVec({builder.Build()}));
 
       ASSERT_THAT(out, HasBitstreamAndMetaData());
       std::optional<double> psnr;
@@ -222,9 +278,11 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
 
       encoded_frames_.push_back(
           {.actual = DataSize::Bytes(out.bitstream.size()),
-           .ideal = settings.target_bitrate * frame_duration,
+           .ideal = ideal_frame_size,
            .duration = frame_duration,
-           .psnr = psnr});
+           .psnr = psnr,
+           .temporal_id = temporal_id,
+           .is_keyframe = is_keyframe});
       current_timestamp_ += settings.frame_interval;
       time_controller_.AdvanceTime(settings.frame_interval);
     }
@@ -327,6 +385,100 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
     EXPECT_LE(*max_window_dev_pct, max_allowed_dev_pct);
   }
 
+  // Verifies that the encoder acted on the requested temporal layer
+  // allocation. Each layer is checked against the bit budget that was
+  // requested for it, in the same way `VerifyTotalDeviation` checks the stream
+  // as a whole. Additionally, since every sensible allocation gives the lower
+  // temporal layers a larger per frame bit budget than the higher ones, the
+  // encoded frames must follow that order too.
+  void VerifyTemporalLayerAllocation(double max_deviation_pct) {
+    ASSERT_TRUE(temporal_layer_pattern_ != nullptr);
+    const int num_temporal_layers =
+        temporal_layer_pattern_->num_temporal_layers();
+
+    std::vector<AccumulatedData> per_layer(num_temporal_layers);
+    std::vector<int> frames_per_layer(num_temporal_layers, 0);
+    std::vector<double> psnr_sum_per_layer(num_temporal_layers, 0.0);
+    for (const AccumulatedData& frame : encoded_frames_) {
+      // A keyframe cannot be held to a per frame bit budget, and since it
+      // belongs to the base layer it would otherwise dominate the layer with
+      // the fewest frames.
+      if (frame.is_keyframe) {
+        continue;
+      }
+      ASSERT_LT(frame.temporal_id, num_temporal_layers);
+      per_layer[frame.temporal_id].Add(frame);
+      ++frames_per_layer[frame.temporal_id];
+      psnr_sum_per_layer[frame.temporal_id] += frame.psnr.value_or(0.0);
+    }
+
+    for (int tid = 0; tid < num_temporal_layers; ++tid) {
+      ASSERT_GT(frames_per_layer[tid], 0);
+      RTC_LOG(LS_VERBOSE) << "T" << tid << " frames=" << frames_per_layer[tid]
+                          << " bytes/frame="
+                          << per_layer[tid].actual.bytes() /
+                                 frames_per_layer[tid]
+                          << " deviation=" << per_layer[tid].deviation_pct()
+                          << "% psnr="
+                          << psnr_sum_per_layer[tid] / frames_per_layer[tid];
+    }
+
+    for (int tid = 0; tid < num_temporal_layers; ++tid) {
+      const double deviation_pct = per_layer[tid].deviation_pct();
+      EXPECT_NEAR(deviation_pct, 0.0, max_deviation_pct)
+          << "T" << tid << " bitrate deviation " << deviation_pct
+          << "% exceeded tolerance " << max_deviation_pct
+          << "% (actual: " << per_layer[tid].actual.bytes()
+          << " bytes, target: " << per_layer[tid].ideal.bytes() << " bytes)";
+    }
+
+    // Lower temporal layers are given a larger per frame bit budget, so the
+    // encoded frames have to follow the same order. A distribution that asks
+    // for the same budget on both sides of a layer boundary says nothing about
+    // the order the frames should come out in, so those pairs are skipped.
+    for (int tid = 1; tid < num_temporal_layers; ++tid) {
+      const double requested_below =
+          static_cast<double>(per_layer[tid - 1].ideal.bytes()) /
+          frames_per_layer[tid - 1];
+      const double requested_above =
+          static_cast<double>(per_layer[tid].ideal.bytes()) /
+          frames_per_layer[tid];
+      if (requested_below <= requested_above) {
+        continue;
+      }
+      EXPECT_GT(per_layer[tid - 1].actual.bytes() / frames_per_layer[tid - 1],
+                per_layer[tid].actual.bytes() / frames_per_layer[tid])
+          << "T" << (tid - 1) << " frames are not larger than T" << tid
+          << " frames";
+    }
+  }
+
+  // The mean PSNR of the frames belonging to temporal layer `temporal_id`.
+  double MeanPsnrOfTemporalLayer(int temporal_id) const {
+    double sum = 0.0;
+    int count = 0;
+    for (const AccumulatedData& frame : encoded_frames_) {
+      if (frame.temporal_id == temporal_id) {
+        RTC_CHECK(frame.psnr.has_value());
+        sum += *frame.psnr;
+        ++count;
+      }
+    }
+    RTC_CHECK_GT(count, 0);
+    return sum / count;
+  }
+
+  // The mean PSNR of all encoded frames.
+  double MeanPsnr() const {
+    double sum = 0.0;
+    for (const AccumulatedData& frame : encoded_frames_) {
+      RTC_CHECK(frame.psnr.has_value());
+      sum += *frame.psnr;
+    }
+    RTC_CHECK(!encoded_frames_.empty());
+    return sum / encoded_frames_.size();
+  }
+
   GlobalSimulatedTimeController time_controller_{Timestamp::Zero()};
   Environment env_{CreateTestEnvironment({.time = &time_controller_})};
   std::unique_ptr<VideoEncoderFactoryInterface> encoder_factory_;
@@ -334,6 +486,7 @@ class VideoEncoderRateControlTestBase : public ::testing::Test {
   std::unique_ptr<VideoDecoderFactory> decoder_factory_;
   std::unique_ptr<TestDecoder> test_decoder_;
   std::unique_ptr<test::FrameGeneratorInterface> frame_generator_;
+  std::unique_ptr<TemporalLayerPatternForTest> temporal_layer_pattern_;
   std::vector<AccumulatedData> encoded_frames_;
   Timestamp current_timestamp_ = Timestamp::Zero();
   bool is_first_frame_ = true;
@@ -633,7 +786,104 @@ TEST_P(VideoEncoderRateControlTest, SyntheticChaoticMotionStressHd) {
   VerifyTotalDeviation(/*max_deviation_pct=*/5.0);
 }
 
-// TODO(bugs.webrtc.org/496266459): Add temporal/spatial layer allocation test.
+// The number of groups of pictures a sequence has to cover. The base layer
+// contributes a single frame to each, so this is also the number of base layer
+// frames the per layer measurements are based on. Eight is enough to be within
+// a few percentage points of the value this converges to, well inside the
+// tolerances below.
+constexpr int kMinGroupsOfPictures = 8;
+
+// How far a single temporal layer may be off the share of the bitrate it was
+// allocated. This is wider than the tolerance on the stream as a whole because
+// the encoder is free to move bits between the layers as long as the total
+// holds, and because a layer holds only a fraction of the bits, so the cost of
+// starting the sequence weighs more heavily on it. The worst layer measured
+// over the sequences below is 15% off.
+//
+// TODO(bugs.webrtc.org/496266459): Most of what is left is that start-up cost,
+// which the encoder works off over a window far longer than these sequences;
+// running them for 30s instead brings the worst layer to 5.6%. That triples
+// the runtime of these tests, so it is not worth it until the tolerance has to
+// be this tight to catch something.
+constexpr double kMaxLayerDeviationPct = 20.0;
+
+// A frame cannot be given an arbitrarily large share of the bitrate: the rate
+// controller has to keep its buffer from draining, so a single frame asking
+// for a significant part of the buffer will simply not be delivered. Temporal
+// layer distributions are only exercised while they stay below this.
+constexpr TimeDelta kMaxFrameBudget = kCbrTargetBufferSize / 4;
+
+struct TemporalLayerTestParams {
+  std::string name;
+  Resolution resolution;
+  DataRate target_bitrate;
+  // Returns the bitrate fractions for a given number of temporal layers, see
+  // `TemporalLayerPatternForTest`.
+  std::vector<double> (*distribution)(int num_temporal_layers);
+};
+
+class TemporalLayerRateControlTest
+    : public VideoEncoderRateControlTestBase,
+      public ::testing::WithParamInterface<
+          std::tuple<FactoryCreator, TemporalLayerTestParams>> {
+ protected:
+  void SetUp() override { encoder_factory_ = std::get<0>(GetParam())(); }
+};
+
+// Verifies that the encoder adheres to the target bitrate when the bit budget
+// is distributed over a temporal layer structure, and that it acts on the
+// requested per temporal layer distribution, for every temporal layer count
+// the encoder supports.
+TEST_P(TemporalLayerRateControlTest, AdheresToLayerAllocation) {
+  if (!SupportsCbr()) {
+    GTEST_SKIP() << "Encoder does not support CBR mode.";
+  }
+  if (!SupportsTemporalLayers(2)) {
+    GTEST_SKIP() << "Encoder does not support temporal layers.";
+  }
+  const TemporalLayerTestParams& params = std::get<1>(GetParam());
+
+  constexpr TimeDelta kFrameInterval = 1 / Frequency::Hertz(30);
+  constexpr TimeDelta kMinDuration = TimeDelta::Seconds(10);
+
+  for (int num_temporal_layers = 2; num_temporal_layers <= MaxTemporalLayers();
+       ++num_temporal_layers) {
+    SCOPED_TRACE(num_temporal_layers);
+
+    auto pattern = std::make_unique<TemporalLayerPatternForTest>(
+        num_temporal_layers, NumReferenceBuffers(),
+        params.distribution(num_temporal_layers));
+    // The base layer budget only grows with the number of layers, so no
+    // higher layer count is realizable either.
+    if (kFrameInterval * pattern->frame_budget_factor(0) > kMaxFrameBudget) {
+      break;
+    }
+
+    const int num_frames =
+        std::max<int>(kMinDuration / kFrameInterval,
+                      kMinGroupsOfPictures *
+                          TemporalLayerPatternForTest::FramesPerGroupOfPictures(
+                              num_temporal_layers));
+
+    SetUpCbrEncoder(params.resolution);
+    EnableDecoder();
+    Encode({.num_frames = num_frames,
+            .target_bitrate = params.target_bitrate,
+            .frame_interval = kFrameInterval,
+            .resolution = params.resolution,
+            .temporal_layer_pattern = std::move(pattern)});
+
+    VerifyTotalDeviation(/*max_deviation_pct=*/5.0);
+    VerifyTemporalLayerAllocation(kMaxLayerDeviationPct);
+
+    // A receiver that only decodes the base layer sees a lower frame rate at a
+    // higher quality per frame, so base layer frames must not be worse than
+    // the average frame.
+    EXPECT_GT(MeanPsnrOfTemporalLayer(0), MeanPsnr());
+  }
+}
+
+// TODO(bugs.webrtc.org/496266459): Add spatial layer allocation test.
 
 // Verifies that the encoder behaves well in screenshare scenarios with mostly
 // static content combined with intermittent slide changes at high resolution.
@@ -897,6 +1147,38 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::Values(CreateLibaomAv1EncoderFactory),
                        ::testing::ValuesIn(kFixedBitrateConfigs)),
     FixedBitrateTestName);
+
+const TemporalLayerTestParams kTemporalLayerConfigs[] = {
+    // Halving the per frame bit budget for every temporal layer makes it
+    // proportional to the prediction distance, see `GeometricDistribution`.
+    // The base layer frame budget then grows as `2^N/(N+1)` frame intervals -
+    // 67 ms at three layers, but 533 ms at seven - so this stops short of
+    // `max_temporal_layers()` once it exceeds `kMaxFrameBudget`.
+    {"GeometricVga", kVgaResolution, DataRate::KilobitsPerSec(600),
+     [](int num_temporal_layers) {
+       return TemporalLayerPatternForTest::GeometricDistribution(
+           num_temporal_layers, /*ratio=*/0.5);
+     }},
+    // Only spans `N:1` between the base and top layer instead of the geometric
+    // `2^(N-1):1`, so it stays realizable all the way up. The pattern period
+    // doubles for every added layer, which makes covering enough groups of
+    // pictures expensive at high layer counts, hence the lower resolution.
+    {"LinearQvga", kQvgaResolution, DataRate::KilobitsPerSec(300),
+     &TemporalLayerPatternForTest::LinearDistribution},
+};
+
+std::string TemporalLayerTestName(
+    const ::testing::TestParamInfo<
+        std::tuple<FactoryCreator, TemporalLayerTestParams>>& info) {
+  return std::get<1>(info.param).name;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    LibaomAv1,
+    TemporalLayerRateControlTest,
+    ::testing::Combine(::testing::Values(CreateLibaomAv1EncoderFactory),
+                       ::testing::ValuesIn(kTemporalLayerConfigs)),
+    TemporalLayerTestName);
 
 }  // namespace
 }  // namespace webrtc
