@@ -2724,7 +2724,6 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::GetPerLayerVideoSenderInfos(
     info.psnr_sum = stream_stats.psnr_sum;
     info.psnr_measurements = stream_stats.psnr_measurements;
     info.total_encode_time_ms = stream_stats.total_encode_time_ms;
-    info.total_encoded_bytes_target = stream_stats.total_encoded_bytes_target;
     info.huge_frames_sent = stream_stats.huge_frames_sent;
     info.scalability_mode = stream_stats.scalability_mode;
     info.target_bitrate = stream_stats.target_bitrate;
@@ -2784,7 +2783,6 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::GetAggregatedVideoSenderInfo(
     info.frames_encoded += infos[i].frames_encoded;
     info.frames_sent += infos[i].frames_sent;
     info.total_encode_time_ms += infos[i].total_encode_time_ms;
-    info.total_encoded_bytes_target += infos[i].total_encoded_bytes_target;
   }
   return info;
 }

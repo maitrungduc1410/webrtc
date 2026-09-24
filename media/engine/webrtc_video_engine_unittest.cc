@@ -6220,10 +6220,6 @@ TEST_F(WebRtcVideoChannelTest, GetAggregatedStatsReportWithoutSubStreams) {
   // Comes from substream only.
   EXPECT_EQ(sender.key_frames_encoded, 0u);
   EXPECT_EQ(sender.total_encode_time_ms, 0u);
-
-  EXPECT_EQ(sender.total_encoded_bytes_target,
-            stats.total_encoded_bytes_target);
-  // Comes from substream only.
   EXPECT_EQ(sender.total_packet_send_delay, TimeDelta::Zero());
   EXPECT_EQ(sender.qp_sum, std::nullopt);
   EXPECT_EQ(sender.frames_sent, 0u);
@@ -6271,7 +6267,6 @@ TEST_F(WebRtcVideoChannelTest, GetAggregatedStatsReportForSubStreams) {
   substream.frames_encoded = 21;
   substream.qp_sum = 22;
   substream.total_encode_time_ms = 23;
-  substream.total_encoded_bytes_target = 24;
   substream.huge_frames_sent = 25;
 
   stats.substreams[ssrc_2] = substream;
@@ -6348,8 +6343,6 @@ TEST_F(WebRtcVideoChannelTest, GetAggregatedStatsReportForSubStreams) {
   EXPECT_EQ(sender.frames_encoded, 2u * substream.frames_encoded);
   EXPECT_EQ(sender.key_frames_encoded, 2u * substream.frame_counts.key_frames);
   EXPECT_EQ(sender.total_encode_time_ms, 2u * substream.total_encode_time_ms);
-  EXPECT_EQ(sender.total_encoded_bytes_target,
-            2u * substream.total_encoded_bytes_target);
   EXPECT_EQ(sender.has_entered_low_resolution,
             stats.has_entered_low_resolution);
   EXPECT_EQ(sender.qp_sum, 2u * *substream.qp_sum);
@@ -6395,7 +6388,6 @@ TEST_F(WebRtcVideoChannelTest, GetPerLayerStatsReportForSubStreams) {
   substream.frames_encoded = 21;
   substream.qp_sum = 22;
   substream.total_encode_time_ms = 23;
-  substream.total_encoded_bytes_target = 24;
   substream.huge_frames_sent = 25;
 
   stats.substreams[ssrc_2] = substream;
@@ -6472,8 +6464,6 @@ TEST_F(WebRtcVideoChannelTest, GetPerLayerStatsReportForSubStreams) {
   EXPECT_EQ(sender.key_frames_encoded,
             static_cast<uint32_t>(substream.frame_counts.key_frames));
   EXPECT_EQ(sender.total_encode_time_ms, substream.total_encode_time_ms);
-  EXPECT_EQ(sender.total_encoded_bytes_target,
-            substream.total_encoded_bytes_target);
   EXPECT_EQ(sender.has_entered_low_resolution,
             stats.has_entered_low_resolution);
   EXPECT_EQ(sender.qp_sum, *substream.qp_sum);

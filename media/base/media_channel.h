@@ -639,8 +639,6 @@ struct VideoSenderInfo : public MediaSenderInfo {
   uint32_t key_frames_encoded = 0;
   // https://w3c.github.io/webrtc-stats/#dom-rtcoutboundrtpstreamstats-totalencodetime
   uint64_t total_encode_time_ms = 0;
-  // https://w3c.github.io/webrtc-stats/#dom-rtcoutboundrtpstreamstats-totalencodedbytestarget
-  uint64_t total_encoded_bytes_target = 0;
   bool has_entered_low_resolution = false;
   // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-qpsum
   std::optional<uint64_t> qp_sum;
