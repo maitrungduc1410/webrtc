@@ -78,6 +78,12 @@ class RtpPacketToSend : public RtpPacket {
   }
   bool allow_retransmission() const { return allow_retransmission_; }
 
+  // Indicates if packet sending is allowed. If false, sending should be
+  // skipped (e.g. flushed packets on keyframe).
+  // TODO(bugs.webrtc.org/564720400): Either remove or make permanent.
+  void set_allow_sending(bool allow_sending) { allow_sending_ = allow_sending; }
+  bool allow_sending() const { return allow_sending_; }
+
   // An application can attach arbitrary data to an RTP packet using
   // `additional_data`. The additional data does not affect WebRTC processing.
   scoped_refptr<RefCountedBase> additional_data() const {
@@ -173,6 +179,7 @@ class RtpPacketToSend : public RtpPacket {
   bool fec_protect_packet_ = false;
   bool is_red_ = false;
   bool send_as_ect1_ = false;
+  bool allow_sending_ = true;
   std::optional<TimeDelta> time_in_send_queue_;
 };
 
