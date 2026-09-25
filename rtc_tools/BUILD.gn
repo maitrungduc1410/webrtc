@@ -347,6 +347,7 @@ if (!build_with_chromium) {
         "../modules/congestion_controller/goog_cc:estimators",
         "../modules/congestion_controller/rtp:transport_feedback",
         "../modules/congestion_controller/scream:scream_v2",
+        "../modules/congestion_controller/scream:scream_v2_parameters",
         "../modules/pacing",
         "../modules/remote_bitrate_estimator",
         "../modules/rtp_rtcp",
