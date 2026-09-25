@@ -304,6 +304,7 @@ if (rtc_include_tests) {
   rtc_cc_test("speech_level_estimator_experimental_unittest") {
     sources = [ "speech_level_estimator_experimental_unittest.cc" ]
     deps = [
+      ":common",
       ":speech_level_estimator",
       "..:apm_logging",
       "../../../api:field_trials",

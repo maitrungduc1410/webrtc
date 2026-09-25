@@ -23,16 +23,29 @@
 namespace webrtc {
 namespace {
 
-float FetchBackgroundSpeakerOffsetDbfs(const FieldTrialsView& field_trials) {
+struct SpeechLevelEstimatorExperimentalConfig {
+  float background_speaker_offset_dbfs;
+  int max_time_to_update_ms;
+};
+
+SpeechLevelEstimatorExperimentalConfig
+FetchSpeechLevelEstimatorExperimentalConfig(
+    const FieldTrialsView& field_trials) {
   constexpr float kDefaultBackgroundSpeakerOffsetDbfs =
       SpeechLevelEstimatorExperimentalImpl::kDefaultBackgroundSpeakerOffsetDbfs;
+  constexpr int kDefaultMaxTimeToUpdateMs =
+      SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs;
   float offset_db = kDefaultBackgroundSpeakerOffsetDbfs;
+  int max_time_ms = kDefaultMaxTimeToUpdateMs;
   const std::string field_trial =
       field_trials.Lookup("WebRTC-Agc2SpeechLevelEstimatorExperimental");
   FieldTrialFlag enabled_param("Enabled");
   FieldTrialParameter<double> offset_param(
       /*key=*/"offset", /*default_value=*/kDefaultBackgroundSpeakerOffsetDbfs);
-  ParseFieldTrial({&enabled_param, &offset_param}, field_trial);
+  FieldTrialParameter<int> max_time_param(
+      /*key=*/"max_time_ms", /*default_value=*/kDefaultMaxTimeToUpdateMs);
+  ParseFieldTrial({&enabled_param, &offset_param, &max_time_param},
+                  field_trial);
 
   float offset_read = static_cast<float>(offset_param.Get());
 
@@ -47,7 +60,22 @@ float FetchBackgroundSpeakerOffsetDbfs(const FieldTrialsView& field_trials) {
   RTC_LOG(LS_INFO) << "AGC2: SpeechLevelEstimatorExperimental: "
                       "background_speaker_offset_db = "
                    << offset_db;
-  return offset_db;
+
+  int max_time_read = max_time_param.Get();
+  if (max_time_read > 0) {
+    max_time_ms = max_time_read;
+  } else {
+    RTC_LOG(LS_ERROR) << "AGC2: SpeechLevelEstimatorExperimental: wrong input, "
+                         "max_time_ms = "
+                      << max_time_read
+                      << ". Using default: " << kDefaultMaxTimeToUpdateMs;
+  }
+  RTC_LOG(LS_INFO) << "AGC2: SpeechLevelEstimatorExperimental: "
+                      "max_time_ms = "
+                   << max_time_ms;
+
+  return {.background_speaker_offset_dbfs = offset_db,
+          .max_time_to_update_ms = max_time_ms};
 }
 
 }  // namespace
@@ -59,9 +87,12 @@ std::unique_ptr<SpeechLevelEstimator> SpeechLevelEstimator::Create(
     int adjacent_speech_frames_threshold) {
   if (field_trials.IsEnabled("WebRTC-Agc2SpeechLevelEstimatorExperimental")) {
     RTC_LOG(LS_INFO) << "AGC2 using SpeechLevelEstimatorExperimental";
+    const auto experimental_config =
+        FetchSpeechLevelEstimatorExperimentalConfig(field_trials);
     return std::make_unique<SpeechLevelEstimatorExperimentalImpl>(
         apm_data_dumper, config, adjacent_speech_frames_threshold,
-        FetchBackgroundSpeakerOffsetDbfs(field_trials));
+        experimental_config.background_speaker_offset_dbfs,
+        experimental_config.max_time_to_update_ms);
   } else {
     RTC_LOG(LS_INFO) << "AGC2 using SpeechLevelEstimator";
     return std::make_unique<SpeechLevelEstimatorImpl>(

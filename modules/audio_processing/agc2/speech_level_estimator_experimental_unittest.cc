@@ -12,6 +12,7 @@
 
 #include "api/audio/audio_processing.h"
 #include "api/field_trials.h"
+#include "modules/audio_processing/agc2/agc2_common.h"
 #include "modules/audio_processing/agc2/speech_level_estimator.h"
 #include "modules/audio_processing/agc2/speech_level_estimator_experimental_impl.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
@@ -26,6 +27,7 @@ using AdaptiveDigitalConfig =
     AudioProcessing::Config::GainController2::AdaptiveDigital;
 
 constexpr float kConvergenceSpeedTestsLevelTolerance = 0.5f;
+constexpr float kLevelToleranceDbfs = 1.0f;
 constexpr float kNoSpeechProbability = 0.0f;
 constexpr float kMaxSpeechProbability = 1.0f;
 constexpr int kFramesPerUpdate = 100;
@@ -49,7 +51,8 @@ struct TestLevelEstimator {
             AdaptiveDigitalConfig{},
             adjacent_speech_frames_threshold,
             SpeechLevelEstimatorExperimentalImpl::
-                kDefaultBackgroundSpeakerOffsetDbfs)),
+                kDefaultBackgroundSpeakerOffsetDbfs,
+            SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs)),
         initial_speech_level_dbfs(estimator->GetLevelDbfs()),
         level_rms_dbfs(initial_speech_level_dbfs / 2.0f),
         level_peak_dbfs(initial_speech_level_dbfs / 3.0f) {
@@ -109,8 +112,8 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   RunOnConstantLevel(kFramesPerUpdate, /*rms_dbfs=*/0.0f, kNoSpeechProbability,
                      *level_estimator.estimator);
   // No estimated level change is expected.
-  EXPECT_FLOAT_EQ(level_estimator.estimator->GetLevelDbfs(),
-                  estimated_level_dbfs);
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), estimated_level_dbfs,
+              kLevelToleranceDbfs);
 }
 
 // Checks the convergence speed of the estimator before it becomes confident.
@@ -133,8 +136,8 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
                      /*rms_dbfs=*/level_estimator.initial_speech_level_dbfs,
                      kMaxSpeechProbability, *level_estimator.estimator);
   // No estimate change should occur, but confidence is achieved.
-  ASSERT_FLOAT_EQ(level_estimator.estimator->GetLevelDbfs(),
-                  level_estimator.initial_speech_level_dbfs);
+  ASSERT_NEAR(level_estimator.estimator->GetLevelDbfs(),
+              level_estimator.initial_speech_level_dbfs, kLevelToleranceDbfs);
   ASSERT_TRUE(level_estimator.estimator->IsConfident());
   // After confidence.
   constexpr float kConvergenceTimeAfterConfidenceNumFrames = 700;  // 7 seconds.
@@ -161,8 +164,11 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   EXPECT_FALSE(level_estimator.estimator->IsBackgroundSpeaker());
   const float confident_level_dbfs = level_estimator.estimator->GetLevelDbfs();
 
-  // Present a background speaker who is > 10 dB quieter.
-  constexpr float kBackgroundSpeakerLevelDropDbfs = 15.0f;
+  // Present a quieter background speaker below the offset threshold.
+  constexpr float kBackgroundSpeakerLevelDropDbfs =
+      SpeechLevelEstimatorExperimentalImpl::
+          kDefaultBackgroundSpeakerOffsetDbfs +
+      5.0f;
   const float background_speaker_level_dbfs =
       confident_level_dbfs - kBackgroundSpeakerLevelDropDbfs;
   RunOnConstantLevel(kFramesPerUpdate, background_speaker_level_dbfs,
@@ -170,15 +176,116 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
 
   // The background speaker should be detected and estimated level retained.
   EXPECT_TRUE(level_estimator.estimator->IsBackgroundSpeaker());
-  EXPECT_FLOAT_EQ(level_estimator.estimator->GetLevelDbfs(),
-                  confident_level_dbfs);
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), confident_level_dbfs,
+              kLevelToleranceDbfs);
 
   // When the primary speaker speaks again, background speaker flag is cleared.
   RunOnConstantLevel(kFramesPerUpdate, level_estimator.level_rms_dbfs,
                      kMaxSpeechProbability, *level_estimator.estimator);
   EXPECT_FALSE(level_estimator.estimator->IsBackgroundSpeaker());
-  EXPECT_FLOAT_EQ(level_estimator.estimator->GetLevelDbfs(),
-                  confident_level_dbfs);
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), confident_level_dbfs,
+              kLevelToleranceDbfs);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     DoesNotResetStateBeforeConfidenceWhenExceedingMaxTime) {
+  constexpr int kMaxFramesToUpdate =
+      SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs /
+      kFrameDurationMs;
+  TestLevelEstimator level_estimator(/*adjacent_speech_frames_threshold=*/12);
+
+  // Before `is_confident_` is true, accumulate half of the required frames,
+  // wait past the timeout limit, and then accumulate the remaining frames.
+  // State should not be reset before initial confidence is reached.
+  RunOnConstantLevel(kFramesPerUpdate / 2, level_estimator.level_rms_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  ASSERT_FALSE(level_estimator.estimator->IsConfident());
+
+  RunOnConstantLevel(kMaxFramesToUpdate, level_estimator.level_rms_dbfs,
+                     kNoSpeechProbability, *level_estimator.estimator);
+
+  RunOnConstantLevel(kFramesPerUpdate / 2, level_estimator.level_rms_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  EXPECT_TRUE(level_estimator.estimator->IsConfident());
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(),
+              level_estimator.level_rms_dbfs,
+              kConvergenceSpeedTestsLevelTolerance);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     ResetsStateWhenUpdateTakesMoreThanMaxTimeAfterConfidence) {
+  constexpr int kMaxFramesToUpdate =
+      SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs /
+      kFrameDurationMs;
+  TestLevelEstimator level_estimator(/*adjacent_speech_frames_threshold=*/12);
+
+  // Reach initial confidence first.
+  RunOnConstantLevel(kFramesPerUpdate, level_estimator.level_rms_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  ASSERT_TRUE(level_estimator.estimator->IsConfident());
+  const float confident_level_dbfs = level_estimator.estimator->GetLevelDbfs();
+  const float new_speaker_level_dbfs = confident_level_dbfs + 10.0f;
+
+  // Accumulate half of the required frames at the new level.
+  RunOnConstantLevel(kFramesPerUpdate / 2, new_speaker_level_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+
+  // Wait long enough for the timeout since reliable speech accumulation began
+  // to trigger a state reset and flag a background speaker.
+  RunOnConstantLevel(kMaxFramesToUpdate, new_speaker_level_dbfs,
+                     kNoSpeechProbability, *level_estimator.estimator);
+  EXPECT_TRUE(level_estimator.estimator->IsBackgroundSpeaker());
+
+  // Accumulate another half of the required frames. Because the earlier frames
+  // expired, the estimator should not yet reach `kFramesPerUpdate` and must
+  // retain `confident_level_dbfs` and the background speaker flag.
+  RunOnConstantLevel(kFramesPerUpdate / 2, new_speaker_level_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  EXPECT_TRUE(level_estimator.estimator->IsBackgroundSpeaker());
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), confident_level_dbfs,
+              kLevelToleranceDbfs);
+
+  // Providing the remaining half of the required frames within the new window
+  // reaches `kFramesPerUpdate`, clears the background speaker flag, and updates
+  // the level.
+  RunOnConstantLevel(kFramesPerUpdate / 2, new_speaker_level_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  EXPECT_FALSE(level_estimator.estimator->IsBackgroundSpeaker());
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), new_speaker_level_dbfs,
+              kLevelToleranceDbfs);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     SporadicSpeechResetsBeforeUpdatingLevel) {
+  constexpr int kMaxFramesToUpdate =
+      SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs /
+      kFrameDurationMs;
+  constexpr int kAdjacentSpeechFramesThreshold = 12;
+  TestLevelEstimator level_estimator(kAdjacentSpeechFramesThreshold);
+  // Reach confidence with the primary speaker.
+  RunOnConstantLevel(kFramesPerUpdate, level_estimator.level_rms_dbfs,
+                     kMaxSpeechProbability, *level_estimator.estimator);
+  ASSERT_TRUE(level_estimator.estimator->IsConfident());
+  const float confident_level_dbfs = level_estimator.estimator->GetLevelDbfs();
+
+  // Simulate sporadic speech bursts whose total speech frames exceed
+  // `kFramesPerUpdate`, but spaced far enough apart that `kMaxFramesToUpdate`
+  // elapses before `kFramesPerUpdate` is reached.
+  constexpr int kSpeechFramesPerBurst = kAdjacentSpeechFramesThreshold + 3;
+  constexpr int kNumBursts = kFramesPerUpdate / kSpeechFramesPerBurst + 1;
+  constexpr int kSilenceFramesBetweenBursts =
+      kMaxFramesToUpdate / (kNumBursts - 1);
+  const float louder_speaker_level_dbfs = confident_level_dbfs + 10.0f;
+  for (int i = 0; i < kNumBursts; ++i) {
+    RunOnConstantLevel(kSpeechFramesPerBurst, louder_speaker_level_dbfs,
+                       kMaxSpeechProbability, *level_estimator.estimator);
+    RunOnConstantLevel(kSilenceFramesBetweenBursts, louder_speaker_level_dbfs,
+                       kNoSpeechProbability, *level_estimator.estimator);
+  }
+
+  EXPECT_TRUE(level_estimator.estimator->IsBackgroundSpeaker());
+  EXPECT_NEAR(level_estimator.estimator->GetLevelDbfs(), confident_level_dbfs,
+              kLevelToleranceDbfs);
 }
 
 TEST(GainController2SpeechLevelEstimatorExperimental,
@@ -186,13 +293,18 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   FieldTrials field_trials = CreateTestFieldTrials(
       "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled/");
   ApmDataDumper data_dumper(/*instance_index=*/0);
-  auto estimator = SpeechLevelEstimator::Create(
-      field_trials, &data_dumper, AdaptiveDigitalConfig{},
-      /*adjacent_speech_frames_threshold=*/1);
+  std::unique_ptr<SpeechLevelEstimator> estimator =
+      SpeechLevelEstimator::Create(field_trials, &data_dumper,
+                                   AdaptiveDigitalConfig{},
+                                   /*adjacent_speech_frames_threshold=*/1);
   ASSERT_TRUE(estimator);
-  auto* experimental_estimator =
+  SpeechLevelEstimatorExperimentalImpl* experimental_estimator =
       static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
-  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 10.0f);
+  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(),
+            SpeechLevelEstimatorExperimentalImpl::
+                kDefaultBackgroundSpeakerOffsetDbfs);
+  EXPECT_EQ(experimental_estimator->GetMaxTimeToUpdateMs(),
+            SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs);
 }
 
 TEST(GainController2SpeechLevelEstimatorExperimental,
@@ -200,11 +312,12 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   FieldTrials field_trials = CreateTestFieldTrials(
       "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,offset:15.0/");
   ApmDataDumper data_dumper(/*instance_index=*/0);
-  auto estimator = SpeechLevelEstimator::Create(
-      field_trials, &data_dumper, AdaptiveDigitalConfig{},
-      /*adjacent_speech_frames_threshold=*/1);
+  std::unique_ptr<SpeechLevelEstimator> estimator =
+      SpeechLevelEstimator::Create(field_trials, &data_dumper,
+                                   AdaptiveDigitalConfig{},
+                                   /*adjacent_speech_frames_threshold=*/1);
   ASSERT_TRUE(estimator);
-  auto* experimental_estimator =
+  SpeechLevelEstimatorExperimentalImpl* experimental_estimator =
       static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
   EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 15.0f);
 }
@@ -214,13 +327,47 @@ TEST(GainController2SpeechLevelEstimatorExperimental,
   FieldTrials field_trials = CreateTestFieldTrials(
       "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,offset:-5.0/");
   ApmDataDumper data_dumper(/*instance_index=*/0);
-  auto estimator = SpeechLevelEstimator::Create(
-      field_trials, &data_dumper, AdaptiveDigitalConfig{},
-      /*adjacent_speech_frames_threshold=*/1);
+  std::unique_ptr<SpeechLevelEstimator> estimator =
+      SpeechLevelEstimator::Create(field_trials, &data_dumper,
+                                   AdaptiveDigitalConfig{},
+                                   /*adjacent_speech_frames_threshold=*/1);
   ASSERT_TRUE(estimator);
-  auto* experimental_estimator =
+  SpeechLevelEstimatorExperimentalImpl* experimental_estimator =
       static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
-  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(), 10.0f);
+  EXPECT_EQ(experimental_estimator->GetBackgroundSpeakerOffsetDbfs(),
+            SpeechLevelEstimatorExperimentalImpl::
+                kDefaultBackgroundSpeakerOffsetDbfs);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     FactoryConfiguresMaxTimeViaFieldTrial) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,max_time_ms:15000/");
+  ApmDataDumper data_dumper(/*instance_index=*/0);
+  std::unique_ptr<SpeechLevelEstimator> estimator =
+      SpeechLevelEstimator::Create(field_trials, &data_dumper,
+                                   AdaptiveDigitalConfig{},
+                                   /*adjacent_speech_frames_threshold=*/1);
+  ASSERT_TRUE(estimator);
+  SpeechLevelEstimatorExperimentalImpl* experimental_estimator =
+      static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
+  EXPECT_EQ(experimental_estimator->GetMaxTimeToUpdateMs(), 15000);
+}
+
+TEST(GainController2SpeechLevelEstimatorExperimental,
+     FactoryFallbackOnInvalidMaxTimeFieldTrialValue) {
+  FieldTrials field_trials = CreateTestFieldTrials(
+      "WebRTC-Agc2SpeechLevelEstimatorExperimental/Enabled,max_time_ms:-1000/");
+  ApmDataDumper data_dumper(/*instance_index=*/0);
+  std::unique_ptr<SpeechLevelEstimator> estimator =
+      SpeechLevelEstimator::Create(field_trials, &data_dumper,
+                                   AdaptiveDigitalConfig{},
+                                   /*adjacent_speech_frames_threshold=*/1);
+  ASSERT_TRUE(estimator);
+  SpeechLevelEstimatorExperimentalImpl* experimental_estimator =
+      static_cast<SpeechLevelEstimatorExperimentalImpl*>(estimator.get());
+  EXPECT_EQ(experimental_estimator->GetMaxTimeToUpdateMs(),
+            SpeechLevelEstimatorExperimentalImpl::kDefaultMaxTimeToUpdateMs);
 }
 
 }  // namespace
