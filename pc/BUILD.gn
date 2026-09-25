@@ -2484,20 +2484,44 @@ if (rtc_include_tests && !build_with_chromium) {
     }
   }
 
-  rtc_library("peerconnection_perf_tests") {
-    testonly = true
-    sources = [
-      "peer_connection_callsetup_perf_tests.cc",
-      "peer_connection_rampup_tests.cc",
+  rtc_cc_test("peer_connection_callsetup_perf_tests") {
+    sources = [ "peer_connection_callsetup_perf_tests.cc" ]
+    deps = [
+      ":pc_test_utils",
+      ":session_description",
+      "../api:data_channel_interface",
+      "../api:jsep",
+      "../api:make_ref_counted",
+      "../api:rtc_error",
+      "../api:scoped_refptr",
+      "../api/audio_codecs:builtin_audio_decoder_factory",
+      "../api/audio_codecs:builtin_audio_encoder_factory",
+      "../api/environment",
+      "../api/test/metrics:global_metrics_logger_and_exporter",
+      "../api/test/metrics:metric",
+      "../api/units:time_delta",
+      "../api/units:timestamp",
+      "../p2p:transport_description",
+      "../rtc_base:checks",
+      "../rtc_base:rtc_base_tests_utils",
+      "../rtc_base:threading",
+      "../test:create_test_environment",
+      "../test:create_test_field_trials",
+      "../test:test_support",
+      "../test:wait_until",
+      "//third_party/abseil-cpp/absl/strings",
+      "//third_party/abseil-cpp/absl/strings:string_view",
     ]
+  }
+
+  rtc_cc_test("peer_connection_rampup_tests") {
+    sources = [ "peer_connection_rampup_tests.cc" ]
     deps = [
       ":pc_test_utils",
       ":peer_connection",
       ":peerconnection_wrapper",
-      ":session_description",
       "../api:audio_options_api",
       "../api:create_modular_peer_connection_factory",
-      "../api:data_channel_interface",
       "../api:enable_media_with_defaults",
       "../api:jsep",
       "../api:make_ref_counted",
@@ -2507,13 +2531,9 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:rtc_error_matchers",
       "../api:rtc_stats_api",
       "../api:scoped_refptr",
-      "../api/audio_codecs:builtin_audio_decoder_factory",
-      "../api/audio_codecs:builtin_audio_encoder_factory",
       "../api/environment",
       "../api/test/metrics:global_metrics_logger_and_exporter",
       "../api/test/metrics:metric",
-      "../api/units:time_delta",
-      "../api/units:timestamp",
       "../api/video_codecs:video_decoder_factory_template",
       "../api/video_codecs:video_decoder_factory_template_dav1d_adapter",
       "../api/video_codecs:video_decoder_factory_template_libvpx_vp8_adapter",
@@ -2526,7 +2546,6 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/video_codecs:video_encoder_factory_template_open_h264_adapter",
       "../p2p:p2p_test_utils",
       "../p2p:port_interface",
-      "../p2p:transport_description",
       "../rtc_base:checks",
       "../rtc_base:crypto_random",
       "../rtc_base:net_helper",
@@ -2537,12 +2556,9 @@ if (rtc_include_tests && !build_with_chromium) {
       "../rtc_base:threading",
       "../system_wrappers",
       "../test:create_test_environment",
-      "../test:create_test_field_trials",
       "../test:run_loop",
       "../test:test_support",
       "../test:wait_until",
-      "//third_party/abseil-cpp/absl/strings",
-      "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }
 

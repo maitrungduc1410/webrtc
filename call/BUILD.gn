@@ -894,14 +894,8 @@ if (rtc_include_tests) {
       ]
     }
 
-    rtc_library("call_perf_tests") {
-      testonly = true
-
-      sources = [
-        "call_perf_tests.cc",
-        "rampup_tests.cc",
-        "rampup_tests.h",
-      ]
+    rtc_cc_test("call_perf_tests") {
+      sources = [ "call_perf_tests.cc" ]
       deps = [
         ":call_interfaces",
         ":fake_network",
@@ -909,19 +903,15 @@ if (rtc_include_tests) {
         ":video_send_stream_api",
         "../api:field_trials_view",
         "../api:make_ref_counted",
-        "../api:rtc_event_log_output_file",
         "../api:rtp_header_extension_id",
         "../api:rtp_parameters",
         "../api:scoped_refptr",
-        "../api:sequence_checker",
         "../api:simulated_network_api",
         "../api/audio:audio_device",
         "../api/audio:builtin_audio_processing_builder",
         "../api/audio_codecs:builtin_audio_encoder_factory",
         "../api/environment",
         "../api/numerics",
-        "../api/rtc_event_log",
-        "../api/rtc_event_log:rtc_event_log_factory",
         "../api/task_queue",
         "../api/task_queue:pending_task_safety_flag",
         "../api/test/metrics:global_metrics_logger_and_exporter",
@@ -945,7 +935,6 @@ if (rtc_include_tests) {
         "../rtc_base:rtc_event",
         "../rtc_base:task_queue_for_test",
         "../rtc_base:threading",
-        "../rtc_base/task_utils:repeating_task",
         "../system_wrappers:metrics",
         "../test:encoder_settings",
         "../test:fake_video_codecs",
@@ -959,6 +948,46 @@ if (rtc_include_tests) {
         "../test/network:simulated_network",
         "../video/config:encoder_config",
         "//third_party/abseil-cpp/absl/base:nullability",
+        "//third_party/abseil-cpp/absl/flags:flag",
+        "//third_party/abseil-cpp/absl/strings:string_view",
+      ]
+    }
+
+    rtc_cc_test("rampup_tests") {
+      sources = [
+        "rampup_tests.cc",
+        "rampup_tests.h",
+      ]
+      deps = [
+        ":call_interfaces",
+        ":fake_network",
+        ":video_receive_stream_api",
+        ":video_send_stream_api",
+        "../api:field_trials_view",
+        "../api:make_ref_counted",
+        "../api:rtc_event_log_output_file",
+        "../api:rtp_header_extension_id",
+        "../api:rtp_parameters",
+        "../api:sequence_checker",
+        "../api:simulated_network_api",
+        "../api/rtc_event_log",
+        "../api/rtc_event_log:rtc_event_log_factory",
+        "../api/task_queue",
+        "../api/test/metrics:global_metrics_logger_and_exporter",
+        "../api/test/metrics:metric",
+        "../api/transport:bitrate_settings",
+        "../api/units:data_rate",
+        "../api/units:time_delta",
+        "../api/video:video_frame",
+        "../api/video_codecs:video_codecs_api",
+        "../rtc_base:checks",
+        "../rtc_base:task_queue_for_test",
+        "../rtc_base/task_utils:repeating_task",
+        "../test:encoder_settings",
+        "../test:test_common",
+        "../test:test_support",
+        "../test:video_test_constants",
+        "../video/config:encoder_config",
         "//third_party/abseil-cpp/absl/flags:flag",
         "//third_party/abseil-cpp/absl/strings",
         "//third_party/abseil-cpp/absl/strings:string_view",
