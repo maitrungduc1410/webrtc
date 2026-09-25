@@ -543,7 +543,6 @@ VideoSendStreamImpl::~VideoSendStreamImpl() {
   RTC_LOG(LS_INFO) << "~VideoSendStreamImpl: " << config_.ToString();
   RTC_DCHECK(!started());
   RTC_DCHECK(!IsRunning());
-  video_stream_encoder_ = nullptr;
   transport_->DestroyRtpVideoSender(rtp_video_sender_);
 }
 
@@ -611,12 +610,13 @@ void VideoSendStreamImpl::StopPermanentlyAndGetRtpStates(
     VideoSendStreamImpl::RtpStateMap* rtp_state_map,
     VideoSendStreamImpl::RtpPayloadStateMap* payload_state_map) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
+  video_stream_encoder_->Stop();
+
   running_ = false;
   // Always run these cleanup steps regardless of whether running_ was set
   // or not. This will unregister callbacks before destruction.
   // See `VideoSendStreamImpl::StopVideoSendStream` for more.
   Stop();
-  video_stream_encoder_->Stop();
   *rtp_state_map = GetRtpStates();
   *payload_state_map = GetRtpPayloadStates();
 }

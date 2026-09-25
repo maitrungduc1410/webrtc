@@ -196,12 +196,6 @@ class VideoSendStreamImplTest : public ::testing::Test {
     return encoder_config;
   }
 
-  class MockVideoStreamEncoderWithOnDtor : public MockVideoStreamEncoder {
-   public:
-    ~MockVideoStreamEncoderWithOnDtor() override { OnDtor(); }
-    MOCK_METHOD(void, OnDtor, ());
-  };
-
   std::unique_ptr<VideoSendStreamImpl> CreateVideoSendStreamImpl(
       VideoEncoderConfig encoder_config,
       const FieldTrialsView* field_trials = nullptr) {
@@ -210,9 +204,8 @@ class VideoSendStreamImplTest : public ::testing::Test {
     std::map<uint32_t, RtpState> suspended_ssrcs;
     std::map<uint32_t, RtpPayloadState> suspended_payload_states;
 
-    std::unique_ptr<NiceMock<MockVideoStreamEncoderWithOnDtor>>
-        video_stream_encoder =
-            std::make_unique<NiceMock<MockVideoStreamEncoderWithOnDtor>>();
+    std::unique_ptr<NiceMock<MockVideoStreamEncoder>> video_stream_encoder =
+        std::make_unique<NiceMock<MockVideoStreamEncoder>>();
     video_stream_encoder_ = video_stream_encoder.get();
 
     auto ret = std::make_unique<VideoSendStreamImpl>(
@@ -249,7 +242,7 @@ class VideoSendStreamImplTest : public ::testing::Test {
   NiceMock<MockTransport> transport_;
   NiceMock<MockRtpTransportControllerSend> transport_controller_;
   NiceMock<MockBitrateAllocator> bitrate_allocator_;
-  NiceMock<MockVideoStreamEncoderWithOnDtor>* video_stream_encoder_ = nullptr;
+  NiceMock<MockVideoStreamEncoder>* video_stream_encoder_ = nullptr;
   NiceMock<MockRtpVideoSender> rtp_video_sender_;
   bool rtp_sending_ = false;
 
@@ -1280,25 +1273,6 @@ TEST_F(VideoSendStreamImplTest,
       .Times(1);
 
   observers.intra_frame_callback->OnReceivedIntraFrameRequest(1111);
-}
-
-TEST_F(VideoSendStreamImplTest, StopPermanentlyAndDestroyTeardownOrder) {
-  auto vss_impl = CreateVideoSendStreamImpl(TestVideoEncoderConfig());
-  vss_impl->Start();
-
-  {
-    testing::InSequence s;
-    EXPECT_CALL(rtp_video_sender_, SetSending(false));
-    EXPECT_CALL(*video_stream_encoder_, Stop());
-    EXPECT_CALL(*video_stream_encoder_, OnDtor());
-    EXPECT_CALL(transport_controller_,
-                DestroyRtpVideoSender(&rtp_video_sender_));
-  }
-
-  VideoSendStreamImpl::RtpStateMap rtp_states;
-  VideoSendStreamImpl::RtpPayloadStateMap payload_states;
-  vss_impl->StopPermanentlyAndGetRtpStates(&rtp_states, &payload_states);
-  vss_impl.reset();
 }
 
 }  // namespace internal
