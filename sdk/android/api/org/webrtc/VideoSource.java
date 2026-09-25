@@ -126,7 +126,7 @@ public class VideoSource extends MediaSource {
       AspectRatio targetPortraitAspectRatio,
       @Nullable Integer maxPortraitPixelCount,
       @Nullable Integer maxFps) {
-    lifecycleLock.run(
+    runWithReference(
         () ->
             nativeAndroidVideoTrackSource.adaptOutputFormat(
                 targetLandscapeAspectRatio,
@@ -137,7 +137,7 @@ public class VideoSource extends MediaSource {
   }
 
   public void setIsScreencast(boolean isScreencast) {
-    lifecycleLock.run(() -> nativeAndroidVideoTrackSource.setIsScreencast(isScreencast));
+    runWithReference(() -> nativeAndroidVideoTrackSource.setIsScreencast(isScreencast));
   }
 
   /**

@@ -28,7 +28,7 @@ public class RtpReceiver {
       MediaStreamTrack.MediaType media_type) {}
   }
 
-  private final NativeLifecycleLock lifecycleLock;
+  final NativeLifecycleLock lifecycleLock;
   private long nativeObserver;
 
   @Nullable private final MediaStreamTrack cachedTrack;
@@ -72,6 +72,16 @@ public class RtpReceiver {
   }
 
   public void SetObserver(Observer observer) {
+    if (observer == null) {
+      lifecycleLock.runIfAlive(
+          receiver -> {
+            if (nativeObserver != 0) {
+              RtpReceiverJni.get().unsetObserver(receiver, nativeObserver);
+              nativeObserver = 0;
+            }
+          });
+      return;
+    }
     lifecycleLock.run(
         receiver -> {
           // Unset the existing one before setting a new one.

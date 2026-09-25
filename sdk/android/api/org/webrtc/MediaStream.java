@@ -22,7 +22,7 @@ public class MediaStream {
   public final List<AudioTrack> audioTracks = new ArrayList<>();
   public final List<VideoTrack> videoTracks = new ArrayList<>();
   public final List<VideoTrack> preservedVideoTracks = new ArrayList<>();
-  private final NativeLifecycleLock lifecycleLock;
+  final NativeLifecycleLock lifecycleLock;
 
   @CalledByNative
   public MediaStream(long nativeStream) {
@@ -31,26 +31,28 @@ public class MediaStream {
 
   public boolean addTrack(AudioTrack track) {
     return lifecycleLock.call(
-        nativeStream -> {
-          if (MediaStreamJni.get()
-              .addAudioTrackToNativeStream(nativeStream, track.getNativeAudioTrack())) {
-            audioTracks.add(track);
-            return true;
-          }
-          return false;
-        });
+        nativeStream ->
+            track.lifecycleLock.call(
+                nativeTrack -> {
+                  if (MediaStreamJni.get().addAudioTrackToNativeStream(nativeStream, nativeTrack)) {
+                    audioTracks.add(track);
+                    return true;
+                  }
+                  return false;
+                }));
   }
 
   public boolean addTrack(VideoTrack track) {
     return lifecycleLock.call(
-        nativeStream -> {
-          if (MediaStreamJni.get()
-              .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
-            videoTracks.add(track);
-            return true;
-          }
-          return false;
-        });
+        nativeStream ->
+            track.lifecycleLock.call(
+                nativeTrack -> {
+                  if (MediaStreamJni.get().addVideoTrackToNativeStream(nativeStream, nativeTrack)) {
+                    videoTracks.add(track);
+                    return true;
+                  }
+                  return false;
+                }));
   }
 
   // Tracks added in addTrack() call will be auto released once MediaStream.dispose()
@@ -58,31 +60,38 @@ public class MediaStream {
   // should be added to MediaStream using addPreservedTrack() call.
   public boolean addPreservedTrack(VideoTrack track) {
     return lifecycleLock.call(
-        nativeStream -> {
-          if (MediaStreamJni.get()
-              .addVideoTrackToNativeStream(nativeStream, track.getNativeVideoTrack())) {
-            preservedVideoTracks.add(track);
-            return true;
-          }
-          return false;
-        });
+        nativeStream ->
+            track.lifecycleLock.call(
+                nativeTrack -> {
+                  if (MediaStreamJni.get().addVideoTrackToNativeStream(nativeStream, nativeTrack)) {
+                    preservedVideoTracks.add(track);
+                    return true;
+                  }
+                  return false;
+                }));
   }
 
   public boolean removeTrack(AudioTrack track) {
-    return lifecycleLock.call(
+    return lifecycleLock.callOrDefault(
         nativeStream -> {
           audioTracks.remove(track);
-          return MediaStreamJni.get().removeAudioTrack(nativeStream, track.getNativeAudioTrack());
-        });
+          return track.lifecycleLock.callOrDefault(
+              nativeTrack -> MediaStreamJni.get().removeAudioTrack(nativeStream, nativeTrack),
+              false);
+        },
+        false);
   }
 
   public boolean removeTrack(VideoTrack track) {
-    return lifecycleLock.call(
+    return lifecycleLock.callOrDefault(
         nativeStream -> {
           videoTracks.remove(track);
           preservedVideoTracks.remove(track);
-          return MediaStreamJni.get().removeVideoTrack(nativeStream, track.getNativeVideoTrack());
-        });
+          return track.lifecycleLock.callOrDefault(
+              nativeTrack -> MediaStreamJni.get().removeVideoTrack(nativeStream, nativeTrack),
+              false);
+        },
+        false);
   }
 
   @CalledByNative
@@ -147,7 +156,7 @@ public class MediaStream {
     final Iterator<? extends MediaStreamTrack> it = tracks.iterator();
     while (it.hasNext()) {
       MediaStreamTrack track = it.next();
-      if (track.getNativeMediaStreamTrack() == nativeTrack) {
+      if (track.lifecycleLock.callOrDefault(ptr -> ptr == nativeTrack, false)) {
         track.dispose();
         it.remove();
         return;

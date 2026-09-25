@@ -37,10 +37,12 @@ public class NativeLifecycleLockTest {
 
   @Test
   public void testCallWithPointerReturnsValue() {
-    String result = lifecycleLock.call(ptr -> {
-      assertThat(ptr).isEqualTo(FAKE_PTR);
-      return "success";
-    });
+    String result =
+        lifecycleLock.call(
+            ptr -> {
+              assertThat(ptr).isEqualTo(FAKE_PTR);
+              return "success";
+            });
     assertThat(result).isEqualTo("success");
   }
 
@@ -48,6 +50,20 @@ public class NativeLifecycleLockTest {
   public void testCallNoArgReturnsValue() {
     String result = lifecycleLock.call(() -> "success");
     assertThat(result).isEqualTo("success");
+  }
+
+  @Test
+  public void testCallOrDefaultReturnsValueWhenAlive() {
+    assertThat(lifecycleLock.callOrDefault(() -> "alive", "default")).isEqualTo("alive");
+    assertThat(lifecycleLock.callOrDefault(ptr -> "ptr:" + ptr, "default"))
+        .isEqualTo("ptr:" + FAKE_PTR);
+  }
+
+  @Test
+  public void testCallOrDefaultReturnsDefaultAfterDispose() {
+    lifecycleLock.dispose(ptr -> {});
+    assertThat(lifecycleLock.callOrDefault(() -> "alive", "default")).isEqualTo("default");
+    assertThat(lifecycleLock.callOrDefault(ptr -> "alive", "default")).isEqualTo("default");
   }
 
   @Test
@@ -62,6 +78,27 @@ public class NativeLifecycleLockTest {
     AtomicBoolean executed = new AtomicBoolean(false);
     lifecycleLock.run(() -> executed.set(true));
     assertThat(executed.get()).isTrue();
+  }
+
+  @Test
+  public void testRunIfAliveExecutesWhenAlive() {
+    AtomicBoolean noArgExecuted = new AtomicBoolean(false);
+    AtomicLong seenPtr = new AtomicLong(0);
+
+    assertThat(lifecycleLock.runIfAlive(() -> noArgExecuted.set(true))).isTrue();
+    assertThat(lifecycleLock.runIfAlive(seenPtr::set)).isTrue();
+    assertThat(noArgExecuted.get()).isTrue();
+    assertThat(seenPtr.get()).isEqualTo(FAKE_PTR);
+  }
+
+  @Test
+  public void testRunIfAliveReturnsFalseAfterDispose() {
+    lifecycleLock.dispose(ptr -> {});
+    AtomicBoolean executed = new AtomicBoolean(false);
+
+    assertThat(lifecycleLock.runIfAlive(() -> executed.set(true))).isFalse();
+    assertThat(lifecycleLock.runIfAlive(ptr -> executed.set(true))).isFalse();
+    assertThat(executed.get()).isFalse();
   }
 
   @Test
@@ -141,25 +178,30 @@ public class NativeLifecycleLockTest {
     CountDownLatch disposeFinished = new CountDownLatch(1);
     AtomicBoolean callCompleted = new AtomicBoolean(false);
 
-    Thread threadA = new Thread(() -> {
-      lifecycleLock.run(() -> {
-        inFlightStarted.countDown();
-        try {
-          allowInFlightToComplete.await(5, TimeUnit.SECONDS);
-          callCompleted.set(true);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-        }
-      });
-    });
+    Thread threadA =
+        new Thread(
+            () -> {
+              lifecycleLock.run(
+                  () -> {
+                    inFlightStarted.countDown();
+                    try {
+                      allowInFlightToComplete.await(5, TimeUnit.SECONDS);
+                      callCompleted.set(true);
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                    }
+                  });
+            });
     threadA.start();
 
     assertThat(inFlightStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
-    Thread threadB = new Thread(() -> {
-      lifecycleLock.dispose(ptr -> {});
-      disposeFinished.countDown();
-    });
+    Thread threadB =
+        new Thread(
+            () -> {
+              lifecycleLock.dispose(ptr -> {});
+              disposeFinished.countDown();
+            });
     threadB.start();
 
     // Verify dispose does not finish while in-flight read lock is held.

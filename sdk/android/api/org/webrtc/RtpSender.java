@@ -16,7 +16,7 @@ import org.jni_zero.NativeMethods;
 
 /** Java wrapper for a C++ RtpSenderInterface. */
 public class RtpSender {
-  private final NativeLifecycleLock lifecycleLock;
+  final NativeLifecycleLock lifecycleLock;
 
   @Nullable private MediaStreamTrack cachedTrack;
   private boolean ownsTrack = true;
@@ -51,10 +51,14 @@ public class RtpSender {
    * @return true on success and false on failure.
    */
   public boolean setTrack(@Nullable MediaStreamTrack track, boolean takeOwnership) {
-    return lifecycleLock.call(
+    return lifecycleLock.callOrDefault(
         sender -> {
-          if (!RtpSenderJni.get()
-              .setTrack(sender, (track == null) ? 0 : track.getNativeMediaStreamTrack())) {
+          boolean success =
+              (track == null)
+                  ? RtpSenderJni.get().setTrack(sender, 0)
+                  : track.lifecycleLock.callOrDefault(
+                      nativeTrack -> RtpSenderJni.get().setTrack(sender, nativeTrack), false);
+          if (!success) {
             return false;
           }
           if (cachedTrack != null && ownsTrack) {
@@ -63,7 +67,8 @@ public class RtpSender {
           cachedTrack = track;
           ownsTrack = takeOwnership;
           return true;
-        });
+        },
+        false);
   }
 
   @Nullable

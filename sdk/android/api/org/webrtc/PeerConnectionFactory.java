@@ -488,9 +488,12 @@ public class PeerConnectionFactory {
 
   public VideoTrack createVideoTrack(String id, VideoSource source) {
     return lifecycleLock.call(
-        factory -> new VideoTrack(
-            PeerConnectionFactoryJni.get()
-                .createVideoTrack(factory, id, source.getNativeVideoTrackSource())));
+        factory ->
+            source.lifecycleLock.call(
+                nativeSource ->
+                    new VideoTrack(
+                        PeerConnectionFactoryJni.get()
+                            .createVideoTrack(factory, id, nativeSource))));
   }
 
   public AudioSource createAudioSource(MediaConstraints constraints) {
@@ -501,9 +504,12 @@ public class PeerConnectionFactory {
 
   public AudioTrack createAudioTrack(String id, AudioSource source) {
     return lifecycleLock.call(
-        factory -> new AudioTrack(
-            PeerConnectionFactoryJni.get()
-                .createAudioTrack(factory, id, source.getNativeAudioSource())));
+        factory ->
+            source.lifecycleLock.call(
+                nativeSource ->
+                    new AudioTrack(
+                        PeerConnectionFactoryJni.get()
+                            .createAudioTrack(factory, id, nativeSource))));
   }
 
   public RtpCapabilities getRtpReceiverCapabilities(MediaStreamTrack.MediaType mediaType) {
@@ -530,7 +536,7 @@ public class PeerConnectionFactory {
   // Stops recording an AEC dump. If no AEC dump is currently being recorded,
   // this call will have no effect.
   public void stopAecDump() {
-    lifecycleLock.run(factory -> PeerConnectionFactoryJni.get().stopAecDump(factory));
+    lifecycleLock.runIfAlive(factory -> PeerConnectionFactoryJni.get().stopAecDump(factory));
   }
 
   public void dispose() {
