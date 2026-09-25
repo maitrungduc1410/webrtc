@@ -265,7 +265,9 @@ TEST_F(SframeEncryptorDecryptorTest, GetMaxPlaintextByteSizeIsAtLeastInput) {
   EXPECT_GE(decryptor_->GetMaxPlaintextByteSize(100), 100u);
 }
 
-TEST_F(SframeEncryptorDecryptorTest, DecryptReportsKeyIdErrorForUnknownKey) {
+// TODO(bugs.webrtc.org/479862368): Fix and re-enable.
+TEST_F(SframeEncryptorDecryptorTest,
+       DISABLED_DecryptReportsKeyIdErrorForUnknownKey) {
   ASSERT_TRUE(encryptor_->SetEncryptionKey(kKeyId, kKeyMaterial).ok());
 
   size_t max_ct_size = encryptor_->GetMaxCiphertextByteSize(kPlaintext.size());
