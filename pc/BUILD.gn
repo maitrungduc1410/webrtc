@@ -861,7 +861,7 @@ rtc_library("media_protocol_names") {
   visibility = [
     ":*",
     "../api:jsep",
-    "../api:rtc_api_unittests",
+    "../api:webrtc_sdp_unittest",
   ]
   sources = [
     "media_protocol_names.cc",
