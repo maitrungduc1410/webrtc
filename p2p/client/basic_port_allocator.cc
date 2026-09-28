@@ -1320,18 +1320,14 @@ void AllocationSequence::DisableEquivalentPhases(const Network* network,
   // already have a port of the corresponding type. Look for a port that
   // matches this AllocationSequence's network, is the right protocol, and
   // hasn't encountered an error.
-  // TODO(deadbeef): This doesn't take into account that there may be another
-  // AllocationSequence that's ABOUT to allocate a UDP port, but hasn't yet.
-  // This can happen if, say, there's a network change event right before an
-  // application-triggered ICE restart. Hopefully this problem will just go
-  // away if we get rid of the gathering "phases" though, which is planned.
-  //
   //
   // PORTALLOCATOR_DISABLE_UDP is used to disable a Port from gathering the host
   // candidate (and srflx candidate if Port::SharedSocket()), and we do not want
   // to disable the gathering of these candidates just becaue of an existing
   // Port over PROTO_UDP, namely a TurnPort over UDP.
-  if (absl::c_any_of(session_->ports_,
+  if ((state_ == kRunning && phase_ == PHASE_UDP &&
+       !IsFlagSet(PORTALLOCATOR_DISABLE_UDP)) ||
+      absl::c_any_of(session_->ports_,
                      [this](const BasicPortAllocatorSession::PortData& p) {
                        return !p.pruned() && p.port()->Network() == network_ &&
                               p.port()->GetProtocol() == PROTO_UDP &&
