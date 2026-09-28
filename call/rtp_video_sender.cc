@@ -62,6 +62,7 @@
 #include "modules/rtp_rtcp/source/rtp_sender.h"
 #include "modules/rtp_rtcp/source/rtp_sender_video.h"
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
+#include "modules/rtp_rtcp/source/rtp_video_header.h"
 #include "modules/rtp_rtcp/source/ulpfec_generator.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
 #include "modules/video_coding/include/video_codec_interface.h"
@@ -552,7 +553,23 @@ EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
 
   shared_frame_id_++;
   size_t simulcast_index = encoded_image.SimulcastIndex().value_or(0);
-  RTC_DCHECK_LT(simulcast_index, rtp_streams_.size());
+  if (simulcast_index >= rtp_streams_.size()) {
+    RTC_DCHECK_NOTREACHED();
+    return Result(Result::ERROR_SEND_FAILED);
+  }
+
+  // Create the RTP video header before checking if the RTP module is sending,
+  // so that `params_` also observe frames that are dropped below. `params_`
+  // track the encoder's reference buffers to describe frame dependencies.
+  // Skipping a frame that the encoder later references would instead describe
+  // a dependency on an older frame, which can be arbitrarily far back when
+  // simulcast streams share frame ids.
+  std::optional<int64_t> frame_id;
+  if (!independent_frame_ids_) {
+    frame_id = shared_frame_id_;
+  }
+  RTPVideoHeader video_header = params_[simulcast_index].GetRtpVideoHeader(
+      encoded_image, codec_specific_info, frame_id);
 
   uint32_t rtp_timestamp =
       encoded_image.RtpTimestamp() +
@@ -597,19 +614,12 @@ EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
     }
   }
 
-  std::optional<int64_t> frame_id;
-  if (!independent_frame_ids_) {
-    frame_id = shared_frame_id_;
-  }
-
   bool send_result =
       rtp_streams_[simulcast_index].sender_video->SendEncodedImage(
           rtp_config_.GetStreamConfig(simulcast_index).payload_type,
           PayloadStringToCodecType(
               rtp_config_.GetStreamConfig(simulcast_index).payload_name),
-          rtp_timestamp, encoded_image,
-          params_[simulcast_index].GetRtpVideoHeader(
-              encoded_image, codec_specific_info, frame_id),
+          rtp_timestamp, encoded_image, std::move(video_header),
           expected_retransmission_time, csrcs_);
   if (frame_count_observer_) {
     FrameCounts& counts = frame_counts_[simulcast_index];

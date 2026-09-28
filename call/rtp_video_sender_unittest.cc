@@ -76,6 +76,7 @@ namespace webrtc {
 namespace {
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
@@ -803,6 +804,106 @@ TEST(RtpVideoSenderTest, SupportsDependencyDescriptor) {
   ASSERT_THAT(sent_packets, SizeIs(2));
   EXPECT_TRUE(
       sent_packets.back().HasExtension<RtpDependencyDescriptorExtension>());
+}
+
+// The key frame of a re-enabled simulcast layer can be encoded before the
+// layer's RTP module is re-activated on the transport queue, in which case the
+// key frame is dropped. The next frame of the layer references the dropped key
+// frame, and the dependency descriptor must say so rather than reference the
+// last frame the layer sent before it was disabled. Since simulcast layers
+// share frame ids, that frame can be arbitrarily far back.
+TEST(RtpVideoSenderTest,
+     DescribesDependencyOnFrameDroppedWhileRtpModuleWasInactive) {
+  RtpVideoSenderTestFixture test({kSsrc1, kSsrc2}, {}, kPayloadType, {});
+  test.SetSending(true);
+
+  RtpHeaderExtensionMap extensions;
+  extensions.Register<RtpDependencyDescriptorExtension>(
+      kDependencyDescriptorExtensionId);
+  std::vector<RtpPacket> layer1_packets;
+  ON_CALL(test.transport(), SendRtp)
+      .WillByDefault(
+          [&](std::span<const uint8_t> packet, const PacketOptions& options) {
+            RtpPacket rtp_packet(&extensions);
+            EXPECT_TRUE(rtp_packet.Parse(packet));
+            if (rtp_packet.Ssrc() == kSsrc2 && rtp_packet.payload_size() > 0) {
+              layer1_packets.push_back(rtp_packet);
+            }
+            return true;
+          });
+
+  const uint8_t kPayload[1] = {'a'};
+  EncodedImage encoded_image;
+  encoded_image.SetRtpTimestamp(1);
+  encoded_image.capture_time_ms_ = 2;
+  encoded_image.SetEncodedData(
+      EncodedImageBuffer::Create(kPayload, sizeof(kPayload)));
+
+  CodecSpecificInfo key_frame_info;
+  key_frame_info.codecType = VideoCodecType::kVideoCodecGeneric;
+  key_frame_info.template_structure.emplace();
+  key_frame_info.template_structure->num_decode_targets = 1;
+  key_frame_info.template_structure->templates = {
+      FrameDependencyTemplate().T(0).Dtis("S"),
+      FrameDependencyTemplate().T(0).Dtis("S").FrameDiffs({1}),
+  };
+  key_frame_info.generic_frame_info =
+      GenericFrameInfo::Builder().T(0).Dtis("S").Build();
+  key_frame_info.generic_frame_info->encoder_buffers = {
+      {/*id=*/0, /*referenced=*/false, /*updated=*/true}};
+  CodecSpecificInfo delta_frame_info = key_frame_info;
+  delta_frame_info.template_structure = std::nullopt;
+  delta_frame_info.generic_frame_info->encoder_buffers = {
+      {/*id=*/0, /*referenced=*/true, /*updated=*/true}};
+
+  auto send_frame = [&](int simulcast_index, VideoFrameType frame_type) {
+    encoded_image.SetSimulcastIndex(simulcast_index);
+    encoded_image.set_frame_type(frame_type);
+    const CodecSpecificInfo& info = frame_type == VideoFrameType::kVideoFrameKey
+                                        ? key_frame_info
+                                        : delta_frame_info;
+    return test.router()->OnEncodedImage(encoded_image, &info).error;
+  };
+
+  EXPECT_EQ(send_frame(0, VideoFrameType::kVideoFrameKey),
+            EncodedImageCallback::Result::OK);
+  EXPECT_EQ(send_frame(1, VideoFrameType::kVideoFrameKey),
+            EncodedImageCallback::Result::OK);
+  test.AdvanceTime(TimeDelta::Millis(33));
+  ASSERT_THAT(layer1_packets, SizeIs(1));
+  DependencyDescriptor key_frame_dd;
+  ASSERT_TRUE(layer1_packets[0].GetExtension<RtpDependencyDescriptorExtension>(
+      /*structure=*/nullptr, &key_frame_dd));
+  ASSERT_THAT(key_frame_dd.attached_structure, NotNull());
+
+  // Disable layer 1. Frames on layer 0 keep advancing the shared frame id.
+  test.router()->OnVideoLayersAllocationUpdated(
+      {.active_spatial_layers = {{.rtp_stream_index = 0}}});
+  test.AdvanceTime(TimeDelta::Zero());
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_EQ(send_frame(0, VideoFrameType::kVideoFrameDelta),
+              EncodedImageCallback::Result::OK);
+    test.AdvanceTime(TimeDelta::Millis(33));
+  }
+
+  // Re-enable layer 1. Its key frame arrives before the posted task that
+  // re-activates the RTP module has run, so the key frame is dropped.
+  test.router()->OnVideoLayersAllocationUpdated(
+      {.active_spatial_layers = {{.rtp_stream_index = 0},
+                                 {.rtp_stream_index = 1}}});
+  EXPECT_NE(send_frame(1, VideoFrameType::kVideoFrameKey),
+            EncodedImageCallback::Result::OK);
+  test.AdvanceTime(TimeDelta::Zero());
+
+  // The next frame on layer 1 references the dropped key frame.
+  EXPECT_EQ(send_frame(1, VideoFrameType::kVideoFrameDelta),
+            EncodedImageCallback::Result::OK);
+  test.AdvanceTime(TimeDelta::Millis(33));
+  ASSERT_THAT(layer1_packets, SizeIs(2));
+  DependencyDescriptor delta_frame_dd;
+  ASSERT_TRUE(layer1_packets[1].GetExtension<RtpDependencyDescriptorExtension>(
+      key_frame_dd.attached_structure.get(), &delta_frame_dd));
+  EXPECT_THAT(delta_frame_dd.frame_dependencies.frame_diffs, ElementsAre(1));
 }
 
 TEST(RtpVideoSenderTest, SimulcastIndependentFrameIds) {
