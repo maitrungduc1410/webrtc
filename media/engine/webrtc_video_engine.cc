@@ -91,6 +91,7 @@
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/dscp.h"
@@ -1809,6 +1810,13 @@ void WebRtcVideoSendChannel::EnableSframe() {
   RTC_DCHECK_RUN_ON(worker_thread_);
   sframe_options_.required = true;
   // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+}
+
+void WebRtcVideoSendChannel::SetSframeEncryptor(
+    uint32_t /* ssrc */,
+    scoped_refptr<SframeMediaEncryptorInterface> /* sframe_encryptor */) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  // TODO(bugs.webrtc.org/479862368): Pass the encryptor to the send stream.
 }
 
 void WebRtcVideoSendChannel::SetEncoderSelector(
