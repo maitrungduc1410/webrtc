@@ -1001,6 +1001,33 @@ TEST_F(RtpSenderVideoTest, PopulateGenericFrameDescriptor) {
   EXPECT_EQ(descriptor_wire.SpatialLayersBitmask(), 0b0000'0100);
 }
 
+// A dependency that the generic frame descriptor can't represent is left out
+// rather than sent with a wrong frame diff.
+TEST_F(RtpSenderVideoTest,
+       LeavesOutDependencyThatGenericFrameDescriptorCannotRepresent) {
+  const int64_t kFrameId = 100000;
+  uint8_t kFrame[100];
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpGenericFrameDescriptorExtension00::Uri(), kGenericDescriptorId);
+
+  // Send delta frame that references the previous frame and a frame with a
+  // frame diff that is 5 when truncated to 16 bits.
+  RTPVideoHeader hdr;
+  RTPVideoHeader::GenericDescriptorInfo& generic = hdr.generic.emplace();
+  generic.frame_id = kFrameId + (1 << 16) + 5;
+  generic.dependencies = {kFrameId + (1 << 16) + 4, kFrameId};
+  hdr.frame_type = VideoFrameType::kVideoFrameDelta;
+  EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 1);
+  RtpGenericFrameDescriptor descriptor_wire;
+  ASSERT_TRUE(transport_.last_sent_packet()
+                  .GetExtension<RtpGenericFrameDescriptorExtension00>(
+                      &descriptor_wire));
+  EXPECT_THAT(descriptor_wire.FrameDependenciesDiffs(), ElementsAre(1));
+}
+
 void RtpSenderVideoTest::
     UsesMinimalVp8DescriptorWhenGenericFrameDescriptorExtensionIsUsed(
         int /* version */) {

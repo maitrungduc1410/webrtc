@@ -475,6 +475,9 @@ void RTPSenderVideo::AddRtpHeaderExtensions(const RTPVideoHeader& video_header,
         generic_descriptor.SetFrameId(
             static_cast<uint16_t>(video_header.generic->frame_id));
         for (int64_t dep : video_header.generic->dependencies) {
+          // A dependency that the descriptor can't represent is left out. That
+          // only matters to receivers that lost the referenced frame, whereas
+          // leaving out the descriptor would make the stream inconsistent.
           generic_descriptor.AddFrameDependencyDiff(
               video_header.generic->frame_id - dep);
         }
