@@ -11,9 +11,11 @@
 #include "modules/video_coding/codecs/av1/dav1d_decoder.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "api/environment/environment.h"
 #include "api/ref_counted_base.h"
@@ -27,6 +29,7 @@
 #include "common_video/include/video_frame_buffer.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/logging.h"
+#include "third_party/dav1d/libdav1d/include/dav1d/common.h"
 #include "third_party/dav1d/libdav1d/include/dav1d/data.h"
 #include "third_party/dav1d/libdav1d/include/dav1d/dav1d.h"
 #include "third_party/dav1d/libdav1d/include/dav1d/headers.h"
@@ -34,31 +37,6 @@
 
 namespace webrtc {
 namespace {
-
-class Dav1dDecoder : public VideoDecoder {
- public:
-  Dav1dDecoder();
-  explicit Dav1dDecoder(const Environment& env);
-  Dav1dDecoder(const Dav1dDecoder&) = delete;
-  Dav1dDecoder& operator=(const Dav1dDecoder&) = delete;
-
-  ~Dav1dDecoder() override;
-
-  bool Configure(const Settings& settings) override;
-  int32_t Decode(const EncodedImage& encoded_image,
-                 int64_t render_time_ms) override;
-  int32_t RegisterDecodeCompleteCallback(
-      DecodedImageCallback* callback) override;
-  int32_t Release() override;
-  DecoderInfo GetDecoderInfo() const override;
-  const char* ImplementationName() const override;
-
- private:
-  Dav1dContext* context_ = nullptr;
-  DecodedImageCallback* decode_complete_callback_ = nullptr;
-
-  const bool crop_to_render_resolution_ = false;
-};
 
 class ScopedDav1dData {
  public:
@@ -81,6 +59,34 @@ class ScopedDav1dPicture : public RefCountedNonVirtual<ScopedDav1dPicture> {
 };
 
 constexpr char kDav1dName[] = "dav1d";
+
+class Dav1dDecoder : public VideoDecoder {
+ public:
+  Dav1dDecoder();
+  explicit Dav1dDecoder(const Environment& env);
+  Dav1dDecoder(const Dav1dDecoder&) = delete;
+  Dav1dDecoder& operator=(const Dav1dDecoder&) = delete;
+
+  ~Dav1dDecoder() override;
+
+  bool Configure(const Settings& settings) override;
+  int32_t Decode(const EncodedImage& encoded_image,
+                 int64_t render_time_ms) override;
+  int32_t RegisterDecodeCompleteCallback(
+      DecodedImageCallback* callback) override;
+  int32_t Release() override;
+  DecoderInfo GetDecoderInfo() const override;
+  const char* ImplementationName() const override;
+
+ private:
+  int32_t OutputPicture(scoped_refptr<ScopedDav1dPicture> dav1d_picture,
+                        const EncodedImage& encoded_image);
+
+  Dav1dContext* context_ = nullptr;
+  DecodedImageCallback* decode_complete_callback_ = nullptr;
+
+  const bool crop_to_render_resolution_ = false;
+};
 
 Dav1dDecoder::Dav1dDecoder() = default;
 
@@ -162,20 +168,59 @@ int32_t Dav1dDecoder::Decode(const EncodedImage& encoded_image,
   // dav1d now holds the reference and drops it through `free_callback`.
   bitstream_buffer.release();
 
-  if (int decode_res = dav1d_send_data(context_, &dav1d_data)) {
-    RTC_LOG(LS_WARNING)
-        << "Dav1dDecoder::Decode decoding failed with error code "
-        << decode_res;
-    return WEBRTC_VIDEO_CODEC_ERROR;
+  // dav1d may stop parsing before the unit is consumed, rejecting further input
+  // with EAGAIN until dav1d_get_picture() has parsed the rest.
+  int decoded_pictures = 0;
+  int get_picture_res = DAV1D_ERR(EAGAIN);
+  while (dav1d_data.sz > 0 || get_picture_res == 0) {
+    if (dav1d_data.sz > 0) {
+      int send_res = dav1d_send_data(context_, &dav1d_data);
+      if (send_res != 0 && send_res != DAV1D_ERR(EAGAIN)) {
+        RTC_LOG(LS_WARNING)
+            << "Dav1dDecoder::Decode decoding failed with error code "
+            << send_res;
+        return WEBRTC_VIDEO_CODEC_ERROR;
+      }
+    }
+
+    scoped_refptr<ScopedDav1dPicture> scoped_dav1d_picture(
+        new ScopedDav1dPicture{});
+    get_picture_res =
+        dav1d_get_picture(context_, &scoped_dav1d_picture->Picture());
+    if (get_picture_res == DAV1D_ERR(EAGAIN)) {
+      continue;
+    }
+    if (get_picture_res != 0) {
+      RTC_LOG(LS_WARNING)
+          << "Dav1dDecoder::Decode getting picture failed with error code "
+          << get_picture_res;
+      return WEBRTC_VIDEO_CODEC_ERROR;
+    }
+    if (++decoded_pictures > 1) {
+      // All pictures would share the RTP timestamp of the image.
+      RTC_LOG(LS_WARNING) << "Dav1dDecoder::Decode discarding picture "
+                          << decoded_pictures << " with rtp timestamp "
+                          << encoded_image.RtpTimestamp();
+      continue;
+    }
+    if (int32_t res =
+            OutputPicture(std::move(scoped_dav1d_picture), encoded_image);
+        res != WEBRTC_VIDEO_CODEC_OK) {
+      return res;
+    }
   }
 
-  scoped_refptr<ScopedDav1dPicture> scoped_dav1d_picture(
-      new ScopedDav1dPicture{});
+  return decoded_pictures > 0 ? WEBRTC_VIDEO_CODEC_OK
+                              : WEBRTC_VIDEO_CODEC_NO_OUTPUT;
+}
+
+int32_t Dav1dDecoder::OutputPicture(
+    scoped_refptr<ScopedDav1dPicture> scoped_dav1d_picture,
+    const EncodedImage& encoded_image) {
   Dav1dPicture& dav1d_picture = scoped_dav1d_picture->Picture();
-  if (int get_picture_res = dav1d_get_picture(context_, &dav1d_picture)) {
-    RTC_LOG(LS_WARNING)
-        << "Dav1dDecoder::Decode getting picture failed with error code "
-        << get_picture_res;
+
+  if (dav1d_picture.seq_hdr == nullptr || dav1d_picture.frame_hdr == nullptr) {
+    RTC_LOG(LS_ERROR) << "Dav1dDecoder::Decode picture without headers.";
     return WEBRTC_VIDEO_CODEC_ERROR;
   }
 
@@ -189,7 +234,7 @@ int32_t Dav1dDecoder::Decode(const EncodedImage& encoded_image,
   int width = dav1d_picture.p.w;
   int height = dav1d_picture.p.h;
 
-  if (crop_to_render_resolution_ && dav1d_picture.frame_hdr) {
+  if (crop_to_render_resolution_) {
     // Interpret render_width/height as resolution decoded frame should be
     // cropped to.
     if (dav1d_picture.frame_hdr->render_width > 0 &&
