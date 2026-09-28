@@ -101,9 +101,6 @@
                                decoderFactory
                audioDevice:
                    (nullable id<RTC_OBJC_TYPE(RTCAudioDevice)>)audioDevice {
-#ifdef HAVE_NO_MEDIA
-  return [self initWithNoMedia];
-#else
   webrtc::PeerConnectionFactoryDependencies dependencies;
   dependencies.env = webrtc::CreateEnvironment();
   dependencies.audio_encoder_factory =
@@ -127,7 +124,6 @@
 #endif
   }
   return [self initWithMediaAndDependencies:dependencies];
-#endif
 }
 
 - (instancetype)initWithNativeDependencies:
