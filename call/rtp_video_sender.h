@@ -46,6 +46,7 @@
 #include "modules/rtp_rtcp/source/rtp_sender_video.h"
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
@@ -224,10 +225,8 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(mutex_);
   FrameCountObserver* const frame_count_observer_;
 
-  // Effectively const map from SSRC to RtpRtcp, for all media SSRCs.
-  // This map is set at construction time and never changed, but it's
-  // non-trivial to make it properly const.
-  std::map<uint32_t, RtpRtcpInterface*> ssrc_to_rtp_module_;
+  // Map from SSRC to RtpRtcp, for all media SSRCs.
+  const flat_map<uint32_t, RtpRtcpInterface*> ssrc_to_rtp_module_;
 
   ScopedTaskSafety safety_;
 };

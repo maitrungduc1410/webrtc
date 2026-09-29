@@ -67,6 +67,7 @@
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/synchronization/mutex.h"
@@ -329,6 +330,19 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
   return rtp_streams;
 }
 
+// Maps each media SSRC to the RTP module that sends it. `rtp_streams` are
+// sorted in the same order as `ssrcs`.
+flat_map<uint32_t, RtpRtcpInterface*> CreateSsrcToRtpModuleMap(
+    const std::vector<uint32_t>& ssrcs,
+    const std::vector<RtpStreamSender>& rtp_streams) {
+  std::vector<std::pair<uint32_t, RtpRtcpInterface*>> ssrc_to_rtp_module;
+  ssrc_to_rtp_module.reserve(ssrcs.size());
+  for (size_t i = 0; i < ssrcs.size(); ++i) {
+    ssrc_to_rtp_module.emplace_back(ssrcs[i], rtp_streams[i].rtp_rtcp.get());
+  }
+  return flat_map<uint32_t, RtpRtcpInterface*>(std::move(ssrc_to_rtp_module));
+}
+
 bool TransportSeqNumExtensionConfigured(const RtpConfig& config) {
   return absl::c_any_of(config.extensions, [](const RtpExtension& ext) {
     return ext.uri == RtpExtension::kTransportSequenceNumberUri;
@@ -418,6 +432,8 @@ RtpVideoSender::RtpVideoSender(
       encoder_target_rate_bps_(0),
       frame_counts_(rtp_config.ssrcs.size()),
       frame_count_observer_(observers.frame_count_observer),
+      ssrc_to_rtp_module_(
+          CreateSsrcToRtpModuleMap(rtp_config.ssrcs, rtp_streams_)),
       safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
           /*alive=*/true,
           transport_queue)) {
@@ -723,7 +739,6 @@ void RtpVideoSender::DeliverRtcp(std::span<const uint8_t> packet) {
 void RtpVideoSender::ConfigureSsrcs(
     const std::map<uint32_t, RtpState>& suspended_ssrcs) {
   // Configure regular SSRCs.
-  RTC_CHECK(ssrc_to_rtp_module_.empty());
   for (size_t i = 0; i < rtp_config_.ssrcs.size(); ++i) {
     uint32_t ssrc = rtp_config_.ssrcs[i];
     RtpRtcpInterface* const rtp_rtcp = rtp_streams_[i].rtp_rtcp.get();
@@ -732,8 +747,6 @@ void RtpVideoSender::ConfigureSsrcs(
     auto it = suspended_ssrcs.find(ssrc);
     if (it != suspended_ssrcs.end())
       rtp_rtcp->SetRtpState(it->second);
-
-    ssrc_to_rtp_module_[ssrc] = rtp_rtcp;
   }
 
   // Set up RTX if available.
