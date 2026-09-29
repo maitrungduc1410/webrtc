@@ -1878,6 +1878,7 @@ if (is_android) {
         ":native_api_jni",
         ":native_api_peerconnection",
         ":peerconnection_jni",
+        ":video_jni",
         "../../api:create_modular_peer_connection_factory",
         "../../api:enable_media_with_defaults",
         "../../api:peer_connection_interface",
