@@ -518,12 +518,15 @@ void RtpVideoSender::SetActiveModulesLocked(bool sending) {
 
 void RtpVideoSender::SetModuleIsActive(bool sending,
                                        RtpRtcpInterface& rtp_module) {
-  if (rtp_module.SendingMedia() == sending) {
+  rtp_module.SetSendingMediaStatus(sending);
+  // OnVideoLayersAllocationUpdated() enables media before the module is
+  // activated here, so the RTCP sending status tells whether the module is
+  // active.
+  if (rtp_module.Sending() == sending) {
     return;
   }
 
   rtp_module.SetSendingStatus(sending);
-  rtp_module.SetSendingMediaStatus(sending);
   if (sending) {
     transport_->RegisterSendingRtpStream(rtp_module);
   } else {
@@ -582,7 +585,11 @@ EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
   if (!rtp_streams_[simulcast_index].rtp_rtcp->OnSendingRtpFrame(
           encoded_image.RtpTimestamp(), encoded_image.capture_time_ms_,
           rtp_config_.GetStreamConfig(simulcast_index).payload_type,
-          encoded_image.IsKey())) {
+          encoded_image.IsKey()) &&
+      // OnSendingRtpFrame() returns false until the module has been activated
+      // on the transport queue, but OnVideoLayersAllocationUpdated() enables
+      // media right away. Send such frames rather than drop them.
+      !rtp_streams_[simulcast_index].rtp_rtcp->SendingMedia()) {
     // The payload router could be active but this module isn't sending.
     return Result(Result::ERROR_SEND_FAILED);
   }
@@ -664,6 +671,15 @@ void RtpVideoSender::OnVideoLayersAllocationUpdated(
          allocation.active_spatial_layers) {
       if (layer.rtp_stream_index < static_cast<int>(sending.size())) {
         sending[layer.rtp_stream_index] = true;
+        // Enable media right away, so that the key frame the encoder produces
+        // for a re-enabled layer isn't dropped if it's encoded before the task
+        // below has run. This doesn't race with batch sending since the pacer
+        // has no packets for an inactive module (DeRegisterSendingRtpStream()
+        // prunes them, and RTPSender builds no RTX or padding packets while
+        // media is off). Packets of new frames are enqueued in the pacer on
+        // the transport queue, i.e. after the task has activated the module.
+        rtp_streams_[layer.rtp_stream_index].rtp_rtcp->SetSendingMediaStatus(
+            true);
       }
     }
     transport_queue_.PostTask(
