@@ -105,7 +105,8 @@ void BaseCapturerPipeWire::OnScreenCastRequestResult(RequestResponse result,
       const SourceId token_id =
           selected_source_id_ ? selected_source_id_ : source_id_;
       RestoreTokenManager::GetInstance().AddToken(
-          token_id, screencast_portal->RestoreToken());
+          token_id, screencast_portal->RestoreToken(),
+          screencast_portal->persist_mode());
     }
   }
 
@@ -156,12 +157,12 @@ void BaseCapturerPipeWire::Start(Callback* callback) {
   callback_ = callback;
 
   if (ScreenCastPortal* screencast_portal = GetScreenCastPortal()) {
-    screencast_portal->SetPersistMode(
-        ScreenCastPortal::PersistMode::kTransient);
+    RestoreTokenManager::Entry entry;
     if (selected_source_id_) {
-      screencast_portal->SetRestoreToken(
-          RestoreTokenManager::GetInstance().GetToken(selected_source_id_));
+      entry = RestoreTokenManager::GetInstance().GetEntry(selected_source_id_);
     }
+    screencast_portal->SetPersistMode(entry.persist_mode);
+    screencast_portal->SetRestoreToken(entry.token);
   }
 
   is_portal_open_ = true;
