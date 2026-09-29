@@ -10,6 +10,8 @@
 
 #include "modules/rtp_rtcp/source/rtp_sender_video.h"
 
+#include <bitset>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -21,6 +23,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
 #include "api/crypto/frame_encryptor_interface.h"
 #include "api/field_trials_view.h"
@@ -75,6 +78,11 @@ using PacketizationFormat = RtpPacketizer::PacketizationFormat;
 constexpr size_t kRedForFecHeaderLength = 1;
 constexpr TimeDelta kMaxUnretransmittableFrameInterval =
     TimeDelta::Millis(33 * 4);
+// Minimum interval between repeated warnings.
+constexpr TimeDelta kWarningLogInterval = TimeDelta::Seconds(10);
+// Largest chain diff that the dependency descriptor can represent, see
+// `frame_chain_fdiff` in the dependency descriptor specification.
+constexpr int kMaxChainDiff = (1 << 8) - 1;
 
 void BuildRedPayload(const RtpPacketToSend& media_packet,
                      RtpPacketToSend* red_packet) {
@@ -522,6 +530,39 @@ void RTPSenderVideo::AddRtpHeaderExtensions(const RTPVideoHeader& video_header,
   }
 }
 
+bool RTPSenderVideo::HandleMissingDependencyDescriptor(
+    const RTPVideoHeader& video_header,
+    const RtpPacketToSend& packet) {
+  if (video_structure_ == nullptr ||
+      !packet.IsRegistered<RtpDependencyDescriptorExtension>()) {
+    // The dependency descriptor isn't used.
+    return true;
+  }
+  if (video_header.frame_type == VideoFrameType::kVideoFrameKey) {
+    // Disable attaching dependency descriptor to delta packets (including
+    // non-first packet of a key frame) when it wasn't attached to a key frame,
+    // as dependency descriptor can't be usable in such case.
+    // This can also happen when the descriptor is larger than 15 bytes and
+    // two-byte header extensions are not negotiated using extmap-allow-mixed.
+    RTC_LOG(LS_WARNING) << "Disable dependency descriptor because failed to "
+                           "attach it to a key frame.";
+    video_structure_ = nullptr;
+    return true;
+  }
+  // The dependency descriptor can't describe this delta frame, e.g. because it
+  // references a frame too far back. Drop the frame rather than send it
+  // without a description of its dependencies, which receivers and middleboxes
+  // rely on. Unlike for key frames, keep the dependency descriptor enabled for
+  // the frames that follow.
+  Timestamp now = clock_->CurrentTime();
+  if (now >= last_undescribable_frame_log_ + kWarningLogInterval) {
+    RTC_LOG(LS_WARNING) << "Failed to describe frame dependencies. Frame is "
+                           "dropped.";
+    last_undescribable_frame_log_ = now;
+  }
+  return false;
+}
+
 bool RTPSenderVideo::SendVideo(int payload_type,
                                VideoCodecType codec_type,
                                uint32_t rtp_timestamp,
@@ -595,6 +636,31 @@ bool RTPSenderVideo::SendVideoFrame(int payload_type,
         video_header.generic->active_decode_targets,
         video_header.frame_type == VideoFrameType::kVideoFrameKey,
         video_header.generic->frame_id, video_header.generic->chain_diffs);
+    // Chain diffs of inactive chains aren't serialized, so they may be
+    // arbitrarily large, e.g. when a spatial layer isn't being produced.
+    const std::bitset<32> active_chains =
+        active_decode_targets_tracker_.ActiveChainsBitmask();
+    absl::InlinedVector<int, 4>& chain_diffs =
+        video_header.generic->chain_diffs;
+    for (size_t i = 0; i < chain_diffs.size() && i < active_chains.size();
+         ++i) {
+      int& chain_diff = chain_diffs[i];
+      if (!active_chains[i] || chain_diff <= kMaxChainDiff) {
+        continue;
+      }
+      // A chain diff that the dependency descriptor can't represent would
+      // make the frame undescribable. Instead, describe the chain as having
+      // no previous frame, like RtpPayloadParams does for VP9. That can lead
+      // to video corruption if a previous frame of the chain was lost.
+      Timestamp now = clock_->CurrentTime();
+      if (now >= last_chain_diff_log_ + kWarningLogInterval) {
+        RTC_LOG(LS_WARNING) << "Chain diff " << chain_diff
+                            << " is too large for the dependency descriptor. "
+                               "Sending 0 instead.";
+        last_chain_diff_log_ = now;
+      }
+      chain_diff = 0;
+    }
   }
 
   // No FEC protection for upper temporal layers, if used.
@@ -647,18 +713,9 @@ bool RTPSenderVideo::SendVideoFrame(int payload_type,
   AddRtpHeaderExtensions(video_header,
                          /*first_packet=*/true, /*last_packet=*/true,
                          single_packet.get());
-  if (video_structure_ != nullptr &&
-      single_packet->IsRegistered<RtpDependencyDescriptorExtension>() &&
-      !single_packet->HasExtension<RtpDependencyDescriptorExtension>()) {
-    RTC_DCHECK_EQ(video_header.frame_type, VideoFrameType::kVideoFrameKey);
-    // Disable attaching dependency descriptor to delta packets (including
-    // non-first packet of a key frame) when it wasn't attached to a key frame,
-    // as dependency descriptor can't be usable in such case.
-    // This can also happen when the descriptor is larger than 15 bytes and
-    // two-byte header extensions are not negotiated using extmap-allow-mixed.
-    RTC_LOG(LS_WARNING) << "Disable dependency descriptor because failed to "
-                           "attach it to a key frame.";
-    video_structure_ = nullptr;
+  if (!single_packet->HasExtension<RtpDependencyDescriptorExtension>() &&
+      !HandleMissingDependencyDescriptor(video_header, *single_packet)) {
+    return false;
   }
 
   AddRtpHeaderExtensions(video_header,
@@ -743,7 +800,7 @@ bool RTPSenderVideo::SendVideoFrame(int payload_type,
 
   if (num_packets == 0) {
     Timestamp now = clock_->CurrentTime();
-    if (now >= last_fail_packetize_log_ + TimeDelta::Seconds(10)) {
+    if (now >= last_fail_packetize_log_ + kWarningLogInterval) {
       RTC_LOG(LS_WARNING) << "Failed to packetize " << codec_type
                           << " video frame of size " << payload.size()
                           << ". Frame is dropped.";

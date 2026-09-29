@@ -192,6 +192,15 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
                               RtpPacketToSend* packet) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(send_checker_);
 
+  // Called when the dependency descriptor isn't attached to `packet`, a packet
+  // of the frame described by `video_header`. Disables the dependency
+  // descriptor if it couldn't be attached to a key frame. Returns false if the
+  // frame should be dropped because the dependency descriptor can't describe
+  // it.
+  bool HandleMissingDependencyDescriptor(const RTPVideoHeader& video_header,
+                                         const RtpPacketToSend& packet)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(send_checker_);
+
   size_t FecPacketOverhead() const RTC_EXCLUSIVE_LOCKS_REQUIRED(send_checker_);
 
   void LogAndSendToNetwork(
@@ -251,6 +260,10 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
 
   OneTimeEvent first_frame_sent_;
   Timestamp last_fail_packetize_log_ RTC_GUARDED_BY(send_checker_) =
+      Timestamp::MinusInfinity();
+  Timestamp last_undescribable_frame_log_ RTC_GUARDED_BY(send_checker_) =
+      Timestamp::MinusInfinity();
+  Timestamp last_chain_diff_log_ RTC_GUARDED_BY(send_checker_) =
       Timestamp::MinusInfinity();
 
   // E2EE Custom Video Frame Encryptor (optional)

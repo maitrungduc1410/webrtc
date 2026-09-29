@@ -782,6 +782,106 @@ TEST_F(RtpSenderVideoTest,
                    .HasExtension<RtpDependencyDescriptorExtension>());
 }
 
+// A delta frame whose dependencies the dependency descriptor can't describe,
+// e.g. because it references a frame more than 4096 frames back, is dropped.
+// The dependency descriptor stays enabled for the frames that follow.
+TEST_F(RtpSenderVideoTest,
+       DropsDeltaFrameThatDependencyDescriptorCannotDescribe) {
+  const int64_t kFrameId = 100000;
+  uint8_t kFrame[100];
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpDependencyDescriptorExtension::Uri(), kDependencyDescriptorId);
+  FrameDependencyStructure video_structure;
+  video_structure.num_decode_targets = 1;
+  video_structure.templates = {
+      FrameDependencyTemplate().Dtis("S"),
+      FrameDependencyTemplate().Dtis("S").FrameDiffs({1}),
+  };
+  rtp_sender_video_->SetVideoStructure(&video_structure);
+
+  // Send key frame.
+  RTPVideoHeader hdr;
+  RTPVideoHeader::GenericDescriptorInfo& generic = hdr.generic.emplace();
+  generic.frame_id = kFrameId;
+  generic.decode_target_indications = {DecodeTargetIndication::kSwitch};
+  hdr.frame_type = VideoFrameType::kVideoFrameKey;
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 1);
+  DependencyDescriptor descriptor_key;
+  ASSERT_TRUE(transport_.last_sent_packet()
+                  .GetExtension<RtpDependencyDescriptorExtension>(
+                      nullptr, &descriptor_key));
+  ASSERT_TRUE(descriptor_key.attached_structure);
+
+  // Send delta frame that references the key frame 5275 frames back.
+  generic.frame_id = kFrameId + 5275;
+  generic.dependencies = {kFrameId};
+  hdr.frame_type = VideoFrameType::kVideoFrameDelta;
+  EXPECT_FALSE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  EXPECT_EQ(transport_.packets_sent(), 1);
+
+  // Send delta frame that references the dropped frame.
+  generic.frame_id = kFrameId + 5276;
+  generic.dependencies = {kFrameId + 5275};
+  EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 2);
+  DependencyDescriptor descriptor_delta;
+  ASSERT_TRUE(
+      transport_.last_sent_packet()
+          .GetExtension<RtpDependencyDescriptorExtension>(
+              descriptor_key.attached_structure.get(), &descriptor_delta));
+  EXPECT_EQ(descriptor_delta.frame_number, (kFrameId + 5276) & 0xFFFF);
+  EXPECT_THAT(descriptor_delta.frame_dependencies.frame_diffs, ElementsAre(1));
+}
+
+// The generic frame descriptor, even if negotiated, is not used instead of the
+// dependency descriptor when the latter can't describe a delta frame.
+TEST_F(RtpSenderVideoTest, DoesNotFallBackToGenericFrameDescriptor) {
+  const int64_t kFrameId = 100000;
+  uint8_t kFrame[100];
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpDependencyDescriptorExtension::Uri(), kDependencyDescriptorId);
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpGenericFrameDescriptorExtension00::Uri(), kGenericDescriptorId);
+  FrameDependencyStructure video_structure;
+  video_structure.num_decode_targets = 1;
+  video_structure.templates = {
+      FrameDependencyTemplate().Dtis("S"),
+      FrameDependencyTemplate().Dtis("S").FrameDiffs({1}),
+  };
+  rtp_sender_video_->SetVideoStructure(&video_structure);
+
+  // Send key frame.
+  RTPVideoHeader hdr;
+  RTPVideoHeader::GenericDescriptorInfo& generic = hdr.generic.emplace();
+  generic.frame_id = kFrameId;
+  generic.decode_target_indications = {DecodeTargetIndication::kSwitch};
+  hdr.frame_type = VideoFrameType::kVideoFrameKey;
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 1);
+  ASSERT_TRUE(transport_.last_sent_packet()
+                  .HasExtension<RtpDependencyDescriptorExtension>());
+
+  // Send delta frame that references the key frame 5275 frames back, which is
+  // too far back for the dependency descriptor, but not for the generic frame
+  // descriptor.
+  generic.frame_id = kFrameId + 5275;
+  generic.dependencies = {kFrameId};
+  hdr.frame_type = VideoFrameType::kVideoFrameDelta;
+  EXPECT_FALSE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  EXPECT_EQ(transport_.packets_sent(), 1);
+}
+
 TEST_F(RtpSenderVideoTest, PropagatesChainDiffsIntoDependencyDescriptor) {
   const int64_t kFrameId = 100000;
   uint8_t kFrame[100];
@@ -814,6 +914,116 @@ TEST_F(RtpSenderVideoTest, PropagatesChainDiffsIntoDependencyDescriptor) {
                       nullptr, &descriptor_key));
   EXPECT_THAT(descriptor_key.frame_dependencies.chain_diffs,
               ContainerEq(generic.chain_diffs));
+}
+
+// A chain diff that the dependency descriptor can't represent, e.g. because
+// the chain's previous frame was sent before a long pause, is sent as 0, i.e.
+// the chain has no previous frame, rather than making the frame undescribable.
+TEST_F(RtpSenderVideoTest, ReplacesUnrepresentableChainDiffWithZero) {
+  const int64_t kFrameId = 100000;
+  uint8_t kFrame[100];
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpDependencyDescriptorExtension::Uri(), kDependencyDescriptorId);
+  FrameDependencyStructure video_structure;
+  video_structure.num_decode_targets = 1;
+  video_structure.num_chains = 1;
+  video_structure.decode_target_protected_by_chain = {0};
+  video_structure.templates = {
+      FrameDependencyTemplate().Dtis("S").ChainDiffs({0}),
+      FrameDependencyTemplate().Dtis("S").FrameDiffs({1}).ChainDiffs({1}),
+  };
+  rtp_sender_video_->SetVideoStructure(&video_structure);
+
+  // Send key frame.
+  RTPVideoHeader hdr;
+  RTPVideoHeader::GenericDescriptorInfo& generic = hdr.generic.emplace();
+  generic.frame_id = kFrameId;
+  generic.decode_target_indications = {DecodeTargetIndication::kSwitch};
+  generic.chain_diffs = {0};
+  hdr.frame_type = VideoFrameType::kVideoFrameKey;
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 1);
+  DependencyDescriptor descriptor_key;
+  ASSERT_TRUE(transport_.last_sent_packet()
+                  .GetExtension<RtpDependencyDescriptorExtension>(
+                      nullptr, &descriptor_key));
+  ASSERT_TRUE(descriptor_key.attached_structure);
+
+  // Send delta frame with a chain diff that doesn't fit in 8 bits.
+  generic.frame_id = kFrameId + 1;
+  generic.dependencies = {kFrameId};
+  generic.chain_diffs = {300};
+  hdr.frame_type = VideoFrameType::kVideoFrameDelta;
+  EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 2);
+  DependencyDescriptor descriptor_delta;
+  ASSERT_TRUE(
+      transport_.last_sent_packet()
+          .GetExtension<RtpDependencyDescriptorExtension>(
+              descriptor_key.attached_structure.get(), &descriptor_delta));
+  EXPECT_THAT(descriptor_delta.frame_dependencies.frame_diffs, ElementsAre(1));
+  EXPECT_THAT(descriptor_delta.frame_dependencies.chain_diffs, ElementsAre(0));
+}
+
+TEST_F(RtpSenderVideoTest, SendsFrameWithLargeChainDiffOfInactiveChain) {
+  const int64_t kFrameId = 100000;
+  uint8_t kFrame[100];
+  rtp_module_->RegisterRtpHeaderExtension(
+      RtpDependencyDescriptorExtension::Uri(), kDependencyDescriptorId);
+  FrameDependencyStructure video_structure;
+  video_structure.num_decode_targets = 2;
+  video_structure.num_chains = 2;
+  video_structure.decode_target_protected_by_chain = {0, 1};
+  video_structure.templates = {
+      FrameDependencyTemplate().Dtis("SS").ChainDiffs({0, 0}),
+      FrameDependencyTemplate().Dtis("SS").FrameDiffs({1}).ChainDiffs({1, 1}),
+  };
+  rtp_sender_video_->SetVideoStructure(&video_structure);
+
+  // Send key frame with only the first decode target, and thereby only the
+  // first chain, active.
+  RTPVideoHeader hdr;
+  RTPVideoHeader::GenericDescriptorInfo& generic = hdr.generic.emplace();
+  generic.frame_id = kFrameId;
+  generic.decode_target_indications = {DecodeTargetIndication::kSwitch,
+                                       DecodeTargetIndication::kSwitch};
+  generic.active_decode_targets = 0b01;
+  generic.chain_diffs = {0, 0};
+  hdr.frame_type = VideoFrameType::kVideoFrameKey;
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 1);
+  DependencyDescriptor descriptor_key;
+  ASSERT_TRUE(transport_.last_sent_packet()
+                  .GetExtension<RtpDependencyDescriptorExtension>(
+                      nullptr, &descriptor_key));
+  ASSERT_TRUE(descriptor_key.attached_structure);
+
+  // Send delta frame with a chain diff that doesn't fit in 8 bits on the
+  // inactive chain. That chain diff isn't serialized.
+  generic.frame_id = kFrameId + 1;
+  generic.dependencies = {kFrameId};
+  generic.chain_diffs = {1, 300};
+  hdr.frame_type = VideoFrameType::kVideoFrameDelta;
+  EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), hdr, kDefaultExpectedRetransmissionTime, {}));
+  ASSERT_EQ(transport_.packets_sent(), 2);
+  DependencyDescriptor descriptor_delta;
+  ASSERT_TRUE(
+      transport_.last_sent_packet()
+          .GetExtension<RtpDependencyDescriptorExtension>(
+              descriptor_key.attached_structure.get(), &descriptor_delta));
+  EXPECT_THAT(descriptor_delta.frame_dependencies.frame_diffs, ElementsAre(1));
+  // The diff of the inactive chain has no meaning, so only the diff of the
+  // active chain is checked.
+  EXPECT_THAT(descriptor_delta.frame_dependencies.chain_diffs,
+              ElementsAre(1, _));
 }
 
 TEST_F(RtpSenderVideoTest,
