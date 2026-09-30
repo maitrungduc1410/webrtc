@@ -8,17 +8,23 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/utility/temporal_layer_rate_tracker.h"
+#include "modules/video_coding/utility/cbr_layer_rate_tracker.h"
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <span>
+#include <variant>
 
 #include "api/units/data_rate.h"
+#include "api/video_codecs/video_encoder_interface.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/exp_filter.h"
 
 namespace webrtc {
 namespace {
+
+using FrameEncodeSettings = VideoEncoderInterface::FrameEncodeSettings;
 
 // How often the frames of a layer occur is a property of the temporal
 // structure, which either stays the same forever or changes wholesale. The
@@ -47,7 +53,21 @@ float Filtered(const ExpFilter& filter) {
 
 }  // namespace
 
-TemporalLayerRateTracker::TemporalLayerRateTracker()
+DataRate CumulativeCbrAllocation::SpatialLayerBitrate(int spatial_id) const {
+  RTC_DCHECK_GE(spatial_id, 0);
+  RTC_DCHECK_LT(spatial_id, kMaxSpatialLayers);
+  return bitrate[spatial_id][kMaxTemporalLayers - 1];
+}
+
+DataRate CumulativeCbrAllocation::TotalBitrate() const {
+  DataRate total = DataRate::Zero();
+  for (int sid = 0; sid < kMaxSpatialLayers; ++sid) {
+    total += SpatialLayerBitrate(sid);
+  }
+  return total;
+}
+
+CbrLayerRateTracker::CbrLayerRateTracker()
     : frame_interval_filters_(kMaxTemporalLayers,
                               ExpFilter(kFrameIntervalAlpha)) {
   // Until a frame of a higher layer shows up the stream is assumed to consist
@@ -55,9 +75,7 @@ TemporalLayerRateTracker::TemporalLayerRateTracker()
   frame_interval_filters_[0].Apply(1.0f, 1.0f);
 }
 
-void TemporalLayerRateTracker::PrimeStandardPattern(int num_layers,
-                                                    int spatial_id,
-                                                    DataRate delta_bitrate) {
+void CbrLayerRateTracker::PrimeStandardPattern(int num_layers) {
   RTC_DCHECK_GT(num_layers, 1);
   RTC_DCHECK_LE(num_layers, kMaxTemporalLayers);
   num_temporal_layers_ = std::max(num_temporal_layers_, num_layers);
@@ -69,7 +87,11 @@ void TemporalLayerRateTracker::PrimeStandardPattern(int num_layers,
           1.0f, static_cast<float>(DyadicFrameInterval(tid, num_layers)));
     }
   }
+}
 
+void CbrLayerRateTracker::PrimeLayerRates(int num_layers,
+                                          int spatial_id,
+                                          DataRate delta_bitrate) {
   // Only the bitrates of the base layer, taken from the keyframe, and of the
   // topmost layer, taken from the frame at hand, are known. In the recommended
   // distribution, where the per frame bit budget halves for every step up the
@@ -84,9 +106,9 @@ void TemporalLayerRateTracker::PrimeStandardPattern(int num_layers,
   }
 }
 
-void TemporalLayerRateTracker::UpdateLayerRates(int spatial_id,
-                                                int temporal_id,
-                                                DataRate layer_bitrate) {
+void CbrLayerRateTracker::UpdateLayerRates(int spatial_id,
+                                           int temporal_id,
+                                           DataRate layer_bitrate) {
   SpatialLayerRates& layers = layer_rates_[spatial_id];
   LayerRate& layer = layers[temporal_id];
 
@@ -110,51 +132,71 @@ void TemporalLayerRateTracker::UpdateLayerRates(int spatial_id,
   layer.stated = layer_bitrate;
 }
 
-void TemporalLayerRateTracker::Update(int spatial_id,
-                                      int temporal_id,
-                                      DataRate layer_bitrate,
-                                      bool is_keyframe) {
-  RTC_DCHECK_GE(spatial_id, 0);
-  RTC_DCHECK_LT(spatial_id, kMaxSpatialLayers);
-  RTC_DCHECK_GE(temporal_id, 0);
-  RTC_DCHECK_LT(temporal_id, kMaxTemporalLayers);
-
-  if (is_keyframe) {
-    // A keyframe restarts the temporal structure, and since it belongs to the
-    // base layer the frame that follows it reveals the layer count.
-    last_frame_was_keyframe_ = true;
-  } else if (last_frame_was_keyframe_) {
-    last_frame_was_keyframe_ = false;
-    if (temporal_id > 0) {
-      PrimeStandardPattern(temporal_id + 1, spatial_id, layer_bitrate);
+void CbrLayerRateTracker::OnTemporalUnit(
+    std::span<const FrameEncodeSettings> frames) {
+  // The temporal id of the first frame of the temporal unit is what the
+  // cadence is measured from.
+  std::optional<int> unit_temporal_id;
+  bool has_keyframe = false;
+  for (const FrameEncodeSettings& frame : frames) {
+    if (!std::holds_alternative<FrameEncodeSettings::Cbr>(
+            frame.rate_options())) {
+      continue;
     }
+    RTC_DCHECK_GE(frame.spatial_id(), 0);
+    RTC_DCHECK_LT(frame.spatial_id(), kMaxSpatialLayers);
+    RTC_DCHECK_GE(frame.temporal_id(), 0);
+    RTC_DCHECK_LT(frame.temporal_id(), kMaxTemporalLayers);
+    if (!unit_temporal_id.has_value()) {
+      unit_temporal_id = frame.temporal_id();
+    }
+    has_keyframe |=
+        frame.frame_type() == VideoEncoderInterface::FrameType::kKeyframe;
+  }
+  if (!unit_temporal_id.has_value()) {
+    return;
+  }
+  const int tid = *unit_temporal_id;
+
+  // A keyframe restarts the temporal structure, and since it belongs to the
+  // base layer the temporal unit that follows it reveals the layer count.
+  const bool prime = last_unit_had_keyframe_ && !has_keyframe && tid > 0;
+  last_unit_had_keyframe_ = has_keyframe;
+  if (prime) {
+    PrimeStandardPattern(tid + 1);
   }
 
-  UpdateLayerRates(spatial_id, temporal_id, layer_bitrate);
-  num_temporal_layers_ = std::max(num_temporal_layers_, temporal_id + 1);
-
-  // All spatial layers of a temporal unit are assumed to run the same temporal
-  // pattern, so only the first of them advances the cadence. A spatial id that
-  // does not exceed the previous one means a new temporal unit started.
-  if (!last_updated_spatial_id_.has_value() ||
-      spatial_id <= *last_updated_spatial_id_) {
-    ++temporal_unit_count_;
-    if (last_unit_of_layer_[temporal_id].has_value()) {
-      frame_interval_filters_[temporal_id].Apply(
-          1.0f, temporal_unit_count_ - *last_unit_of_layer_[temporal_id]);
+  for (const FrameEncodeSettings& frame : frames) {
+    const auto* cbr =
+        std::get_if<FrameEncodeSettings::Cbr>(&frame.rate_options());
+    if (cbr == nullptr) {
+      continue;
     }
-    last_unit_of_layer_[temporal_id] = temporal_unit_count_;
+    if (prime) {
+      PrimeLayerRates(tid + 1, frame.spatial_id(), cbr->target_bitrate);
+    }
+    UpdateLayerRates(frame.spatial_id(), frame.temporal_id(),
+                     cbr->target_bitrate);
+    num_temporal_layers_ =
+        std::max(num_temporal_layers_, frame.temporal_id() + 1);
   }
-  last_updated_spatial_id_ = spatial_id;
+
+  ++temporal_unit_count_;
+  if (last_unit_of_layer_[tid].has_value()) {
+    frame_interval_filters_[tid].Apply(
+        1.0f, temporal_unit_count_ - *last_unit_of_layer_[tid]);
+  }
+  last_unit_of_layer_[tid] = temporal_unit_count_;
+
+  UpdateAllocation();
 }
 
-double TemporalLayerRateTracker::FrameFraction(int temporal_id) const {
+double CbrLayerRateTracker::FrameFraction(int temporal_id) const {
   const double interval = Filtered(frame_interval_filters_[temporal_id]);
   return interval > 0.0 ? 1.0 / interval : 0.0;
 }
 
-int TemporalLayerRateTracker::FramerateFactor(int temporal_id) const {
-  RTC_DCHECK_GE(temporal_id, 0);
+int CbrLayerRateTracker::FramerateFactor(int temporal_id) const {
   if (temporal_id >= num_temporal_layers_ - 1) {
     return 1;
   }
@@ -176,12 +218,8 @@ int TemporalLayerRateTracker::FramerateFactor(int temporal_id) const {
       1, static_cast<int>(std::round(total_fraction / cumulative_fraction)));
 }
 
-DataRate TemporalLayerRateTracker::CumulativeBitrate(int spatial_id,
-                                                     int temporal_id) const {
-  RTC_DCHECK_GE(spatial_id, 0);
-  RTC_DCHECK_LT(spatial_id, kMaxSpatialLayers);
-  RTC_DCHECK_GE(temporal_id, 0);
-
+DataRate CbrLayerRateTracker::CumulativeBitrate(int spatial_id,
+                                                int temporal_id) const {
   DataRate bitrate = DataRate::Zero();
   for (int tid = 0; tid <= std::min(temporal_id, num_temporal_layers_ - 1);
        ++tid) {
@@ -190,8 +228,16 @@ DataRate TemporalLayerRateTracker::CumulativeBitrate(int spatial_id,
   return bitrate;
 }
 
-DataRate TemporalLayerRateTracker::StreamBitrate(int spatial_id) const {
-  return CumulativeBitrate(spatial_id, num_temporal_layers_ - 1);
+void CbrLayerRateTracker::UpdateAllocation() {
+  allocation_.num_temporal_layers = num_temporal_layers_;
+  for (int tid = 0; tid < kMaxTemporalLayers; ++tid) {
+    allocation_.framerate_factor[tid] = FramerateFactor(tid);
+  }
+  for (int sid = 0; sid < kMaxSpatialLayers; ++sid) {
+    for (int tid = 0; tid < kMaxTemporalLayers; ++tid) {
+      allocation_.bitrate[sid][tid] = CumulativeBitrate(sid, tid);
+    }
+  }
 }
 
 }  // namespace webrtc
