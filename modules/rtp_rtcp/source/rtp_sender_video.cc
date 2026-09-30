@@ -210,6 +210,7 @@ RTPSenderVideo::RTPSenderVideo(const Config& config)
       post_encode_overhead_bitrate_(/*max_window_size=*/TimeDelta::Seconds(1)),
       frame_encryptor_(config.frame_encryptor),
       require_frame_encryption_(config.require_frame_encryption),
+      sframe_required_(config.sframe_required),
       generic_descriptor_auth_experiment_(
           !config.field_trials->IsDisabled("WebRTC-GenericDescriptorAuth")),
       raw_packetization_(config.raw_packetization),
@@ -916,6 +917,13 @@ bool RTPSenderVideo::SendEncodedImage(int payload_type,
                                       RTPVideoHeader video_header,
                                       TimeDelta expected_retransmission_time,
                                       const std::vector<uint32_t>& csrcs) {
+  if (sframe_required_ /* && !sframe_encryptor_ */) {
+    // TODO(bugs.webrtc.org/479862368): Wire up the Sframe encryptor
+    RTC_LOG(LS_WARNING) << "Dropping video frame: Sframe is required but no "
+                           "Sframe encryptor is set up for this stream.";
+    return false;
+  }
+
   if (frame_transformer_delegate_) {
     // The frame will be sent async once transformed.
     return frame_transformer_delegate_->TransformFrame(

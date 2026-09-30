@@ -72,6 +72,7 @@
 #include "call/payload_type_picker.h"
 #include "call/rtp_config.h"
 #include "call/rtp_transport_controller_send_interface.h"
+#include "call/sframe_options.h"
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
 #include "common_video/frame_counts.h"
@@ -1589,6 +1590,7 @@ bool WebRtcVideoSendChannel::AddSendStream(const StreamParams& sp) {
       bitrate_allocator_factory_;
 
   config.crypto_options = crypto_options_;
+  config.rtp.sframe_options = sframe_options_;
   config.rtp.extmap_allow_mixed = ExtmapAllowMixed();
   config.rtcp_report_interval_ms = video_config_.rtcp_report_interval_ms;
   config.rtp.enable_send_packet_batching =
@@ -1808,8 +1810,16 @@ void WebRtcVideoSendChannel::SetFrameEncryptor(
 
 void WebRtcVideoSendChannel::EnableSframe() {
   RTC_DCHECK_RUN_ON(worker_thread_);
+
+  if (sframe_options_.required) {
+    return;
+  }
+
   sframe_options_.required = true;
-  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+
+  for (auto& [ssrc, stream] : send_streams_) {
+    stream->UpdateSframeOptions(sframe_options_);
+  }
 }
 
 void WebRtcVideoSendChannel::SetSframeEncryptor(
@@ -2305,6 +2315,18 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetFrameEncryptor(
     RTC_LOG(LS_INFO)
         << "RecreateWebRtcStream (send) because of SetFrameEncryptor, ssrc="
         << parameters_.config.rtp.ssrcs[0];
+    RecreateWebRtcStream();
+  }
+}
+
+void WebRtcVideoSendChannel::WebRtcVideoSendStream::UpdateSframeOptions(
+    const SframeSendOptions& options) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  parameters_.config.rtp.sframe_options = options;
+  if (stream_) {
+    RTC_LOG(LS_INFO) << "RecreateWebRtcStream (send) because of "
+                        "UpdateSframeOptions, ssrc="
+                     << parameters_.config.rtp.ssrcs[0];
     RecreateWebRtcStream();
   }
 }

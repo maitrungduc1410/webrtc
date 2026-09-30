@@ -116,6 +116,7 @@ rtc_library("rtp_interfaces") {
     "rtp_transport_controller_send_interface.h",
   ]
   deps = [
+    ":sframe_options",
     "../api:fec_controller_api",
     "../api:frame_transformer_interface",
     "../api:network_state_predictor_api",

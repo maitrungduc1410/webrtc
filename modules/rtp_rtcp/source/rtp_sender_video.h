@@ -91,6 +91,8 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
     scoped_refptr<FrameTransformerInterface> frame_transformer;
     TaskQueueFactory* task_queue_factory = nullptr;
     bool raw_packetization = false;
+    // Whether Sframe end-to-end encryption is required on this stream.
+    bool sframe_required = false;
   };
 
   explicit RTPSenderVideo(const Config& config);
@@ -272,6 +274,8 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
   // initialized frame_encryptor_ before being sent out of the network.
   // Otherwise these payloads will be dropped.
   const bool require_frame_encryption_;
+  // Whether Sframe end-to-end encryption is required on this stream.
+  const bool sframe_required_;
   // Set to true if the generic descriptor should be authenticated.
   const bool generic_descriptor_auth_experiment_;
 

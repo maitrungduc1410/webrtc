@@ -340,6 +340,8 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
     void SetFrameEncryptor(
         scoped_refptr<FrameEncryptorInterface> frame_encryptor);
 
+    void UpdateSframeOptions(const SframeSendOptions& options);
+
     bool SetVideoSend(const VideoOptions* options,
                       VideoSourceInterface<VideoFrame>* source);
 

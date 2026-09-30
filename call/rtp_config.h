@@ -20,6 +20,7 @@
 
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
+#include "call/sframe_options.h"
 
 namespace webrtc {
 // Currently only VP8/VP9 specific.
@@ -137,6 +138,9 @@ struct RtpConfig {
   // not be added, additional meta data is expected to be present in generic
   // frame descriptor RTP header extension).
   bool raw_payload = false;
+
+  // Sframe end-to-end encryption settings for this send stream.
+  SframeSendOptions sframe_options;
 
   // Configurations for each RTP stream
   std::vector<RtpStreamConfig> stream_configs;

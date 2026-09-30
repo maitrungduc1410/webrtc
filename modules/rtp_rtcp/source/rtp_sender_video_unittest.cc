@@ -173,13 +173,15 @@ class TestRtpSenderVideo : public RTPSenderVideo {
   TestRtpSenderVideo(Clock* clock,
                      RTPSender* rtp_sender,
                      const FieldTrialsView& field_trials,
-                     bool raw_packetization)
+                     bool raw_packetization,
+                     bool sframe_required = false)
       : RTPSenderVideo([&] {
           Config config;
           config.clock = clock;
           config.rtp_sender = rtp_sender;
           config.field_trials = &field_trials;
           config.raw_packetization = raw_packetization;
+          config.sframe_required = sframe_required;
           return config;
         }()) {}
   ~TestRtpSenderVideo() override {}
@@ -1952,6 +1954,35 @@ TEST_F(RtpSenderVideoTest, SendEncodedImageIncludesProvidedCsrcs) {
   ASSERT_GT(transport_.packets_sent(), 0);
   std::vector<uint32_t> csrcs = transport_.last_sent_packet().Csrcs();
   EXPECT_EQ(csrcs, expected_csrcs);
+}
+
+// When Sframe is required but no Sframe encryptor is set up, the frame is
+// dropped (fail closed) and nothing is put on the wire.
+TEST_F(RtpSenderVideoTest, SframeRequiredWithoutEncryptorDropsEncodedImage) {
+  TestRtpSenderVideo sframe_sender(&fake_clock_, rtp_module_->RtpSender(),
+                                   env_.field_trials(),
+                                   /*raw_packetization=*/false,
+                                   /*sframe_required=*/true);
+  std::unique_ptr<EncodedImage> encoded_image = CreateDefaultEncodedImage();
+  RTPVideoHeader video_header;
+  video_header.frame_type = VideoFrameType::kVideoFrameKey;
+
+  EXPECT_FALSE(sframe_sender.SendEncodedImage(
+      kPayloadType, kType, kRtpTimestamp, *encoded_image, video_header,
+      kDefaultExpectedRetransmissionTime, /*csrcs=*/{}));
+  EXPECT_EQ(transport_.packets_sent(), 0);
+}
+
+// When Sframe is not required the frame is sent as usual.
+TEST_F(RtpSenderVideoTest, SframeNotRequiredSendsEncodedImage) {
+  std::unique_ptr<EncodedImage> encoded_image = CreateDefaultEncodedImage();
+  RTPVideoHeader video_header;
+  video_header.frame_type = VideoFrameType::kVideoFrameKey;
+
+  EXPECT_TRUE(rtp_sender_video_->SendEncodedImage(
+      kPayloadType, kType, kRtpTimestamp, *encoded_image, video_header,
+      kDefaultExpectedRetransmissionTime, /*csrcs=*/{}));
+  EXPECT_GT(transport_.packets_sent(), 0);
 }
 
 TEST_F(RtpSenderVideoWithFrameTransformerTest,
