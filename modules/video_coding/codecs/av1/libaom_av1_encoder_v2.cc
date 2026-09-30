@@ -376,7 +376,7 @@ bool ValidateEncodeParams(
 
     for (size_t j = i + 1; j < frame_settings.size(); ++j) {
       if (settings.spatial_id() >= frame_settings[j].spatial_id()) {
-        RTC_LOG(LS_ERROR) << "Frame spatial id specified out of order.";
+        RTC_LOG(LS_ERROR) << "Frame spatial ids not strictly increasing.";
         return false;
       }
     }

@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -363,6 +364,48 @@ class VideoEncoderFunctionalTest
             .MaxNumberOfThreads(1)
             .Build(),
         {});
+  }
+
+  bool SupportsInterLayerPrediction() const {
+    Capabilities capabilities = factory_->GetEncoderCapabilities();
+    return capabilities.prediction_constraints().max_spatial_layers() >= 2 &&
+           capabilities.prediction_constraints().buffer_space_type() !=
+               BufferSpaceType::kMultiInstance;
+  }
+
+  // Creates an encoder, places a keyframe in buffer 0, and then encodes a
+  // temporal unit with one frame per entry in `spatial_ids`, in that order.
+  // Each of those frames predicts from buffer 0 and updates a buffer of its
+  // own. Returns the outputs of the frames of that temporal unit.
+  std::vector<EncOut> EncodeWithSpatialIds(std::span<const int> spatial_ids) {
+    TestConfig config = CreateTestConfig(factory_->GetEncoderCapabilities());
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(config.static_settings, {});
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+    EncOut key;
+    enc->Encode(
+        frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(0)),
+        ToVec({BuildSettings(
+            std::move(Fb().Res(kDefaultResolution).Upd(0).Key().Out(key)),
+            config.rate_options)}));
+    EXPECT_THAT(key, HasBitstreamAndMetaData());
+
+    std::vector<EncOut> outs(spatial_ids.size());
+    std::vector<FrameEncodeSettings> frame_settings;
+    for (size_t i = 0; i < spatial_ids.size(); ++i) {
+      frame_settings.push_back(
+          BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                      .S(spatial_ids[i])
+                                      .Ref({0})
+                                      .Upd(static_cast<int>(i))
+                                      .Out(outs[i])),
+                        config.rate_options));
+    }
+    enc->Encode(frame_reader->PullFrame(),
+                TemporalUnitSettings(Timestamp::Millis(100)),
+                std::move(frame_settings));
+    return outs;
   }
 
   Environment env_;
@@ -929,6 +972,36 @@ TEST_P(VideoEncoderFunctionalTest, DuplicateReferenceBuffersNotAllowed) {
           config.rate_options)}));
 
   EXPECT_THAT(delta, Not(HasBitstreamAndMetaData()));
+}
+
+// Verifies that frames of a temporal unit given in decreasing spatial id order
+// are rejected.
+TEST_P(VideoEncoderFunctionalTest, DecreasingSpatialIdsNotAllowed) {
+  if (!SupportsInterLayerPrediction()) {
+    GTEST_SKIP() << "Encoder must support inter-layer prediction.";
+  }
+  // The same frames are accepted in increasing spatial id order.
+  for (const EncOut& out : EncodeWithSpatialIds(std::array{0, 1})) {
+    EXPECT_THAT(out, HasBitstreamAndMetaData());
+  }
+  for (const EncOut& out : EncodeWithSpatialIds(std::array{1, 0})) {
+    EXPECT_THAT(out, Not(HasBitstreamAndMetaData()));
+  }
+}
+
+// Verifies that multiple frames with the same spatial id in a temporal unit are
+// rejected.
+TEST_P(VideoEncoderFunctionalTest, DuplicateSpatialIdsNotAllowed) {
+  if (!SupportsInterLayerPrediction()) {
+    GTEST_SKIP() << "Encoder must support inter-layer prediction.";
+  }
+  // The same frames are accepted with distinct spatial ids.
+  for (const EncOut& out : EncodeWithSpatialIds(std::array{0, 1})) {
+    EXPECT_THAT(out, HasBitstreamAndMetaData());
+  }
+  for (const EncOut& out : EncodeWithSpatialIds(std::array{0, 0})) {
+    EXPECT_THAT(out, Not(HasBitstreamAndMetaData()));
+  }
 }
 
 // Verifies temporal layering with a 2-layer pattern (T0, T1, T0, T1).
