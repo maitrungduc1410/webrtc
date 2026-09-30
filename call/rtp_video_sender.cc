@@ -343,6 +343,36 @@ flat_map<uint32_t, RtpRtcpInterface*> CreateSsrcToRtpModuleMap(
   return flat_map<uint32_t, RtpRtcpInterface*>(std::move(ssrc_to_rtp_module));
 }
 
+// Creates the payload params for each media SSRC, in the same order as
+// `ssrcs`, i.e. the same order as the RTP modules.
+std::vector<RtpPayloadParams> CreatePayloadParams(
+    const Environment& env,
+    const std::vector<uint32_t>& ssrcs,
+    const std::map<uint32_t, RtpPayloadState>& states) {
+  std::vector<RtpPayloadParams> params;
+  params.reserve(ssrcs.size());
+  for (uint32_t ssrc : ssrcs) {
+    // Restore state if it previously existed.
+    auto it = states.find(ssrc);
+    params.emplace_back(env, ssrc, it != states.end() ? &it->second : nullptr);
+  }
+  return params;
+}
+
+// Returns the shared frame id to continue from, i.e. the largest one among the
+// previous states of the media SSRCs.
+int64_t MaxSharedFrameId(const std::vector<uint32_t>& ssrcs,
+                         const std::map<uint32_t, RtpPayloadState>& states) {
+  int64_t shared_frame_id = 0;
+  for (uint32_t ssrc : ssrcs) {
+    auto it = states.find(ssrc);
+    if (it != states.end()) {
+      shared_frame_id = std::max(shared_frame_id, it->second.shared_frame_id);
+    }
+  }
+  return shared_frame_id;
+}
+
 bool TransportSeqNumExtensionConfigured(const RtpConfig& config) {
   return absl::c_any_of(config.extensions, [](const RtpExtension& ext) {
     return ext.uri == RtpExtension::kTransportSequenceNumberUri;
@@ -426,8 +456,10 @@ RtpVideoSender::RtpVideoSender(
                                           std::move(frame_transformer))),
       rtp_config_(rtp_config),
       transport_(transport),
+      shared_frame_id_(MaxSharedFrameId(rtp_config.ssrcs, states)),
       independent_frame_ids_(
           env.field_trials().IsDisabled("WebRTC-GenericDescriptorAuth")),
+      params_(CreatePayloadParams(env, rtp_config.ssrcs, states)),
       transport_overhead_bytes_per_packet_(0),
       encoder_target_rate_bps_(0),
       frame_counts_(rtp_config.ssrcs.size()),
@@ -441,17 +473,6 @@ RtpVideoSender::RtpVideoSender(
   RTC_DCHECK_EQ(rtp_config_.ssrcs.size(), rtp_streams_.size());
   if (has_packet_feedback_)
     transport_->IncludeOverheadInPacedSender();
-  // SSRCs are assumed to be sorted in the same order as `rtp_modules`.
-  for (uint32_t ssrc : rtp_config_.ssrcs) {
-    // Restore state if it previously existed.
-    const RtpPayloadState* state = nullptr;
-    auto it = states.find(ssrc);
-    if (it != states.end()) {
-      state = &it->second;
-      shared_frame_id_ = std::max(shared_frame_id_, state->shared_frame_id);
-    }
-    params_.push_back(RtpPayloadParams(env, ssrc, state));
-  }
 
   // RTP/RTCP initialization.
 

@@ -212,7 +212,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   // one frame id space (so that the SFU can switch stream without having to
   // rewrite the frame id), therefore `shared_frame_id` has to live in a place
   // where we are aware of all the different streams.
-  int64_t shared_frame_id_ RTC_GUARDED_BY(mutex_) = 0;
+  int64_t shared_frame_id_ RTC_GUARDED_BY(mutex_);
   const bool independent_frame_ids_;
   std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(mutex_);
 
