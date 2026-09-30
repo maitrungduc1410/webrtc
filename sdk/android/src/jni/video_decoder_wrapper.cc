@@ -39,6 +39,7 @@
 #include "sdk/android/src/jni/jvm.h"
 #include "sdk/android/src/jni/video_codec_status.h"
 #include "sdk/android/src/jni/video_frame.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 namespace webrtc {
 namespace jni {
@@ -68,7 +69,9 @@ VideoDecoderWrapper::VideoDecoderWrapper(JNIEnv* jni,
   decoder_thread_checker_.Detach();
 }
 
-VideoDecoderWrapper::~VideoDecoderWrapper() = default;
+VideoDecoderWrapper::~VideoDecoderWrapper() {
+  InvalidateCallback(AttachCurrentThreadIfNeeded());
+}
 
 bool VideoDecoderWrapper::Configure(const Settings& settings) {
   RTC_DCHECK_RUN_ON(&decoder_thread_checker_);
@@ -83,9 +86,12 @@ bool VideoDecoderWrapper::ConfigureInternal(JNIEnv* jni) {
       Java_Settings_Constructor(jni, decoder_settings_.number_of_cores(),
                                 resolution.Width(), resolution.Height());
 
+  // Replace the callback of a previous initDecode() call, if any.
+  InvalidateCallback(jni);
   ScopedJavaLocalRef<jobject> callback =
       Java_VideoDecoderWrapper_createDecoderCallback(jni,
                                                      jlongFromPointer(this));
+  j_callback_.Reset(jni, callback);
 
   int32_t status = JavaToNativeVideoCodecStatus(
       jni, Java_VideoDecoder_initDecode(jni, decoder_, settings, callback));
@@ -149,6 +155,8 @@ int32_t VideoDecoderWrapper::Release() {
   int32_t status = JavaToNativeVideoCodecStatus(
       jni, Java_VideoDecoder_release(jni, decoder_));
   RTC_LOG(LS_INFO) << "release: " << status;
+  // Frames delivered after release() are dropped.
+  InvalidateCallback(jni);
   {
     MutexLock lock(&frame_extra_infos_lock_);
     frame_extra_infos_.clear();
@@ -157,6 +165,14 @@ int32_t VideoDecoderWrapper::Release() {
   // It is allowed to reinitialize the codec on a different thread.
   decoder_thread_checker_.Detach();
   return status;
+}
+
+void VideoDecoderWrapper::InvalidateCallback(JNIEnv* jni) {
+  if (j_callback_.is_null()) {
+    return;
+  }
+  Java_NativeDecoderCallback_invalidate(jni, j_callback_);
+  j_callback_.Reset();
 }
 
 const char* VideoDecoderWrapper::ImplementationName() const {

@@ -81,6 +81,11 @@ class VideoDecoderWrapper : public VideoDecoder {
 
   bool ConfigureInternal(JNIEnv* jni) RTC_RUN_ON(decoder_thread_checker_);
 
+  // Invalidates the callback that was passed to the Java decoder, if any, so
+  // that frames that the Java decoder delivers later are dropped. Blocks until
+  // an ongoing OnDecodedFrame() call, if any, has returned.
+  void InvalidateCallback(JNIEnv* jni) RTC_RUN_ON(decoder_thread_checker_);
+
   // Takes Java VideoCodecStatus, handles it and returns WEBRTC_VIDEO_CODEC_*
   // status code.
   int32_t HandleReturnCode(JNIEnv* jni,
@@ -104,6 +109,10 @@ class VideoDecoderWrapper : public VideoDecoder {
       RTC_GUARDED_BY(decoder_thread_checker_);
 
   bool initialized_ RTC_GUARDED_BY(decoder_thread_checker_);
+  // The callback passed to the Java decoder by the most recent initDecode()
+  // call.
+  ScopedJavaGlobalRef<jobject> j_callback_
+      RTC_GUARDED_BY(decoder_thread_checker_);
   H264BitstreamParser h264_bitstream_parser_
       RTC_GUARDED_BY(decoder_thread_checker_);
 #ifdef RTC_ENABLE_H265

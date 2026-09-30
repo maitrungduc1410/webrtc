@@ -74,6 +74,11 @@ class VideoEncoderWrapper : public VideoEncoder {
 
   int32_t InitEncodeInternal(JNIEnv* jni);
 
+  // Invalidates the callback that was passed to the Java encoder, if any, so
+  // that frames that the Java encoder delivers later are dropped. Blocks until
+  // an ongoing OnEncodedFrame() call, if any, has returned.
+  void InvalidateCallback(JNIEnv* jni);
+
   // Takes Java VideoCodecStatus, handles it and returns WEBRTC_VIDEO_CODEC_*
   // status code.
   int32_t HandleReturnCode(JNIEnv* jni,
@@ -102,6 +107,9 @@ class VideoEncoderWrapper : public VideoEncoder {
 
   const ScopedJavaGlobalRef<jobject> encoder_;
   const ScopedJavaGlobalRef<jclass> int_array_class_;
+  // The callback passed to the Java encoder by the most recent initEncode()
+  // call.
+  ScopedJavaGlobalRef<jobject> j_callback_;
 
   // Modified both on the encoder thread and the callback thread.
   Mutex frame_extra_infos_lock_;

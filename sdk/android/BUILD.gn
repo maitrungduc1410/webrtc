@@ -1984,12 +1984,15 @@ if (is_android) {
       "tests/src/org/webrtc/RefCountDelegateTest.java",
       "tests/src/org/webrtc/RenderSynchronizerTest.java",
       "tests/src/org/webrtc/ScalingSettingsTest.java",
+      "tests/src/org/webrtc/VideoDecoderWrapperTest.java",
+      "tests/src/org/webrtc/VideoEncoderWrapperTest.java",
       "tests/src/org/webrtc/audio/LowLatencyAudioBufferManagerTest.java",
     ]
 
     deps = [
       ":base_java",
       ":camera_java",
+      ":generated_video_jni_java",
       ":hwcodecs_java",
       ":java_audio_device_module_java",
       ":libjingle_peerconnection_java",

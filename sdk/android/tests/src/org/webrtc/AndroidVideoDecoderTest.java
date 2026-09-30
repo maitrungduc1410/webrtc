@@ -31,6 +31,8 @@ import androidx.test.runner.AndroidJUnit4;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,6 +57,8 @@ public class AndroidVideoDecoderTest {
   private static final int COLOR_FORMAT = CodecCapabilities.COLOR_FormatYUV420Planar;
   private static final long POLL_DELAY_MS = 10;
   private static final long DELIVER_DECODED_IMAGE_DELAY_MS = 10;
+  // Time for which a test callback blocks frame delivery.
+  private static final long CALLBACK_BLOCK_TIME_MS = 5500;
 
   private static final byte[] ENCODED_TEST_DATA = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
@@ -74,6 +78,14 @@ public class AndroidVideoDecoderTest {
         while (!deliverDecodedFrameDone) {
           deliverDecodedFrameLock.wait();
         }
+      }
+    }
+
+    // Like waitDeliverDecodedFrame() but does not wait for the delivery to complete.
+    public void triggerDeliverDecodedFrame() {
+      synchronized (deliverDecodedFrameLock) {
+        deliverDecodedFrameDone = false;
+        deliverDecodedFrameLock.notifyAll();
       }
     }
 
@@ -257,6 +269,42 @@ public class AndroidVideoDecoderTest {
     assertThat(decoder.release()).isEqualTo(VideoCodecStatus.OK);
 
     // Verify.
+    assertThat(fakeMediaCodecWrapper.getState()).isEqualTo(State.RELEASED);
+  }
+
+  @Test
+  public void testReleaseWaitsForOngoingFrameDelivery() throws InterruptedException {
+    // release() returns only after an ongoing frame delivery has completed.
+    final CountDownLatch callbackEntered = new CountDownLatch(1);
+    final AtomicBoolean callbackReturned = new AtomicBoolean();
+    VideoDecoder.Callback blockingCallback = (frame, decodeTimeMs, qp) -> {
+      callbackEntered.countDown();
+      try {
+        Thread.sleep(CALLBACK_BLOCK_TIME_MS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      callbackReturned.set(true);
+    };
+
+    // Set-up.
+    TestDecoder decoder = new TestDecoderBuilder().setUseSurface(/* useSurface = */ false).build();
+    decoder.initDecode(TEST_DECODER_SETTINGS, blockingCallback);
+    decoder.decode(createTestEncodedImage(),
+        new DecodeInfo(/* isMissingFrames= */ false, /* renderTimeMs= */ 0));
+    fakeMediaCodecWrapper.addOutputData(
+        CodecTestHelper.generateRandomData(
+            TEST_DECODER_SETTINGS.width * TEST_DECODER_SETTINGS.height * 3 / 2),
+        /* presentationTimestampUs= */ 0, /* flags= */ 0);
+    decoder.triggerDeliverDecodedFrame();
+    callbackEntered.await();
+
+    // Test.
+    VideoCodecStatus status = decoder.release();
+
+    // Verify.
+    assertThat(callbackReturned.get()).isTrue();
+    assertThat(status).isEqualTo(VideoCodecStatus.OK);
     assertThat(fakeMediaCodecWrapper.getState()).isEqualTo(State.RELEASED);
   }
 

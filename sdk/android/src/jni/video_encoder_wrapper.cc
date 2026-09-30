@@ -13,6 +13,7 @@
 #include <jni.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -49,6 +50,7 @@
 #include "sdk/android/src/jni/jvm.h"
 #include "sdk/android/src/jni/video_codec_status.h"
 #include "sdk/android/src/jni/video_frame.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 namespace webrtc {
 namespace jni {
@@ -62,7 +64,9 @@ VideoEncoderWrapper::VideoEncoderWrapper(JNIEnv* jni,
   // Fetch and update encoder info.
   UpdateEncoderInfo(jni);
 }
-VideoEncoderWrapper::~VideoEncoderWrapper() = default;
+VideoEncoderWrapper::~VideoEncoderWrapper() {
+  InvalidateCallback(AttachCurrentThreadIfNeeded());
+}
 
 int VideoEncoderWrapper::InitEncode(const VideoCodec* codec_settings,
                                     const Settings& settings) {
@@ -102,9 +106,12 @@ int32_t VideoEncoderWrapper::InitEncodeInternal(JNIEnv* jni) {
       static_cast<int>(codec_settings_.numberOfSimulcastStreams),
       automatic_resize_on, capabilities);
 
+  // Replace the callback of a previous initEncode() call, if any.
+  InvalidateCallback(jni);
   ScopedJavaLocalRef<jobject> callback =
       Java_VideoEncoderWrapper_createEncoderCallback(jni,
                                                      jlongFromPointer(this));
+  j_callback_.Reset(jni, callback);
 
   int32_t status = JavaToNativeVideoCodecStatus(
       jni, Java_VideoEncoder_initEncode(jni, encoder_, settings, callback));
@@ -153,6 +160,8 @@ int32_t VideoEncoderWrapper::Release() {
   int32_t status = JavaToNativeVideoCodecStatus(
       jni, Java_VideoEncoder_release(jni, encoder_));
   RTC_LOG(LS_INFO) << "release: " << status;
+  // Frames delivered after release() are dropped.
+  InvalidateCallback(jni);
   {
     MutexLock lock(&frame_extra_infos_lock_);
     frame_extra_infos_.clear();
@@ -160,6 +169,14 @@ int32_t VideoEncoderWrapper::Release() {
   initialized_ = false;
 
   return status;
+}
+
+void VideoEncoderWrapper::InvalidateCallback(JNIEnv* jni) {
+  if (j_callback_.is_null()) {
+    return;
+  }
+  Java_NativeEncoderCallback_invalidate(jni, j_callback_);
+  j_callback_.Reset();
 }
 
 int32_t VideoEncoderWrapper::Encode(
