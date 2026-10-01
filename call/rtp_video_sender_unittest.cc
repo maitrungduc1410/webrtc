@@ -1521,6 +1521,12 @@ TEST(RtpVideoSenderTest, SimulcastSenderRegistersFrameTransformers) {
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc2));
 }
 
+TEST(RtpVideoSenderTest, ReportsZeroBitratesBeforeFirstBitrateUpdate) {
+  RtpVideoSenderTestFixture test({kSsrc1}, {}, kPayloadType, {});
+  EXPECT_EQ(test.router()->GetPayloadBitrateBps(), 0u);
+  EXPECT_EQ(test.router()->GetProtectionBitrateBps(), 0u);
+}
+
 TEST(RtpVideoSenderTest, OverheadIsSubtractedFromTargetBitrate) {
   absl::string_view field_trials =
       "WebRTC-Video-UseFrameRateForOverhead/Enabled/";

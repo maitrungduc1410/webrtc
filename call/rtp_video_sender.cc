@@ -503,9 +503,7 @@ RtpVideoSender::RtpVideoSender(
           env.field_trials().IsEnabled("WebRTC-Video-UseFrameRateForOverhead")),
       has_packet_feedback_(TransportSeqNumExtensionConfigured(rtp_config)),
       transport_queue_(*transport_queue),
-      active_(false),
       fec_controller_(std::move(fec_controller)),
-      fec_allowed_(true),
       rtp_streams_(CreateRtpStreamSenders(env,
                                           rtp_config,
                                           observers,
@@ -523,8 +521,6 @@ RtpVideoSender::RtpVideoSender(
       independent_frame_ids_(
           env.field_trials().IsDisabled("WebRTC-GenericDescriptorAuth")),
       params_(CreatePayloadParams(env, rtp_config.ssrcs, states)),
-      transport_overhead_bytes_per_packet_(0),
-      encoder_target_rate_bps_(0),
       frame_counts_(rtp_config.ssrcs.size()),
       frame_count_observer_(observers.frame_count_observer),
       ssrc_to_rtp_module_(

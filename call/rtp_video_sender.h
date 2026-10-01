@@ -170,8 +170,6 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   bool IsActiveLocked() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   void SetActiveModulesLocked(bool sending)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void UpdateModuleSendingState() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void ConfigureProtection();
   bool NackEnabled() const;
   DataRate GetPostEncodeOverhead() const;
   DataRate CalculateOverheadRate(DataRate data_rate,
@@ -193,10 +191,10 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   // TODO(bugs.webrtc.org/13517): Remove mutex_ once RtpVideoSender runs on the
   // transport task queue.
   mutable Mutex mutex_;
-  bool active_ RTC_GUARDED_BY(mutex_);
+  bool active_ RTC_GUARDED_BY(mutex_) = false;
 
   const std::unique_ptr<FecController> fec_controller_;
-  bool fec_allowed_ RTC_GUARDED_BY(mutex_);
+  bool fec_allowed_ RTC_GUARDED_BY(mutex_) = true;
 
   // Rtp modules are assumed to be sorted in simulcast index order.
   const std::vector<webrtc_internal_rtp_video_sender::RtpStreamSender>
@@ -215,9 +213,9 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   const bool independent_frame_ids_;
   std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(mutex_);
 
-  size_t transport_overhead_bytes_per_packet_ RTC_GUARDED_BY(mutex_);
-  uint32_t protection_bitrate_bps_;
-  uint32_t encoder_target_rate_bps_;
+  size_t transport_overhead_bytes_per_packet_ RTC_GUARDED_BY(mutex_) = 0;
+  uint32_t protection_bitrate_bps_ = 0;
+  uint32_t encoder_target_rate_bps_ = 0;
 
   std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(mutex_);
 
