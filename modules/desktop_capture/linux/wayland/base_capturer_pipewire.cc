@@ -101,13 +101,11 @@ void BaseCapturerPipeWire::OnScreenCastRequestResult(RequestResponse result,
     RTC_LOG(LS_ERROR) << "ScreenCastPortal failed: "
                       << static_cast<uint>(result);
   } else if (ScreenCastPortal* screencast_portal = GetScreenCastPortal()) {
-    if (!screencast_portal->RestoreToken().empty()) {
-      const SourceId token_id =
-          selected_source_id_ ? selected_source_id_ : source_id_;
-      RestoreTokenManager::GetInstance().AddToken(
-          token_id, screencast_portal->RestoreToken(),
-          screencast_portal->persist_mode());
-    }
+    const SourceId token_id =
+        selected_source_id_ ? selected_source_id_ : source_id_;
+    RestoreTokenManager::GetInstance().AddToken(
+        token_id, screencast_portal->RestoreToken(),
+        screencast_portal->persist_mode());
   }
 
   if (!delegated_source_list_observer_)

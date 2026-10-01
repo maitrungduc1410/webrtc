@@ -27,7 +27,10 @@ namespace webrtc {
 // selecting the same SourceId can restore the session without showing the
 // portal dialog again. An embedder that keeps tokens across runs can seed an
 // entry with ScreenCastPersistMode::kPersistent, select that SourceId before
-// Start() and read the token back after the capture has started.
+// Start(), and read the token back with GetEntry() once the capture has
+// started (e.g. in DelegatedSourceListController::Observer::OnSelection()). An
+// empty token at that point means the portal issued none, and any token saved
+// earlier for this source can no longer be used.
 class RTC_EXPORT RestoreTokenManager {
  public:
   struct Entry {
