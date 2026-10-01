@@ -428,6 +428,13 @@ int64_t MaxSharedFrameId(const std::vector<uint32_t>& ssrcs,
   return shared_frame_id;
 }
 
+// Returns the CSRCs that fit in an RTP header, i.e. the first kRtpCsrcSize.
+std::vector<uint32_t> LimitCsrcs(std::span<const uint32_t> csrcs) {
+  std::span<const uint32_t> limited =
+      csrcs.first(std::min<size_t>(csrcs.size(), kRtpCsrcSize));
+  return std::vector<uint32_t>(limited.begin(), limited.end());
+}
+
 bool TransportSeqNumExtensionConfigured(const RtpConfig& config) {
   return absl::c_any_of(config.extensions, [](const RtpExtension& ext) {
     return ext.uri == RtpExtension::kTransportSequenceNumberUri;
@@ -511,6 +518,7 @@ RtpVideoSender::RtpVideoSender(
                                           std::move(frame_transformer))),
       rtp_config_(rtp_config),
       transport_(transport),
+      csrcs_(LimitCsrcs(rtp_config.csrcs)),
       shared_frame_id_(MaxSharedFrameId(rtp_config.ssrcs, states)),
       independent_frame_ids_(
           env.field_trials().IsDisabled("WebRTC-GenericDescriptorAuth")),
@@ -1037,8 +1045,7 @@ void RtpVideoSender::SetEncodingData(size_t width,
 
 void RtpVideoSender::SetCsrcs(std::span<const uint32_t> csrcs) {
   MutexLock lock(&mutex_);
-  csrcs_.assign(csrcs.begin(),
-                csrcs.begin() + std::min<size_t>(csrcs.size(), kRtpCsrcSize));
+  csrcs_ = LimitCsrcs(csrcs);
 }
 
 DataRate RtpVideoSender::CalculateOverheadRate(DataRate data_rate,

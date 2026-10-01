@@ -26,6 +26,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/rtp_header_extension_id.h"
+#include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/test/mock_frame_transformer.h"
@@ -77,6 +78,7 @@ namespace {
 
 using ::testing::_;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
@@ -136,10 +138,12 @@ VideoSendStream::Config CreateVideoSendStreamConfig(
     const std::vector<uint32_t>& ssrcs,
     const std::vector<uint32_t>& rtx_ssrcs,
     int payload_type,
-    std::span<const int> payload_types) {
+    std::span<const int> payload_types,
+    const std::vector<uint32_t>& csrcs) {
   VideoSendStream::Config config(transport);
   config.rtp.ssrcs = ssrcs;
   config.rtp.rtx.ssrcs = rtx_ssrcs;
+  config.rtp.csrcs = csrcs;
   config.rtp.payload_type = payload_type;
   config.rtp.rtx.payload_type = payload_type + 1;
   config.rtp.nack.rtp_history_ms = 1000;
@@ -175,7 +179,8 @@ class RtpVideoSenderTestFixture {
       FrameCountObserver* frame_count_observer,
       scoped_refptr<FrameTransformerInterface> frame_transformer,
       const std::vector<int>& payload_types,
-      absl::string_view field_trials = "")
+      absl::string_view field_trials = "",
+      const std::vector<uint32_t>& csrcs = {})
       : time_controller_(Timestamp::Millis(1000000)),
         env_(CreateTestEnvironment(
             {.field_trials = field_trials, .time = &time_controller_})),
@@ -183,7 +188,8 @@ class RtpVideoSenderTestFixture {
                                             ssrcs,
                                             rtx_ssrcs,
                                             payload_type,
-                                            payload_types)),
+                                            payload_types,
+                                            csrcs)),
         bitrate_config_(GetBitrateConfig()),
         transport_controller_(RtpTransportConfig{
             .env = env_,
@@ -744,6 +750,44 @@ TEST(RtpVideoSenderTest, EarlyRetransmits) {
 
   // Wait for pacer to run and send the RTX packet.
   test.AdvanceTime(TimeDelta::Millis(33));
+}
+
+TEST(RtpVideoSenderTest, SendsCsrcsFromConfig) {
+  // One more CSRC than fits in an RTP header.
+  std::vector<uint32_t> csrcs(kRtpCsrcSize + 1);
+  for (size_t i = 0; i < csrcs.size(); ++i) {
+    csrcs[i] = 1000 + i;
+  }
+  RtpVideoSenderTestFixture test({kSsrc1}, {}, kPayloadType, {},
+                                 /*frame_count_observer=*/nullptr,
+                                 /*frame_transformer=*/nullptr,
+                                 /*payload_types=*/{}, /*field_trials=*/"",
+                                 csrcs);
+  test.SetSending(true);
+
+  std::vector<RtpPacket> sent_packets;
+  ON_CALL(test.transport(), SendRtp)
+      .WillByDefault(
+          [&](std::span<const uint8_t> packet, const PacketOptions& options) {
+            sent_packets.emplace_back();
+            EXPECT_TRUE(sent_packets.back().Parse(packet));
+            return true;
+          });
+
+  const uint8_t kPayload[1] = {'a'};
+  EncodedImage encoded_image;
+  encoded_image.SetRtpTimestamp(1);
+  encoded_image.capture_time_ms_ = 2;
+  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
+  encoded_image.SetEncodedData(
+      EncodedImageBuffer::Create(kPayload, sizeof(kPayload)));
+  EXPECT_EQ(test.router()->OnEncodedImage(encoded_image, nullptr).error,
+            EncodedImageCallback::Result::OK);
+  test.AdvanceTime(TimeDelta::Millis(33));
+
+  ASSERT_THAT(sent_packets, SizeIs(1));
+  EXPECT_THAT(sent_packets[0].Csrcs(),
+              ElementsAreArray(csrcs.begin(), csrcs.begin() + kRtpCsrcSize));
 }
 
 TEST(RtpVideoSenderTest, SupportsDependencyDescriptor) {

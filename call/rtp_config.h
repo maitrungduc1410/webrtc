@@ -108,6 +108,10 @@ struct RtpConfig {
   // included in the list of extensions.
   std::string mid;
 
+  // The list of CSRCs to be included in the RTP header. Only the first
+  // kRtpCsrcSize CSRCs are used.
+  std::vector<uint32_t> csrcs;
+
   // See RtcpMode for description.
   RtcpMode rtcp_mode = RtcpMode::kCompound;
 

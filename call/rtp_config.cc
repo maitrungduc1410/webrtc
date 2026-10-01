@@ -112,6 +112,13 @@ std::string RtpConfig::ToString() const {
       ss << ", ";
   }
   ss << "], mid: '" << mid << "'";
+  ss << ", csrcs: [";
+  for (size_t i = 0; i < csrcs.size(); ++i) {
+    ss << csrcs[i];
+    if (i != csrcs.size() - 1)
+      ss << ", ";
+  }
+  ss << ']';
   ss << ", rtcp_mode: "
      << (rtcp_mode == RtcpMode::kCompound ? "RtcpMode::kCompound"
                                           : "RtcpMode::kReducedSize");

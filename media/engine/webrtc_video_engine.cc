@@ -2836,6 +2836,11 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::RecreateWebRtcStream() {
     config.encoder_settings.enable_frame_instrumentation_generator = true;
   }
 
+  if (!rtp_parameters_.encodings.empty() &&
+      rtp_parameters_.encodings[0].csrcs.has_value()) {
+    config.rtp.csrcs = rtp_parameters_.encodings[0].csrcs.value();
+  }
+
   if (stream_ != nullptr) {
     // TODO: webrtc:40644448 - Make sure the stats are not updated between
     // GetStats and DestroyVideoSendStream.
@@ -2858,10 +2863,6 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::RecreateWebRtcStream() {
     stream_ = call_->CreateVideoSendStream(
         std::move(config), parameters_.encoder_config.Copy(),
         std::move(encoder_switch_request_callback));
-  }
-  if (!rtp_parameters_.encodings.empty() &&
-      rtp_parameters_.encodings[0].csrcs.has_value()) {
-    stream_->SetCsrcs(rtp_parameters_.encodings[0].csrcs.value());
   }
 
   parameters_.encoder_config.encoder_specific_settings = nullptr;

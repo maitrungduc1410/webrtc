@@ -5791,6 +5791,27 @@ TEST_F(WebRtcVideoChannelTest,
                      [webrtc::QualityLimitationReason::kCpu]);
 }
 
+TEST_F(WebRtcVideoChannelTest, RecreatedSendStreamIsCreatedWithCsrcs) {
+  AddSendStream();
+  RtpParameters rtp_parameters =
+      send_channel_->GetRtpSendParameters(last_ssrc_);
+  ASSERT_EQ(1u, rtp_parameters.encodings.size());
+  rtp_parameters.encodings[0].csrcs = std::vector<uint32_t>{0x1111, 0x2222};
+  EXPECT_TRUE(
+      send_channel_->SetRtpSendParameters(last_ssrc_, rtp_parameters).ok());
+
+  // Trigger stream recreation by changing construction-time parameters.
+  VideoSenderParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  parameters.extmap_allow_mixed = true;  // This forces recreation.
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+  EXPECT_EQ(2, fake_call_->GetNumCreatedSendStreams());
+
+  ASSERT_EQ(1U, fake_call_->GetVideoSendStreams().size());
+  EXPECT_THAT(fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.csrcs,
+              ElementsAre(0x1111, 0x2222));
+}
+
 TEST_F(WebRtcVideoChannelTest, SetSend) {
   FakeVideoSendStream* stream = AddSendStream();
   EXPECT_FALSE(stream->IsSending());
