@@ -172,7 +172,6 @@ class RtpVideoSender : public RtpVideoSenderInterface,
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   void UpdateModuleSendingState() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   void ConfigureProtection();
-  void ConfigureSsrcs(const std::map<uint32_t, RtpState>& suspended_ssrcs);
   bool NackEnabled() const;
   DataRate GetPostEncodeOverhead() const;
   DataRate CalculateOverheadRate(DataRate data_rate,
