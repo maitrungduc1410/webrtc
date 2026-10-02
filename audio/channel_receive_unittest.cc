@@ -295,6 +295,26 @@ TEST_F(ChannelReceiveTest, LogsReceivedPacketToEventLog) {
   channel->OnRtpPacket(packet);
 }
 
+TEST_F(ChannelReceiveTest, DropsPacketsWithPayloadTypeNoLongerNegotiated) {
+  auto channel = CreateTestChannelReceive();  // Negotiates PCMA (PT 8).
+  channel->SetReceiveCodecs({{0, {"PCMU", kSampleRateHz, 1}}});
+
+  // Receive statistics are kept per remote SSRC.
+  RtpPacketReceived pcmu_packet = CreateRtpPacket();
+  pcmu_packet.SetSsrc(kRemoteSsrc);
+  pcmu_packet.SetPayloadType(0);
+  pcmu_packet.SetSequenceNumber(1);
+  channel->OnRtpPacket(pcmu_packet);
+  ASSERT_EQ(channel->GetRTCPStatistics().packets_received, 1);
+
+  // PCMA is no longer negotiated, so its packets are dropped.
+  RtpPacketReceived pcma_packet = CreateRtpPacket();
+  pcma_packet.SetSsrc(kRemoteSsrc);
+  pcma_packet.SetSequenceNumber(2);
+  channel->OnRtpPacket(pcma_packet);
+  EXPECT_EQ(channel->GetRTCPStatistics().packets_received, 1);
+}
+
 TEST_F(ChannelReceiveTest, GetPlayoutRtpTimestamp) {
   auto channel = CreateTestChannelReceive();
 

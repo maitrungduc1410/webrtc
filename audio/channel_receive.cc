@@ -696,6 +696,9 @@ std::optional<std::pair<int, SdpAudioFormat>> ChannelReceive::GetReceiveCodec()
 void ChannelReceive::SetReceiveCodecs(
     const std::map<int, SdpAudioFormat>& codecs) {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
+  // Rebuild, so that payload types which are no longer negotiated are dropped
+  // in OnRtpPacket(), consistent with `payload_type_map_` and NetEq.
+  payload_type_frequencies_.clear();
   for (const auto& kv : codecs) {
     RTC_DCHECK_GE(kv.second.clockrate_hz, 1000);
     payload_type_frequencies_[kv.first] = kv.second.clockrate_hz;
