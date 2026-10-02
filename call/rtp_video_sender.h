@@ -213,11 +213,12 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   const bool independent_frame_ids_;
   std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(mutex_);
 
-  size_t transport_overhead_bytes_per_packet_ RTC_GUARDED_BY(mutex_) = 0;
-  uint32_t protection_bitrate_bps_ = 0;
-  uint32_t encoder_target_rate_bps_ = 0;
+  size_t transport_overhead_bytes_per_packet_
+      RTC_GUARDED_BY(transport_checker_) = 0;
+  uint32_t protection_bitrate_bps_ RTC_GUARDED_BY(transport_checker_) = 0;
+  uint32_t encoder_target_rate_bps_ RTC_GUARDED_BY(transport_checker_) = 0;
 
-  std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(mutex_);
+  std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(transport_checker_);
 
   std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(mutex_);
   FrameCountObserver* const frame_count_observer_;
