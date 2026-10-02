@@ -82,9 +82,11 @@ namespace {
 
 using ::testing::_;
 using ::testing::ContainerEq;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
+using ::testing::Le;
 using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Optional;
@@ -654,6 +656,33 @@ TEST_F(RtpSenderVideoTest,
     EXPECT_EQ(rtx_packet.Ssrc(), kRtxSsrc);
     EXPECT_LE(rtx_packet.size(), kMaxPacketSize);
   }
+}
+
+TEST_F(RtpSenderVideoTest, AppliesChangedMaxPacketSizeToNextFrame) {
+  constexpr size_t kInitialMaxPacketSize = 1'200;
+  constexpr size_t kReducedMaxPacketSize = 600;
+  const uint8_t kFrame[2 * kInitialMaxPacketSize] = {};
+  RTPVideoHeader header;
+  header.frame_type = VideoFrameType::kVideoFrameKey;
+
+  rtp_module_->SetMaxRtpPacketSize(kInitialMaxPacketSize);
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfo, fake_clock_.CurrentTime(), kFrame,
+      sizeof(kFrame), header, kDefaultExpectedRetransmissionTime, {}));
+  const size_t num_initial_packets = transport_.sent_packets().size();
+  EXPECT_THAT(transport_.sent_packets(),
+              Each(SizeIs(Le(kInitialMaxPacketSize))));
+
+  // All packets of the next frame are limited by the new max packet size.
+  rtp_module_->SetMaxRtpPacketSize(kReducedMaxPacketSize);
+  header.frame_type = VideoFrameType::kVideoFrameDelta;
+  ASSERT_TRUE(rtp_sender_video_->SendVideoFrame(
+      kPayloadType, kType, kTimestampInfoPlusOne, fake_clock_.CurrentTime(),
+      kFrame, sizeof(kFrame), header, kDefaultExpectedRetransmissionTime, {}));
+  std::span<const RtpPacketReceived> reduced_packets =
+      std::span(transport_.sent_packets()).subspan(num_initial_packets);
+  EXPECT_GT(reduced_packets.size(), num_initial_packets);
+  EXPECT_THAT(reduced_packets, Each(SizeIs(Le(kReducedMaxPacketSize))));
 }
 
 TEST_F(RtpSenderVideoTest, SendsDependencyDescriptorWhenVideoStructureIsSet) {

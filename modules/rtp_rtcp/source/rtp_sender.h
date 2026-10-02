@@ -185,7 +185,7 @@ class RTPSender {
   mutable Mutex send_mutex_;
 
   bool sending_media_ RTC_GUARDED_BY(send_mutex_);
-  size_t max_packet_size_;
+  size_t max_packet_size_ RTC_GUARDED_BY(send_mutex_);
 
   RtpHeaderExtensionMap rtp_header_extension_map_ RTC_GUARDED_BY(send_mutex_);
   size_t max_media_packet_header_ RTC_GUARDED_BY(send_mutex_);
