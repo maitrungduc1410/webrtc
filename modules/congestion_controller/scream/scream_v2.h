@@ -132,7 +132,6 @@ class ScreamV2 {
   void UpdateL4SAlpha(const ScreamFeedback& parsed);
   void UpdateRefWindow(const ScreamFeedback& parsed);
   void UpdateFeedbackHoldTime(TimeDelta feedback_hold_time);
-  void UpdateFeedbackInterval(Timestamp feedback_time);
   void UpdateTargetRate(const ScreamFeedback& parsed);
   void UpdateReceiveRate(const ScreamFeedback& parsed);
 
@@ -164,14 +163,11 @@ class ScreamV2 {
   LossEstimator loss_estimator_;
 
   TimeDelta feedback_hold_time_ = TimeDelta::Zero();
-  Timestamp last_feedback_time_ = Timestamp::MinusInfinity();
-  TimeDelta feedback_interval_ = TimeDelta::Zero();
 
   // Per-RTT stats
   Timestamp last_data_in_flight_update_ = Timestamp::MinusInfinity();
   DataSize max_data_in_flight_this_rtt_ = DataSize::Zero();
   DataSize max_data_in_flight_prev_rtt_ = DataSize::Zero();
-  bool allow_initial_ref_window_clamping_ = true;
   DataRate received_rate_ = DataRate::Zero();
   DataSize accumulated_received_bytes_ = DataSize::Zero();
   Timestamp last_window_receive_time_ = Timestamp::MinusInfinity();

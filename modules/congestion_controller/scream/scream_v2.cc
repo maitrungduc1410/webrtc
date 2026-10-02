@@ -28,13 +28,13 @@
 
 namespace webrtc {
 
+
+
 ScreamV2::ScreamV2(const Environment& env)
     : env_(env),
       params_(env_.field_trials()),
       ref_window_(params_.min_ref_window.Get()),
       loss_estimator_(params_),
-      allow_initial_ref_window_clamping_(
-          params_.allow_initial_ref_window_clamping.Get()),
       delay_based_congestion_control_(params_) {}
 
 void ScreamV2::SetTargetBitrateConstraints(DataRate min,
@@ -93,7 +93,6 @@ void ScreamV2::OnTransportPacketsFeedback(const TransportPacketsFeedback& msg) {
     first_feedback_processed_ = true;
   }
 
-  UpdateFeedbackInterval(feedback.feedback_time);
   UpdateL4SAlpha(feedback);
   UpdateRefWindow(feedback);
   UpdateTargetRate(feedback);
@@ -133,46 +132,33 @@ void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
   bool is_ce = parsed.num_ce_marked_packets > 0;
   bool is_loss =
       loss_estimator_.Update(parsed, delay_based_congestion_control_.rtt());
-  bool is_virtual_ce = delay_based_congestion_control_.IsQueueDelayDetected();
+  bool is_virtual_ce = false;
+  if (delay_based_congestion_control_.IsQueueDelayDetected()) {
+    is_virtual_ce = true;
+  }
   if (is_loss) {
-    if (!loss_estimator_.congested() && !is_virtual_ce) {
+    if (!loss_estimator_.congested() &&
+        !delay_based_congestion_control_.IsQueueDelayDetected()) {
       is_loss = false;
     }
   }
 
   DataSize previous_ref_window = ref_window_;
 
-  TimeDelta time_since_last_reaction =
-      parsed.feedback_time - last_reaction_to_congestion_time_;
-  TimeDelta reaction_interval =
-      params_.use_feedback_interval_for_virtual_rtt.Get()
-          ? std::max(params_.virtual_rtt.Get(), feedback_interval_)
-          : params_.virtual_rtt.Get();
-
   if ((is_virtual_ce || is_ce || is_loss) &&
-      time_since_last_reaction >=
-          std::min(delay_based_congestion_control_.rtt(), reaction_interval)) {
+      parsed.feedback_time - last_reaction_to_congestion_time_ >=
+          std::min(delay_based_congestion_control_.rtt(),
+                   params_.virtual_rtt.Get())) {
     last_reaction_to_congestion_time_ = parsed.feedback_time;
-    if (allow_initial_ref_window_clamping_ && received_rate_.IsFinite()) {
-      // Clamp ref_window to received rate on the first congestion event,
-      // to adjust if starting rate was much higher than link capacity.
-      ref_window_ =
-          std::clamp(received_rate_ * (delay_based_congestion_control_.rtt() +
-                                       feedback_hold_time_),
-                     params_.min_ref_window.Get(), ref_window_);
-      allow_initial_ref_window_clamping_ = false;
-    }
-
     double backoff = 0.0;
     if (is_loss) {  // Back off due to loss
       backoff = 1.0 - params_.beta_loss.Get();
     } else if (is_ce) {  // Backoff due to ECN-CE marking
       backoff = l4s_alpha_ / 2.0;
       // Scale down backoff when RTT is high as several backoff events occur
-      // per RTT. Scaling is relative to reaction_interval to account for
-      // how often feedback is actually received.
+      // per RTT
       backoff /= std::max(
-          1.0, delay_based_congestion_control_.rtt() / reaction_interval);
+          1.0, delay_based_congestion_control_.rtt() / params_.virtual_rtt);
 
       if (!delay_based_congestion_control_.IsQueueDelayDetected()) {
         // Scale down backoff if close to the last known max reference window
@@ -188,18 +174,16 @@ void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
                               .ref_window_scale_factor_due_to_avg_min_delay());
       }
 
-      if (time_since_last_reaction.IsFinite() &&
-          time_since_last_reaction >
-              params_.number_of_rtts_between_reset_ref_window_i_on_congestion
-                      .Get() *
-                  std::max(params_.virtual_rtt.Get(),
-                           delay_based_congestion_control_.rtt()) &&
-          max_data_in_flight_prev_rtt_ > DataSize::Zero()) {
+      if (parsed.feedback_time - last_reaction_to_congestion_time_ >
+          params_.number_of_rtts_between_reset_ref_window_i_on_congestion
+                  .Get() *
+              std::max(params_.virtual_rtt.Get(),
+                       delay_based_congestion_control_.rtt())) {
         // A long time(> 100 RTTs) since last congested because
-        // link throughput exceeds max video bitrate.
+        // link throughput exceeds max video bitrate. (or first congestion)
         // There is a certain risk that ref_wnd has increased way above
         // bytes in flight, so we reduce it here to get it better on
-        // track and thus the congestion episode is shortened.
+        // track and thus the congestion episode is shortened
         ref_window_ = std::clamp(max_data_in_flight_prev_rtt_,
                                  params_.min_ref_window.Get(), ref_window_);
         // In addition, bump up l4sAlpha to a more credible value
@@ -209,8 +193,8 @@ void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
       }
     } else if (is_virtual_ce) {  // Back off due to delay
       backoff = delay_based_congestion_control_.l4s_alpha_v() / 2.0;
-      backoff /= std::max(
-          1.0, delay_based_congestion_control_.rtt() / reaction_interval);
+      backoff /= std::max(1.0, delay_based_congestion_control_.rtt() /
+                                   params_.virtual_rtt.Get());
     }
     ref_window_ = (1.0 - backoff) * ref_window_;
   }
@@ -337,21 +321,6 @@ void ScreamV2::UpdateFeedbackHoldTime(TimeDelta feedback_hold_time) {
   feedback_hold_time_ =
       feedback_hold_time * params_.feedback_hold_time_avg_g.Get() +
       (1.0 - params_.feedback_hold_time_avg_g.Get()) * feedback_hold_time_;
-}
-
-void ScreamV2::UpdateFeedbackInterval(Timestamp feedback_time) {
-  if (last_feedback_time_.IsFinite()) {
-    TimeDelta delta = feedback_time - last_feedback_time_;
-    if (delta > TimeDelta::Zero()) {
-      if (feedback_interval_.IsZero()) {
-        feedback_interval_ = delta;
-      } else {
-        const double g = params_.feedback_interval_avg_g.Get();
-        feedback_interval_ = delta * g + feedback_interval_ * (1.0 - g);
-      }
-    }
-  }
-  last_feedback_time_ = feedback_time;
 }
 
 void ScreamV2::UpdateTargetRate(const ScreamFeedback& parsed) {
