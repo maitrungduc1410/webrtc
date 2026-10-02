@@ -154,6 +154,18 @@ struct ScreamV2Parameters {
   // received until feedback is sent. If zero, this delay is ignored.
   FieldTrialParameter<double> feedback_hold_time_avg_g;
 
+  // Exponentially Weighted Moving Average (EWMA) factor for tracking average
+  // feedback interval.
+  FieldTrialParameter<double> feedback_interval_avg_g;
+
+  // If true, effective virtual_rtt is calculated as
+  // std::max(virtual_rtt, feedback_interval). Otherwise, virtual_rtt is used.
+  FieldTrialParameter<bool> use_feedback_interval_for_virtual_rtt;
+
+  // If true, reference window is clamped to received rate on the first
+  // congestion event after the first RTT.
+  FieldTrialParameter<bool> allow_initial_ref_window_clamping;
+
   // If the time since last reaction to congestion is larger than this, the
   // pacing window is increased. I.e. packets are allowed to be sent in larger
   // bursts.
