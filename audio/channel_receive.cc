@@ -274,7 +274,8 @@ class ChannelReceive : public ChannelReceiveInterface,
   bool playing_ RTC_GUARDED_BY(worker_thread_checker_) = false;
 
   // Indexed by payload type.
-  std::map<uint8_t, int> payload_type_frequencies_;
+  std::map<uint8_t, int> payload_type_frequencies_
+      RTC_GUARDED_BY(worker_thread_checker_);
 
   const std::unique_ptr<ReceiveStatistics> rtp_receive_statistics_;
   const std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
@@ -311,9 +312,11 @@ class ChannelReceive : public ChannelReceiveInterface,
 
   mutable Mutex ts_stats_lock_;
 
-  RtpTimestampUnwrapper rtp_ts_wraparound_handler_;
+  RtpTimestampUnwrapper rtp_ts_wraparound_handler_
+      RTC_GUARDED_BY(audio_thread_race_checker_);
   // The rtp timestamp of the first played out audio frame.
-  int64_t capture_start_rtp_time_stamp_;
+  int64_t capture_start_rtp_time_stamp_
+      RTC_GUARDED_BY(audio_thread_race_checker_);
   // The capture ntp time (in local timebase) of the first played out audio
   // frame.
   int64_t capture_start_ntp_time_ms_ RTC_GUARDED_BY(ts_stats_lock_);
@@ -351,7 +354,8 @@ class ChannelReceive : public ChannelReceiveInterface,
   RtcpPacketTypeCounter rtcp_packet_type_counter_
       RTC_GUARDED_BY(worker_thread_checker_);
 
-  std::map<int, SdpAudioFormat> payload_type_map_;
+  std::map<int, SdpAudioFormat> payload_type_map_
+      RTC_GUARDED_BY(worker_thread_checker_);
 
   std::unique_ptr<NackTracker> nack_tracker_
       RTC_GUARDED_BY(worker_thread_checker_);
@@ -401,7 +405,7 @@ void ChannelReceive::InitFrameTransformerDelegate(
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
   RTC_DCHECK(frame_transformer);
   RTC_DCHECK(!frame_transformer_delegate_);
-  RTC_DCHECK(worker_thread_->IsCurrent());
+  RTC_DCHECK_RUN_ON(&worker_thread_checker_);
 
   // Pass a callback to ChannelReceive::OnReceivedPayloadData, to be called by
   // the delegate to receive transformed audio.
