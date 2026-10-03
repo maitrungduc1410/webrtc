@@ -571,30 +571,27 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
     ASSERT_EQ(0U, turn_port_->Candidates().size());
   }
 
-  // A certain security exploit works by redirecting to a loopback address,
-  // which doesn't ever actually make sense. So redirects to loopback should
-  // be treated as errors.
-  // See: https://bugs.chromium.org/p/chromium/issues/detail?id=649118
-  void TestTurnAlternateServerLoopback(ProtocolType protocol_type, bool ipv6) {
+  // Redirects the allocation to `redirect_address` and verifies that the
+  // redirect is treated as an error, i.e. that the allocation fails and that
+  // nothing is sent to `redirect_address`.
+  void TestTurnAlternateServerBlocked(ProtocolType protocol_type,
+                                      bool ipv6,
+                                      const SocketAddress& redirect_address) {
     const SocketAddress& local_address = ipv6 ? kLocalIPv6Addr : kLocalAddr1;
     const SocketAddress& server_address =
         ipv6 ? kTurnIPv6IntAddr : kTurnIntAddr;
 
     std::vector<SocketAddress> redirect_addresses;
-    // Pick an unusual address in the 127.0.0.0/8 range to make sure more than
-    // 127.0.0.1 is covered.
-    SocketAddress loopback_address(ipv6 ? "::1" : "127.1.2.3",
-                                   TURN_SERVER_PORT);
-    redirect_addresses.push_back(loopback_address);
+    redirect_addresses.push_back(redirect_address);
 
-    // Make a socket and bind it to the local port, to make extra sure no
+    // Make a socket and bind it to the redirect address, to make extra sure no
     // packet is sent to this address.
-    std::unique_ptr<Socket> loopback_socket(ss_->CreateSocket(
+    std::unique_ptr<Socket> redirect_socket(ss_->CreateSocket(
         AF_INET, protocol_type == PROTO_UDP ? SOCK_DGRAM : SOCK_STREAM));
-    ASSERT_NE(nullptr, loopback_socket.get());
-    ASSERT_EQ(0, loopback_socket->Bind(loopback_address));
-    if (protocol_type == PROTO_TCP) {
-      ASSERT_EQ(0, loopback_socket->Listen(1));
+    ASSERT_NE(nullptr, redirect_socket.get());
+    ASSERT_EQ(0, redirect_socket->Bind(redirect_address));
+    if (protocol_type != PROTO_UDP) {
+      ASSERT_EQ(0, redirect_socket->Listen(1));
     }
 
     TestTurnRedirector redirector(redirect_addresses);
@@ -608,18 +605,42 @@ class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
     EXPECT_TRUE(WaitUntil([&] { return turn_error_; },
                           {.timeout = TimeToGetTurnCandidate(protocol_type),
                            .clock = &time_controller_}));
+    EXPECT_EQ(server_address, turn_port_->server_address().address);
 
     // Wait for some extra time, and make sure no packets were received on the
-    // loopback port we created (or in the case of TCP, no connection attempt
-    // occurred).
+    // redirect port we created (or in the case of TCP and TLS, no connection
+    // attempt occurred).
     time_controller_.AdvanceTime(kSimulatedRtt);
     if (protocol_type == PROTO_UDP) {
       char buf[1];
-      EXPECT_EQ(-1, loopback_socket->Recv(&buf, 1, nullptr));
+      EXPECT_EQ(-1, redirect_socket->Recv(&buf, 1, nullptr));
     } else {
-      std::unique_ptr<Socket> accepted_socket(loopback_socket->Accept(nullptr));
+      std::unique_ptr<Socket> accepted_socket(redirect_socket->Accept(nullptr));
       EXPECT_EQ(nullptr, accepted_socket.get());
     }
+  }
+
+  // A certain security exploit works by redirecting to a loopback address,
+  // which doesn't ever actually make sense. So redirects to loopback should
+  // be treated as errors.
+  // See: https://bugs.chromium.org/p/chromium/issues/detail?id=649118
+  void TestTurnAlternateServerLoopback(ProtocolType protocol_type, bool ipv6) {
+    // Pick an unusual address in the 127.0.0.0/8 range to make sure more than
+    // 127.0.0.1 is covered.
+    TestTurnAlternateServerBlocked(
+        protocol_type, ipv6,
+        SocketAddress(ipv6 ? "::1" : "127.1.2.3", TURN_SERVER_PORT));
+  }
+
+  // Sending to the unspecified address (0.0.0.0 or ::) reaches the local host
+  // on some platforms, so redirects to it must be treated as errors, just like
+  // redirects to loopback.
+  // See: https://crbug.com/502821327
+  void TestTurnAlternateServerAnyAddress(ProtocolType protocol_type,
+                                         bool ipv6) {
+    TestTurnAlternateServerBlocked(
+        protocol_type, ipv6,
+        SocketAddress(ipv6 ? "::" : "0.0.0.0", TURN_SERVER_PORT));
   }
 
   void TestTurnConnection(ProtocolType protocol_type) {
@@ -1628,6 +1649,45 @@ TEST_F(TurnPortTest, TestTurnAlternateServerLoopbackTlsIpv4) {
 
 TEST_F(TurnPortTest, TestTurnAlternateServerLoopbackTlsIpv6) {
   TestTurnAlternateServerLoopback(PROTO_TLS, true);
+}
+
+// Test catching the case of a redirect to the unspecified address.
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressUdpIpv4) {
+  TestTurnAlternateServerAnyAddress(PROTO_UDP, false);
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressUdpIpv6) {
+  TestTurnAlternateServerAnyAddress(PROTO_UDP, true);
+}
+
+// The IPv4-mapped form of the unspecified address (::ffff:0.0.0.0) must be
+// blocked as well, since dual-stack sockets treat it like 0.0.0.0.
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressUdpIpv4Mapped) {
+  TestTurnAlternateServerBlocked(
+      PROTO_UDP, /*ipv6=*/true,
+      SocketAddress("::ffff:0.0.0.0", TURN_SERVER_PORT));
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressTcpIpv4) {
+  TestTurnAlternateServerAnyAddress(PROTO_TCP, false);
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressTcpIpv6) {
+  TestTurnAlternateServerAnyAddress(PROTO_TCP, true);
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressTcpIpv4Mapped) {
+  TestTurnAlternateServerBlocked(
+      PROTO_TCP, /*ipv6=*/true,
+      SocketAddress("::ffff:0.0.0.0", TURN_SERVER_PORT));
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressTlsIpv4) {
+  TestTurnAlternateServerAnyAddress(PROTO_TLS, false);
+}
+
+TEST_F(TurnPortTest, TestTurnAlternateServerAnyAddressTlsIpv6) {
+  TestTurnAlternateServerAnyAddress(PROTO_TLS, true);
 }
 
 // Do a TURN allocation and try to send a packet to it from the outside.

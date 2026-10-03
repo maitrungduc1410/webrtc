@@ -861,6 +861,16 @@ bool TurnPort::SetAlternateServer(const SocketAddress& address) {
     return false;
   }
 
+  // Also block redirects to the unspecified address (0.0.0.0 or ::). Sending
+  // to it reaches the local host on some platforms, so allowing it would be a
+  // way around the loopback check above.
+  if (address.IsAnyIP()) {
+    RTC_LOG(LS_WARNING)
+        << ToString()
+        << ": Blocking attempted redirect to unspecified address.";
+    return false;
+  }
+
   RTC_LOG(LS_INFO) << ToString() << ": Redirecting from TURN server ["
                    << server_address_.address.ToSensitiveNameAndAddressString()
                    << "] to TURN server ["
