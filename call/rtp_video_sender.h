@@ -194,7 +194,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   bool active_ RTC_GUARDED_BY(mutex_) = false;
 
   const std::unique_ptr<FecController> fec_controller_;
-  bool fec_allowed_ RTC_GUARDED_BY(mutex_) = true;
+  bool fec_allowed_ RTC_GUARDED_BY(transport_checker_) = true;
 
   // Rtp modules are assumed to be sorted in simulcast index order.
   const std::vector<webrtc_internal_rtp_video_sender::RtpStreamSender>

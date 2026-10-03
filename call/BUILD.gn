@@ -815,6 +815,7 @@ if (rtc_include_tests) {
         ":rtp_sender",
         ":video_send_stream_api",
         "../api:bitrate_allocation",
+        "../api:fec_controller_api",
         "../api:field_trials",
         "../api:frame_transformer_interface",
         "../api:make_ref_counted",

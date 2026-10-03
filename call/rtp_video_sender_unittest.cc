@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -23,6 +24,7 @@
 #include "api/call/transport.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
+#include "api/fec_controller.h"
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/rtp_header_extension_id.h"
@@ -77,6 +79,7 @@ namespace webrtc {
 namespace {
 
 using ::testing::_;
+using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Ge;
@@ -84,6 +87,7 @@ using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::NiceMock;
 using ::testing::NotNull;
+using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::SizeIs;
 
@@ -103,6 +107,39 @@ constexpr RtpHeaderExtensionId kDependencyDescriptorExtensionId(8);
 class MockRtcpIntraFrameObserver : public RtcpIntraFrameObserver {
  public:
   MOCK_METHOD(void, OnReceivedIntraFrameRequest, (uint32_t), (override));
+};
+
+class MockFecController : public FecController {
+ public:
+  MOCK_METHOD(void,
+              SetProtectionCallback,
+              (VCMProtectionCallback * protection_callback),
+              (override));
+  MOCK_METHOD(void,
+              SetProtectionMethod,
+              (bool enable_fec, bool enable_nack),
+              (override));
+  MOCK_METHOD(void,
+              SetEncodingData,
+              (size_t width,
+               size_t height,
+               size_t num_temporal_layers,
+               size_t max_payload_size),
+              (override));
+  MOCK_METHOD(uint32_t,
+              UpdateFecRates,
+              (uint32_t estimated_bitrate_bps,
+               int actual_framerate,
+               uint8_t fraction_lost,
+               std::vector<bool> loss_mask_vector,
+               int64_t round_trip_time_ms),
+              (override));
+  MOCK_METHOD(void,
+              UpdateWithEncodedData,
+              (size_t encoded_image_length,
+               VideoFrameType encoded_image_frametype),
+              (override));
+  MOCK_METHOD(bool, UseLossVectorMask, (), (override));
 };
 
 RtpSenderObservers CreateObservers(
@@ -180,7 +217,8 @@ class RtpVideoSenderTestFixture {
       scoped_refptr<FrameTransformerInterface> frame_transformer,
       const std::vector<int>& payload_types,
       absl::string_view field_trials = "",
-      const std::vector<uint32_t>& csrcs = {})
+      const std::vector<uint32_t>& csrcs = {},
+      std::unique_ptr<FecController> fec_controller = nullptr)
       : time_controller_(Timestamp::Millis(1000000)),
         env_(CreateTestEnvironment(
             {.field_trials = field_trials, .time = &time_controller_})),
@@ -200,14 +238,17 @@ class RtpVideoSenderTestFixture {
                      VideoEncoderConfig::ContentType::kRealtimeVideo) {
     transport_controller_.EnsureStarted();
     std::map<uint32_t, RtpState> suspended_ssrcs;
+    if (!fec_controller) {
+      fec_controller = std::make_unique<FecControllerDefault>(env_);
+    }
     router_ = std::make_unique<RtpVideoSender>(
         env_, time_controller_.GetMainThread(), suspended_ssrcs,
         suspended_payload_states, config_.rtp, config_.rtcp_report_interval_ms,
         &transport_,
         CreateObservers(&encoder_feedback_, &stats_proxy_, &stats_proxy_,
                         &stats_proxy_, frame_count_observer, &stats_proxy_),
-        &transport_controller_, std::make_unique<FecControllerDefault>(env_),
-        nullptr, CryptoOptions{}, frame_transformer);
+        &transport_controller_, std::move(fec_controller), nullptr,
+        CryptoOptions{}, frame_transformer);
   }
   RtpVideoSenderTestFixture(
       const std::vector<uint32_t>& ssrcs,
@@ -1566,6 +1607,40 @@ TEST(RtpVideoSenderTest, OverheadIsSubtractedFromTargetBitrate) {
     EXPECT_EQ(test.router()->GetPayloadBitrateBps(),
               1000000 - kOverheadPerPacketBytes * 8 * 30 * 3);
   }
+}
+
+TEST(RtpVideoSenderTest, ReservesBitrateForFecOnlyWhenAllowed) {
+  constexpr uint32_t kTargetBitrateBps = 300'000;
+  // The rate that the FEC controller leaves for the encoder.
+  constexpr uint32_t kRateWithFecBps = 100'000;
+  auto fec_controller = std::make_unique<NiceMock<MockFecController>>();
+  uint32_t payload_bitrate_bps = 0;
+  ON_CALL(*fec_controller, UpdateFecRates)
+      .WillByDefault(
+          DoAll(SaveArg<0>(&payload_bitrate_bps), Return(kRateWithFecBps)));
+  RtpVideoSenderTestFixture test(
+      {kSsrc1}, {}, kPayloadType, {}, /*frame_count_observer=*/nullptr,
+      /*frame_transformer=*/nullptr, /*payload_types=*/{},
+      /*field_trials=*/"", /*csrcs=*/{}, std::move(fec_controller));
+  test.SetSending(true);
+  const BitrateAllocationUpdate update =
+      CreateBitrateAllocationUpdate(kTargetBitrateBps);
+
+  test.router()->OnBitrateUpdated(update, /*framerate=*/30);
+  EXPECT_EQ(test.router()->GetPayloadBitrateBps(), kRateWithFecBps);
+
+  // SetFecAllowed() may be called on any thread. The value applies to bitrate
+  // updates once it has been handed to the transport queue.
+  test.router()->SetFecAllowed(false);
+  test.AdvanceTime(TimeDelta::Zero());
+  test.router()->OnBitrateUpdated(update, /*framerate=*/30);
+  EXPECT_GT(payload_bitrate_bps, kRateWithFecBps);
+  EXPECT_EQ(test.router()->GetPayloadBitrateBps(), payload_bitrate_bps);
+
+  test.router()->SetFecAllowed(true);
+  test.AdvanceTime(TimeDelta::Zero());
+  test.router()->OnBitrateUpdated(update, /*framerate=*/30);
+  EXPECT_EQ(test.router()->GetPayloadBitrateBps(), kRateWithFecBps);
 }
 
 TEST(RtpVideoSenderTest, ClearsPendingPacketsOnInactivation) {

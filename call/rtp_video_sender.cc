@@ -842,7 +842,6 @@ void RtpVideoSender::OnBitrateUpdated(BitrateAllocationUpdate update,
                                       int framerate) {
   RTC_DCHECK_RUN_ON(&transport_checker_);
   // Substract overhead from bitrate.
-  MutexLock lock(&mutex_);
   if (transport_overhead_bytes_per_packet_ !=
       update.packet_overhead.bytes<size_t>()) {
     transport_overhead_bytes_per_packet_ =
@@ -977,8 +976,12 @@ void RtpVideoSender::SetRetransmissionMode(int retransmission_mode) {
 }
 
 void RtpVideoSender::SetFecAllowed(bool fec_allowed) {
-  MutexLock lock(&mutex_);
-  fec_allowed_ = fec_allowed;
+  // Called by the encoder, which may run on any thread. `fec_allowed_` is only
+  // used on the transport queue, so apply the value there.
+  transport_queue_.PostTask(SafeTask(safety_.flag(), [this, fec_allowed] {
+    RTC_DCHECK_RUN_ON(&transport_checker_);
+    fec_allowed_ = fec_allowed;
+  }));
 }
 
 void RtpVideoSender::OnPacketFeedbackVector(
