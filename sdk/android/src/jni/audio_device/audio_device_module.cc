@@ -593,6 +593,11 @@ class AndroidAudioDeviceModule : public AudioDeviceModule {
     return std::nullopt;
   }
 
+  std::optional<ProcessingTimeStats> GetAndResetCaptureProcessingTimeStats()
+      const override {
+    return input_->GetAndResetCaptureProcessingTimeStats();
+  }
+
   int32_t AttachAudioBuffer() {
     RTC_DLOG(LS_INFO) << __FUNCTION__;
     output_->AttachAudioBuffer(audio_device_buffer_.get());

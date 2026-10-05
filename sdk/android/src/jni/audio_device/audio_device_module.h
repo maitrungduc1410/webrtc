@@ -56,6 +56,12 @@ class AudioInput {
   // Populates the audio input specific fields of the provided stats object.
   // Returns true if any statistics were updated.
   virtual bool GetStats(AudioDeviceModule::Stats* stats) const { return false; }
+
+  // Returns and resets the accumulated audio input frame processing time stats.
+  virtual std::optional<AudioDeviceModule::ProcessingTimeStats>
+  GetAndResetCaptureProcessingTimeStats() const {
+    return std::nullopt;
+  }
 };
 
 class AudioOutput {
