@@ -1159,17 +1159,17 @@ TEST(ScreamTest,
   ASSERT_GT(result.caller().subspan(2).size(), 0u);
   EXPECT_THAT(result.caller().subspan(2),
               Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(180),
-                                                 TimeDelta::Millis(700))));
+                                                 TimeDelta::Millis(500))));
   ASSERT_GT(result.callee().subspan(2).size(), 0u);
   EXPECT_THAT(result.callee().subspan(2),
               Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(180),
-                                                 TimeDelta::Millis(700))));
+                                                 TimeDelta::Millis(500))));
   EXPECT_THAT(result.caller().subspan(2),
               Each(AvailableSendBitrateIsBetween(
-                  DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(90))));
+                  DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(60))));
   EXPECT_THAT(result.callee().subspan(2),
               Each(AvailableSendBitrateIsBetween(
-                  DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(90))));
+                  DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(60))));
 }
 
 }  // namespace
