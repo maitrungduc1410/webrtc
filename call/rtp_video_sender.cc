@@ -968,13 +968,6 @@ int RtpVideoSender::ProtectionRequest(const FecProtectionParams* delta_params,
   return 0;
 }
 
-void RtpVideoSender::SetRetransmissionMode(int retransmission_mode) {
-  MutexLock lock(&mutex_);
-  for (const RtpStreamSender& stream : rtp_streams_) {
-    stream.sender_video->SetRetransmissionSetting(retransmission_mode);
-  }
-}
-
 void RtpVideoSender::SetFecAllowed(bool fec_allowed) {
   // Called by the encoder, which may run on any thread. `fec_allowed_` is only
   // used on the transport queue, so apply the value there.

@@ -42,7 +42,6 @@
 #include "common_video/frame_counts.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
-#include "modules/rtp_rtcp/source/rtp_sender.h"
 #include "modules/rtp_rtcp/source/rtp_sender_video.h"
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
@@ -120,11 +119,6 @@ class RtpVideoSender : public RtpVideoSenderInterface,
                         uint32_t* sent_video_rate_bps,
                         uint32_t* sent_nack_rate_bps,
                         uint32_t* sent_fec_rate_bps)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
-
-  // 'retransmission_mode' is either a value of enum RetransmissionMode, or
-  // computed with bitwise operators on values of enum RetransmissionMode.
-  void SetRetransmissionMode(int retransmission_mode)
       RTC_LOCKS_EXCLUDED(mutex_) override;
 
   // Implements FecControllerOverride.

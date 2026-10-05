@@ -59,7 +59,6 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/nack.h"
 #include "modules/rtp_rtcp/source/rtp_dependency_descriptor_extension.h"
 #include "modules/rtp_rtcp/source/rtp_packet.h"
-#include "modules/rtp_rtcp/source/rtp_sender_video.h"
 #include "modules/video_coding/codecs/interface/common_constants.h"
 #include "modules/video_coding/fec_controller_default.h"
 #include "modules/video_coding/include/video_codec_interface.h"
@@ -1799,84 +1798,6 @@ TEST(RtpVideoSenderTest,
   // Advance time, check we get new packets - but only for the second frame.
   ASSERT_THAT(sent_packets, SizeIs(Ge(1)));
   EXPECT_NE(sent_packets[0].Timestamp(), first_frame_timestamp);
-}
-
-// Integration test verifying that when retransmission mode is set to
-// kRetransmitBaseLayer,only base layer is retransmitted.
-TEST(RtpVideoSenderTest, RetransmitsBaseLayerOnly) {
-  RtpVideoSenderTestFixture test({kSsrc1, kSsrc2}, {kRtxSsrc1, kRtxSsrc2},
-                                 kPayloadType, {});
-  test.SetSending(true);
-
-  test.router()->SetRetransmissionMode(kRetransmitBaseLayer);
-  constexpr uint8_t kPayload = 'a';
-  EncodedImage encoded_image;
-  encoded_image.SetRtpTimestamp(1);
-  encoded_image.capture_time_ms_ = 2;
-  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
-  encoded_image.SetEncodedData(EncodedImageBuffer::Create(&kPayload, 1));
-
-  // Send two tiny images, mapping to two RTP packets. Capture sequence numbers.
-  std::vector<uint16_t> rtp_sequence_numbers;
-  std::vector<uint16_t> transport_sequence_numbers;
-  std::vector<uint16_t> base_sequence_numbers;
-  EXPECT_CALL(test.transport(), SendRtp)
-      .Times(2)
-      .WillRepeatedly(
-          [&rtp_sequence_numbers, &transport_sequence_numbers](
-              std::span<const uint8_t> packet, const PacketOptions& options) {
-            RtpPacket rtp_packet;
-            EXPECT_TRUE(rtp_packet.Parse(packet));
-            rtp_sequence_numbers.push_back(rtp_packet.SequenceNumber());
-            transport_sequence_numbers.push_back(options.packet_id);
-            return true;
-          });
-  CodecSpecificInfo key_codec_info;
-  key_codec_info.codecType = kVideoCodecVP8;
-  key_codec_info.codecSpecific.VP8.temporalIdx = 0;
-  EXPECT_EQ(
-      EncodedImageCallback::Result::OK,
-      test.router()->OnEncodedImage(encoded_image, &key_codec_info).error);
-  encoded_image.SetRtpTimestamp(2);
-  encoded_image.capture_time_ms_ = 3;
-  encoded_image.set_frame_type(VideoFrameType::kVideoFrameDelta);
-  CodecSpecificInfo delta_codec_info;
-  delta_codec_info.codecType = kVideoCodecVP8;
-  delta_codec_info.codecSpecific.VP8.temporalIdx = 1;
-  EXPECT_EQ(
-      EncodedImageCallback::Result::OK,
-      test.router()->OnEncodedImage(encoded_image, &delta_codec_info).error);
-
-  test.AdvanceTime(TimeDelta::Millis(33));
-
-  // Construct a NACK message for requesting retransmission of both packet.
-  rtcp::Nack nack;
-  nack.SetMediaSsrc(kSsrc1);
-  nack.SetPacketIds(rtp_sequence_numbers);
-  Buffer nack_buffer = nack.Build();
-
-  std::vector<uint16_t> retransmitted_rtp_sequence_numbers;
-  EXPECT_CALL(test.transport(), SendRtp)
-      .Times(1)
-      .WillRepeatedly([&retransmitted_rtp_sequence_numbers](
-                          std::span<const uint8_t> packet,
-                          const PacketOptions& options) {
-        RtpPacket rtp_packet;
-        EXPECT_TRUE(rtp_packet.Parse(packet));
-        EXPECT_EQ(rtp_packet.Ssrc(), kRtxSsrc1);
-        // Capture the retransmitted sequence number from the RTX header.
-        std::span<const uint8_t> payload = rtp_packet.payload();
-        retransmitted_rtp_sequence_numbers.push_back(
-            ByteReader<uint16_t>::ReadBigEndian(payload.data()));
-        return true;
-      });
-  test.router()->DeliverRtcp(nack_buffer);
-  test.AdvanceTime(TimeDelta::Millis(33));
-
-  // Verify that only base layer packet was retransmitted.
-  std::vector<uint16_t> base_rtp_sequence_numbers(
-      rtp_sequence_numbers.begin(), rtp_sequence_numbers.begin() + 1);
-  EXPECT_EQ(retransmitted_rtp_sequence_numbers, base_rtp_sequence_numbers);
 }
 
 TEST(RtpVideoSenderTest, PostTaskRaceDoesNotLeadToDanglingPointer) {
