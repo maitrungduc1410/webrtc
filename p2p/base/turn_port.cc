@@ -22,7 +22,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
-#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/local_network_access_permission.h"
@@ -648,7 +647,7 @@ Connection* TurnPort::CreateConnection(const Candidate& remote_candidate,
   // If the remote endpoint signaled us an mDNS candidate, we do not form a pair
   // with the relay candidate to avoid IP leakage in the CreatePermission
   // request.
-  if (absl::EndsWith(remote_candidate.address().hostname(), LOCAL_TLD)) {
+  if (IsMdnsHostname(remote_candidate.address().hostname())) {
     return nullptr;
   }
 

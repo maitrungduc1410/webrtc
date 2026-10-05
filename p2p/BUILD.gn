@@ -436,6 +436,8 @@ rtc_library("p2p_constants") {
     "../api/units:time_delta",
     "../rtc_base/system:plan_b_only",
     "../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
 
@@ -1102,6 +1104,7 @@ if (rtc_include_tests) {
       "base/connection_unittest.cc",
       "base/ice_credentials_iterator_unittest.cc",
       "base/local_network_access_port_unittest.cc",
+      "base/p2p_constants_unittest.cc",
       "base/p2p_transport_channel_unittest.cc",
       "base/packet_transport_internal_unittest.cc",
       "base/port_allocator_unittest.cc",
