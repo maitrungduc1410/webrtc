@@ -383,6 +383,7 @@ rtc_library("rtp_rtcp") {
     "../../system_wrappers",
     "../../system_wrappers:metrics",
     "../audio_coding:audio_coding_module_typedefs",
+    "../sframe:sframe_media_encryptor_interface",
     "../video_coding:codec_globals_headers",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:nullability",

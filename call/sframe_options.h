@@ -11,14 +11,18 @@
 #ifndef CALL_SFRAME_OPTIONS_H_
 #define CALL_SFRAME_OPTIONS_H_
 
+#include "api/scoped_refptr.h"
+#include "modules/sframe/sframe_media_encryptor_interface.h"
+
 namespace webrtc {
 
 // Options for Sframe end-to-end encryption on a send channel.
 // Once required, encryption is enforced and cannot be disabled.
 struct SframeSendOptions {
   bool required = false;
-  // TODO(bugs.webrtc.org/479862368): Add Sframe encryptor once the type is
-  // defined.
+  // Set once the sender has created an encryptor. Until then frames on a
+  // stream with `required` set are dropped rather than sent as unencrypted.
+  scoped_refptr<SframeMediaEncryptorInterface> encryptor;
 };
 
 // Options for Sframe end-to-end encryption on a receive channel.

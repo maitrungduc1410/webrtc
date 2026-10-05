@@ -144,17 +144,14 @@ class MockVideoMediaSendChannel : public FakeVideoMediaSendChannel {
   }
 
   void SetSframeEncryptor(
-      uint32_t ssrc,
       scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) override {
     last_set_sframe_encryptor_ = sframe_encryptor;
-    last_set_sframe_encryptor_ssrc_ = ssrc;
   }
 
   scoped_refptr<FrameEncryptorInterface> last_set_frame_encryptor_;
   std::unique_ptr<VideoEncoderFactory> last_encoder_factory_override_;
   bool reset_encoder_factory_called_ = false;
   scoped_refptr<SframeMediaEncryptorInterface> last_set_sframe_encryptor_;
-  std::optional<uint32_t> last_set_sframe_encryptor_ssrc_;
 };
 
 class MockVoiceMediaSendChannel : public FakeVoiceMediaSendChannel {
@@ -2855,11 +2852,10 @@ TEST_F(RtpSenderReceiverTest, VideoSenderPushesSframeEncryptorToMediaChannel) {
   EXPECT_NE(result.value().get(), nullptr);
   FlushWorker();
   EXPECT_NE(mock_channel_ptr->last_set_sframe_encryptor_, nullptr);
-  EXPECT_EQ(mock_channel_ptr->last_set_sframe_encryptor_ssrc_, kVideoSsrc);
 }
 
 // The application may create the encryptor before the local description has
-// assigned a send SSRC. The encryptor is then handed over with an SSRC of 0 and
+// assigned a send SSRC. The encryptor is then handed over right away and
 // pushed again once the SSRC is known.
 TEST_F(RtpSenderReceiverTest, SetSsrcPropagatesSframeEncryptor) {
   auto mock_channel = std::make_unique<MockVideoMediaSendChannel>(
@@ -2874,17 +2870,14 @@ TEST_F(RtpSenderReceiverTest, SetSsrcPropagatesSframeEncryptor) {
   auto result = video_rtp_sender_->CreateSframeEncryptorOrError(options);
   ASSERT_TRUE(result.ok());
   FlushWorker();
-  EXPECT_EQ(mock_channel_ptr->last_set_sframe_encryptor_ssrc_, 0u);
 
   scoped_refptr<SframeMediaEncryptorInterface> encryptor =
       mock_channel_ptr->last_set_sframe_encryptor_;
   ASSERT_NE(encryptor, nullptr);
   mock_channel_ptr->last_set_sframe_encryptor_ = nullptr;
-  mock_channel_ptr->last_set_sframe_encryptor_ssrc_ = std::nullopt;
 
   SetSsrc(kVideoSsrc, *video_rtp_sender_);
   EXPECT_EQ(mock_channel_ptr->last_set_sframe_encryptor_, encryptor);
-  EXPECT_EQ(mock_channel_ptr->last_set_sframe_encryptor_ssrc_, kVideoSsrc);
 }
 
 // The application installs keys from its own thread while the media pipeline

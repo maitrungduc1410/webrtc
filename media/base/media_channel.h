@@ -236,8 +236,9 @@ class MediaSendChannelInterface {
 
   // Sets the Sframe encryptor used to encrypt the outgoing frames.
   // Its lifetime is managed by the RtpSender it is attached to.
+  // Sframe is Unified Plan only, so this applies to the channel's single
+  // send stream.
   virtual void SetSframeEncryptor(
-      uint32_t ssrc,
       scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) = 0;
 
   virtual RTCError SetRtpSendParameters(

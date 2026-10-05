@@ -241,7 +241,6 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
       scoped_refptr<FrameEncryptorInterface> frame_encryptor) override;
 
   void SetSframeEncryptor(
-      uint32_t ssrc,
       scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) override;
 
   // note: The encoder_selector object must remain valid for the lifetime of the

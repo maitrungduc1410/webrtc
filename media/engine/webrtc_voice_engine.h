@@ -247,7 +247,6 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
       scoped_refptr<FrameEncryptorInterface> frame_encryptor) override;
 
   void SetSframeEncryptor(
-      uint32_t ssrc,
       scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) override;
 
   void EnableSframe() override;

@@ -357,6 +357,7 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
     video_config.require_frame_encryption =
         crypto_options.sframe.require_frame_encryption;
     video_config.sframe_required = rtp_config.sframe_options.required;
+    video_config.sframe_encryptor = rtp_config.sframe_options.encryptor;
     video_config.field_trials = &env.field_trials();
     video_config.enable_retransmit_all_layers =
         !video_config.field_trials->IsDisabled(

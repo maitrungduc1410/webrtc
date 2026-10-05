@@ -855,7 +855,7 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
       }
     }
     if (sframe_encryptor_) {
-      media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
+      media_channel_->SetSframeEncryptor(sframe_encryptor_);
     }
   });
   if (applied_parameters.has_value()) {
@@ -1019,7 +1019,7 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
       }
     }
     if (sframe_encryptor_ != nullptr) {
-      media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
+      media_channel_->SetSframeEncryptor(sframe_encryptor_);
     }
 
     if (applied_parameters.has_value()) {
@@ -1295,15 +1295,14 @@ RtpSenderBase::CreateSframeEncryptorOrError(
       SframeEncryptor::Create(options.mode, options.cipher_suite);
 
   worker_thread_->PostTask(
-      SafeTask(worker_safety_,
-               [this, sframe_encryptor = sframe_encryptor, ssrc = ssrc_] {
-                 RTC_DCHECK_RUN_ON(worker_thread_);
-                 sframe_encryptor_ = sframe_encryptor;
+      SafeTask(worker_safety_, [this, sframe_encryptor]() mutable {
+        RTC_DCHECK_RUN_ON(worker_thread_);
+        sframe_encryptor_ = std::move(sframe_encryptor);
 
-                 if (media_channel_) {
-                   media_channel_->SetSframeEncryptor(ssrc, sframe_encryptor_);
-                 }
-               }));
+        if (media_channel_) {
+          media_channel_->SetSframeEncryptor(sframe_encryptor_);
+        }
+      }));
 
   return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorProxy::Create(
       worker_thread_, std::move(sframe_encryptor)));
