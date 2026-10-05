@@ -16,15 +16,18 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/audio/audio_frame.h"
+#include "api/audio/audio_mixer.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/call/audio_sink.h"
 #include "api/call/transport.h"
 #include "api/crypto/crypto_options.h"
+#include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
@@ -57,6 +60,7 @@ namespace {
 using ::testing::NiceMock;
 using ::testing::NotNull;
 using ::testing::Return;
+using ::testing::SizeIs;
 using ::testing::Test;
 
 constexpr uint32_t kLocalSsrc = kFallbackRtcpSsrcForAudio;
@@ -284,6 +288,37 @@ TEST_F(ChannelReceiveTest, SettingFrameTransformerMultipleTimes) {
   EXPECT_CALL(*mock_frame_transformer, RegisterTransformedFrameCallback)
       .Times(0);
   channel->SetDepacketizerToDecoderFrameTransformer(mock_frame_transformer);
+}
+
+TEST_F(ChannelReceiveTest, TransformsAndInsertsTransformedFrame) {
+  auto channel = CreateTestChannelReceive();
+
+  scoped_refptr<MockFrameTransformer> mock_frame_transformer =
+      make_ref_counted<MockFrameTransformer>();
+  scoped_refptr<TransformedFrameCallback> callback;
+  EXPECT_CALL(*mock_frame_transformer, RegisterTransformedFrameCallback)
+      .WillOnce([&](scoped_refptr<TransformedFrameCallback> cb) {
+        callback = std::move(cb);
+      });
+  channel->SetDepacketizerToDecoderFrameTransformer(mock_frame_transformer);
+  ASSERT_TRUE(callback);
+
+  channel->StartPlayout();
+
+  EXPECT_CALL(*mock_frame_transformer, Transform)
+      .WillOnce([&](std::unique_ptr<TransformableFrameInterface> frame) {
+        callback->OnTransformedFrame(std::move(frame));
+      });
+
+  channel->OnRtpPacket(CreateRtpPacket());
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  AudioFrame audio_frame;
+  EXPECT_EQ(channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame),
+            AudioMixer::Source::AudioFrameInfo::kNormal);
+  // Proves that the transformed payload reached NetEq.
+  ASSERT_THAT(audio_frame.packet_infos_, SizeIs(1));
+  EXPECT_EQ(audio_frame.packet_infos_[0].ssrc(), kLocalSsrc);
 }
 
 TEST_F(ChannelReceiveTest, LogsReceivedPacketToEventLog) {
