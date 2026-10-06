@@ -477,7 +477,7 @@ void BasicPortAllocatorSession::GetCandidateStatsFromReadyPorts(
     CandidateStatsList* candidate_stats_list) const {
   auto ports = ReadyPorts();
   for (auto* port : ports) {
-    auto candidates = port->Candidates();
+    const auto& candidates = port->Candidates();
     for (const auto& candidate : candidates) {
       std::optional<StunStats> stun_stats;
       port->GetStunStats(&stun_stats);

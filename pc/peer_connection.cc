@@ -471,7 +471,7 @@ PeerConnection::PeerConnection(
     const std::vector<RelayServerConfig>& turn_servers,
     bool dtls_enabled)
     : env_(env),
-      context_(context),
+      context_(std::move(context)),
       options_(options),
       observer_(dependencies.observer),
       is_unified_plan_(is_unified_plan),
