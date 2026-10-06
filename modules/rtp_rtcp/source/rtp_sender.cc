@@ -146,6 +146,23 @@ bool IsNonVolatile(RTPExtensionType type) {
   RTC_CHECK_NOTREACHED();
 }
 
+// Returns the number of padding bytes to put in each padding packet when
+// `bytes_left` bytes of padding are left to generate.
+size_t PaddingBytesInPacket(bool audio,
+                            size_t bytes_left,
+                            size_t max_payload_size) {
+  if (audio) {
+    // Allow smaller padding packets for audio.
+    return SafeClamp<size_t>(bytes_left, kMinAudioPaddingLength,
+                             SafeMin(max_payload_size, kMaxPaddingLength));
+  }
+  // Always send full padding packets. This is accounted for by the
+  // RtpPacketSender, which will make sure we don't send too much padding even
+  // if a single packet is larger than requested.
+  // We do this to avoid frequently sending small packets on higher bitrates.
+  return SafeMin(max_payload_size, kMaxPaddingLength);
+}
+
 bool HasBweExtension(const RtpHeaderExtensionMap& extensions_map) {
   return extensions_map.IsRegistered(kRtpExtensionTransportSequenceNumber) ||
          extensions_map.IsRegistered(kRtpExtensionTransportSequenceNumber02) ||
@@ -373,109 +390,94 @@ std::vector<std::unique_ptr<RtpPacketToSend>> RTPSender::GeneratePadding(
   std::vector<std::unique_ptr<RtpPacketToSend>> padding_packets;
   size_t bytes_left = target_size_bytes;
   if (SupportsRtxPayloadPadding()) {
-    while (bytes_left >= kMinPayloadPaddingBytes) {
-      std::unique_ptr<RtpPacketToSend> packet =
-          packet_history_->GetPayloadPaddingPacket(
-              [&](const RtpPacketToSend& packet)
-                  -> std::unique_ptr<RtpPacketToSend> {
-                // Limit overshoot, generate <= `kMaxPaddingSizeFactor` *
-                // `target_size_bytes`.
-                const size_t max_overshoot_bytes = static_cast<size_t>(
-                    ((kMaxPaddingSizeFactor - 1.0) * target_size_bytes) + 0.5);
-                if (packet.payload_size() + kRtxHeaderSize >
-                    max_overshoot_bytes + bytes_left) {
-                  return nullptr;
-                }
-                return BuildRtxPacket(packet);
-              });
-      if (!packet) {
-        break;
-      }
-
-      bytes_left -= std::min(bytes_left, packet->payload_size());
-      packet->set_packet_type(RtpPacketMediaType::kPadding);
-      padding_packets.push_back(std::move(packet));
-    }
+    bytes_left = AppendPayloadPadding(target_size_bytes, padding_packets);
   }
 
   MutexLock lock(&send_mutex_);
   if (!sending_media_) {
     return {};
   }
-
-  size_t padding_bytes_in_packet;
+  const bool rtx = rtx_ != kRtxOff;
   const size_t max_payload_size =
       max_packet_size_ - max_padding_fec_packet_header_;
-  if (audio_configured_) {
-    // Allow smaller padding packets for audio.
-    padding_bytes_in_packet =
-        SafeClamp<size_t>(bytes_left, kMinAudioPaddingLength,
-                          SafeMin(max_payload_size, kMaxPaddingLength));
-  } else {
-    // Always send full padding packets. This is accounted for by the
-    // RtpPacketSender, which will make sure we don't send too much padding even
-    // if a single packet is larger than requested.
-    // We do this to avoid frequently sending small packets on higher bitrates.
-    padding_bytes_in_packet = SafeMin(max_payload_size, kMaxPaddingLength);
+
+  if (rtx) {
+    // Without abs-send-time or transport sequence number a media packet
+    // must be sent before padding so that the timestamps used for
+    // estimation are correct.
+    if (!media_has_been_sent &&
+        !(rtp_header_extension_map_.IsRegistered(AbsoluteSendTime::kId) ||
+          rtp_header_extension_map_.IsRegistered(
+              TransportSequenceNumber::kId))) {
+      return padding_packets;
+    }
+  } else if (!can_send_padding_on_media_ssrc) {
+    return padding_packets;
   }
 
+  const size_t padding_bytes_in_packet =
+      PaddingBytesInPacket(audio_configured_, bytes_left, max_payload_size);
   while (bytes_left > 0) {
-    auto padding_packet =
-        std::make_unique<RtpPacketToSend>(&rtp_header_extension_map_);
-    padding_packet->set_packet_type(RtpPacketMediaType::kPadding);
-    padding_packet->SetMarker(false);
-    if (rtx_ == kRtxOff) {
-      if (!can_send_padding_on_media_ssrc) {
-        break;
-      }
-      padding_packet->SetSsrc(ssrc_);
-
-      if (always_send_mid_and_rid_ || !ssrc_has_acked_) {
-        // These are no-ops if the corresponding header extension is not
-        // registered.
-        if (!mid_.empty()) {
-          padding_packet->SetExtension<RtpMid>(mid_);
-        }
-        if (!rid_.empty()) {
-          padding_packet->SetExtension<RtpStreamId>(rid_);
-        }
-      }
-    } else {
-      // Without abs-send-time or transport sequence number a media packet
-      // must be sent before padding so that the timestamps used for
-      // estimation are correct.
-      if (!media_has_been_sent &&
-          !(rtp_header_extension_map_.IsRegistered(AbsoluteSendTime::kId) ||
-            rtp_header_extension_map_.IsRegistered(
-                TransportSequenceNumber::kId))) {
-        break;
-      }
-
-      RTC_DCHECK(rtx_ssrc_);
-      RTC_DCHECK(!rtx_payload_type_map_.empty());
-      padding_packet->SetSsrc(*rtx_ssrc_);
-      padding_packet->SetPayloadType(rtx_payload_type_map_.begin()->second);
-
-      if (always_send_mid_and_rid_ || !rtx_ssrc_has_acked_) {
-        if (!mid_.empty()) {
-          padding_packet->SetExtension<RtpMid>(mid_);
-        }
-        if (!rid_.empty()) {
-          padding_packet->SetExtension<RepairedRtpStreamId>(rid_);
-        }
-      }
-    }
-
-    padding_packet->ReserveExtension<TransportSequenceNumber>();
-    padding_packet->ReserveExtension<TransmissionOffset>();
-    padding_packet->ReserveExtension<AbsoluteSendTime>();
-
-    padding_packet->SetPadding(padding_bytes_in_packet);
+    padding_packets.push_back(BuildPaddingPacket(rtx, padding_bytes_in_packet));
     bytes_left -= std::min(bytes_left, padding_bytes_in_packet);
-    padding_packets.push_back(std::move(padding_packet));
   }
 
   return padding_packets;
+}
+
+size_t RTPSender::AppendPayloadPadding(
+    size_t target_size_bytes,
+    std::vector<std::unique_ptr<RtpPacketToSend>>& padding_packets) {
+  size_t bytes_left = target_size_bytes;
+  while (bytes_left >= kMinPayloadPaddingBytes) {
+    std::unique_ptr<RtpPacketToSend> packet =
+        packet_history_->GetPayloadPaddingPacket(
+            [&](const RtpPacketToSend& packet)
+                -> std::unique_ptr<RtpPacketToSend> {
+              // Limit overshoot, generate <= `kMaxPaddingSizeFactor` *
+              // `target_size_bytes`.
+              const size_t max_overshoot_bytes = static_cast<size_t>(
+                  ((kMaxPaddingSizeFactor - 1.0) * target_size_bytes) + 0.5);
+              if (packet.payload_size() + kRtxHeaderSize >
+                  max_overshoot_bytes + bytes_left) {
+                return nullptr;
+              }
+              return BuildRtxPacket(packet);
+            });
+    if (!packet) {
+      break;
+    }
+
+    bytes_left -= std::min(bytes_left, packet->payload_size());
+    packet->set_packet_type(RtpPacketMediaType::kPadding);
+    padding_packets.push_back(std::move(packet));
+  }
+  return bytes_left;
+}
+
+std::unique_ptr<RtpPacketToSend> RTPSender::BuildPaddingPacket(
+    bool rtx,
+    size_t padding_size) const {
+  auto padding_packet =
+      std::make_unique<RtpPacketToSend>(&rtp_header_extension_map_);
+  padding_packet->set_packet_type(RtpPacketMediaType::kPadding);
+  padding_packet->SetMarker(false);
+  if (rtx) {
+    RTC_DCHECK(rtx_ssrc_);
+    RTC_DCHECK(!rtx_payload_type_map_.empty());
+    padding_packet->SetSsrc(*rtx_ssrc_);
+    padding_packet->SetPayloadType(rtx_payload_type_map_.begin()->second);
+  } else {
+    padding_packet->SetSsrc(ssrc_);
+  }
+  AttachMidAndRid(rtx, *padding_packet);
+
+  padding_packet->ReserveExtension<TransportSequenceNumber>();
+  padding_packet->ReserveExtension<TransmissionOffset>();
+  padding_packet->ReserveExtension<AbsoluteSendTime>();
+
+  padding_packet->SetPadding(padding_size);
+  return padding_packet;
 }
 
 void RTPSender::EnqueuePackets(
@@ -507,11 +509,12 @@ size_t RTPSender::ExpectedPerPacketOverhead() const {
 std::unique_ptr<RtpPacketToSend> RTPSender::AllocatePacket(
     std::span<const uint32_t> csrcs) {
   MutexLock lock(&send_mutex_);
-  RTC_DCHECK_LE(csrcs.size(), kRtpCsrcSize);
-  if (csrcs.size() > max_num_csrcs_) {
-    max_num_csrcs_ = csrcs.size();
-    UpdateHeaderSizes();
-  }
+  UpdateMaxNumCsrcs(csrcs.size());
+  return BuildMediaPacket(csrcs);
+}
+
+std::unique_ptr<RtpPacketToSend> RTPSender::BuildMediaPacket(
+    std::span<const uint32_t> csrcs) const {
   auto packet = std::make_unique<RtpPacketToSend>(&rtp_header_extension_map_,
                                                   max_packet_size_);
   packet->SetSsrc(ssrc_);
@@ -522,27 +525,7 @@ std::unique_ptr<RtpPacketToSend> RTPSender::AllocatePacket(
   packet->ReserveExtension<TransmissionOffset>();
   packet->ReserveExtension<TransportSequenceNumber>();
 
-  // BUNDLE requires that the receiver "bind" the received SSRC to the values
-  // in the MID and/or (R)RID header extensions if present. Therefore, the
-  // sender can reduce overhead by omitting these header extensions once it
-  // knows that the receiver has "bound" the SSRC.
-  // This optimization can be configured by setting
-  // `always_send_mid_and_rid_` appropriately.
-  //
-  // The algorithm here is fairly simple: Always attach a MID and/or RID (if
-  // configured) to the outgoing packets until an RTCP receiver report comes
-  // back for this SSRC. That feedback indicates the receiver must have
-  // received a packet with the SSRC and header extension(s), so the sender
-  // then stops attaching the MID and RID.
-  if (always_send_mid_and_rid_ || !ssrc_has_acked_) {
-    // These are no-ops if the corresponding header extension is not registered.
-    if (!mid_.empty()) {
-      packet->SetExtension<RtpMid>(mid_);
-    }
-    if (!rid_.empty()) {
-      packet->SetExtension<RtpStreamId>(rid_);
-    }
-  }
+  AttachMidAndRid(/*rtx=*/false, *packet);
   return packet;
 }
 
@@ -688,16 +671,7 @@ std::unique_ptr<RtpPacketToSend> RTPSender::BuildRtxPacket(
     // Note that RTX packets must used the RepairedRtpStreamId (RRID) header
     // extension instead of the RtpStreamId (RID) header extension even though
     // the payload is identical.
-    if (always_send_mid_and_rid_ || !rtx_ssrc_has_acked_) {
-      // These are no-ops if the corresponding header extension is not
-      // registered.
-      if (!mid_.empty()) {
-        rtx_packet->SetExtension<RtpMid>(mid_);
-      }
-      if (!rid_.empty()) {
-        rtx_packet->SetExtension<RepairedRtpStreamId>(rid_);
-      }
-    }
+    AttachMidAndRid(/*rtx=*/true, *rtx_packet);
   }
   RTC_DCHECK(rtx_packet);
 
@@ -804,6 +778,45 @@ void RTPSender::UpdateHeaderSizes() {
   // Reserve extra bytes if packet might be resent in an rtx packet.
   if (rtx_ssrc_.has_value()) {
     max_media_packet_header_ += kRtxHeaderSize;
+  }
+}
+
+void RTPSender::UpdateMaxNumCsrcs(size_t num_csrcs) {
+  RTC_DCHECK_LE(num_csrcs, kRtpCsrcSize);
+  if (num_csrcs > max_num_csrcs_) {
+    max_num_csrcs_ = num_csrcs;
+    UpdateHeaderSizes();
+  }
+}
+
+void RTPSender::AttachMidAndRid(bool rtx, RtpPacketToSend& packet) const {
+  // BUNDLE requires that the receiver "bind" the received SSRC to the values
+  // in the MID and/or (R)RID header extensions if present. Therefore, the
+  // sender can reduce overhead by omitting these header extensions once it
+  // knows that the receiver has "bound" the SSRC.
+  // This optimization can be configured by setting
+  // `always_send_mid_and_rid_` appropriately.
+  //
+  // The algorithm here is fairly simple: Always attach a MID and/or RID (if
+  // configured) to the outgoing packets until an RTCP receiver report comes
+  // back for this SSRC. That feedback indicates the receiver must have
+  // received a packet with the SSRC and header extension(s), so the sender
+  // then stops attaching the MID and RID.
+  const bool has_acked = rtx ? rtx_ssrc_has_acked_ : ssrc_has_acked_;
+  const bool send_mid_and_rid = always_send_mid_and_rid_ || !has_acked;
+  if (!send_mid_and_rid) {
+    return;
+  }
+  // These are no-ops if the corresponding header extension is not registered.
+  if (!mid_.empty()) {
+    packet.SetExtension<RtpMid>(mid_);
+  }
+  if (!rid_.empty()) {
+    if (rtx) {
+      packet.SetExtension<RepairedRtpStreamId>(rid_);
+    } else {
+      packet.SetExtension<RtpStreamId>(rid_);
+    }
   }
 }
 }  // namespace webrtc

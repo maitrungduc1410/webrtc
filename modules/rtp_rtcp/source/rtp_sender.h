@@ -166,10 +166,38 @@ class RTPSender {
   RtpState GetRtxRtpState() const RTC_LOCKS_EXCLUDED(send_mutex_);
 
  private:
+  // Builds a packet that is sent on the media SSRC.
+  std::unique_ptr<RtpPacketToSend> BuildMediaPacket(
+      std::span<const uint32_t> csrcs) const
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(send_mutex_);
+
   std::unique_ptr<RtpPacketToSend> BuildRtxPacket(
       const RtpPacketToSend& packet);
 
+  // Appends padding packets to `padding_packets` that are built from packets in
+  // the packet history and sent on the RTX SSRC. Returns the number of bytes of
+  // `target_size_bytes` that are left to generate.
+  size_t AppendPayloadPadding(
+      size_t target_size_bytes,
+      std::vector<std::unique_ptr<RtpPacketToSend>>& padding_packets)
+      RTC_LOCKS_EXCLUDED(send_mutex_);
+
+  // Builds a packet with `padding_size` bytes of padding. It is sent on the
+  // RTX SSRC if `rtx` is true, or on the media SSRC otherwise.
+  std::unique_ptr<RtpPacketToSend> BuildPaddingPacket(bool rtx,
+                                                      size_t padding_size) const
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(send_mutex_);
+
+  // Attaches the MID and RID header extensions to `packet` if needed.
+  void AttachMidAndRid(bool rtx, RtpPacketToSend& packet) const
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(send_mutex_);
+
   void UpdateHeaderSizes() RTC_EXCLUSIVE_LOCKS_REQUIRED(send_mutex_);
+
+  // Updates the header sizes if `num_csrcs` is larger than the number of CSRCs
+  // that any packet has been allocated with so far.
+  void UpdateMaxNumCsrcs(size_t num_csrcs)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(send_mutex_);
 
   Clock* const clock_;
 
