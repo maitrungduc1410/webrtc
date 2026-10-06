@@ -754,7 +754,7 @@ RTCError ResolveSendCodecs(
     const VideoCodecSettings& current_codec,
     const std::vector<VideoCodecSettings>& current_codecs,
     const std::vector<RtpEncodingParameters>& encodings,
-    const std::vector<VideoCodecSettings> negotiated_codecs,
+    const std::vector<VideoCodecSettings>& negotiated_codecs,
     std::vector<VideoCodecSettings>* resolved_codecs) {
   RTC_DCHECK(resolved_codecs);
   resolved_codecs->clear();
@@ -772,7 +772,7 @@ RTCError ResolveSendCodecs(
     if (!found_codec) {
       RTC_DCHECK(requested_codec);
       auto matched_codec =
-          absl::c_find_if(negotiated_codecs, [&](auto negotiated_codec) {
+          absl::c_find_if(negotiated_codecs, [&](const auto& negotiated_codec) {
             return IsSameRtpCodecIgnoringLevel(negotiated_codec.codec,
                                                *requested_codec);
           });
@@ -1096,7 +1096,7 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
     RTC_LOG(LS_ERROR) << "Failure in codec list, error = " << result.error();
     return false;
   }
-  std::vector<VideoCodecSettings> mapped_codecs = result.value();
+  const std::vector<VideoCodecSettings>& mapped_codecs = result.value();
 
   std::vector<VideoCodecSettings> negotiated_codecs =
       SelectSendVideoCodecs(mapped_codecs);
@@ -1122,7 +1122,7 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
     auto rtp_parameters = send_stream->GetRtpParameters();
     if (rtp_parameters.encodings[0].codec) {
       auto matched_codec =
-          absl::c_find_if(negotiated_codecs, [&](auto negotiated_codec) {
+          absl::c_find_if(negotiated_codecs, [&](const auto& negotiated_codec) {
             return IsSameRtpCodec(negotiated_codec.codec,
                                   *rtp_parameters.encodings[0].codec);
           });
@@ -1165,8 +1165,8 @@ bool WebRtcVideoSendChannel::GetChangedSenderParameters(
     auto rtp_parameters = send_stream->GetRtpParameters();
     for (auto& encoding : rtp_parameters.encodings) {
       if (encoding.codec) {
-        auto matched_codec =
-            absl::c_find_if(negotiated_codecs, [&](auto negotiated_codec) {
+        auto matched_codec = absl::c_find_if(
+            negotiated_codecs, [&](const auto& negotiated_codec) {
               return IsSameRtpCodec(negotiated_codec.codec, *encoding.codec);
             });
         if (matched_codec != negotiated_codecs.end()) {
@@ -2313,7 +2313,7 @@ RtpParameters WebRtcVideoSendChannel::WebRtcVideoSendStream::GetRtpParameters()
 void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetFrameEncryptor(
     scoped_refptr<FrameEncryptorInterface> frame_encryptor) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  parameters_.config.frame_encryptor = frame_encryptor;
+  parameters_.config.frame_encryptor = std::move(frame_encryptor);
   if (stream_) {
     RTC_LOG(LS_INFO)
         << "RecreateWebRtcStream (send) because of SetFrameEncryptor, ssrc="
@@ -2672,10 +2672,12 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::GetPerLayerVideoSenderInfos(
     if (encoding_index_by_ssrc.find(ssrc) != encoding_index_by_ssrc.end()) {
       info.encoding_index = encoding_index_by_ssrc[ssrc];
     }
-    auto stream_config = std::find_if(
-        parameters_.config.rtp.stream_configs.begin(),
-        parameters_.config.rtp.stream_configs.end(),
-        [ssrc](auto stream_config) { return stream_config.ssrc == ssrc; });
+    auto stream_config =
+        std::find_if(parameters_.config.rtp.stream_configs.begin(),
+                     parameters_.config.rtp.stream_configs.end(),
+                     [ssrc](const auto& stream_config) {
+                       return stream_config.ssrc == ssrc;
+                     });
     if (stream_config != parameters_.config.rtp.stream_configs.end()) {
       if (stream_config->payload_type != -1) {
         info.codec_name = stream_config->payload_name;
@@ -3043,7 +3045,7 @@ bool WebRtcVideoReceiveChannel::GetChangedReceiverParameters(
                       << result.error();
     return false;
   }
-  const std::vector<VideoCodecSettings> mapped_codecs = result.value();
+  const std::vector<VideoCodecSettings>& mapped_codecs = result.value();
 
   // Verify that every mapped codec is supported locally.
   if (params.is_stream_active) {
@@ -3884,7 +3886,7 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetFrameDecryptor(
         << "Setting FrameDecryptor (recv) because of SetFrameDecryptor, "
            "remote_ssrc="
         << config_.rtp.remote_ssrc;
-    stream_->SetFrameDecryptor(frame_decryptor);
+    stream_->SetFrameDecryptor(std::move(frame_decryptor));
   }
 }
 
@@ -4114,7 +4116,8 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::
         scoped_refptr<FrameTransformerInterface> frame_transformer) {
   config_.frame_transformer = frame_transformer;
   if (stream_)
-    stream_->SetDepacketizerToDecoderFrameTransformer(frame_transformer);
+    stream_->SetDepacketizerToDecoderFrameTransformer(
+        std::move(frame_transformer));
 }
 
 void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::UpdateRtxSsrc(
