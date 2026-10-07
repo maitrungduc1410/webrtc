@@ -3602,6 +3602,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":local_audio_source",
       ":media_stream",
       ":pc_test_utils",
+      ":rtp_receiver_proxy",
       ":rtp_sender",
       ":rtp_transport_internal",
       ":scoped_operations_batcher",

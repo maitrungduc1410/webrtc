@@ -40,6 +40,7 @@
 #include "api/rtp_parameters.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_decryptor_interface.h"
 #include "api/sframe/sframe_encryptor_interface.h"
 #include "api/sframe/sframe_types.h"
 #include "api/task_queue/task_queue_base.h"
@@ -80,6 +81,7 @@
 #include "pc/encoded_video_frame_injector.h"
 #include "pc/local_audio_source.h"
 #include "pc/media_stream.h"
+#include "pc/rtp_receiver_proxy.h"
 #include "pc/rtp_sender.h"
 #include "pc/rtp_transport_internal.h"
 #include "pc/scoped_operations_batcher.h"
@@ -118,6 +120,7 @@ class MockSetStreamsObserver : public RtpSenderBase::SetStreamsObserver {
 
 
 using ::testing::ContainerEq;
+using ::testing::MockFunction;
 using RidList = std::vector<std::string>;
 
 class MockVideoMediaSendChannel : public FakeVideoMediaSendChannel {
@@ -2966,7 +2969,7 @@ TEST_F(RtpSenderReceiverTest,
       });
 
   receiver->CreateSframeDecryptorOrError(
-      SframeCipherSuite::kAes128GcmSha256_128);
+      SframeCipherSuite::kAes128GcmSha256_128, [](SframeDecryptError) {});
   EXPECT_TRUE(callback_called);
 }
 
@@ -2981,8 +2984,34 @@ TEST_F(RtpSenderReceiverTest,
       });
 
   receiver->CreateSframeDecryptorOrError(
-      SframeCipherSuite::kAes128GcmSha256_128);
+      SframeCipherSuite::kAes128GcmSha256_128, [](SframeDecryptError) {});
   EXPECT_TRUE(callback_called);
+}
+
+TEST_F(RtpSenderReceiverTest,
+       ReceiverCreateSframeDecryptorAcceptsMoveOnlyErrorCallbackThroughProxy) {
+  bool owner_callback_called = false;
+  scoped_refptr<VideoRtpReceiver> receiver = make_ref_counted<VideoRtpReceiver>(
+      worker_thread_.get(), kVideoTrackId, std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/[&owner_callback_called]() -> RTCError {
+        owner_callback_called = true;
+        return RTCError::OK();
+      });
+  scoped_refptr<RtpReceiverInterface> proxy = RtpReceiverProxy::Create(
+      Thread::Current(), worker_thread_.get(), receiver);
+  auto error_callback = std::make_unique<MockFunction<void()>>();
+  EXPECT_CALL(*error_callback, Call).Times(0);
+
+  RTCErrorOr<scoped_refptr<SframeDecryptorInterface>> result =
+      proxy->CreateSframeDecryptorOrError(
+          SframeCipherSuite::kAes128GcmSha256_128,
+          [error_callback = std::move(error_callback)](SframeDecryptError) {
+            error_callback->Call();
+          });
+
+  EXPECT_TRUE(owner_callback_called);
+  ASSERT_FALSE(result.ok());
+  EXPECT_EQ(result.error().type(), RTCErrorType::UNSUPPORTED_OPERATION);
 }
 
 TEST_F(RtpSenderReceiverTest,
@@ -2994,8 +3023,9 @@ TEST_F(RtpSenderReceiverTest,
                         "Rejected for testing");
       });
 
-  auto result = receiver->CreateSframeDecryptorOrError(
-      SframeCipherSuite::kAes128GcmSha256_128);
+  RTCErrorOr<scoped_refptr<SframeDecryptorInterface>> result =
+      receiver->CreateSframeDecryptorOrError(
+          SframeCipherSuite::kAes128GcmSha256_128, [](SframeDecryptError) {});
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.error().type(), RTCErrorType::UNSUPPORTED_OPERATION);
   EXPECT_STREQ(result.error().message(), "Rejected for testing");
@@ -3007,8 +3037,9 @@ TEST_F(RtpSenderReceiverTest,
       worker_thread_.get(), kAudioTrackId, std::vector<std::string>(),
       /*enable_sframe_at_owner=*/nullptr);
 
-  auto result = receiver->CreateSframeDecryptorOrError(
-      SframeCipherSuite::kAes128GcmSha256_128);
+  RTCErrorOr<scoped_refptr<SframeDecryptorInterface>> result =
+      receiver->CreateSframeDecryptorOrError(
+          SframeCipherSuite::kAes128GcmSha256_128, [](SframeDecryptError) {});
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.error().type(), RTCErrorType::INTERNAL_ERROR);
 }
