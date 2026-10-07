@@ -135,6 +135,7 @@ class ScreamV2 {
   void UpdateFeedbackInterval(Timestamp feedback_time);
   void UpdateTargetRate(const ScreamFeedback& parsed);
   void UpdateReceiveRate(const ScreamFeedback& parsed);
+  TimeDelta ReactionInterval() const;
 
   const Environment env_;
   const ScreamV2Parameters params_;

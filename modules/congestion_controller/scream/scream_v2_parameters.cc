@@ -25,7 +25,8 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView& trials)
 ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
     : min_ref_window("MinRefWindow", DataSize::Bytes(1000)),
       l4s_avg_g_up("L4sAvgGUp", 1.0 / 8.0),
-      l4s_avg_g_down("L4sAvgGDown", 1.0 / 128.0),
+      l4s_avg_g_down("L4sAvgGDown", 1.0 / 16.0),
+      scale_l4s_alpha_with_rtt("ScaleL4sAlphaWithRtt", true),
       rtts_with_loss_before_backoff("RttsWithLossBeforeBackoff", 3),
       lossless_rtts_before_clear("LosslessRttsBeforeClear", 2),
       smoothed_rtt_avg_g("SmoothedRttAvgG", 1.0 / 8.0),
@@ -90,6 +91,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
       {&min_ref_window,
        &l4s_avg_g_up,
        &l4s_avg_g_down,
+       &scale_l4s_alpha_with_rtt,
        &rtts_with_loss_before_backoff,
        &lossless_rtts_before_clear,
 

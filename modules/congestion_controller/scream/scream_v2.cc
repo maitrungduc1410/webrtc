@@ -112,21 +112,33 @@ void ScreamV2::OnTransportPacketsFeedback(const TransportPacketsFeedback& msg) {
   }
 }
 
+TimeDelta ScreamV2::ReactionInterval() const {
+  return params_.use_feedback_interval_for_virtual_rtt.Get()
+             ? std::max(params_.virtual_rtt.Get(), feedback_interval_)
+             : params_.virtual_rtt.Get();
+}
+
 void ScreamV2::UpdateL4SAlpha(const ScreamFeedback& parsed) {
   // 4.2.1.3.
   if (parsed.num_received_packets == 0) {
     return;
   }
 
+  double steps_per_rtt =
+      params_.scale_l4s_alpha_with_rtt.Get()
+          ? std::max(1.0,
+                     delay_based_congestion_control_.rtt() / ReactionInterval())
+          : 1.0;
   double fraction_marked = static_cast<double>(parsed.num_ce_marked_packets) /
                            parsed.num_received_packets;
   // Fast attack slow decay EWMA filter.
   if (fraction_marked > l4s_alpha_) {
-    l4s_alpha_ = std::min(params_.l4s_avg_g_up.Get() * fraction_marked +
-                              (1.0 - params_.l4s_avg_g_up.Get()) * l4s_alpha_,
-                          1.0);
+    double g_up = params_.l4s_avg_g_up.Get() / steps_per_rtt;
+    l4s_alpha_ =
+        std::min(g_up * fraction_marked + (1.0 - g_up) * l4s_alpha_, 1.0);
   } else {
-    l4s_alpha_ = (1.0 - params_.l4s_avg_g_down.Get()) * l4s_alpha_;
+    double g_down = params_.l4s_avg_g_down.Get() / steps_per_rtt;
+    l4s_alpha_ = (1.0 - g_down) * l4s_alpha_;
   }
 }
 void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
@@ -144,10 +156,7 @@ void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
 
   TimeDelta time_since_last_reaction =
       parsed.feedback_time - last_reaction_to_congestion_time_;
-  TimeDelta reaction_interval =
-      params_.use_feedback_interval_for_virtual_rtt.Get()
-          ? std::max(params_.virtual_rtt.Get(), feedback_interval_)
-          : params_.virtual_rtt.Get();
+  TimeDelta reaction_interval = ReactionInterval();
 
   if ((is_virtual_ce || is_ce || is_loss) &&
       time_since_last_reaction >=

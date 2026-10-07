@@ -29,6 +29,9 @@ struct ScreamV2Parameters {
   // Exponentially Weighted Moving Average (EWMA) factor for l4s_alpha.
   FieldTrialParameter<double> l4s_avg_g_up;
   FieldTrialParameter<double> l4s_avg_g_down;
+  // If true, scales `l4s_avg_g_up` and `l4s_avg_g_down` by `steps_per_rtt` so
+  // `l4s_alpha` is updated relative to `max(reaction_interval, rtt)`.
+  FieldTrialParameter<bool> scale_l4s_alpha_with_rtt;
 
   // The number of consecutive RTTs with loss required to trigger a backoff.
   // Used as the step-up value (1.0 / rtts_with_loss_before_backoff) in the
