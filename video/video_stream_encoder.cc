@@ -2364,7 +2364,7 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
       codec_specific_info_copy =
           std::make_unique<CodecSpecificInfo>(*codec_specific_info);
       codec_specific_info_copy->frame_instrumentation_data =
-          frame_instrumentation_data;
+          std::move(frame_instrumentation_data);
       codec_specific_info = codec_specific_info_copy.get();
     }
   }

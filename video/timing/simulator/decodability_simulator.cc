@@ -176,7 +176,8 @@ class DecodabilitySimulatorStream : public RtcEventLogDriver::StreamInterface {
 
 }  // namespace
 
-DecodabilitySimulator::DecodabilitySimulator(Config config) : config_(config) {}
+DecodabilitySimulator::DecodabilitySimulator(Config config)
+    : config_(std::move(config)) {}
 
 DecodabilitySimulator::~DecodabilitySimulator() = default;
 

@@ -245,7 +245,8 @@ class RenderingSimulatorStream : public RtcEventLogDriver::StreamInterface {
 
 }  // namespace
 
-RenderingSimulator::RenderingSimulator(Config config) : config_(config) {}
+RenderingSimulator::RenderingSimulator(Config config)
+    : config_(std::move(config)) {}
 
 RenderingSimulator::~RenderingSimulator() = default;
 
