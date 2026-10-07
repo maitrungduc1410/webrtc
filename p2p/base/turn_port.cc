@@ -969,7 +969,7 @@ void TurnPort::OnAllocateSuccess(const SocketAddress& address,
                                  const SocketAddress& stun_address) {
   state_ = STATE_READY;
 
-  SocketAddress related_address = stun_address;
+  const SocketAddress& related_address = stun_address;
 
   // For relayed candidate, Base is the candidate itself.
   AddAddress(address,          // Candidate address.

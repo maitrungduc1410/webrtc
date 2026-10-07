@@ -321,7 +321,7 @@ void P2PTransportChannel::AddConnection(Connection* connection) {
           return dtls_stun_piggyback_callbacks_.send_data(request);
         },
         [&](auto data, auto ack) {
-          dtls_stun_piggyback_callbacks_.recv_data(data, ack);
+          dtls_stun_piggyback_callbacks_.recv_data(data, std::move(ack));
         }));
   }
 

@@ -240,7 +240,7 @@ DtlsTransportInternalImpl::DtlsTransportInternalImpl(
     const CryptoOptions& crypto_options,
     SSLProtocolVersion max_version,
     SslStreamFactory ssl_stream_factory)
-    : ssl_stream_factory_(ssl_stream_factory),
+    : ssl_stream_factory_(std::move(ssl_stream_factory)),
       env_(env),
       component_(ice_transport->internal()->component()),
       ice_transport_(std::move(ice_transport)),
@@ -780,14 +780,15 @@ void DtlsTransportInternalImpl::ConnectToIceTransport() {
           ack = dtls_stun_piggyback_controller_.GetAckToPiggyback(
               stun_message_type);
         }
-        return std::make_pair(data, ack);
+        return std::make_pair(data, std::move(ack));
       },
       [&](std::optional<std::span<uint8_t>> data,
           std::optional<std::vector<uint32_t>> acks) {
         if (!dtls_in_stun_configured_) {
           return;
         }
-        dtls_stun_piggyback_controller_.ReportDataPiggybacked(data, acks);
+        dtls_stun_piggyback_controller_.ReportDataPiggybacked(data,
+                                                              std::move(acks));
       }));
   SetPiggybackDtlsDataCallback([this](PacketTransportInternal* transport,
                                       const ReceivedIpPacket& packet) {

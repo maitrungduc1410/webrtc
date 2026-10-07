@@ -109,16 +109,18 @@ int ComparePort(const Port* a, const Port* b) {
 struct NetworkFilter {
   using Predicate = std::function<bool(const Network*)>;
   NetworkFilter(Predicate pred, absl::string_view description)
-      : predRemain([pred](const Network* network) { return !pred(network); }),
+      : predRemain([pred = std::move(pred)](const Network* network) {
+          return !pred(network);
+        }),
         description(description) {}
   Predicate predRemain;
   const std::string description;
 };
 
 void FilterNetworks(std::vector<const Network*>* networks,
-                    NetworkFilter filter) {
-  auto start_to_remove =
-      std::partition(networks->begin(), networks->end(), filter.predRemain);
+                    const NetworkFilter& filter) {
+  auto start_to_remove = std::partition(networks->begin(), networks->end(),
+                                        std::ref(filter.predRemain));
   if (start_to_remove == networks->end()) {
     return;
   }
