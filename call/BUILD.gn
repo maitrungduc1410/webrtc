@@ -18,10 +18,7 @@ rtc_library("version") {
 
 rtc_source_set("sframe_options") {
   sources = [ "sframe_options.h" ]
-  deps = [
-    "../api:scoped_refptr",
-    "../modules/sframe:sframe_media_encryptor_interface",
-  ]
+  deps = [ "../modules/sframe:sframe_encryption_config" ]
 }
 
 rtc_library("call_interfaces") {

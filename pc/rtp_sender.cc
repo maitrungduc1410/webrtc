@@ -52,8 +52,8 @@
 #include "media/base/codec.h"
 #include "media/base/media_channel.h"
 #include "media/base/media_engine.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "modules/sframe/sframe_encryptor.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "pc/dtmf_sender.h"
 #include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
@@ -854,8 +854,8 @@ void RtpSenderBase::SetSsrc(uint32_t ssrc) {
             ssrc, std::move(audio_encoder_factory_override));
       }
     }
-    if (sframe_encryptor_) {
-      media_channel_->SetSframeEncryptor(sframe_encryptor_);
+    if (sframe_encryption_config_) {
+      media_channel_->SetSframeEncryptionConfig(*sframe_encryption_config_);
     }
   });
   if (applied_parameters.has_value()) {
@@ -1018,8 +1018,8 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
             ssrc, std::move(audio_encoder_factory_override));
       }
     }
-    if (sframe_encryptor_ != nullptr) {
-      media_channel_->SetSframeEncryptor(sframe_encryptor_);
+    if (sframe_encryption_config_) {
+      media_channel_->SetSframeEncryptionConfig(*sframe_encryption_config_);
     }
 
     if (applied_parameters.has_value()) {
@@ -1291,21 +1291,22 @@ RtpSenderBase::CreateSframeEncryptorOrError(
     return error;
   }
 
-  scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor =
-      SframeEncryptor::Create(options.mode, options.cipher_suite);
+  SframeEncryptionConfig sframe_encryption_config{
+      .mode = options.mode,
+      .encryptor = SframeEncryptor::Create(options.cipher_suite)};
 
   worker_thread_->PostTask(
-      SafeTask(worker_safety_, [this, sframe_encryptor]() mutable {
+      SafeTask(worker_safety_, [this, sframe_encryption_config]() mutable {
         RTC_DCHECK_RUN_ON(worker_thread_);
-        sframe_encryptor_ = std::move(sframe_encryptor);
+        sframe_encryption_config_ = std::move(sframe_encryption_config);
 
         if (media_channel_) {
-          media_channel_->SetSframeEncryptor(sframe_encryptor_);
+          media_channel_->SetSframeEncryptionConfig(*sframe_encryption_config_);
         }
       }));
 
   return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorProxy::Create(
-      worker_thread_, std::move(sframe_encryptor)));
+      worker_thread_, std::move(sframe_encryption_config.encryptor)));
 }
 
 LocalAudioSinkAdapter::LocalAudioSinkAdapter() : sink_(nullptr) {}

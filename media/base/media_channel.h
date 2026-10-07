@@ -59,7 +59,7 @@
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/containers/flat_set.h"
 #include "rtc_base/copy_on_write_buffer.h"
@@ -234,12 +234,11 @@ class MediaSendChannelInterface {
       uint32_t ssrc,
       scoped_refptr<FrameEncryptorInterface> frame_encryptor) = 0;
 
-  // Sets the Sframe encryptor used to encrypt the outgoing frames.
-  // Its lifetime is managed by the RtpSender it is attached to.
+  // Sets the Sframe encryptor and mode used to encrypt outgoing frames.
   // Sframe is Unified Plan only, so this applies to the channel's single
   // send stream.
-  virtual void SetSframeEncryptor(
-      scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) = 0;
+  virtual void SetSframeEncryptionConfig(
+      SframeEncryptionConfig sframe_encryption_config) = 0;
 
   virtual RTCError SetRtpSendParameters(
       uint32_t ssrc,

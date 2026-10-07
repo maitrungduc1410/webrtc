@@ -43,6 +43,7 @@
 #include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_types.h"
 #include "api/test/mock_encoder_selector.h"
 #include "api/test/mock_video_bitrate_allocator.h"
 #include "api/test/mock_video_bitrate_allocator_factory.h"
@@ -86,6 +87,7 @@
 #include "call/call.h"
 #include "call/call_config.h"
 #include "call/flexfec_receive_stream.h"
+#include "call/sframe_options.h"
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
 #include "common_video/include/quality_limitation_reason.h"
@@ -110,6 +112,8 @@
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/source_tracker.h"
+#include "modules/sframe/sframe_encryption_config.h"
+#include "modules/sframe/sframe_encryptor.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/checks.h"
@@ -3198,6 +3202,8 @@ TEST_F(WebRtcVideoChannelTest, SetsSyncGroupFromSyncLabel) {
 TEST_F(WebRtcVideoChannelTest, SframeDisabledByDefault) {
   FakeVideoSendStream* send_stream = AddSendStream();
   EXPECT_FALSE(send_stream->GetConfig().rtp.sframe_options.required);
+  EXPECT_FALSE(send_stream->GetConfig()
+                   .rtp.sframe_options.encryption_config.has_value());
 }
 
 // Enabling Sframe before a send stream is added is propagated to the stream
@@ -3206,6 +3212,8 @@ TEST_F(WebRtcVideoChannelTest, EnableSframePropagatesToSendStreamConfig) {
   send_channel_->EnableSframe();
   FakeVideoSendStream* stream = AddSendStream();
   EXPECT_TRUE(stream->GetConfig().rtp.sframe_options.required);
+  EXPECT_FALSE(
+      stream->GetConfig().rtp.sframe_options.encryption_config.has_value());
 }
 
 // Enabling Sframe on an existing send stream reconfigures it, but repeated
@@ -3219,10 +3227,56 @@ TEST_F(WebRtcVideoChannelTest, EnableSframeOnExistingSendStreamIsIdempotent) {
   EXPECT_TRUE(fake_call_->GetVideoSendStreams()[0]
                   ->GetConfig()
                   .rtp.sframe_options.required);
+  EXPECT_FALSE(fake_call_->GetVideoSendStreams()[0]
+                   ->GetConfig()
+                   .rtp.sframe_options.encryption_config.has_value());
 
   send_channel_->EnableSframe();
   send_channel_->EnableSframe();
   EXPECT_EQ(fake_call_->GetNumCreatedSendStreams(), 2);
+}
+
+TEST_F(WebRtcVideoChannelTest, SframeEncryptorModePropagatesToNewSendStream) {
+  scoped_refptr<SframeEncryptor> encryptor =
+      SframeEncryptor::Create(SframeCipherSuite::kAes128GcmSha256_128);
+  send_channel_->SetSframeEncryptionConfig(SframeEncryptionConfig{
+      .mode = SframeMode::kPerPacket, .encryptor = encryptor});
+  FakeVideoSendStream* stream = AddSendStream();
+  ASSERT_TRUE(
+      stream->GetConfig().rtp.sframe_options.encryption_config.has_value());
+  EXPECT_EQ(stream->GetConfig().rtp.sframe_options.encryption_config->encryptor,
+            encryptor);
+  EXPECT_EQ(stream->GetConfig().rtp.sframe_options.encryption_config->mode,
+            SframeMode::kPerPacket);
+  EXPECT_FALSE(stream->GetConfig().rtp.sframe_options.required);
+
+  send_channel_->EnableSframe();
+  stream = fake_call_->GetVideoSendStreams()[0];
+  ASSERT_TRUE(
+      stream->GetConfig().rtp.sframe_options.encryption_config.has_value());
+  EXPECT_EQ(stream->GetConfig().rtp.sframe_options.encryption_config->encryptor,
+            encryptor);
+  EXPECT_EQ(stream->GetConfig().rtp.sframe_options.encryption_config->mode,
+            SframeMode::kPerPacket);
+  EXPECT_TRUE(stream->GetConfig().rtp.sframe_options.required);
+}
+
+TEST_F(WebRtcVideoChannelTest, SframeEncryptorModeUpdatesExistingSendStream) {
+  send_channel_->EnableSframe();
+  AddSendStream();
+  for (SframeMode mode : {SframeMode::kPerPacket, SframeMode::kPerFrame}) {
+    scoped_refptr<SframeEncryptor> encryptor =
+        SframeEncryptor::Create(SframeCipherSuite::kAes128GcmSha256_128);
+    send_channel_->SetSframeEncryptionConfig(
+        SframeEncryptionConfig{.mode = mode, .encryptor = encryptor});
+    send_channel_->EnableSframe();
+    const SframeSendOptions& options =
+        fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.sframe_options;
+    ASSERT_TRUE(options.encryption_config.has_value());
+    EXPECT_EQ(options.encryption_config->encryptor, encryptor);
+    EXPECT_EQ(options.encryption_config->mode, mode);
+    EXPECT_TRUE(options.required);
+  }
 }
 
 TEST_F(WebRtcVideoChannelTest, RecvStreamWithSimAndRtx) {

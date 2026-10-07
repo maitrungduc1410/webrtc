@@ -89,7 +89,7 @@
 #include "modules/audio_mixer/audio_mixer_impl.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/dscp.h"
 #include "rtc_base/experiments/struct_parameters_parser.h"
@@ -1754,8 +1754,8 @@ void WebRtcVoiceSendChannel::EnableSframe() {
   // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
 }
 
-void WebRtcVoiceSendChannel::SetSframeEncryptor(
-    scoped_refptr<SframeMediaEncryptorInterface> /* sframe_encryptor */) {
+void WebRtcVoiceSendChannel::SetSframeEncryptionConfig(
+    SframeEncryptionConfig /* sframe_encryption_config */) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   // TODO(bugs.webrtc.org/479862368): Pass the encryptor to the send stream.
 }

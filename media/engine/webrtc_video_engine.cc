@@ -92,7 +92,7 @@
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/dscp.h"
@@ -1822,10 +1822,10 @@ void WebRtcVideoSendChannel::EnableSframe() {
   }
 }
 
-void WebRtcVideoSendChannel::SetSframeEncryptor(
-    scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor) {
+void WebRtcVideoSendChannel::SetSframeEncryptionConfig(
+    SframeEncryptionConfig sframe_encryption_config) {
   RTC_DCHECK_RUN_ON(worker_thread_);
-  sframe_options_.encryptor = std::move(sframe_encryptor);
+  sframe_options_.encryption_config = std::move(sframe_encryption_config);
 
   for (auto& [ssrc, stream] : send_streams_) {
     stream->UpdateSframeOptions(sframe_options_);

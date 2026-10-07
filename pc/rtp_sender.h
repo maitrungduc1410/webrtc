@@ -49,7 +49,7 @@
 #include "media/base/audio_source.h"
 #include "media/base/codec.h"
 #include "media/base/media_channel.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "pc/dtmf_sender.h"
 #include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
@@ -408,7 +408,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   absl::AnyInvocable<RTCError()> enable_sframe_at_owner_
       RTC_GUARDED_BY(signaling_thread_);
 
-  scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor_
+  std::optional<SframeEncryptionConfig> sframe_encryption_config_
       RTC_GUARDED_BY(worker_thread_);
 };
 

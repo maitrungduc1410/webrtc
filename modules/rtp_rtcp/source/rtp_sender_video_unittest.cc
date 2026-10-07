@@ -29,6 +29,7 @@
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_types.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/test/mock_frame_encryptor.h"
@@ -63,6 +64,8 @@
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
 #include "modules/rtp_rtcp/source/rtp_sender.h"
 #include "modules/rtp_rtcp/source/rtp_video_layers_allocation_extension.h"
+#include "modules/sframe/sframe_encryption_config.h"
+#include "modules/sframe/sframe_encryptor.h"
 #include "modules/video_coding/codecs/h264/include/h264_globals.h"
 #include "modules/video_coding/codecs/vp8/include/vp8_globals.h"
 #include "modules/video_coding/codecs/vp9/include/vp9_globals.h"
@@ -174,14 +177,15 @@ class TestRtpSenderVideo : public RTPSenderVideo {
                      RTPSender* rtp_sender,
                      const FieldTrialsView& field_trials,
                      bool raw_packetization,
-                     bool sframe_required = false)
+                     bool sframe_required_by_negotiation = false)
       : RTPSenderVideo([&] {
           Config config;
           config.clock = clock;
           config.rtp_sender = rtp_sender;
           config.field_trials = &field_trials;
           config.raw_packetization = raw_packetization;
-          config.sframe_required = sframe_required;
+          config.sframe_required_by_negotiation =
+              sframe_required_by_negotiation;
           return config;
         }()) {}
   ~TestRtpSenderVideo() override {}
@@ -1962,7 +1966,7 @@ TEST_F(RtpSenderVideoTest, SframeRequiredWithoutEncryptorDropsEncodedImage) {
   TestRtpSenderVideo sframe_sender(&fake_clock_, rtp_module_->RtpSender(),
                                    env_.field_trials(),
                                    /*raw_packetization=*/false,
-                                   /*sframe_required=*/true);
+                                   /*sframe_required_by_negotiation=*/true);
   std::unique_ptr<EncodedImage> encoded_image = CreateDefaultEncodedImage();
   RTPVideoHeader video_header;
   video_header.frame_type = VideoFrameType::kVideoFrameKey;
@@ -1983,6 +1987,30 @@ TEST_F(RtpSenderVideoTest, SframeNotRequiredSendsEncodedImage) {
       kPayloadType, kType, kRtpTimestamp, *encoded_image, video_header,
       kDefaultExpectedRetransmissionTime, /*csrcs=*/{}));
   EXPECT_GT(transport_.packets_sent(), 0);
+}
+
+TEST_F(RtpSenderVideoTest, SframeRequiredWithEncryptionStillDropsEncodedImage) {
+  std::unique_ptr<EncodedImage> encoded_image = CreateDefaultEncodedImage();
+  RTPVideoHeader video_header;
+  video_header.frame_type = VideoFrameType::kVideoFrameKey;
+
+  for (SframeMode mode : {SframeMode::kPerFrame, SframeMode::kPerPacket}) {
+    RTPSenderVideo::Config config;
+    config.clock = &fake_clock_;
+    config.rtp_sender = rtp_module_->RtpSender();
+    config.field_trials = &env_.field_trials();
+    config.sframe_required_by_negotiation = true;
+    config.sframe_encryption_config = SframeEncryptionConfig{
+        .mode = mode,
+        .encryptor =
+            SframeEncryptor::Create(SframeCipherSuite::kAes128GcmSha256_128)};
+    RTPSenderVideo sframe_sender(config);
+
+    EXPECT_FALSE(sframe_sender.SendEncodedImage(
+        kPayloadType, kType, kRtpTimestamp, *encoded_image, video_header,
+        kDefaultExpectedRetransmissionTime, /*csrcs=*/{}));
+    EXPECT_EQ(transport_.packets_sent(), 0);
+  }
 }
 
 TEST_F(RtpSenderVideoWithFrameTransformerTest,

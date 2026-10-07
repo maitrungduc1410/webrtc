@@ -40,7 +40,7 @@
 #include "modules/rtp_rtcp/source/rtp_sender_video_frame_transformer_delegate.h"
 #include "modules/rtp_rtcp/source/rtp_video_header.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
-#include "modules/sframe/sframe_media_encryptor_interface.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/bitrate_tracker.h"
 #include "rtc_base/frequency_tracker.h"
 #include "rtc_base/one_time_event.h"
@@ -93,8 +93,8 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
     TaskQueueFactory* task_queue_factory = nullptr;
     bool raw_packetization = false;
     // Whether Sframe end-to-end encryption is required on this stream.
-    bool sframe_required = false;
-    scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor;
+    bool sframe_required_by_negotiation = false;
+    std::optional<SframeEncryptionConfig> sframe_encryption_config;
   };
 
   explicit RTPSenderVideo(const Config& config);
@@ -276,9 +276,8 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
   // initialized frame_encryptor_ before being sent out of the network.
   // Otherwise these payloads will be dropped.
   const bool require_frame_encryption_;
-  // Whether Sframe end-to-end encryption is required on this stream.
-  const bool sframe_required_;
-  const scoped_refptr<SframeMediaEncryptorInterface> sframe_encryptor_;
+  const bool sframe_required_by_negotiation_;
+  const std::optional<SframeEncryptionConfig> sframe_encryption_config_;
   // Set to true if the generic descriptor should be authenticated.
   const bool generic_descriptor_auth_experiment_;
 
