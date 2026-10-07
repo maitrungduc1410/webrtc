@@ -1566,13 +1566,12 @@ void VideoStreamEncoder::OnEncoderSettingsChanged() {
       GetEncoderInfoWithBitrateLimitUpdate(encoder_->GetEncoderInfo(),
                                            encoder_config_),
       encoder_config_.Copy(), send_codec_);
-  stream_resource_manager_.SetEncoderSettings(encoder_settings);
   input_state_provider_.OnEncoderSettingsChanged(encoder_settings);
-  bool is_screenshare = encoder_settings.encoder_config().content_type ==
-                        VideoEncoderConfig::ContentType::kScreen;
+  stream_resource_manager_.SetEncoderSettings(std::move(encoder_settings));
+  bool is_screenshare =
+      encoder_config_.content_type == VideoEncoderConfig::ContentType::kScreen;
   degradation_preference_manager_->SetIsScreenshare(is_screenshare);
-  if (is_screenshare ||
-      encoder_settings.encoder_config().allow_zero_hertz_video) {
+  if (is_screenshare || encoder_config_.allow_zero_hertz_video) {
     frame_cadence_adapter_->SetZeroHertzModeEnabled(
         FrameCadenceAdapterInterface::ZeroHertzModeParams{
             send_codec_.numberOfSimulcastStreams});
