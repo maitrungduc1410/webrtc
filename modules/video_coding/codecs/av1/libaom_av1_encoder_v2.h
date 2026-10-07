@@ -26,6 +26,7 @@
 #include "api/video_codecs/video_encoder_interface.h"
 #include "modules/video_coding/utility/cbr_layer_rate_tracker.h"
 #include "modules/video_coding/utility/reference_buffer_tracker.h"
+#include "rtc_base/numerics/rational.h"
 #include "third_party/libaom/source/libaom/aom/aom_codec.h"
 #include "third_party/libaom/source/libaom/aom/aom_encoder.h"
 #include "third_party/libaom/source/libaom/aom/aom_image.h"
@@ -68,6 +69,18 @@ class LibaomAv1EncoderV2 : public VideoEncoderInterface {
 
   std::optional<ContentHint> content_type_;
   std::array<std::optional<int>, kMaxSpatialLayers> effort_level_by_spatial_id_;
+  // Spatial layers declared to libaom: the most seen in a temporal unit since
+  // `InitEncode`. Changing `number_spatial_layers` updates the sequence header
+  // operating points and makes libaom force a keyframe. We keep the state for
+  // layers we have seen so far in order to minimize resets.
+  // TODO(bugs.webrtc.org/496266459): The RTP profile for AV1 specified that an
+  // implementation may specify a single operating point with a value of 0xFFF,
+  // indicating there are no operating points signalled in the bitstream.
+  // Consider implementing that behavior in libaom to avoid this workaround.
+  int num_spatial_layers_ = 0;
+  // Last scaling factor per spatial layer, kept for the temporal units without
+  // a frame in the layer.
+  std::array<Rational, kMaxSpatialLayers> scaling_factor_by_spatial_id_;
   int max_number_of_threads_ = 0;
   std::array<std::optional<Resolution>, kNumBuffers> last_resolution_in_buffer_;
   ReferenceBufferTracker reference_buffer_tracker_{kNumBuffers};

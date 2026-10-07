@@ -1861,6 +1861,89 @@ TEST_P(VideoEncoderFunctionalTest, SkipMidLayer) {
   EXPECT_THAT(Psnr(tu2_frame, f_tu2_s2), Gt(40.0));
 }
 
+// Verifies that omitting the top spatial layer in a temporal unit does not
+// force a keyframe on the remaining or subsequent layers.
+TEST_P(VideoEncoderFunctionalTest, SkipTopLayer) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  int max_spatial_layers =
+      capabilities.prediction_constraints().max_spatial_layers();
+  if (max_spatial_layers < 2) {
+    GTEST_SKIP() << "Encoder doesn't support at least 2 spatial layers.";
+  }
+
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, 2);
+  if (factors.empty()) {
+    GTEST_SKIP() << "Could not find 2 valid scaling factors.";
+  }
+
+  int alignment = capabilities.input_constraints().pixel_alignment();
+  std::vector<Resolution> resolutions =
+      GetSpatialLayerResolutions(kDefaultResolution, factors, alignment);
+
+  TestConfig config = CreateTestConfig(capabilities);
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+  TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+  if (!dec.IsSupported()) {
+    GTEST_SKIP() << "No matching decoder found.";
+  }
+
+  EncOut tu0_s0, tu0_s1;
+  enc->Encode(
+      frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(0)),
+      ToVec({BuildSettings(
+                 std::move(
+                     Fb().Res(resolutions[0]).S(0).Upd(0).Key().Out(tu0_s0)),
+                 config.rate_options),
+             BuildSettings(
+                 std::move(
+                     Fb().Res(resolutions[1]).S(1).Ref({0}).Upd(1).Out(tu0_s1)),
+                 config.rate_options)}));
+
+  EncOut tu1_s0;
+  enc->Encode(
+      frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(100)),
+      ToVec({BuildSettings(
+          std::move(Fb().Res(resolutions[0]).S(0).Ref({0}).Upd(0).Out(tu1_s0)),
+          config.rate_options)}));
+  ASSERT_THAT(tu1_s0, HasBitstreamAndMetaData());
+  EXPECT_EQ(std::get<EncodedData>(tu1_s0.res).frame_type,
+            FrameType::kDeltaFrame);
+
+  EncOut tu2_s0, tu2_s1;
+  scoped_refptr<I420Buffer> tu2_frame = frame_reader->PullFrame();
+  enc->Encode(
+      tu2_frame, TemporalUnitSettings(Timestamp::Millis(200)),
+      ToVec({BuildSettings(
+                 std::move(
+                     Fb().Res(resolutions[0]).S(0).Ref({0}).Upd(0).Out(tu2_s0)),
+                 config.rate_options),
+             BuildSettings(std::move(Fb().Res(resolutions[1])
+                                         .S(1)
+                                         .Ref({0, 1})
+                                         .Upd(1)
+                                         .Out(tu2_s1)),
+                           config.rate_options)}));
+  ASSERT_THAT(tu2_s0, HasBitstreamAndMetaData());
+  ASSERT_THAT(tu2_s1, HasBitstreamAndMetaData());
+  EXPECT_EQ(std::get<EncodedData>(tu2_s0.res).frame_type,
+            FrameType::kDeltaFrame);
+  EXPECT_EQ(std::get<EncodedData>(tu2_s1.res).frame_type,
+            FrameType::kDeltaFrame);
+
+  EXPECT_EQ(GetResolution(dec.Decode(tu0_s0.bitstream)), resolutions[0]);
+  EXPECT_EQ(GetResolution(dec.Decode(tu0_s1.bitstream)), resolutions[1]);
+  EXPECT_EQ(GetResolution(dec.Decode(tu1_s0.bitstream)), resolutions[0]);
+  EXPECT_EQ(GetResolution(dec.Decode(tu2_s0.bitstream)), resolutions[0]);
+
+  VideoFrame f_tu2_s1 = dec.Decode(tu2_s1.bitstream);
+  EXPECT_EQ(GetResolution(f_tu2_s1), resolutions[1]);
+  EXPECT_THAT(Psnr(tu2_frame, f_tu2_s1), Gt(40.0));
+}
+
 // Verifies encoding and decoding of a StartFrame (independent frame without
 // clearing all references).
 TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesStartFrame) {

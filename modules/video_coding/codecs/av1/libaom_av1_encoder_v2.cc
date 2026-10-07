@@ -546,7 +546,7 @@ aom_svc_params_t LibaomAv1EncoderV2::GetSvcParams(
     const VideoFrameBuffer& frame_buffer,
     const std::vector<FrameEncodeSettings>& frame_settings) const {
   aom_svc_params_t svc_params = {};
-  svc_params.number_spatial_layers = frame_settings.back().spatial_id() + 1;
+  svc_params.number_spatial_layers = num_spatial_layers_;
   // Unlike the spatial layers, the temporal layers are always declared in
   // full: changing the count would force a keyframe, see
   // `kMaxAdvertisedTemporalLayers`.
@@ -587,10 +587,11 @@ aom_svc_params_t LibaomAv1EncoderV2::GetSvcParams(
   };
 
   // If the scaling factor is left at zero for unused layers a division by zero
-  // will happen inside libaom, default all layers to one.
+  // will happen inside libaom, default all layers to their last scaling factor.
   for (int sid = 0; sid < svc_params.number_spatial_layers; ++sid) {
-    scaling_factor_num_view[sid] = 1;
-    scaling_factor_den_view[sid] = 1;
+    scaling_factor_num_view[sid] = scaling_factor_by_spatial_id_[sid].numerator;
+    scaling_factor_den_view[sid] =
+        scaling_factor_by_spatial_id_[sid].denominator;
   }
 
   for (const FrameEncodeSettings& settings : frame_settings) {
@@ -734,6 +735,8 @@ bool LibaomAv1EncoderV2::InitEncode(
   effort_level_by_spatial_id_.fill(std::nullopt);
   applied_cfg_.reset();
   applied_svc_params_.reset();
+  num_spatial_layers_ = 0;
+  scaling_factor_by_spatial_id_.fill({.numerator = 1, .denominator = 1});
 
   if (aom_codec_err_t ret = aom_codec_enc_config_default(
           aom_codec_av1_cx(), &cfg_, AOM_USAGE_REALTIME);
@@ -922,6 +925,15 @@ void LibaomAv1EncoderV2::Encode(
       return;
     }
     applied_cfg_ = cfg_;
+  }
+  num_spatial_layers_ =
+      std::max(num_spatial_layers_, frame_settings.back().spatial_id() + 1);
+  for (const FrameEncodeSettings& settings : frame_settings) {
+    const int gcd =
+        std::gcd(settings.resolution().width, frame_buffer->width());
+    scaling_factor_by_spatial_id_[settings.spatial_id()] = {
+        .numerator = settings.resolution().width / gcd,
+        .denominator = frame_buffer->width() / gcd};
   }
   aom_svc_params_t svc_params = GetSvcParams(*frame_buffer, frame_settings);
   if (NeedsApply(applied_svc_params_, svc_params)) {
