@@ -1163,6 +1163,12 @@ TEST_P(VideoEncoderFunctionalTest, SupportsIndependentSpatialLayers) {
   for (int i = 0; i < num_layers; ++i) {
     ASSERT_THAT(outs[i], HasBitstreamAndMetaData())
         << "Failed to encode spatial layer " << i;
+    const FrameType expected_frame_type =
+        (i > 0 && buffer_space_type == BufferSpaceType::kSingleKeyframe)
+            ? FrameType::kStartFrame
+            : FrameType::kKeyframe;
+    EXPECT_EQ(std::get<EncodedData>(outs[i].res).frame_type,
+              expected_frame_type);
     TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
     if (!dec.IsSupported()) {
       GTEST_SKIP() << "No matching decoder found for codec: "
@@ -1890,6 +1896,19 @@ TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesStartFrame) {
   EXPECT_EQ(GetResolution(decoded_frame), kDefaultResolution);
   EXPECT_THAT(GetResolution(decoded_frame),
               FitsWithin(capabilities.input_constraints()));
+
+  if (capabilities.prediction_constraints().num_buffers() >= 2) {
+    EncOut start_out;
+    enc->Encode(
+        frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(100)),
+        ToVec({BuildSettings(
+            std::move(
+                Fb().Res(kDefaultResolution).Upd(1).Start().Out(start_out)),
+            config.rate_options)}));
+    ASSERT_THAT(start_out, HasBitstreamAndMetaData());
+    EXPECT_EQ(std::get<EncodedData>(start_out.res).frame_type,
+              FrameType::kStartFrame);
+  }
 }
 
 // Verifies that encoding with a StartFrame produces bitrate and quality

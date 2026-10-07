@@ -1037,6 +1037,8 @@ void LibaomAv1EncoderV2::Encode(
         SET_OR_RETURN(AOME_GET_LAST_QUANTIZER, &result.encoded_qp);
         result.frame_type = pkt->data.frame.flags & AOM_FRAME_IS_KEY
                                 ? VideoEncoderInterface::FrameType::kKeyframe
+                            : pkt->data.frame.flags & AOM_FRAME_IS_INTRAONLY
+                                ? VideoEncoderInterface::FrameType::kStartFrame
                                 : VideoEncoderInterface::FrameType::kDeltaFrame;
         std::span<uint8_t> output_buffer =
             settings.frame_output()->GetBitstreamOutputBuffer(
