@@ -211,6 +211,7 @@ class RtpSenderVideoTest : public ::testing::Test {
              .retransmission_rate_limiter = &retransmission_rate_limiter_,
              .local_media_ssrc = kSsrc,
              .rtx_send_ssrc = kRtxSsrc,
+             .rtp_state = RtpState{.start_timestamp = 0},
              .rid = "rid"})),
         rtp_sender_video_(
             std::make_unique<TestRtpSenderVideo>(&fake_clock_,
@@ -218,7 +219,6 @@ class RtpSenderVideoTest : public ::testing::Test {
                                                  env_.field_trials(),
                                                  raw_packetization)) {
     rtp_module_->SetSequenceNumber(kSeqNum);
-    rtp_module_->SetStartTimestamp(0);
   }
 
   void UsesMinimalVp8DescriptorWhenGenericFrameDescriptorExtensionIsUsed(
@@ -1878,9 +1878,9 @@ class RtpSenderVideoWithFrameTransformerTest : public ::testing::Test {
             {.outgoing_transport = &transport_,
              .retransmission_rate_limiter = &retransmission_rate_limiter_,
              .local_media_ssrc = kSsrc,
+             .rtp_state = RtpState{.start_timestamp = 0},
              .rid = "myrid"})) {
     rtp_module_->SetSequenceNumber(kSeqNum);
-    rtp_module_->SetStartTimestamp(0);
   }
 
   std::unique_ptr<RTPSenderVideo> CreateSenderWithFrameTransformer(

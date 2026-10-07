@@ -78,6 +78,7 @@ class RTPSender {
   bool IsAudioConfigured() const { return audio_configured_; }
 
   uint32_t TimestampOffset() const RTC_LOCKS_EXCLUDED(send_mutex_);
+  [[deprecated("Set RtpRtcpInterface::Configuration::rtp_state instead.")]]
   void SetTimestampOffset(uint32_t timestamp) RTC_LOCKS_EXCLUDED(send_mutex_);
 
   void SetMid(absl::string_view mid) RTC_LOCKS_EXCLUDED(send_mutex_);
@@ -159,10 +160,9 @@ class RTPSender {
   void EnqueuePackets(std::vector<std::unique_ptr<RtpPacketToSend>> packets)
       RTC_LOCKS_EXCLUDED(send_mutex_);
 
+  [[deprecated("Set RtpRtcpInterface::Configuration::rtp_state instead.")]]
   void SetRtpState(const RtpState& rtp_state) RTC_LOCKS_EXCLUDED(send_mutex_);
   RtpState GetRtpState() const RTC_LOCKS_EXCLUDED(send_mutex_);
-  void SetRtxRtpState(const RtpState& rtp_state)
-      RTC_LOCKS_EXCLUDED(send_mutex_);
   RtpState GetRtxRtpState() const RTC_LOCKS_EXCLUDED(send_mutex_);
 
  private:

@@ -170,6 +170,7 @@ class RtpRtcpRtxNackTest : public ::testing::Test {
     configuration.retransmission_rate_limiter = &retransmission_rate_limiter_;
     configuration.local_media_ssrc = kTestSsrc;
     configuration.rtx_send_ssrc = kTestRtxSsrc;
+    configuration.rtp_state = RtpState{.start_timestamp = 111111};
     configuration.rtcp_mode = RtcpMode::kCompound;
     rtp_rtcp_module_ =
         ModuleRtpRtcpImpl2::CreateSendModule(env_, configuration);
@@ -181,7 +182,6 @@ class RtpRtcpRtxNackTest : public ::testing::Test {
     rtp_rtcp_module_->SetStorePacketsStatus(true, 600);
     EXPECT_EQ(0, rtp_rtcp_module_->SetSendingStatus(true));
     rtp_rtcp_module_->SetSequenceNumber(kTestSequenceNumber);
-    rtp_rtcp_module_->SetStartTimestamp(111111);
 
     // Used for NACK processing.
     rtp_rtcp_module_->SetRemoteSSRC(kTestSsrc);

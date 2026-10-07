@@ -222,15 +222,22 @@ std::unique_ptr<VideoFecGenerator> MaybeCreateFecGenerator(
   return nullptr;
 }
 
+// Returns the state that the stream with `ssrc` had when it was suspended, if
+// any.
+std::optional<RtpState> FindSuspendedRtpState(
+    const std::map<uint32_t, RtpState>& suspended_ssrcs,
+    uint32_t ssrc) {
+  auto it = suspended_ssrcs.find(ssrc);
+  if (it == suspended_ssrcs.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
 // Configures RTX for the media stream at `simulcast_index`.
 void ConfigureRtx(const RtpConfig& rtp_config,
-                  const std::map<uint32_t, RtpState>& suspended_ssrcs,
                   size_t simulcast_index,
                   RtpRtcpInterface& rtp_rtcp) {
-  auto it = suspended_ssrcs.find(rtp_config.rtx.ssrcs[simulcast_index]);
-  if (it != suspended_ssrcs.end())
-    rtp_rtcp.SetRtxState(it->second);
-
   // Configure RTX payload types.
   RTC_DCHECK_GE(rtp_config.rtx.payload_type, 0);
   RtpStreamConfig stream_config = rtp_config.GetStreamConfig(simulcast_index);
@@ -247,7 +254,6 @@ void ConfigureRtx(const RtpConfig& rtp_config,
 
 // Configures the RTP module that sends the media stream at `simulcast_index`.
 void ConfigureRtpModule(const RtpConfig& rtp_config,
-                        const std::map<uint32_t, RtpState>& suspended_ssrcs,
                         size_t simulcast_index,
                         RtpRtcpInterface& rtp_rtcp) {
   rtp_rtcp.SetSendingStatus(false);
@@ -261,14 +267,9 @@ void ConfigureRtpModule(const RtpConfig& rtp_config,
     rtp_rtcp.RegisterRtpHeaderExtension(extension.uri, extension.id);
   }
 
-  // Restore RTP state if previous existed.
-  auto it = suspended_ssrcs.find(rtp_config.ssrcs[simulcast_index]);
-  if (it != suspended_ssrcs.end())
-    rtp_rtcp.SetRtpState(it->second);
-
   // Set up RTX if available.
   if (!rtp_config.rtx.ssrcs.empty())
-    ConfigureRtx(rtp_config, suspended_ssrcs, simulcast_index, rtp_rtcp);
+    ConfigureRtx(rtp_config, simulcast_index, rtp_rtcp);
 
   if (!rtp_config.mid.empty())
     rtp_rtcp.SetMid(rtp_config.mid);
@@ -344,12 +345,21 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
     RTC_DCHECK_EQ(configuration.rtx_send_ssrc.has_value(),
                   !rtp_config.rtx.ssrcs.empty());
 
+    // Restore RTP state if previous existed.
+    configuration.rtp_state =
+        FindSuspendedRtpState(suspended_ssrcs, rtp_config.ssrcs[i]);
+    configuration.rtx_rtp_state =
+        configuration.rtx_send_ssrc.has_value()
+            ? FindSuspendedRtpState(suspended_ssrcs,
+                                    *configuration.rtx_send_ssrc)
+            : std::nullopt;
+
     configuration.rid = (i < rtp_config.rids.size()) ? rtp_config.rids[i] : "";
 
     configuration.need_rtp_packet_infos = rtp_config.lntf.enabled;
 
     auto rtp_rtcp = ModuleRtpRtcpImpl2::CreateSendModule(env, configuration);
-    ConfigureRtpModule(rtp_config, suspended_ssrcs, i, *rtp_rtcp);
+    ConfigureRtpModule(rtp_config, i, *rtp_rtcp);
 
     video_config.clock = &env.clock();
     video_config.rtp_sender = rtp_rtcp->RtpSender();

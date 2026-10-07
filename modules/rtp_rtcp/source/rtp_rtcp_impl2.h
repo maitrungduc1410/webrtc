@@ -120,16 +120,11 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
   // Get start timestamp.
   uint32_t StartTimestamp() const override;
 
-  // Configure start timestamp, default is a random number.
-  void SetStartTimestamp(uint32_t timestamp) override;
-
   uint16_t SequenceNumber() const override;
 
   // Set SequenceNumber, default is a random number.
   void SetSequenceNumber(uint16_t seq) override;
 
-  void SetRtpState(const RtpState& rtp_state) override;
-  void SetRtxState(const RtpState& rtp_state) override;
   RtpState GetRtpState() const override;
   RtpState GetRtxState() const override;
 

@@ -190,11 +190,16 @@ RTPSender::RTPSender(const Environment& env,
       // RTP variables
       // This random initialization is not intended to be cryptographically
       // strong.
-      timestamp_offset_(Random(clock_->TimeInMicroseconds()).Rand<uint32_t>()),
+      timestamp_offset_(
+          config.rtp_state.has_value()
+              ? config.rtp_state->start_timestamp
+              : Random(clock_->TimeInMicroseconds()).Rand<uint32_t>()),
       rid_(config.rid),
       always_send_mid_and_rid_(config.always_send_mid_and_rid),
-      ssrc_has_acked_(false),
-      rtx_ssrc_has_acked_(false),
+      ssrc_has_acked_(config.rtp_state.has_value() &&
+                      config.rtp_state->ssrc_has_acked),
+      rtx_ssrc_has_acked_(config.rtx_rtp_state.has_value() &&
+                          config.rtx_rtp_state->ssrc_has_acked),
       rtx_(kRtxOff),
       supports_bwe_extension_(false),
       retransmission_rate_limiter_(config.retransmission_rate_limiter) {
@@ -712,11 +717,6 @@ RtpState RTPSender::GetRtpState() const {
   state.start_timestamp = timestamp_offset_;
   state.ssrc_has_acked = ssrc_has_acked_;
   return state;
-}
-
-void RTPSender::SetRtxRtpState(const RtpState& rtp_state) {
-  MutexLock lock(&send_mutex_);
-  rtx_ssrc_has_acked_ = rtp_state.ssrc_has_acked;
 }
 
 RtpState RTPSender::GetRtxRtpState() const {

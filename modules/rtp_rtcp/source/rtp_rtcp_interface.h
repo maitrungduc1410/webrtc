@@ -127,6 +127,15 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
     std::optional<uint32_t> rtx_send_ssrc;
     std::optional<uint32_t> remote_ssrc;
 
+    // Initial state of the media and RTX streams, e.g. when a stream is
+    // recreated after being suspended. A stream without a state starts with a
+    // random sequence number, and the media stream with a random start
+    // timestamp. Only `sequence_number` and `ssrc_has_acked` are used from
+    // `rtx_rtp_state`. `RTPSender` only uses `start_timestamp` and
+    // `ssrc_has_acked`.
+    std::optional<RtpState> rtp_state;
+    std::optional<RtpState> rtx_rtp_state;
+
     bool need_rtp_packet_infos = false;
 
     // Estimate RTT as non-sender as described in
@@ -226,18 +235,12 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
   // Returns start timestamp.
   virtual uint32_t StartTimestamp() const = 0;
 
-  // Sets start timestamp. Start timestamp is set to a random value if this
-  // function is never called.
-  virtual void SetStartTimestamp(uint32_t timestamp) = 0;
-
   // Returns SequenceNumber.
   virtual uint16_t SequenceNumber() const = 0;
 
   // Sets SequenceNumber, default is a random number.
   virtual void SetSequenceNumber(uint16_t seq) = 0;
 
-  virtual void SetRtpState(const RtpState& rtp_state) = 0;
-  virtual void SetRtxState(const RtpState& rtp_state) = 0;
   virtual RtpState GetRtpState() const = 0;
   virtual RtpState GetRtxState() const = 0;
 
@@ -361,7 +364,7 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
 
   // Access to packet state (e.g. sequence numbering) must only be access by
   // one thread at a time. It may be only one thread, or a construction thread
-  // that calls SetRtpState() - handing over to a pacer thread that calls
+  // that sets the initial state - handing over to a pacer thread that calls
   // TrySendPacket() - and at teardown ownership is handed to a destruciton
   // thread that calls GetRtpState().
   // This method is used to signal that "ownership" of the rtp state is being

@@ -142,6 +142,8 @@ class RtpSenderTest : public ::testing::Test {
     // Configure rid unconditionally, it has effect only if
     // corresponding header extension is enabled.
     config.rid = std::string(kRid);
+    // Use a fixed start timestamp instead of a random one.
+    config.rtp_state = RtpState{.start_timestamp = 0};
     return config;
   }
 
@@ -154,7 +156,6 @@ class RtpSenderTest : public ::testing::Test {
     rtp_sender_ = std::make_unique<RTPSender>(
         env_, config, packet_history_.get(), config.paced_sender);
     sequencer_->set_media_sequence_number(kSeqNum);
-    rtp_sender_->SetTimestampOffset(0);
   }
 
   GlobalSimulatedTimeController time_controller_;
@@ -773,13 +774,14 @@ TEST_F(RtpSenderTest, MidAndRidAlwaysIncludedOnRtxPacketsWhenConfigured) {
 // Test that if the RtpState indicates an ACK has been received on that SSRC
 // then neither the MID nor RID header extensions will be sent.
 TEST_F(RtpSenderTest, MidAndRidNotIncludedOnSentPacketsAfterRtpStateRestored) {
-  EnableMidSending(kMid);
-  EnableRidSending();
-
   RtpState state = rtp_sender_->GetRtpState();
   EXPECT_FALSE(state.ssrc_has_acked);
   state.ssrc_has_acked = true;
-  rtp_sender_->SetRtpState(state);
+  RtpRtcpInterface::Configuration config = GetDefaultConfig();
+  config.rtp_state = state;
+  CreateSender(config);
+  EnableMidSending(kMid);
+  EnableRidSending();
 
   EXPECT_CALL(
       mock_paced_sender_,
@@ -793,14 +795,15 @@ TEST_F(RtpSenderTest, MidAndRidNotIncludedOnSentPacketsAfterRtpStateRestored) {
 // RTX SSRC then neither the MID nor RRID header extensions will be sent on
 // RTX packets.
 TEST_F(RtpSenderTest, MidAndRridNotIncludedOnRtxPacketsAfterRtpStateRestored) {
-  EnableRtx();
-  EnableMidSending(kMid);
-  EnableRidSending();
-
   RtpState rtx_state = rtp_sender_->GetRtxRtpState();
   EXPECT_FALSE(rtx_state.ssrc_has_acked);
   rtx_state.ssrc_has_acked = true;
-  rtp_sender_->SetRtxRtpState(rtx_state);
+  RtpRtcpInterface::Configuration config = GetDefaultConfig();
+  config.rtx_rtp_state = rtx_state;
+  CreateSender(config);
+  EnableRtx();
+  EnableMidSending(kMid);
+  EnableRidSending();
 
   EXPECT_CALL(mock_paced_sender_, EnqueuePackets(SizeIs(1)))
       .WillOnce([&](std::vector<std::unique_ptr<RtpPacketToSend>> packets) {
@@ -815,6 +818,21 @@ TEST_F(RtpSenderTest, MidAndRridNotIncludedOnRtxPacketsAfterRtpStateRestored) {
           Property(&RtpPacketToSend::HasExtension<RtpMid>, false),
           Property(&RtpPacketToSend::HasExtension<RtpStreamId>, false))))));
   ASSERT_LT(0, rtp_sender_->ReSendPacket(built_packet->SequenceNumber()));
+}
+
+TEST_F(RtpSenderTest, UsesInitialRtpStatesFromConfig) {
+  constexpr uint32_t kStartTimestamp = 0x1234'5678;
+  RtpRtcpInterface::Configuration config = GetDefaultConfig();
+  config.rtp_state =
+      RtpState{.start_timestamp = kStartTimestamp, .ssrc_has_acked = true};
+  config.rtx_rtp_state = RtpState{.ssrc_has_acked = true};
+  CreateSender(config);
+
+  EXPECT_EQ(rtp_sender_->TimestampOffset(), kStartTimestamp);
+  RtpState state = rtp_sender_->GetRtpState();
+  EXPECT_EQ(state.start_timestamp, kStartTimestamp);
+  EXPECT_TRUE(state.ssrc_has_acked);
+  EXPECT_TRUE(rtp_sender_->GetRtxRtpState().ssrc_has_acked);
 }
 
 TEST_F(RtpSenderTest, RespectsNackBitrateLimit) {

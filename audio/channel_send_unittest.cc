@@ -91,7 +91,8 @@ class ChannelSendTest : public ::testing::Test {
                                .worker_thread = TaskQueueBase::Current()}) {
     channel_ = voe::CreateChannelSend(env_, &transport_, nullptr, nullptr,
                                       crypto_options_, false, kRtcpIntervalMs,
-                                      kSsrc, nullptr, &transport_controller_);
+                                      kSsrc, /*rtp_state=*/std::nullopt,
+                                      nullptr, &transport_controller_);
     encoder_factory_ = CreateBuiltinAudioEncoderFactory();
     SdpAudioFormat opus = SdpAudioFormat("opus", kRtpRateHz, 2);
     std::unique_ptr<AudioEncoder> encoder =
