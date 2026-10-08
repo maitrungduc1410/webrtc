@@ -904,6 +904,17 @@ deps = {
     'dep_type': 'cipd',
   },
 
+  'src/third_party/android_deps/cipd': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/autorolled',
+              'version': '-VG0wmSq86E_kYUtjovcWcZ9CHJExiXYLZW21pDxZ6sC',
+          },
+      ],
+      'condition': 'checkout_android and non_git_source',
+      'dep_type': 'cipd',
+  },
+
   'src/third_party/android_deps/autorolled/cipd': {
       'packages': [
           {
