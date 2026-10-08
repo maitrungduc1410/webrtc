@@ -28,8 +28,8 @@ namespace {
 ScopedJavaLocalRef<jobject> CreateJavaIceCandidate(JNIEnv* env,
                                                    absl::string_view sdp_mid,
                                                    int sdp_mline_index,
-                                                   const std::string& sdp,
-                                                   const std::string server_url,
+                                                   absl::string_view sdp,
+                                                   absl::string_view server_url,
                                                    int adapterType) {
   return Java_IceCandidate_Constructor(
       env, NativeToJavaString(env, sdp_mid), sdp_mline_index,
