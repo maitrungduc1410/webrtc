@@ -421,6 +421,40 @@ TEST_F(ChannelReceiveTest, AudioSinkReceivesPacketInfos) {
               ::testing::ElementsAre(1111, 2222));
 }
 
+// Parameterized on the sample rate requested by the mixer. With a rate other
+// than kSampleRateHz, the NetEq output is resampled.
+class ChannelReceiveOutputRateTest : public ChannelReceiveTest,
+                                     public ::testing::WithParamInterface<int> {
+};
+
+TEST_P(ChannelReceiveOutputRateTest, ReportsMutedNetEqOutputAsMuted) {
+  const int mixer_sample_rate_hz = GetParam();
+  auto channel = CreateTestChannelReceive();
+  channel->StartPlayout();
+  channel->OnRtpPacket(CreateRtpPacket());
+
+  // Once the packet has been played out, NetEq fades out and then enters the
+  // muted state. Pull up to 5 seconds of 10 ms frames.
+  AudioFrame audio_frame;
+  bool muted = false;
+  for (int i = 0; i < 500 && !muted; ++i) {
+    muted =
+        channel->GetAudioFrameWithInfo(mixer_sample_rate_hz, &audio_frame) ==
+        AudioMixer::Source::AudioFrameInfo::kMuted;
+  }
+  EXPECT_TRUE(muted);
+  // When resampling, the first muted NetEq frame can still hold the
+  // resampler's tail of the audio before it, so it is reported as normal and
+  // only the next one as muted.
+  const bool resampling = mixer_sample_rate_hz != kSampleRateHz;
+  EXPECT_EQ(channel->GetDecodingCallStatistics().decoded_muted_output,
+            resampling ? 2 : 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         ChannelReceiveOutputRateTest,
+                         ::testing::Values(kSampleRateHz, 48000));
+
 }  // namespace
 }  // namespace voe
 }  // namespace webrtc
