@@ -184,11 +184,13 @@ rtc_library("copy_on_write_buffer") {
     ":buffer",
     ":checks",
     ":refcount",
+    ":span_helpers",
     ":type_traits",
     "../api:make_ref_counted",
     "../api:scoped_refptr",
     "system:rtc_export",
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
