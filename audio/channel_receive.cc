@@ -45,7 +45,6 @@
 #include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -263,7 +262,6 @@ class ChannelReceive : public ChannelReceiveInterface,
 
   const Environment env_;
   TaskQueueBase* const worker_thread_;
-  ScopedTaskSafety worker_safety_;
 
   // Methods accessed from audio and video threads are checked for sequential-
   // only access. We don't necessarily own and control these threads, so thread
@@ -433,6 +431,13 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
   Timestamp now = env_.clock().CurrentTime();
   env_.event_log().Log(std::make_unique<RtcEventAudioPlayout>(remote_ssrc_));
 
+  const bool report_histograms =
+      ++audio_frame_interval_count_ >= kHistogramReportingInterval;
+  if (report_histograms) {
+    audio_frame_interval_count_ = 0;
+  }
+  int target_delay_ms = 0;
+  int jitter_buffer_delay_ms = 0;
   {
     MutexLock lock(&neteq_mutex_);
     if (neteq_->GetAudio(audio_frame) != NetEq::kOK) {
@@ -447,6 +452,11 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
       return AudioMixer::Source::AudioFrameInfo::kError;
     }
     last_playout_time_ = now;
+    // Sample the delays for the histograms while the lock is held anyway.
+    if (report_histograms) {
+      target_delay_ms = neteq_->TargetDelayMs();
+      jitter_buffer_delay_ms = neteq_->FilteredCurrentDelayMs();
+    }
   }
 
   // Update the stats with NetEq's muted state before MaybeResample(), which
@@ -551,27 +561,11 @@ AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
     on_frame_delivered_callback_(audio_frame->packet_infos_, now);
   }
 
-  ++audio_frame_interval_count_;
-  if (audio_frame_interval_count_ >= kHistogramReportingInterval) {
-    audio_frame_interval_count_ = 0;
-    worker_thread_->PostTask(SafeTask(worker_safety_.flag(), [this]() {
-      RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-      int jitter_buffer_delay, target_delay;
-      {
-        MutexLock lock(&neteq_mutex_);
-        target_delay = neteq_->TargetDelayMs();
-        jitter_buffer_delay = neteq_->FilteredCurrentDelayMs();
-      }
-      uint16_t delay_ms = 0;
-      audio_device_module_->PlayoutDelay(&delay_ms);
-      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.TargetJitterBufferDelayMs",
-                                target_delay);
-      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverDelayEstimateMs",
-                                jitter_buffer_delay + delay_ms);
-      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverJitterBufferDelayMs",
-                                jitter_buffer_delay);
-      RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverDeviceDelayMs", delay_ms);
-    }));
+  if (report_histograms) {
+    RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.TargetJitterBufferDelayMs",
+                              target_delay_ms);
+    RTC_HISTOGRAM_COUNTS_1000("WebRTC.Audio.ReceiverJitterBufferDelayMs",
+                              jitter_buffer_delay_ms);
   }
 
   TRACE_EVENT_END2("webrtc", "ChannelReceive::GetAudioFrameWithInfo", "gain",

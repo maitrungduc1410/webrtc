@@ -46,6 +46,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/string_encode.h"
+#include "system_wrappers/include/metrics.h"
 #include "system_wrappers/include/ntp_time.h"
 #include "test/create_test_environment.h"
 #include "test/gmock.h"
@@ -389,6 +390,30 @@ TEST_F(ChannelReceiveTest, GetPlayoutRtpTimestamp) {
   // Stopping playout clears playout timestamp.
   channel->StopPlayout();
   EXPECT_FALSE(channel->GetPlayoutRtpTimestamp().has_value());
+}
+
+TEST_F(ChannelReceiveTest, RecordsJitterBufferDelayHistogramsEvery100Frames) {
+  metrics::Reset();
+  auto channel = CreateTestChannelReceive();
+  // Some ADM implementations require PlayoutDelay() to be called on a specific
+  // thread, so it must not be called on the audio thread.
+  EXPECT_CALL(*audio_device_module_, PlayoutDelay).Times(0);
+
+  AudioFrame audio_frame;
+  for (int i = 0; i < 99; ++i) {
+    channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame);
+  }
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.Audio.TargetJitterBufferDelayMs"), 0);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.Audio.ReceiverJitterBufferDelayMs"), 0);
+
+  // The 100th frame records the histograms directly, without posting a task.
+  channel->GetAudioFrameWithInfo(kSampleRateHz, &audio_frame);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.Audio.TargetJitterBufferDelayMs"), 1);
+  EXPECT_METRIC_EQ(
+      metrics::NumSamples("WebRTC.Audio.ReceiverJitterBufferDelayMs"), 1);
 }
 
 TEST_F(ChannelReceiveTest, AudioSinkReceivesPacketInfos) {
