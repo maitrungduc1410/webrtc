@@ -2621,6 +2621,119 @@ TEST_P(VideoEncoderFunctionalTest, SupportsHighNumberOfThreads) {
   EXPECT_EQ(GetResolution(decoded), kDefaultResolution);
 }
 
+// Verifies that per-spatial-layer effort levels are honored across multiple
+// temporal units when independent spatial layers with identical resolution,
+// bitrate, and framerate use different effort levels.
+TEST_P(VideoEncoderFunctionalTest,
+       PerSpatialLayerEffortLevelsAreAppliedAcrossTemporalUnits) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  if (capabilities.prediction_constraints().max_spatial_layers() < 2) {
+    GTEST_SKIP() << "Encoder doesn't support multiple spatial layers.";
+  }
+  BufferSpaceType buffer_space_type =
+      capabilities.prediction_constraints().buffer_space_type();
+  if (buffer_space_type == BufferSpaceType::kSingleKeyframe &&
+      !capabilities.prediction_constraints().supported_frame_types().contains(
+          FrameType::kStartFrame)) {
+    GTEST_SKIP() << "kSingleKeyframe encoder must support start frames.";
+  }
+  std::pair<int, int> effort_range =
+      capabilities.performance().min_max_effort_level();
+  if (effort_range.first == effort_range.second) {
+    GTEST_SKIP() << "Single effort level supported.";
+  }
+
+  TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+  if (!dec.IsSupported()) {
+    GTEST_SKIP() << "No matching decoder found for codec: "
+                 << factory_->CodecName();
+  }
+
+  constexpr int kNumFrames = 8;
+  std::vector<scoped_refptr<I420Buffer>> input_frames;
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  for (int i = 0; i < kNumFrames; ++i) {
+    input_frames.push_back(frame_reader->PullFrame());
+  }
+
+  TestConfig config;
+  const std::set<RateControlMode>& rc_modes =
+      capabilities.bitrate_control().rc_modes();
+  if (rc_modes.contains(RateControlMode::kCbr)) {
+    config.static_settings =
+        StaticEncoderSettingsBuilder()
+            .MaxEncodeDimensions(kDefaultResolution)
+            .EncodingFormat(capabilities.encoding_formats()[0])
+            .CbrRcMode(TimeDelta::Millis(1000), TimeDelta::Millis(600),
+                       /*max_intra_bitrate_factor=*/3.0)
+            .MaxNumberOfThreads(1)
+            .Build();
+    config.rate_options = FrameEncodeSettings::Cbr{
+        .duration = TimeDelta::Millis(100),
+        .target_bitrate = DataRate::KilobitsPerSec(1000)};
+  } else {
+    config = CreateTestConfig(capabilities);
+  }
+
+  struct LayerPsnr {
+    double s0 = 0;
+    double s1 = 0;
+  };
+  const int s1_buf =
+      (buffer_space_type == BufferSpaceType::kMultiInstance) ? 0 : 1;
+  auto encode_independent_layers = [&](int s0_effort, int s1_effort) {
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(config.static_settings, {});
+    TestDecoder s0_dec(env_, decoder_factory_.get(), factory_->CodecName());
+    TestDecoder s1_dec(env_, decoder_factory_.get(), factory_->CodecName());
+    LayerPsnr psnr_sum;
+    for (int tu = 0; tu < kNumFrames; ++tu) {
+      EncOut out_s0, out_s1;
+      Timestamp pts = Timestamp::Millis(tu * 100);
+      Fb fb_s0, fb_s1;
+      fb_s0.Res(kDefaultResolution).S(0).Upd(0).Effort(s0_effort).Out(out_s0);
+      fb_s1.Res(kDefaultResolution)
+          .S(1)
+          .Upd(s1_buf)
+          .Effort(s1_effort)
+          .Out(out_s1);
+      if (tu == 0) {
+        fb_s0.Key();
+        if (buffer_space_type == BufferSpaceType::kSingleKeyframe) {
+          fb_s1.Start();
+        } else {
+          fb_s1.Key();
+        }
+      } else {
+        fb_s0.Ref({0});
+        fb_s1.Ref({s1_buf});
+      }
+      enc->Encode(
+          input_frames[tu], TemporalUnitSettings(pts),
+          ToVec({BuildSettings(std::move(fb_s0), config.rate_options),
+                 BuildSettings(std::move(fb_s1), config.rate_options)}));
+      EXPECT_THAT(out_s0, HasBitstreamAndMetaData());
+      EXPECT_THAT(out_s1, HasBitstreamAndMetaData());
+      psnr_sum.s0 += Psnr(input_frames[tu], s0_dec.Decode(out_s0.bitstream));
+      psnr_sum.s1 += Psnr(input_frames[tu], s1_dec.Decode(out_s1.bitstream));
+    }
+    return LayerPsnr{.s0 = psnr_sum.s0 / kNumFrames,
+                     .s1 = psnr_sum.s1 / kNumFrames};
+  };
+
+  LayerPsnr low_high =
+      encode_independent_layers(effort_range.first, effort_range.second);
+  LayerPsnr high_low =
+      encode_independent_layers(effort_range.second, effort_range.first);
+
+  // Compare each spatial layer against itself across swapped {low, high} vs
+  // {high, low} effort configurations so any S0-vs-S1 keyframe/start-frame rate
+  // control asymmetry cancels out: if S0's effort leaked into S1 (or vice
+  // versa), the comparison on that layer would be reversed.
+  EXPECT_THAT(high_low.s0, Gt(low_high.s0));
+  EXPECT_THAT(low_high.s1, Gt(high_low.s1));
+}
+
 std::unique_ptr<VideoEncoderFactoryInterface> CreateLibaomAv1EncoderFactory() {
   return std::make_unique<LibaomAv1EncoderFactory>();
 }

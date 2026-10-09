@@ -732,7 +732,7 @@ bool LibaomAv1EncoderV2::InitEncode(
   reference_buffer_tracker_.Reset();
   rate_tracker_ = std::make_unique<CbrLayerRateTracker>();
   content_type_.reset();
-  effort_level_by_spatial_id_.fill(std::nullopt);
+  effort_level_.reset();
   applied_cfg_.reset();
   applied_svc_params_.reset();
   num_spatial_layers_ = 0;
@@ -989,14 +989,11 @@ void LibaomAv1EncoderV2::Encode(
         GetSvcRefFrameConfig(settings, reference_buffer_tracker_);
     SET_OR_RETURN(AV1E_SET_SVC_REF_FRAME_CONFIG, &ref_config);
 
-    if (layer_enabled &&
-        settings.effort_level() !=
-            effort_level_by_spatial_id_[settings.spatial_id()]) {
+    if (layer_enabled && settings.effort_level() != effort_level_) {
       // For RTC we use speed level 5 to 11, with 9 being the default. Note
       // that low effort means higher speed.
       SET_OR_RETURN(AOME_SET_CPUUSED, 9 - settings.effort_level());
-      effort_level_by_spatial_id_[settings.spatial_id()] =
-          settings.effort_level();
+      effort_level_ = settings.effort_level();
     }
 
     RTC_LOG(LS_VERBOSE) << __FUNCTION__ << " timestamp="
