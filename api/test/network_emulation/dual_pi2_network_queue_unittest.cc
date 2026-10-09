@@ -15,7 +15,6 @@
 
 #include "api/test/simulated_network.h"
 #include "api/transport/ecn_marking.h"
-#include "api/units/data_rate.h"
 #include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -215,7 +214,7 @@ TEST(DualPi2NetworkQueueTest, ClassicQueueDropPacketIfL4SDelayIsTooHigh) {
                                            /*packet_id=*/i++,
                                            EcnMarking::kEct1));
     // Enqueue a classic packet.
-    has_dropped_classic_packet |= queue.EnqueuePacket(
+    has_dropped_classic_packet |= !queue.EnqueuePacket(
         PacketInFlightInfo(kPacketSize, now,
                            /*packet_id=*/i++, EcnMarking::kEct0));
 
@@ -231,50 +230,126 @@ TEST(DualPi2NetworkQueueTest, ClassicQueueDropPacketIfL4SDelayIsTooHigh) {
 
 TEST(DualPi2NetworkQueueTest, CeMarksIfStepThresholdIsReached) {
   DualPi2NetworkQueue::Config config;
-  config.link_rate = DataRate::KilobitsPerSec(100);
-  const DataSize kStepThreshold = config.target_delay * config.link_rate * 2;
+  config.target_delay = TimeDelta::Millis(15);
+  config.step_threshold = TimeDelta::Millis(1);
   DualPi2NetworkQueue queue(config);
-  DataSize total_queued_size = DataSize::Zero();
   Timestamp now = Timestamp::Seconds(123);
 
-  int i = 0;
-  while (total_queued_size < kStepThreshold) {
-    ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
-                                                       /*packet_id=*/i++,
-                                                       EcnMarking::kEct1)));
-    total_queued_size += kPacketSize;
-  }
+  // Dequeue one packet at t=0 so last_probability_update_time_ is initialized
+  // with zero marking probability.
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/0,
+                                                     EcnMarking::kEct1)));
+  ASSERT_TRUE(queue.DequeuePacket(now).has_value());
+  ASSERT_EQ(queue.l4s_marking_probability(), 0.0);
+
+  // Enqueue 2 packets (meeting default min_backlog_packets = 2) and dequeue
+  // after step_threshold (1ms) has elapsed.
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/1,
+                                                     EcnMarking::kEct1)));
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/2,
+                                                     EcnMarking::kEct1)));
+  now += TimeDelta::Millis(2);
+  std::optional<PacketInFlightInfo> dequeued_packet = queue.DequeuePacket(now);
+  ASSERT_TRUE(dequeued_packet.has_value());
+  EXPECT_EQ(queue.l4s_marking_probability(), 0.0);
+  EXPECT_EQ(dequeued_packet->ecn, EcnMarking::kCe);
+}
+
+TEST(DualPi2NetworkQueueTest,
+     DoesNotCeMarkIfBelowMinBacklogPacketsEvenWhenStepThresholdReached) {
+  DualPi2NetworkQueue::Config config;
+  config.step_threshold = TimeDelta::Millis(1);
+  DualPi2NetworkQueue queue(config);
+  Timestamp now = Timestamp::Seconds(123);
+
+  // Only 1 packet in the queue (< default min_backlog_packets = 2).
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/1,
+                                                     EcnMarking::kEct1)));
+  now += TimeDelta::Millis(20);
+  std::optional<PacketInFlightInfo> dequeued_packet = queue.DequeuePacket(now);
+  ASSERT_TRUE(dequeued_packet.has_value());
+  EXPECT_GT(queue.l4s_marking_probability(), 0.0);
+  EXPECT_EQ(dequeued_packet->ecn, EcnMarking::kEct1);
+}
+
+TEST(DualPi2NetworkQueueTest,
+     CeMarksSinglePacketWhenMinBacklogPacketsIsConfiguredToOne) {
+  DualPi2NetworkQueue::Config config;
+  config.step_threshold = TimeDelta::Millis(1);
+  config.min_backlog_packets = 1;
+  DualPi2NetworkQueue queue(config);
+  Timestamp now = Timestamp::Seconds(123);
+
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/1,
+                                                     EcnMarking::kEct1)));
+  now += TimeDelta::Millis(2);
   std::optional<PacketInFlightInfo> dequeued_packet = queue.DequeuePacket(now);
   ASSERT_TRUE(dequeued_packet.has_value());
   EXPECT_EQ(dequeued_packet->ecn, EcnMarking::kCe);
 }
 
-TEST(DualPi2NetworkQueueTest, DropsClassicPacketIfStepThresholdIsReached) {
-  DualPi2NetworkQueue::Config config;
-  config.link_rate = DataRate::KilobitsPerSec(100);
-  const DataSize kStepThreshold = config.target_delay * config.link_rate * 2;
-  DualPi2NetworkQueue queue(config);
-  DataSize total_queued_size = DataSize::Zero();
+TEST(DualPi2NetworkQueueTest, DoesNotDropClassicPacketBelowMinBacklogPackets) {
+  DualPi2NetworkQueue queue;
   Timestamp now = Timestamp::Seconds(123);
-  int i = 0;
 
-  while (total_queued_size < kStepThreshold) {
-    ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
-                                                       /*packet_id=*/i++,
-                                                       EcnMarking::kEct1)));
-    total_queued_size += kPacketSize;
-  }
+  // Drive base_marking_probability_ to 1.0 using high sojourn time.
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/0,
+                                                     EcnMarking::kEct1)));
+  now += TimeDelta::Seconds(1);
+  ASSERT_TRUE(queue.DequeuePacket(now).has_value());
+  ASSERT_EQ(queue.classic_drop_probability(), 1.0);
 
+  // With 0 and 1 packets in the queue (< default min_backlog_packets = 2),
+  // classic packets must not be dropped despite 100% drop probability.
+  EXPECT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/1,
+                                                     EcnMarking::kEct0)));
+  EXPECT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/2,
+                                                     EcnMarking::kEct0)));
+  // Now 2 packets are in the queue (>= min_backlog_packets = 2), so the 3rd
+  // classic packet is dropped.
   EXPECT_FALSE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
-                                                      /*packet_id=*/i++,
+                                                      /*packet_id=*/3,
                                                       EcnMarking::kEct0)));
+}
 
-  while (total_queued_size < kStepThreshold) {
-    ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
-                                                       /*packet_id=*/i++,
-                                                       EcnMarking::kEct1)));
-    total_queued_size += kPacketSize;
-  }
+TEST(DualPi2NetworkQueueTest, DoesNotCeMarkOnEnqueue) {
+  DualPi2NetworkQueue queue;
+  Timestamp now = Timestamp::Seconds(123);
+
+  // Drive base_marking_probability_ to 1.0.
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/0,
+                                                     EcnMarking::kEct1)));
+  now += TimeDelta::Seconds(1);
+  ASSERT_TRUE(queue.DequeuePacket(now).has_value());
+  ASSERT_GE(queue.l4s_marking_probability(), 1.0);
+
+  // Enqueue 3 L4S packets. Even though standing backlog >= 2 and marking
+  // probability >= 1.0, packets in the queue must remain kEct1 until dequeued.
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/1,
+                                                     EcnMarking::kEct1)));
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/2,
+                                                     EcnMarking::kEct1)));
+  ASSERT_TRUE(queue.EnqueuePacket(PacketInFlightInfo(kPacketSize, now,
+                                                     /*packet_id=*/3,
+                                                     EcnMarking::kEct1)));
+
+  EXPECT_THAT(queue.PeekNextPacket(),
+              Optional(Field(&PacketInFlightInfo::ecn, EcnMarking::kEct1)));
+  EXPECT_THAT(queue.DequeuePacket(now),
+              Optional(Field(&PacketInFlightInfo::ecn, EcnMarking::kCe)));
+  EXPECT_THAT(queue.PeekNextPacket(),
+              Optional(Field(&PacketInFlightInfo::ecn, EcnMarking::kEct1)));
 }
 
 }  // namespace

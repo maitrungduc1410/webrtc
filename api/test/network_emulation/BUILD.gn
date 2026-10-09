@@ -95,8 +95,6 @@ rtc_library("network_queue") {
     "../../../rtc_base:logging",
     "../../../rtc_base:random",
     "../../transport:ecn_marking",
-    "../../units:data_rate",
-    "../../units:data_size",
     "../../units:time_delta",
     "../../units:timestamp",
   ]
@@ -110,7 +108,6 @@ if (rtc_include_tests) {
       "../..:simulated_network_api",
       "../../../test:test_support",
       "../../transport:ecn_marking",
-      "../../units:data_rate",
       "../../units:data_size",
       "../../units:time_delta",
       "../../units:timestamp",

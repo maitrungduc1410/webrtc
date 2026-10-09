@@ -16,7 +16,6 @@
 #include "api/sequence_checker.h"
 #include "api/test/simulated_network.h"
 #include "api/transport/ecn_marking.h"
-#include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/checks.h"
@@ -25,11 +24,7 @@
 namespace webrtc {
 
 DualPi2NetworkQueue::DualPi2NetworkQueue(const Config& config)
-    : config_(config),
-      step_threshold_(config.link_rate.IsInfinite()
-                          ? DataSize::Infinity()
-                          : config_.target_delay * config_.link_rate * 2),
-      random_(config.seed) {
+    : config_(config), random_(config.seed) {
   sequence_checker_.Detach();
 }
 
@@ -53,32 +48,22 @@ bool DualPi2NetworkQueue::EnqueuePacket(const PacketInFlightInfo& packet_info) {
 
   if (packet_info.ecn == EcnMarking::kNotEct ||
       packet_info.ecn == EcnMarking::kEct0) {
-    bool take_action = ShouldTakeAction(classic_drop_probability());
-    if (!take_action) {
-      total_queued_size_ += packet_info.packet_size();
-      classic_queue_.push(packet_info);
-      return true;
+    if (HasStandingQueueBacklog() &&
+        random_.Rand<double>() < classic_drop_probability()) {
+      RTC_DLOG(LS_WARNING)
+          << "DualPi2NetworkQueue::EnqueuePacket: Dropping classic packet "
+          << packet_info.packet_id << ". Classic drop probability is "
+          << classic_drop_probability()
+          << " L4S queue size: " << l4s_queue_.size()
+          << " classic queue size: " << classic_queue_.size();
+      return false;
     }
-    RTC_DLOG(LS_WARNING)
-        << "DualPi2NetworkQueue::EnqueuePacket: Dropping classic packet "
-        << packet_info.packet_id << ". Classic drop probability is "
-        << classic_drop_probability()
-        << " L4S queue size: " << l4s_queue_.size()
-        << " classic queue size: " << classic_queue_.size();
-
-    return false;
+    classic_queue_.push(packet_info);
+    return true;
   }
   RTC_DCHECK(packet_info.ecn == EcnMarking::kEct1 ||
              packet_info.ecn == EcnMarking::kCe);
-  total_queued_size_ += packet_info.packet_size();
-  bool take_action = ShouldTakeAction(l4s_marking_probability());
-  if (take_action) {
-    PacketInFlightInfo ce_packet_info(packet_info);
-    ce_packet_info.ecn = EcnMarking::kCe;
-    l4s_queue_.push(ce_packet_info);
-  } else {
-    l4s_queue_.push(packet_info);
-  }
+  l4s_queue_.push(packet_info);
   return true;
 }
 
@@ -103,13 +88,15 @@ std::optional<PacketInFlightInfo> DualPi2NetworkQueue::DequeuePacket(
   }
 
   PacketInFlightInfo packet_info = queue.front();
-  UpdateBaseMarkingProbability(time_now, time_now - packet_info.send_time());
-  queue.pop();
-  total_queued_size_ -= packet_info.packet_size();
-  if (packet_info.ecn == EcnMarking::kEct1 &&
-      ShouldTakeAction(l4s_marking_probability())) {
-    packet_info.ecn = EcnMarking::kCe;
+  TimeDelta sojourn_time = time_now - packet_info.send_time();
+  UpdateBaseMarkingProbability(time_now, sojourn_time);
+  if (packet_info.ecn == EcnMarking::kEct1 && HasStandingQueueBacklog()) {
+    if (sojourn_time > config_.step_threshold ||
+        random_.Rand<double>() < l4s_marking_probability()) {
+      packet_info.ecn = EcnMarking::kCe;
+    }
   }
+  queue.pop();
   return packet_info;
 }
 
@@ -143,11 +130,9 @@ void DualPi2NetworkQueue::UpdateBaseMarkingProbability(Timestamp time_now,
                        << base_marking_probability_;
 }
 
-bool DualPi2NetworkQueue::ShouldTakeAction(double marking_probability) {
-  if (total_queued_size_ > step_threshold_) {
-    return true;
-  }
-  return random_.Rand<double>() < marking_probability;
+bool DualPi2NetworkQueue::HasStandingQueueBacklog() const {
+  return l4s_queue_.size() + classic_queue_.size() >=
+         config_.min_backlog_packets;
 }
 
 }  // namespace webrtc
