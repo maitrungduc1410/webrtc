@@ -462,6 +462,7 @@
     'debug_bot': {
       'mixins': [
         'debug',
+        'minimal_symbols',
         'remoteexec',
         'strict_field_trials',
       ],
