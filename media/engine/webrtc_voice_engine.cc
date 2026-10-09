@@ -1436,10 +1436,7 @@ bool WebRtcVoiceSendChannel::SetSenderParameters(
   }
 
   if (!params.mid.empty()) {
-    mid_ = params.mid;
-    for (auto& it : send_streams_) {
-      it.second->SetMid(params.mid);
-    }
+    SetMid(params.mid);
   }
 
   if (send_codec_spec_ && !SetMaxSendBitrate(params.max_bandwidth_bps)) {
@@ -1451,6 +1448,17 @@ bool WebRtcVoiceSendChannel::SetSenderParameters(
     it.second->SetRtcpMode(rtcp_mode_);
   }
   return SetOptions(params.options);
+}
+
+void WebRtcVoiceSendChannel::SetMid(absl::string_view mid) {
+  RTC_DCHECK_RUN_ON(worker_thread_);
+  if (mid_ == mid) {
+    return;
+  }
+  mid_ = std::string(mid);
+  for (auto& it : send_streams_) {
+    it.second->SetMid(mid_);
+  }
 }
 
 std::optional<Codec> WebRtcVoiceSendChannel::GetSendCodec() const {

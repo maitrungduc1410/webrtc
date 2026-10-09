@@ -221,6 +221,7 @@ class WebRtcVoiceSendChannel final : public MediaChannelUtil,
   const AudioOptions& options() const { return options_; }
 
   bool SetSenderParameters(const AudioSenderParameter& params) override;
+  void SetMid(absl::string_view mid) override;
   RtpParameters GetRtpSendParameters(uint32_t ssrc) const override;
   absl::AnyInvocable<RtpParameters(uint32_t)> GetRtpSendParametersCallback()
       const override;
