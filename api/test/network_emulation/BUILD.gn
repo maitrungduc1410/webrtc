@@ -95,6 +95,7 @@ rtc_library("network_queue") {
     "../../../rtc_base:logging",
     "../../../rtc_base:random",
     "../../transport:ecn_marking",
+    "../../units:data_size",
     "../../units:time_delta",
     "../../units:timestamp",
   ]

@@ -11,6 +11,7 @@
 #define API_TEST_NETWORK_EMULATION_DUAL_PI2_NETWORK_QUEUE_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -29,12 +30,6 @@ namespace webrtc {
 // https://github.com/L4STeam/linux/. Concepts are described in
 // https://datatracker.ietf.org/doc/html/rfc9332.
 // Developed for testing purposes.
-// Note that this implementation does not support the credit-based system
-// (c_protection) from the real implementation and thus a L4S stream can
-// completely starve a classic stream.
-//
-// TODO: bugs.webrtc.org/42225697 - Implement c_protection to better
-// support testing of cross traffic with classic TCP.
 class DualPi2NetworkQueue : public NetworkQueue {
  public:
   struct Config {
@@ -54,6 +49,11 @@ class DualPi2NetworkQueue : public NetworkQueue {
     double beta = 3.2;
     // Coupling factor.
     int k = 2;
+
+    // Classic queue protection weight percentage (0-100) for the WRR credit
+    // scheduler (c_protection in Linux sch_dualpi2). Default is 10%, meaning
+    // 10% weight for the classic queue and 90% weight for the L4S queue.
+    int c_protection = 10;
 
     // How often the base marking probability is updated.
     TimeDelta probability_update_interval = TimeDelta::Millis(16);
@@ -86,8 +86,12 @@ class DualPi2NetworkQueue : public NetworkQueue {
   }
 
  private:
-  void UpdateBaseMarkingProbability(Timestamp time_now, TimeDelta sojourn_time);
+  void UpdateBaseMarkingProbability(Timestamp time_now);
+  TimeDelta l4s_queue_delay(Timestamp time_now) const;
+  TimeDelta classic_queue_delay(Timestamp time_now) const;
   bool HasStandingQueueBacklog() const;
+  bool ShouldDequeueFromClassicQueue() const;
+  void ResetCProtectionCredit();
 
   SequenceChecker sequence_checker_;
 
@@ -99,6 +103,7 @@ class DualPi2NetworkQueue : public NetworkQueue {
   Random random_;
 
   std::optional<size_t> max_packet_capacity_;
+  int64_t c_protection_credit_ = 0;
   double base_marking_probability_ = 0;
   Timestamp last_probability_update_time_ = Timestamp::MinusInfinity();
   // The delay of the queue after the last probability update.
