@@ -59,7 +59,7 @@ class AudioInput {
 
   // Returns and resets the accumulated audio input frame processing time stats.
   virtual std::optional<AudioDeviceModule::ProcessingTimeStats>
-  GetAndResetCaptureProcessingTimeStats() const {
+  GetAndResetCaptureProcessingTimeStats() {
     return std::nullopt;
   }
 };

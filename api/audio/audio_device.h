@@ -181,7 +181,7 @@ class AudioDeviceModule : public RefCountInterface {
   // stats since the last call. Returns std::nullopt if not implemented or if no
   // frames were recorded since the last call.
   virtual std::optional<ProcessingTimeStats>
-  GetAndResetCaptureProcessingTimeStats() const {
+      GetAndResetCaptureProcessingTimeStats() {
     return std::nullopt;
   }
 

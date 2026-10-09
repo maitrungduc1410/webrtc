@@ -143,7 +143,9 @@ class MockAudioDeviceModule : public AudioDeviceModule {
   MOCK_METHOD(int32_t, GetPlayoutUnderrunCount, (), (const, override));
   MOCK_METHOD(std::optional<Stats>, GetStats, (), (const, override));
   MOCK_METHOD(std::optional<ProcessingTimeStats>,
-              GetAndResetCaptureProcessingTimeStats, (), (const, override));
+              GetAndResetCaptureProcessingTimeStats,
+              (),
+              (override));
 #if defined(WEBRTC_IOS)
   MOCK_METHOD(int,
               GetPlayoutAudioParameters,

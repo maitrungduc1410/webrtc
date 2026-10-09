@@ -594,7 +594,7 @@ class AndroidAudioDeviceModule : public AudioDeviceModule {
   }
 
   std::optional<ProcessingTimeStats> GetAndResetCaptureProcessingTimeStats()
-      const override {
+      override {
     return input_->GetAndResetCaptureProcessingTimeStats();
   }
 
