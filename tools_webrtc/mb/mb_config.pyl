@@ -281,7 +281,12 @@
       'release_bot',
     ],
     'disable_trace_events_x64': ['x64', 'disable_trace_events', 'release_bot'],
-    'disable_trace_events_x86': ['x86', 'disable_trace_events', 'release_bot'],
+    'disable_trace_events_x86': [
+      'x86',
+      'disable_trace_events',
+      'no_cc_test_bins',
+      'release_bot',
+    ],
     'dummy_audio_file_devices_no_protobuf_android_arm64': [
       'android',
       'arm64',
@@ -291,8 +296,13 @@
     ],
     'dummy_audio_file_devices_no_protobuf_x64':
     ['debug_bot', 'x64', 'dummy_audio_file_devices', 'no_protobuf'],
-    'dummy_audio_file_devices_no_protobuf_x86':
-    ['debug_bot', 'x86', 'dummy_audio_file_devices', 'no_protobuf'],
+    'dummy_audio_file_devices_no_protobuf_x86': [
+      'debug_bot',
+      'x86',
+      'dummy_audio_file_devices',
+      'no_cc_test_bins',
+      'no_protobuf',
+    ],
     'ios_debug_bot_arm64': [
       'ios',
       'ios_simulator',
@@ -340,7 +350,7 @@
       'release_bot',
     ],
     'perfetto_x64': ['x64', 'perfetto', 'release_bot'],
-    'perfetto_x86': ['x86', 'perfetto', 'release_bot'],
+    'perfetto_x86': ['x86', 'no_cc_test_bins', 'perfetto', 'release_bot'],
     'pure_release_bot_arm64': ['openh264', 'pure_release_bot', 'arm64', 'h265'],
     'pure_release_bot_x64': ['openh264', 'pure_release_bot', 'x64', 'h265'],
     'pure_release_bot_x86': ['openh264', 'pure_release_bot', 'x86', 'h265'],
@@ -357,8 +367,14 @@
       'no_sctp',
       'rtti',
     ],
-    'rtti_no_sctp_no_unicode_win_x86':
-    ['debug_bot', 'x86', 'rtti', 'no_sctp', 'win_undef_unicode'],
+    'rtti_no_sctp_no_unicode_win_x86': [
+      'debug_bot',
+      'x86',
+      'rtti',
+      'no_cc_test_bins',
+      'no_sctp',
+      'win_undef_unicode',
+    ],
     'rtti_no_sctp_x64': ['debug_bot', 'x64', 'rtti', 'no_sctp'],
     'tsan_clang_release_bot_x64':
     ['tsan', 'clang', 'openh264', 'pure_release_bot', 'x64', 'h265'],
@@ -379,6 +395,7 @@
     ],
     'use_cxx23_x86': [
       'debug_bot',
+      'no_cc_test_bins',
       'use_cxx23_flag',
       'x86',
     ],
@@ -511,6 +528,9 @@
     },
     'no_build_ssl': {
       'gn_args': 'rtc_build_ssl=false libsrtp_build_boringssl=false',
+    },
+    'no_cc_test_bins': {
+      'gn_args': 'rtc_build_cc_test_bins=false',
     },
     'no_custom_libcxx': {
       'gn_args': 'use_custom_libcxx=false',
