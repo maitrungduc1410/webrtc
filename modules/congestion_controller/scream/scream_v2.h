@@ -135,7 +135,12 @@ class ScreamV2 {
   void UpdateFeedbackInterval(Timestamp feedback_time);
   void UpdateTargetRate(const ScreamFeedback& parsed);
   void UpdateReceiveRate(const ScreamFeedback& parsed);
+  // Minimum interval between congestion backoff reactions.
   TimeDelta ReactionInterval() const;
+  // Scales `backoff` so a full reduction is applied immediately, and a new
+  // backoff cycle only starts one RTT after `data_in_flight <= ref_window_`.
+  // Until then, only increases in `backoff` above `last_backoff_` are applied.
+  double ScaleBackoff(const ScreamFeedback& parsed, double backoff);
 
   const Environment env_;
   const ScreamV2Parameters params_;
@@ -156,6 +161,8 @@ class ScreamV2 {
   bool allow_ref_window_i_update_ = true;
 
   double last_ref_window_increase_scale_factor_ = 1.0;
+  double last_backoff_ = 0.0;
+  Timestamp last_backoff_rtt_start_time_ = Timestamp::MinusInfinity();
 
   // `l4s_alpha_` tracks the average fraction of ECN-CE marked data units per
   // Round-Trip Time.

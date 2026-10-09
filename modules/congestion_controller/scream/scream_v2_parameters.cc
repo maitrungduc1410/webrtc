@@ -76,6 +76,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
       use_feedback_interval_for_virtual_rtt("UseFeedbackIntervalForVirtualRtt",
                                             true),
       allow_initial_ref_window_clamping("AllowInitialRefWindowClamping", true),
+      use_non_linear_backoff_scale("UseNonLinearBackoffScale", true),
       allow_large_pacing_bursts_after_congestion_time(
           "AllowLargePacingBurstsAfterCongestionTime",
           TimeDelta::Seconds(15)),
@@ -130,6 +131,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
        &feedback_interval_avg_g,
        &use_feedback_interval_for_virtual_rtt,
        &allow_initial_ref_window_clamping,
+       &use_non_linear_backoff_scale,
        &allow_large_pacing_bursts_after_congestion_time,
        &enable_alr,
        &alr_threshold,

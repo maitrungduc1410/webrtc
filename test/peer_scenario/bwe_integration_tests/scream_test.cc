@@ -23,6 +23,7 @@
 #include "api/scoped_refptr.h"
 #include "api/stats/rtc_stats_report.h"
 #include "api/test/network_emulation/dual_pi2_network_queue.h"
+#include "api/test/network_emulation/leaky_bucket_network_queue.h"
 #include "api/test/network_emulation/network_config_schedule.pb.h"
 #include "api/test/network_emulation/network_emulation_interfaces.h"
 #include "api/test/network_emulation/network_queue.h"
@@ -267,7 +268,8 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPathWithVaryingCapacity(
     DataRate link_capacity_1 = DataRate::KilobitsPerSec(40),
     DataRate link_capacity_2 = DataRate::KilobitsPerSec(90),
     TimeDelta interval = TimeDelta::Millis(800),
-    TimeDelta one_way_delay = TimeDelta::Millis(100)) {
+    TimeDelta one_way_delay = TimeDelta::Millis(100),
+    bool use_ecn = false) {
   network_behaviour::NetworkConfigSchedule schedule;
   auto initial_config = schedule.add_item();
   initial_config->set_link_capacity_kbps(link_capacity_1.kbps());
@@ -280,6 +282,13 @@ std::vector<EmulatedNetworkNode*> CreateNetworkPathWithVaryingCapacity(
 
   SchedulableNetworkNodeBuilder schedulable_builder(*s.net(),
                                                     std::move(schedule));
+  if (use_ecn) {
+    LeakyBucketNetworkQueueFactory queue_factory(
+        LeakyBucketNetworkQueue::Config{
+            .max_ect1_sojourn_time = TimeDelta::Millis(40),
+            .target_ect1_sojourn_time = TimeDelta::Millis(20)});
+    schedulable_builder.set_queue_factory(queue_factory);
+  }
   return {schedulable_builder.Build()};
 }
 
@@ -549,6 +558,56 @@ TEST(ScreamTest, MaybeTest(LinkCapacity1000KbpsRtt100msEcn)) {
   EXPECT_THAT(result.caller().subspan(2), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(600),
                                               DataRate::KilobitsPerSec(1000))));
+}
+
+void TestVaryingCapacity1000To500KbpsRtt100ms(bool use_ecn) {
+  PeerScenario s(*testing::UnitTest::GetInstance()->current_test_info());
+  SendMediaTestParams params;
+  params.test_duration = TimeDelta::Seconds(12);
+  params.callee_to_caller_path = CreateNetworkPathWithVaryingCapacity(
+      s, /*link_capacity_1=*/DataRate::KilobitsPerSec(1000),
+      /*link_capacity_2=*/DataRate::KilobitsPerSec(500),
+      /*interval=*/TimeDelta::Seconds(4),
+      /*one_way_delay=*/TimeDelta::Millis(50), use_ecn);
+  params.caller_to_callee_path = CreateNetworkPathWithVaryingCapacity(
+      s, /*link_capacity_1=*/DataRate::KilobitsPerSec(1000),
+      /*link_capacity_2=*/DataRate::KilobitsPerSec(500),
+      /*interval=*/TimeDelta::Seconds(4),
+      /*one_way_delay=*/TimeDelta::Millis(50), use_ecn);
+
+  SendMediaTestResult result = SendMedia(std::move(params), s);
+  ASSERT_GE(result.caller().size(), 12u);
+  // Before drop (seconds 2-3): steady at 1000 kbps.
+  EXPECT_THAT(
+      result.caller().subspan(2, 2),
+      Each(AllOf(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(600),
+                                               DataRate::KilobitsPerSec(1100)),
+                 CurrentRoundTripTimeIsBetween(TimeDelta::Millis(90),
+                                               TimeDelta::Millis(200)))));
+  // During drop (seconds 6-7): adapted down towards 500 kbps, with queue
+  // drained by second 7.
+  EXPECT_THAT(
+      result.caller().subspan(6, 2),
+      Each(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(300),
+                                         DataRate::KilobitsPerSec(700))));
+  EXPECT_THAT(result.caller().subspan(7, 1),
+              Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(90),
+                                                 TimeDelta::Millis(200))));
+  // After recovery (seconds 10-11): recovered back towards 1000 kbps.
+  EXPECT_THAT(
+      result.caller().subspan(10, 2),
+      Each(AllOf(AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(600),
+                                               DataRate::KilobitsPerSec(1100)),
+                 CurrentRoundTripTimeIsBetween(TimeDelta::Millis(90),
+                                               TimeDelta::Millis(200)))));
+}
+
+TEST(ScreamTest, MaybeTest(LinkCapacity1000To500KbpsRtt100msEcn)) {
+  TestVaryingCapacity1000To500KbpsRtt100ms(/*use_ecn=*/true);
+}
+
+TEST(ScreamTest, MaybeTest(LinkCapacity1000To500KbpsRtt100msNoEcn)) {
+  TestVaryingCapacity1000To500KbpsRtt100ms(/*use_ecn=*/false);
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity1500KbpsRtt30msNoEcn)) {
@@ -1171,6 +1230,5 @@ TEST(ScreamTest,
               Each(AvailableSendBitrateIsBetween(
                   DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(60))));
 }
-
 }  // namespace
 }  // namespace webrtc

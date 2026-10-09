@@ -169,6 +169,12 @@ struct ScreamV2Parameters {
   // congestion event after the first RTT.
   FieldTrialParameter<bool> allow_initial_ref_window_clamping;
 
+  // If true, `ref_window_` is reduced immediately according to `alpha` and then
+  // waits for one RTT after `data_in_flight` drops below `ref_window_` before
+  // starting another full reduction, applying only positive `alpha` deltas in
+  // the meantime.
+  FieldTrialParameter<bool> use_non_linear_backoff_scale;
+
   // If the time since last reaction to congestion is larger than this, the
   // pacing window is increased. I.e. packets are allowed to be sent in larger
   // bursts.
