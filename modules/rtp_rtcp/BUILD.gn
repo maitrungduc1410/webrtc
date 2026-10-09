@@ -1484,10 +1484,8 @@ if (rtc_include_tests) {
   rtc_cc_test("rtp_sender_video_unittest") {
     sources = [ "source/rtp_sender_video_unittest.cc" ]
     deps = [
-      ":rtp_format_vp8_test_helper",
       ":rtp_rtcp",
       ":rtp_rtcp_format",
-      "../../api:field_trials_view",
       "../../api:frame_transformer_factory",
       "../../api:frame_transformer_interface",
       "../../api:make_ref_counted",
@@ -1513,15 +1511,14 @@ if (rtc_include_tests) {
       "../../api/video:video_rtp_headers",
       "../../api/video/corruption_detection:frame_instrumentation_data",
       "../../rtc_base:checks",
-      "../../rtc_base:rate_limiter",
       "../../system_wrappers",
       "../../test:create_test_environment",
-      "../../test:run_loop",
       "../../test:test_support",
       "../../test/time_controller",
       "../sframe:sframe_encryption_config",
       "../sframe:sframe_encryptor",
       "../video_coding:codec_globals_headers",
+      "//third_party/abseil-cpp/absl/base:nullability",
       "//third_party/abseil-cpp/absl/memory",
     ]
   }
