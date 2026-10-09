@@ -41,6 +41,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_interface.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_minmax.h"
 #include "rtc_base/random.h"
@@ -170,6 +171,59 @@ bool HasBweExtension(const RtpHeaderExtensionMap& extensions_map) {
          extensions_map.IsRegistered(kRtpExtensionTransmissionTimeOffset);
 }
 
+// Returns whether `payload_type` fits the 7 bit payload type field of the RTP
+// header.
+bool IsValidPayloadType(int payload_type) {
+  return payload_type >= 0 && payload_type <= 127;
+}
+
+// Maps `associated_payload_type` to `rtx_payload_type` in
+// `rtx_payload_type_map`. Logs an error and returns false if either of the
+// payload types is invalid.
+bool AddRtxPayloadType(int rtx_payload_type,
+                       int associated_payload_type,
+                       flat_map<int8_t, int8_t>& rtx_payload_type_map) {
+  if (!IsValidPayloadType(rtx_payload_type) ||
+      !IsValidPayloadType(associated_payload_type)) {
+    RTC_LOG(LS_ERROR) << "Invalid RTX payload type mapping: "
+                      << associated_payload_type << " -> " << rtx_payload_type
+                      << ".";
+    return false;
+  }
+  rtx_payload_type_map[associated_payload_type] = rtx_payload_type;
+  return true;
+}
+
+// Creates the mapping from associated payload type to RTX payload type. The
+// mapping is empty if any of the payload types is invalid, so that RTX can't be
+// enabled with it.
+flat_map<int8_t, int8_t> CreateRtxPayloadTypeMap(
+    const flat_map<int, int>& rtx_payload_types) {
+  flat_map<int8_t, int8_t> rtx_payload_type_map;
+  for (const auto& [associated_payload_type, rtx_payload_type] :
+       rtx_payload_types) {
+    if (!AddRtxPayloadType(rtx_payload_type, associated_payload_type,
+                           rtx_payload_type_map)) {
+      return {};
+    }
+  }
+  return rtx_payload_type_map;
+}
+
+// Returns whether RTX can be used with `mode`, `rtx_ssrc` and
+// `rtx_payload_type_map`. Logs an error if not.
+bool IsValidRtxMode(int mode,
+                    std::optional<uint32_t> rtx_ssrc,
+                    const flat_map<int8_t, int8_t>& rtx_payload_type_map) {
+  if (mode != kRtxOff &&
+      (!rtx_ssrc.has_value() || rtx_payload_type_map.empty())) {
+    RTC_LOG(LS_ERROR)
+        << "Failed to enable RTX without RTX SSRC or payload types.";
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 RTPSender::RTPSender(const Environment& env,
@@ -200,7 +254,10 @@ RTPSender::RTPSender(const Environment& env,
                       config.rtp_state->ssrc_has_acked),
       rtx_ssrc_has_acked_(config.rtx_rtp_state.has_value() &&
                           config.rtx_rtp_state->ssrc_has_acked),
-      rtx_(kRtxOff),
+      rtx_payload_type_map_(CreateRtxPayloadTypeMap(config.rtx_payload_types)),
+      rtx_(IsValidRtxMode(config.rtx_mode, rtx_ssrc_, rtx_payload_type_map_)
+               ? config.rtx_mode
+               : kRtxOff),
       supports_bwe_extension_(false),
       retransmission_rate_limiter_(config.retransmission_rate_limiter) {
   RTC_DCHECK(paced_sender_);
@@ -261,10 +318,7 @@ size_t RTPSender::MaxRtpPacketSize() const {
 
 void RTPSender::SetRtxStatus(int mode) {
   MutexLock lock(&send_mutex_);
-  if (mode != kRtxOff &&
-      (!rtx_ssrc_.has_value() || rtx_payload_type_map_.empty())) {
-    RTC_LOG(LS_ERROR)
-        << "Failed to enable RTX without RTX SSRC or payload types.";
+  if (!IsValidRtxMode(mode, rtx_ssrc_, rtx_payload_type_map_)) {
     return;
   }
   rtx_ = mode;
@@ -278,14 +332,8 @@ int RTPSender::RtxStatus() const {
 void RTPSender::SetRtxPayloadType(int payload_type,
                                   int associated_payload_type) {
   MutexLock lock(&send_mutex_);
-  RTC_DCHECK_LE(payload_type, 127);
-  RTC_DCHECK_LE(associated_payload_type, 127);
-  if (payload_type < 0) {
-    RTC_LOG(LS_ERROR) << "Invalid RTX payload type: " << payload_type << ".";
-    return;
-  }
-
-  rtx_payload_type_map_[associated_payload_type] = payload_type;
+  AddRtxPayloadType(payload_type, associated_payload_type,
+                    rtx_payload_type_map_);
 }
 
 int32_t RTPSender::ReSendPacket(uint16_t packet_id) {

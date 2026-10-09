@@ -237,18 +237,18 @@ std::optional<RtpState> FindSuspendedRtpState(
 // Configures RTX for the media stream at `simulcast_index`.
 void ConfigureRtx(const RtpConfig& rtp_config,
                   size_t simulcast_index,
-                  RtpRtcpInterface& rtp_rtcp) {
+                  RtpRtcpInterface::Configuration& configuration) {
   // Configure RTX payload types.
   RTC_DCHECK_GE(rtp_config.rtx.payload_type, 0);
   RtpStreamConfig stream_config = rtp_config.GetStreamConfig(simulcast_index);
   RTC_DCHECK(stream_config.rtx);
-  rtp_rtcp.SetRtxSendPayloadType(stream_config.rtx->payload_type,
-                                 stream_config.payload_type);
-  rtp_rtcp.SetRtxSendStatus(kRtxRetransmitted | kRtxRedundantPayloads);
+  configuration.rtx_payload_types = {
+      {stream_config.payload_type, stream_config.rtx->payload_type}};
+  configuration.rtx_mode = kRtxRetransmitted | kRtxRedundantPayloads;
   if (rtp_config.ulpfec.red_payload_type != -1 &&
       rtp_config.ulpfec.red_rtx_payload_type != -1) {
-    rtp_rtcp.SetRtxSendPayloadType(rtp_config.ulpfec.red_rtx_payload_type,
-                                   rtp_config.ulpfec.red_payload_type);
+    configuration.rtx_payload_types[rtp_config.ulpfec.red_payload_type] =
+        rtp_config.ulpfec.red_rtx_payload_type;
   }
 }
 
@@ -266,10 +266,6 @@ void ConfigureRtpModule(const RtpConfig& rtp_config,
     RTC_DCHECK(RtpExtension::IsSupportedForVideo(extension.uri));
     rtp_rtcp.RegisterRtpHeaderExtension(extension.uri, extension.id);
   }
-
-  // Set up RTX if available.
-  if (!rtp_config.rtx.ssrcs.empty())
-    ConfigureRtx(rtp_config, simulcast_index, rtp_rtcp);
 
   if (!rtp_config.mid.empty())
     rtp_rtcp.SetMid(rtp_config.mid);
@@ -344,6 +340,11 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
         rtp_config.GetRtxSsrcAssociatedWithMediaSsrc(rtp_config.ssrcs[i]);
     RTC_DCHECK_EQ(configuration.rtx_send_ssrc.has_value(),
                   !rtp_config.rtx.ssrcs.empty());
+
+    // Set up RTX if available.
+    if (!rtp_config.rtx.ssrcs.empty()) {
+      ConfigureRtx(rtp_config, i, configuration);
+    }
 
     // Restore RTP state if previous existed.
     configuration.rtp_state =

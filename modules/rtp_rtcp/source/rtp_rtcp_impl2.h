@@ -141,12 +141,8 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
 
   RTCPSender::FeedbackState GetFeedbackState();
 
-  void SetRtxSendStatus(int mode) override;
   int RtxSendStatus() const override;
   std::optional<uint32_t> RtxSsrc() const override;
-
-  void SetRtxSendPayloadType(int payload_type,
-                             int associated_payload_type) override;
 
   std::optional<uint32_t> FlexfecSsrc() const override;
 

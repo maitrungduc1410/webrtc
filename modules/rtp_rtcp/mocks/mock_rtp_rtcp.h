@@ -70,10 +70,8 @@ class MockRtpRtcpInterface : public RtpRtcpInterface {
   MOCK_METHOD(RtpState, GetRtxState, (), (const, override));
   MOCK_METHOD(uint32_t, SSRC, (), (const, override));
   MOCK_METHOD(void, SetMid, (absl::string_view mid), (override));
-  MOCK_METHOD(void, SetRtxSendStatus, (int modes), (override));
   MOCK_METHOD(int, RtxSendStatus, (), (const, override));
   MOCK_METHOD(std::optional<uint32_t>, RtxSsrc, (), (const, override));
-  MOCK_METHOD(void, SetRtxSendPayloadType, (int, int), (override));
   MOCK_METHOD(std::optional<uint32_t>, FlexfecSsrc, (), (const, override));
   MOCK_METHOD(int32_t, SetSendingStatus, (bool sending), (override));
   MOCK_METHOD(bool, Sending, (), (const, override));

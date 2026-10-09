@@ -117,6 +117,7 @@ class RTPSender {
       RTC_LOCKS_EXCLUDED(send_mutex_);
 
   // RTX.
+  [[deprecated("Set RtpRtcpInterface::Configuration::rtx_mode instead.")]]
   void SetRtxStatus(int mode) RTC_LOCKS_EXCLUDED(send_mutex_);
   int RtxStatus() const RTC_LOCKS_EXCLUDED(send_mutex_);
   std::optional<uint32_t> RtxSsrc() const { return rtx_ssrc_; }
@@ -124,6 +125,8 @@ class RTPSender {
   // that RTX packet is created from. Returns 0 if RTX is disabled.
   size_t RtxPacketOverhead() const RTC_LOCKS_EXCLUDED(send_mutex_);
 
+  [[deprecated(
+      "Set RtpRtcpInterface::Configuration::rtx_payload_types instead.")]]
   void SetRtxPayloadType(int payload_type, int associated_payload_type)
       RTC_LOCKS_EXCLUDED(send_mutex_);
 
@@ -234,9 +237,11 @@ class RTPSender {
   bool rtx_ssrc_has_acked_ RTC_GUARDED_BY(send_mutex_);
   // Maximum number of csrcs this sender is used with.
   size_t max_num_csrcs_ RTC_GUARDED_BY(send_mutex_) = 0;
-  int rtx_ RTC_GUARDED_BY(send_mutex_);
   // Mapping rtx_payload_type_map_[associated] = rtx.
   flat_map<int8_t, int8_t> rtx_payload_type_map_ RTC_GUARDED_BY(send_mutex_);
+  // Declared after `rtx_payload_type_map_`, since its initial value depends on
+  // the mapping.
+  int rtx_ RTC_GUARDED_BY(send_mutex_);
   bool supports_bwe_extension_ RTC_GUARDED_BY(worker_checker_);
 
   RateLimiter* const retransmission_rate_limiter_;

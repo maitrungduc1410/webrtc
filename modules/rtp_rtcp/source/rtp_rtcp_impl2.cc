@@ -160,18 +160,8 @@ ModuleRtpRtcpImpl2::~ModuleRtpRtcpImpl2() {
   rtt_update_task_.Stop();
 }
 
-void ModuleRtpRtcpImpl2::SetRtxSendStatus(int mode) {
-  rtp_sender_->packet_generator.SetRtxStatus(mode);
-}
-
 int ModuleRtpRtcpImpl2::RtxSendStatus() const {
   return rtp_sender_ ? rtp_sender_->packet_generator.RtxStatus() : kRtxOff;
-}
-
-void ModuleRtpRtcpImpl2::SetRtxSendPayloadType(int payload_type,
-                                               int associated_payload_type) {
-  rtp_sender_->packet_generator.SetRtxPayloadType(payload_type,
-                                                  associated_payload_type);
 }
 
 std::optional<uint32_t> ModuleRtpRtcpImpl2::RtxSsrc() const {

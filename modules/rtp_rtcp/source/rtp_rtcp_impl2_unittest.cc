@@ -253,6 +253,12 @@ class RtpRtcpModule : public RtcpPacketTypeCounterObserver,
     rtx_rtp_state_ = rtx_rtp_state;
     CreateModuleImpl();
   }
+  // Recreates the module with RTX enabled. The rest of the configuration, such
+  // as the initial RTP states, is kept.
+  void ReinitWithRtx() {
+    rtx_mode_ = kRtxRetransmitted | kRtxRedundantPayloads;
+    CreateModuleImpl();
+  }
 
   void CreateModuleImpl() {
     RtpRtcpInterface::Configuration config;
@@ -265,6 +271,8 @@ class RtpRtcpModule : public RtcpPacketTypeCounterObserver,
     config.local_media_ssrc = is_sender_ ? kSenderSsrc : kReceiverSsrc;
     config.rtx_send_ssrc =
         is_sender_ ? std::make_optional(kRtxSenderSsrc) : std::nullopt;
+    config.rtx_mode = rtx_mode_;
+    config.rtx_payload_types = {{kPayloadType, kRtxPayloadType}};
     config.rtp_state = rtp_state_;
     config.rtx_rtp_state = rtx_rtp_state_;
     config.need_rtp_packet_infos = true;
@@ -285,6 +293,7 @@ class RtpRtcpModule : public RtcpPacketTypeCounterObserver,
   TimeDelta rtcp_report_interval_ = kDefaultReportInterval;
   std::optional<RtpState> rtp_state_;
   std::optional<RtpState> rtx_rtp_state_;
+  int rtx_mode_ = kRtxOff;
 };
 }  // namespace
 
@@ -1131,12 +1140,10 @@ TEST_F(RtpRtcpImpl2Test, RtxRtpStateReflectsCurrentState) {
   // `start_timestamp` is the only timestamp populate in the RTX state.
   const uint32_t kStartTimestamp = 3456;
   sender_.ReinitWithRtpState(RtpState{.start_timestamp = kStartTimestamp});
-  SetUp();
-
   // Enable RTX.
+  sender_.ReinitWithRtx();
+  SetUp();
   sender_.impl_->SetStorePacketsStatus(/*enable=*/true, /*number_to_store=*/10);
-  sender_.impl_->SetRtxSendPayloadType(kRtxPayloadType, kPayloadType);
-  sender_.impl_->SetRtxSendStatus(kRtxRetransmitted | kRtxRedundantPayloads);
 
   // Send a frame and ask for a retransmit of the last packet. Capture the RTX
   // packet in order to verify RTX sequence number.

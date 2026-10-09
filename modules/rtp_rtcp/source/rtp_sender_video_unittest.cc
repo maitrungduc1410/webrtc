@@ -602,19 +602,33 @@ TEST_F(RtpSenderVideoTest,
   constexpr int kRtxPayloadId = 101;
   constexpr size_t kMaxPacketSize = 1'000;
 
-  rtp_module_->SetMaxRtpPacketSize(kMaxPacketSize);
-  rtp_module_->RegisterRtpHeaderExtension(RtpMid::Uri(),
-                                          RtpHeaderExtensionId(1));
-  rtp_module_->RegisterRtpHeaderExtension(RtpStreamId::Uri(),
-                                          RtpHeaderExtensionId(2));
-  rtp_module_->RegisterRtpHeaderExtension(RepairedRtpStreamId::Uri(),
-                                          RtpHeaderExtensionId(3));
-  rtp_module_->RegisterRtpHeaderExtension(AbsoluteSendTime::Uri(),
-                                          RtpHeaderExtensionId(4));
-  rtp_module_->SetMid("long_mid");
-  rtp_module_->SetRtxSendPayloadType(kRtxPayloadId, kMediaPayloadId);
-  rtp_module_->SetStorePacketsStatus(/*enable=*/true, 10);
-  rtp_module_->SetRtxSendStatus(kRtxRetransmitted);
+  // Unlike `rtp_module_`, this module sends RTX.
+  const std::unique_ptr<ModuleRtpRtcpImpl2> rtp_module =
+      ModuleRtpRtcpImpl2::CreateSendModule(
+          env_, {.outgoing_transport = &transport_,
+                 .retransmission_rate_limiter = &retransmission_rate_limiter_,
+                 .local_media_ssrc = kSsrc,
+                 .rtx_send_ssrc = kRtxSsrc,
+                 .rtx_mode = kRtxRetransmitted,
+                 .rtx_payload_types = {{kMediaPayloadId, kRtxPayloadId}},
+                 .rtp_state = RtpState{.start_timestamp = 0},
+                 .rid = "rid"});
+  rtp_module->SetSequenceNumber(kSeqNum);
+  TestRtpSenderVideo rtp_sender_video(&fake_clock_, rtp_module->RtpSender(),
+                                      env_.field_trials(),
+                                      /*raw_packetization=*/false);
+
+  rtp_module->SetMaxRtpPacketSize(kMaxPacketSize);
+  rtp_module->RegisterRtpHeaderExtension(RtpMid::Uri(),
+                                         RtpHeaderExtensionId(1));
+  rtp_module->RegisterRtpHeaderExtension(RtpStreamId::Uri(),
+                                         RtpHeaderExtensionId(2));
+  rtp_module->RegisterRtpHeaderExtension(RepairedRtpStreamId::Uri(),
+                                         RtpHeaderExtensionId(3));
+  rtp_module->RegisterRtpHeaderExtension(AbsoluteSendTime::Uri(),
+                                         RtpHeaderExtensionId(4));
+  rtp_module->SetMid("long_mid");
+  rtp_module->SetStorePacketsStatus(/*enable=*/true, 10);
 
   RTPVideoHeader header;
   header.codec = kVideoCodecVP8;
@@ -623,7 +637,7 @@ TEST_F(RtpSenderVideoTest,
   vp8_header.temporalIdx = 0;
 
   uint8_t kPayload[kMaxPacketSize] = {};
-  EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+  EXPECT_TRUE(rtp_sender_video.SendVideoFrame(
       kMediaPayloadId, /*codec_type=*/kVideoCodecVP8,
       RtpTimestampInfo(RtpTimestampWithOffset{0}),
       /*capture_time=*/Timestamp::Seconds(1), kPayload, sizeof(kPayload),
@@ -637,7 +651,7 @@ TEST_F(RtpSenderVideoTest,
   rb.SetMediaSsrc(kSsrc);
   rb.SetExtHighestSeqNum(transport_.last_sent_packet().SequenceNumber());
   rr.AddReportBlock(rb);
-  rtp_module_->IncomingRtcpPacket(rr.Build());
+  rtp_module->IncomingRtcpPacket(rr.Build());
 
   // Test for various frame size close to `kMaxPacketSize` to catch edge cases
   // when rtx packet barely fit.
@@ -645,7 +659,7 @@ TEST_F(RtpSenderVideoTest,
     SCOPED_TRACE(frame_size);
     std::span<const uint8_t> payload(kPayload, frame_size);
 
-    EXPECT_TRUE(rtp_sender_video_->SendVideoFrame(
+    EXPECT_TRUE(rtp_sender_video.SendVideoFrame(
         kMediaPayloadId, /*codec_type=*/kVideoCodecVP8,
         RtpTimestampInfo(RtpTimestampWithOffset{0}),
         /*capture_time=*/Timestamp::Seconds(1), payload, frame_size, header,
@@ -656,7 +670,7 @@ TEST_F(RtpSenderVideoTest,
     rtcp::Nack nack;
     nack.SetMediaSsrc(kSsrc);
     nack.SetPacketIds({media_packet.SequenceNumber()});
-    rtp_module_->IncomingRtcpPacket(nack.Build());
+    rtp_module->IncomingRtcpPacket(nack.Build());
 
     const RtpPacketReceived& rtx_packet = transport_.last_sent_packet();
     EXPECT_EQ(rtx_packet.Ssrc(), kRtxSsrc);
