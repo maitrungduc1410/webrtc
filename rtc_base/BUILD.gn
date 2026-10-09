@@ -678,6 +678,7 @@ rtc_library("stringutils") {
   deps = [
     ":checks",
     ":safe_minmax",
+    ":span_helpers",
     "system:rtc_export",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:string_view",

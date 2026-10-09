@@ -590,8 +590,6 @@
 -rtc_base/ssl_identity.cc
 -rtc_base/ssl_identity_unittest.cc
 -rtc_base/ssl_stream_adapter_unittest.cc
--rtc_base/string_encode.cc
--rtc_base/string_encode_unittest.cc
 -rtc_base/string_to_number.cc
 -rtc_base/string_utils.cc
 -rtc_base/string_utils.h

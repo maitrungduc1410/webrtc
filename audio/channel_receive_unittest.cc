@@ -162,11 +162,7 @@ class ChannelReceiveTest : public Test {
     } else {
       RTC_LOG(LS_ERROR) << "Unexpected RTCP packet generated";
       RTC_LOG(LS_ERROR) << "Packet content "
-                        << hex_encode_with_delimiter(
-                               absl::string_view(
-                                   reinterpret_cast<char*>(packet.data()[0]),
-                                   packet.size()),
-                               ' ');
+                        << HexEncodeWithDelimiter(packet, ' ');
     }
   }
 
