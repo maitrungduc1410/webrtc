@@ -1636,7 +1636,7 @@ RTCError PeerConnection::SetConfiguration(
   // controller on the network thread to the transport controller on the
   // signaling thread, we should instead use a
   // ScopedOperationsBatcher::BatchTaskWithFinalizer.
-  flat_map<std::string, JsepTransportController::TransportState> new_states;
+  JsepTransportController::TransportStateSnapshot new_states;
   if (!network_thread()->BlockingCall([&] {
         RTC_DCHECK_RUN_ON(network_thread());
         // As described in JSEP, calling setConfiguration with new ICE
