@@ -3497,7 +3497,6 @@ if (rtc_include_tests && !build_with_chromium) {
   rtc_cc_test("rtc_stats_collector_unittest") {
     sources = [ "rtc_stats_collector_unittest.cc" ]
     deps = [
-      ":media_stream",
       ":pc_test_utils",
       ":peer_connection_internal",
       ":rtc_stats_collector",
@@ -3505,7 +3504,6 @@ if (rtc_include_tests && !build_with_chromium) {
       ":rtp_transceiver",
       ":scoped_operations_batcher",
       ":sctp_data_channel",
-      ":stream_collection",
       ":transport_stats",
       "../api:audio_options_api",
       "../api:candidate",

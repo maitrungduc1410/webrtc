@@ -65,13 +65,11 @@
 #include "p2p/base/p2p_constants.h"
 #include "p2p/base/port.h"
 #include "p2p/base/transport_description.h"
-#include "pc/media_stream.h"
 #include "pc/peer_connection_internal.h"
 #include "pc/rtp_sender.h"
 #include "pc/rtp_transceiver.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/sctp_data_channel.h"
-#include "pc/stream_collection.h"
 #include "pc/test/fake_audio_track.h"
 #include "pc/test/fake_data_channel_controller.h"
 #include "pc/test/fake_peer_connection_for_stats.h"
@@ -244,8 +242,7 @@ scoped_refptr<MockRtpSenderInternal> CreateMockSender(
     MediaType media_type,
     scoped_refptr<MediaStreamTrackInterface> track,
     uint32_t ssrc,
-    int attachment_id,
-    std::vector<std::string> local_stream_ids) {
+    int attachment_id) {
   RTC_DCHECK(!track ||
              (track->kind() == MediaStreamTrackInterface::kAudioKind &&
               media_type == MediaType::AUDIO) ||
@@ -265,7 +262,6 @@ scoped_refptr<MockRtpSenderInternal> CreateMockSender(
     return params;
   });
   EXPECT_CALL(*sender, AttachmentId()).WillRepeatedly(Return(attachment_id));
-  EXPECT_CALL(*sender, stream_ids()).WillRepeatedly(Return(local_stream_ids));
   return sender;
 }
 
@@ -331,29 +327,9 @@ class RTCStatsCollectorWrapper {
       MediaType media_type,
       const std::string& track_id,
       uint32_t ssrc,
-      bool add_stream,
       int attachment_id) {
-    scoped_refptr<MediaStream> local_stream;
-    if (add_stream) {
-      local_stream = MediaStream::Create("LocalStreamId");
-      pc_->mutable_local_streams()->AddStream(local_stream);
-    }
-    scoped_refptr<MediaStreamTrackInterface> track;
-    if (media_type == MediaType::AUDIO) {
-      track = CreateFakeTrack(media_type, track_id,
-                              MediaStreamTrackInterface::kLive);
-      if (add_stream) {
-        local_stream->AddTrack(scoped_refptr<AudioTrackInterface>(
-            static_cast<AudioTrackInterface*>(track.get())));
-      }
-    } else {
-      track = CreateFakeTrack(media_type, track_id,
-                              MediaStreamTrackInterface::kLive);
-      if (add_stream) {
-        local_stream->AddTrack(scoped_refptr<VideoTrackInterface>(
-            static_cast<VideoTrackInterface*>(track.get())));
-      }
-    }
+    scoped_refptr<MediaStreamTrackInterface> track =
+        CreateFakeTrack(media_type, track_id, MediaStreamTrackInterface::kLive);
     scoped_refptr<MockRtpSenderInternal> sender =
         make_ref_counted<MockRtpSenderInternal>();
     EXPECT_CALL(*sender, track()).WillRepeatedly(Return(track));
@@ -382,29 +358,12 @@ class RTCStatsCollectorWrapper {
   scoped_refptr<MockRtpReceiverInternal> SetupRemoteTrackAndReceiver(
       MediaType media_type,
       const std::string& track_id,
-      const std::string& stream_id,
       uint32_t ssrc) {
-    scoped_refptr<MediaStream> remote_stream = MediaStream::Create(stream_id);
-    pc_->mutable_remote_streams()->AddStream(remote_stream);
-
-    scoped_refptr<MediaStreamTrackInterface> track;
-    if (media_type == MediaType::AUDIO) {
-      track = CreateFakeTrack(media_type, track_id,
-                              MediaStreamTrackInterface::kLive);
-      remote_stream->AddTrack(scoped_refptr<AudioTrackInterface>(
-          static_cast<AudioTrackInterface*>(track.get())));
-    } else {
-      track = CreateFakeTrack(media_type, track_id,
-                              MediaStreamTrackInterface::kLive);
-      remote_stream->AddTrack(scoped_refptr<VideoTrackInterface>(
-          static_cast<VideoTrackInterface*>(track.get())));
-    }
+    scoped_refptr<MediaStreamTrackInterface> track =
+        CreateFakeTrack(media_type, track_id, MediaStreamTrackInterface::kLive);
 
     scoped_refptr<MockRtpReceiverInternal> receiver =
         CreateMockReceiver(track, ssrc, 62);
-    EXPECT_CALL(*receiver, streams())
-        .WillRepeatedly(Return(
-            std::vector<scoped_refptr<MediaStreamInterface>>({remote_stream})));
     EXPECT_CALL(*receiver, SetMediaChannel(_)).WillRepeatedly(Return());
     RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
     pc_->AddReceiver(receiver);
@@ -430,9 +389,7 @@ class RTCStatsCollectorWrapper {
           local_video_track_info_pairs,
       std::initializer_list<
           std::pair<MediaStreamTrackInterface*, VideoReceiverInfo>>
-          remote_video_track_info_pairs,
-      std::vector<std::string> local_stream_ids,
-      std::vector<scoped_refptr<MediaStreamInterface>> remote_streams) {
+          remote_video_track_info_pairs) {
     VoiceMediaInfo voice_media_info;
     VideoMediaInfo video_media_info;
 
@@ -448,7 +405,7 @@ class RTCStatsCollectorWrapper {
           MediaType::AUDIO,
           scoped_refptr<MediaStreamTrackInterface>(local_audio_track),
           voice_sender_info.local_stats[0].ssrc,
-          voice_sender_info.local_stats[0].ssrc + 10, local_stream_ids);
+          voice_sender_info.local_stats[0].ssrc + 10);
       EXPECT_CALL(*rtp_sender, SetMediaChannel(_)).WillRepeatedly(Return());
       EXPECT_CALL(*rtp_sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
         return nullptr;
@@ -471,8 +428,6 @@ class RTCStatsCollectorWrapper {
           scoped_refptr<MediaStreamTrackInterface>(remote_audio_track),
           voice_receiver_info.local_stats[0].ssrc,
           voice_receiver_info.local_stats[0].ssrc + 10);
-      EXPECT_CALL(*rtp_receiver, streams())
-          .WillRepeatedly(Return(remote_streams));
       EXPECT_CALL(*rtp_receiver, SetMediaChannel(_)).WillRepeatedly(Return());
       RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
       pc_->AddReceiver(rtp_receiver);
@@ -492,7 +447,7 @@ class RTCStatsCollectorWrapper {
           MediaType::VIDEO,
           scoped_refptr<MediaStreamTrackInterface>(local_video_track),
           video_sender_info.local_stats[0].ssrc,
-          video_sender_info.local_stats[0].ssrc + 10, local_stream_ids);
+          video_sender_info.local_stats[0].ssrc + 10);
       EXPECT_CALL(*rtp_sender, SetMediaChannel(_)).WillRepeatedly(Return());
       EXPECT_CALL(*rtp_sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
         return nullptr;
@@ -515,8 +470,6 @@ class RTCStatsCollectorWrapper {
           scoped_refptr<MediaStreamTrackInterface>(remote_video_track),
           video_receiver_info.local_stats[0].ssrc,
           video_receiver_info.local_stats[0].ssrc + 10);
-      EXPECT_CALL(*rtp_receiver, streams())
-          .WillRepeatedly(Return(remote_streams));
       EXPECT_CALL(*rtp_receiver, SetMediaChannel(_)).WillRepeatedly(Return());
       RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
       pc_->AddReceiver(rtp_receiver);
@@ -645,11 +598,11 @@ class RTCStatsCollectorTestBase : public ::testing::Test {
     pc_->AddVideoChannel("VideoMid", "TransportName", video_media_info);
     RTC_ALLOW_PLAN_B_DEPRECATION_END();
     // outbound-rtp's sender
-    graph.sender = stats_->SetupLocalTrackAndSender(
-        MediaType::VIDEO, "LocalVideoTrackID", 3, false, 50);
+    graph.sender = stats_->SetupLocalTrackAndSender(MediaType::VIDEO,
+                                                    "LocalVideoTrackID", 3, 50);
     // inbound-rtp's receiver
     graph.receiver = stats_->SetupRemoteTrackAndReceiver(
-        MediaType::VIDEO, "RemoteVideoTrackID", "RemoteStreamId", 4);
+        MediaType::VIDEO, "RemoteVideoTrackID", 4);
     // peer-connection
     graph.peer_connection_id = "P";
     // media-source (kind: video)
@@ -752,10 +705,10 @@ class RTCStatsCollectorTestBase : public ::testing::Test {
     RTC_ALLOW_PLAN_B_DEPRECATION_END();
     // outbound-rtp's sender
     graph.sender = stats_->SetupLocalTrackAndSender(
-        MediaType::AUDIO, "LocalAudioTrackID", kLocalSsrc, false, 50);
+        MediaType::AUDIO, "LocalAudioTrackID", kLocalSsrc, 50);
     // inbound-rtp's receiver
     graph.receiver = stats_->SetupRemoteTrackAndReceiver(
-        MediaType::AUDIO, "RemoteAudioTrackID", "RemoteStreamId", kRemoteSsrc);
+        MediaType::AUDIO, "RemoteAudioTrackID", kRemoteSsrc);
     // peer-connection
     graph.peer_connection_id = "P";
     // media-source (kind: video)
@@ -899,10 +852,9 @@ TEST_P(RTCStatsCollectorTest, StatsPreservedWhenChannelClearedConcurrently) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   auto remote_receiver = stats_->SetupRemoteTrackAndReceiver(
-      MediaType::AUDIO, "RemoteAudioTrackID", "RemoteStreamId", 1);
+      MediaType::AUDIO, "RemoteAudioTrackID", 1);
   auto local_sender = stats_->SetupLocalTrackAndSender(
-      MediaType::AUDIO, "LocalAudioTrackID", 2,
-      /*add_stream=*/true, /*attachment_id=*/2);
+      MediaType::AUDIO, "LocalAudioTrackID", 2, /*attachment_id=*/2);
 
   EXPECT_CALL(*local_sender, SetSendCodecs(_)).WillRepeatedly(Return());
   EXPECT_CALL(*local_sender, SetMediaChannel(_)).WillRepeatedly(Return());
@@ -2332,7 +2284,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCInboundRtpStreamStats_Audio) {
       pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupRemoteTrackAndReceiver(MediaType::AUDIO, "RemoteAudioTrackID",
-                                      "RemoteStreamId", 1);
+                                      1);
 
   // Needed for playoutId to be populated.
   pc_->SetAudioDeviceStats(AudioDeviceModule::Stats());
@@ -2420,7 +2372,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCInboundRtpStreamStats_Audio_PlayoutId) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupRemoteTrackAndReceiver(MediaType::AUDIO, "RemoteAudioTrackID",
-                                      "RemoteStreamId", 1);
+                                      1);
   // Needed for playoutId to be populated.
   pc_->SetAudioDeviceStats(AudioDeviceModule::Stats());
 
@@ -2528,7 +2480,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCInboundRtpStreamStats_Video) {
       pc_->AddVideoChannel("VideoMid", "TransportName", video_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupRemoteTrackAndReceiver(MediaType::VIDEO, "RemoteVideoTrackID",
-                                      "RemoteStreamId", 1);
+                                      1);
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -2636,7 +2588,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCAudioPlayoutStats) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", {});
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupRemoteTrackAndReceiver(MediaType::AUDIO, "RemoteAudioTrackID",
-                                      "RemoteStreamId", 1);
+                                      1);
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -2684,7 +2636,7 @@ TEST_P(RTCStatsCollectorTest, CollectGoogTimingFrameInfo) {
   pc_->AddVideoChannel("Mid0", "Transport0", video_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupRemoteTrackAndReceiver(MediaType::VIDEO, "RemoteVideoTrackID",
-                                      "RemoteStreamId", 1);
+                                      1);
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -2725,7 +2677,6 @@ TEST_P(RTCStatsCollectorTest, CollectRTCOutboundRtpStreamStats_Audio) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupLocalTrackAndSender(MediaType::AUDIO, "LocalAudioTrackID", 1,
-                                   true,
                                    /*attachment_id=*/50);
 
   scoped_refptr<const RTCStatsReport> report =
@@ -2825,9 +2776,9 @@ TEST_P(RTCStatsCollectorTest, CollectRTCOutboundRtpStreamStats_Video) {
   auto video_media_channels =
       pc_->AddVideoChannel("VideoMid", "TransportName", video_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  auto video_sender = stats_->SetupLocalTrackAndSender(
-      MediaType::VIDEO, "LocalVideoTrackID", 1, true,
-      /*attachment_id=*/50);
+  auto video_sender =
+      stats_->SetupLocalTrackAndSender(MediaType::VIDEO, "LocalVideoTrackID", 1,
+                                       /*attachment_id=*/50);
 
   // Set up the fake video channel to return the expected RtpParameters
   // containing both simulcast encodings for the primary SSRC.
@@ -3223,7 +3174,6 @@ TEST_P(RTCStatsCollectorTest, CollectNoStreamRTCOutboundRtpStreamStats_Audio) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupLocalTrackAndSender(MediaType::AUDIO, "LocalAudioTrackID", 1,
-                                   false,
                                    /*attachment_id=*/50);
 
   scoped_refptr<const RTCStatsReport> report =
@@ -3273,7 +3223,7 @@ TEST_P(RTCStatsCollectorTest, RTCAudioSourceStatsCollectedForSenderWithTrack) {
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   stats_->SetupLocalTrackAndSender(MediaType::AUDIO, "LocalAudioTrackID", kSsrc,
-                                   false, kAttachmentId);
+                                   kAttachmentId);
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -3318,7 +3268,7 @@ TEST_P(RTCStatsCollectorTest, RTCVideoSourceStatsCollectedForSenderWithTrack) {
   auto video_track = CreateFakeVideoTrackForStats(
       "LocalVideoTrackID", MediaStreamTrackInterface::kLive, video_source);
   scoped_refptr<MockRtpSenderInternal> sender =
-      CreateMockSender(MediaType::VIDEO, video_track, kSsrc, kAttachmentId, {});
+      CreateMockSender(MediaType::VIDEO, video_track, kSsrc, kAttachmentId);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -3369,8 +3319,8 @@ TEST_P(RTCStatsCollectorTest,
   video_source->SetSize(kVideoSourceWidth, kVideoSourceHeight);
   auto video_track = CreateFakeVideoTrackForStats(
       "LocalVideoTrackID", MediaStreamTrackInterface::kLive, video_source);
-  scoped_refptr<MockRtpSenderInternal> sender = CreateMockSender(
-      MediaType::VIDEO, video_track, kNoSsrc, kAttachmentId, {});
+  scoped_refptr<MockRtpSenderInternal> sender =
+      CreateMockSender(MediaType::VIDEO, video_track, kNoSsrc, kAttachmentId);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -3408,7 +3358,7 @@ TEST_P(RTCStatsCollectorTest,
       "LocalVideoTrackID", MediaStreamTrackInterface::kLive,
       /*source=*/nullptr);
   scoped_refptr<MockRtpSenderInternal> sender =
-      CreateMockSender(MediaType::VIDEO, video_track, kSsrc, kAttachmentId, {});
+      CreateMockSender(MediaType::VIDEO, video_track, kSsrc, kAttachmentId);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -3439,7 +3389,7 @@ TEST_P(RTCStatsCollectorTest,
   pc_->AddVoiceChannel("AudioMid", "TransportName", voice_media_info);
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
   scoped_refptr<MockRtpSenderInternal> sender = CreateMockSender(
-      MediaType::AUDIO, /*track=*/nullptr, kSsrc, kAttachmentId, {});
+      MediaType::AUDIO, /*track=*/nullptr, kSsrc, kAttachmentId);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -3848,7 +3798,7 @@ TEST_P(RTCStatsCollectorTest,
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
 
   scoped_refptr<MockRtpSenderInternal> sender = CreateMockSender(
-      MediaType::VIDEO, /*track=*/nullptr, kSsrc, kAttachmentId, {});
+      MediaType::VIDEO, /*track=*/nullptr, kSsrc, kAttachmentId);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -3866,16 +3816,10 @@ TEST_P(RTCStatsCollectorTest,
 // Test collecting echo return loss stats from the audio processor attached to
 // the track, rather than the voice sender info.
 TEST_P(RTCStatsCollectorTest, CollectEchoReturnLossFromTrackAudioProcessor) {
-  scoped_refptr<MediaStream> local_stream =
-      MediaStream::Create("LocalStreamId");
-  pc_->mutable_local_streams()->AddStream(local_stream);
-
   // Local audio track
   scoped_refptr<MediaStreamTrackInterface> local_audio_track = CreateFakeTrack(
       MediaType::AUDIO, "LocalAudioTrackID", MediaStreamTrackInterface::kEnded,
       /*create_fake_audio_processor=*/true);
-  local_stream->AddTrack(scoped_refptr<AudioTrackInterface>(
-      static_cast<AudioTrackInterface*>(local_audio_track.get())));
 
   VoiceSenderInfo voice_sender_info_ssrc1;
   voice_sender_info_ssrc1.local_stats.push_back(SsrcSenderInfo());
@@ -3883,7 +3827,7 @@ TEST_P(RTCStatsCollectorTest, CollectEchoReturnLossFromTrackAudioProcessor) {
 
   stats_->CreateMockRtpSendersReceiversAndChannels(
       {std::make_pair(local_audio_track.get(), voice_sender_info_ssrc1)}, {},
-      {}, {}, {local_stream->id()}, {});
+      {}, {});
 
   scoped_refptr<const RTCStatsReport> report =
       stats_->GetStatsReport(main_thread_);
@@ -4036,7 +3980,7 @@ TEST_P(RTCStatsCollectorTest, RtpIsMissingWhileSsrcIsZero) {
   scoped_refptr<MediaStreamTrackInterface> track = CreateFakeTrack(
       MediaType::AUDIO, "audioTrack", MediaStreamTrackInterface::kLive);
   scoped_refptr<MockRtpSenderInternal> sender =
-      CreateMockSender(MediaType::AUDIO, track, 0, 49, {});
+      CreateMockSender(MediaType::AUDIO, track, 0, 49);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
@@ -4058,7 +4002,7 @@ TEST_P(RTCStatsCollectorTest, DoNotCrashIfSsrcIsKnownButInfosAreStillMissing) {
   scoped_refptr<MediaStreamTrackInterface> track = CreateFakeTrack(
       MediaType::AUDIO, "audioTrack", MediaStreamTrackInterface::kLive);
   scoped_refptr<MockRtpSenderInternal> sender =
-      CreateMockSender(MediaType::AUDIO, track, 4711, 49, {});
+      CreateMockSender(MediaType::AUDIO, track, 4711, 49);
   EXPECT_CALL(*sender, DetachTrackAndGetStopTask()).WillRepeatedly([] {
     return nullptr;
   });
