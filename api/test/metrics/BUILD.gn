@@ -90,6 +90,7 @@ if (!build_with_chromium) {
     deps = [
       ":metric",
       ":metrics_exporter",
+      "../../../rtc_base:safe_conversions",
       "../../../rtc_base:stringutils",
       "../../../test:test_flags",
       "//third_party/abseil-cpp/absl/flags:flag",
@@ -201,6 +202,7 @@ if (rtc_include_tests) {
     deps = [
       ":metric",
       ":stdout_metrics_exporter",
+      "../../../test:fileutils",
       "../../../test:test_flags",
       "../../../test:test_support",
       "../../units:timestamp",
