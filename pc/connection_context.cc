@@ -36,6 +36,28 @@ namespace webrtc {
 
 namespace {
 
+// Returns the network thread that the application supplied, if any. Support for
+// a worker thread that is distinct from the network thread is being removed.
+// For compatibility with applications that supply a worker thread but no
+// network thread, the worker thread is used as the network thread if its socket
+// server can create sockets. That joins the worker and network threads.
+RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
+Thread* absl_nullable ResolveNetworkThread(
+    const PeerConnectionFactoryDependencies& dependencies) {
+  Thread* worker_thread = dependencies.worker_thread;
+  if (dependencies.network_thread != nullptr || worker_thread == nullptr ||
+      !worker_thread->socketserver()->CanCreateSockets()) {
+    return dependencies.network_thread;
+  }
+  RTC_LOG(LS_WARNING)
+      << "PeerConnectionFactoryDependencies::worker_thread is set while "
+         "network_thread is not. The worker thread will be used as the "
+         "network thread. Applications should set network_thread instead. "
+         "See PSA: https://groups.google.com/g/discuss-webrtc/c/Fs_Hd5XNJh0";
+  return worker_thread;
+}
+RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
+
 Thread* MaybeStartNetworkThread(
     Thread* old_thread,
     std::unique_ptr<SocketFactory>& socket_factory_holder,
@@ -117,9 +139,10 @@ ConnectionContext::ConnectionContext(
     const Environment& env,
     PeerConnectionFactoryDependencies* absl_nonnull dependencies)
     : is_configured_for_media_(dependencies->media_factory != nullptr),
-      network_thread_(MaybeStartNetworkThread(dependencies->network_thread,
-                                              owned_socket_factory_,
-                                              owned_network_thread_)),
+      network_thread_(
+          MaybeStartNetworkThread(ResolveNetworkThread(*dependencies),
+                                  owned_socket_factory_,
+                                  owned_network_thread_)),
       worker_thread_(ResolveWorkerThread(*dependencies, network_thread_)),
       signaling_thread_(MaybeWrapThread(dependencies->signaling_thread,
                                         wraps_current_thread_)),
