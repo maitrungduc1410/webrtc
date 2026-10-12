@@ -25,9 +25,9 @@
       # Android
       'Android32 Builder arm': 'android_pure_release_bot_arm',
       'Android32 Builder x86': 'android_release_bot_x86',
-      'Android32 Builder x86 (dbg)': 'android_debug_static_bot_x86',
+      'Android32 Builder x86 (dbg)': 'android_debug_bot_x86',
       'Android64': 'android_release_bot_arm64',
-      'Android64 (dbg)': 'android_debug_static_bot_arm64',
+      'Android64 (dbg)': 'android_debug_bot_arm64',
       'Android64 (more configs)': {
         'dummy_audio_file_devices_no_protobuf':
         'dummy_audio_file_devices_no_protobuf_android_arm64',
@@ -35,7 +35,7 @@
         'cxx23': 'use_cxx23_android_arm64',
       },
       'Android64 Builder arm64': 'android_pure_release_bot_arm64',
-      'Android64 Builder x64 (dbg)': 'android_debug_static_bot_x64',
+      'Android64 Builder x64 (dbg)': 'android_debug_bot_x64',
 
       # Fuchsia
       'Fuchsia Builder': 'release_bot_x64_fuchsia',
@@ -113,7 +113,7 @@
     },
     'tryserver.webrtc': {
       # Android
-      'android_arm_dbg': 'android_debug_static_bot_arm64',
+      'android_arm_dbg': 'android_debug_bot_arm64',
       'android_arm_more_configs': {
         'dummy_audio_file_devices_no_protobuf':
         'dummy_audio_file_devices_no_protobuf_android_arm64',
@@ -123,11 +123,11 @@
         'cxx23': 'use_cxx23_android_arm64',
       },
       'android_arm_rel': 'android_release_bot_arm64',
-      'android_compile_arm_dbg': 'android_debug_static_bot_arm64',
+      'android_compile_arm_dbg': 'android_debug_bot_arm64',
       'android_compile_arm_rel': 'android_pure_release_bot_arm64',
-      'android_compile_x64_dbg': 'android_debug_static_bot_x64',
+      'android_compile_x64_dbg': 'android_debug_bot_x64',
       'android_compile_x64_rel': 'android_release_bot_x64',
-      'android_compile_x86_dbg': 'android_debug_static_bot_x86',
+      'android_compile_x86_dbg': 'android_debug_bot_x86',
       'android_compile_x86_rel': 'android_release_bot_x86',
 
       # Fuchsia
@@ -211,21 +211,21 @@
   # A given config *may* be platform-specific but is not necessarily so (i.e.,
   # we might have mac, win, and linux bots all using the 'release_bot' config).
   'configs': {
-    'android_debug_static_bot_arm64': [
+    'android_debug_bot_arm64': [
       'android',
-      'debug_static_bot',
+      'debug_bot',
       'arm64',
       'h265',
     ],
-    'android_debug_static_bot_x64': [
+    'android_debug_bot_x64': [
       'android',
-      'debug_static_bot',
+      'debug_bot',
       'x64',
       'h265',
     ],
-    'android_debug_static_bot_x86': [
+    'android_debug_bot_x86': [
       'android',
-      'debug_static_bot',
+      'debug_bot',
       'x86',
       'h265',
     ],
@@ -290,7 +290,7 @@
     'dummy_audio_file_devices_no_protobuf_android_arm64': [
       'android',
       'arm64',
-      'debug_static_bot',
+      'debug_bot',
       'dummy_audio_file_devices',
       'no_protobuf',
     ],
@@ -363,7 +363,7 @@
     'rtti_no_sctp_android_arm64': [
       'android',
       'arm64',
-      'debug_static_bot',
+      'debug_bot',
       'no_sctp',
       'rtti',
     ],
@@ -477,14 +477,6 @@
       'gn_args': 'is_debug=true',
     },
     'debug_bot': {
-      'mixins': [
-        'debug',
-        'minimal_symbols',
-        'remoteexec',
-        'strict_field_trials',
-      ],
-    },
-    'debug_static_bot': {
       'mixins': [
         'debug',
         'minimal_symbols',
