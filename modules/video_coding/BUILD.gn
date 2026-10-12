@@ -1063,6 +1063,7 @@ if (rtc_include_tests) {
     if (enable_libaom) {
       tests += [
         "codecs/av1:libaom_av1_encoder_unittest",
+        "codecs/av1:libaom_av1_encoder_v2_unittest",
         "codecs/av1:libaom_av1_unittest",
         "codecs/av1:libaom_speed_config_factory_unittest",
       ]

@@ -988,6 +988,21 @@ void LibaomAv1EncoderV2::Encode(
     aom_svc_ref_frame_config_t ref_config =
         GetSvcRefFrameConfig(settings, reference_buffer_tracker_);
     SET_OR_RETURN(AV1E_SET_SVC_REF_FRAME_CONFIG, &ref_config);
+    // Enable compound prediction for frames with two or three references
+    // (`GOLDEN_LAST` at index 0 and `ALTREF_LAST` at index 2). Keep
+    // `use_comp_pred` zeroed on single-reference frames: libaom sets
+    // `use_comp_ref_nonrd` whenever any `use_comp_pred` entry is non-zero even
+    // when no secondary reference is active, altering mode and filter search
+    // on single-reference frames.
+    // TODO: bugs.webrtc.org/496266459 - Fix libaom to only enable
+    // `use_comp_ref_nonrd` when at least one compound reference pair is active
+    // on the frame, then move this control call to encoder initialization.
+    aom_svc_ref_frame_comp_pred_t comp_pred = {};
+    if (settings.reference_buffers().size() >= 2) {
+      comp_pred.use_comp_pred[0] = 1;
+      comp_pred.use_comp_pred[2] = 1;
+    }
+    SET_OR_RETURN(AV1E_SET_SVC_REF_FRAME_COMP_PRED, &comp_pred);
 
     if (layer_enabled && settings.effort_level() != effort_level_) {
       // For RTC we use speed level 5 to 11, with 9 being the default. Note
