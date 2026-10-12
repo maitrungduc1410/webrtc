@@ -628,7 +628,7 @@ aom_svc_params_t LibaomAv1EncoderV2::GetSvcParams(
               max_quantizers_view[id] = quantizer;
               min_quantizers_view[id] = quantizer;
             }
-            RTC_LOG(LS_WARNING)
+            RTC_LOG(LS_VERBOSE)
                 << __FUNCTION__ << " svc_params.qp[" << first_layer_id
                 << "]=" << arg.target_qp << " (quantizer=" << quantizer << ")";
           }
