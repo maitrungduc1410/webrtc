@@ -856,104 +856,6 @@ TEST_F(LegacyStatsCollectorTest, UnsupportedDigestIgnored) {
                          remote_identity, std::vector<std::string>());
 }
 
-// This test verifies that the audio/video related stats which are -1 initially
-// will be filtered out.
-TEST_P(StatsCollectorTrackTest, FilterOutNegativeInitialValues) {
-  // This test uses streams, but only works for the stream case.
-  if (!GetParam()) {
-    return;
-  }
-
-  auto pc = CreatePeerConnection();
-  auto stats = CreateStatsCollector(pc.get());
-
-  // Create a local stream with a local audio track and adds it to the stats.
-  stream_ = MediaStream::Create("streamid");
-  auto local_track = CreateFakeAudioTrack(kLocalTrackId, false);
-  stream_->AddTrack(scoped_refptr<AudioTrackInterface>(local_track.get()));
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  pc->AddSender(CreateMockSender(local_track, kSsrcOfTrack));
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  if (GetParam()) {
-    stats->AddStream(stream_.get());
-  }
-  stats->AddLocalAudioTrack(local_track.get(), kSsrcOfTrack);
-
-  // Create a remote stream with a remote audio track and adds it to the stats.
-  scoped_refptr<MediaStream> remote_stream(
-      MediaStream::Create("remotestreamid"));
-  scoped_refptr<AudioTrackInterface> remote_track =
-      CreateFakeAudioTrack(kRemoteTrackId, false);
-  remote_stream->AddTrack(remote_track);
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  pc->AddReceiver(CreateMockReceiver(remote_track, kSsrcOfTrack));
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  if (GetParam()) {
-    stats->AddStream(remote_stream.get());
-  }
-
-  VoiceSenderInfo voice_sender_info;
-  voice_sender_info.add_ssrc(kSsrcOfTrack);
-  // These values are set to -1 initially in audio_send_stream.
-  // The voice_sender_info will read the values from audio_send_stream.
-  voice_sender_info.rtt_ms = -1;
-  voice_sender_info.packets_lost = -1;
-  voice_sender_info.jitter_ms = -1;
-
-  // Some of the contents in `voice_sender_info` needs to be updated from the
-  // `audio_track_`.
-  UpdateVoiceSenderInfoFromAudioTrack(local_track.get(), &voice_sender_info,
-                                      true);
-
-  VoiceReceiverInfo voice_receiver_info;
-  voice_receiver_info.add_ssrc(kSsrcOfTrack);
-  voice_receiver_info.capture_start_ntp_time_ms = -1;
-  voice_receiver_info.audio_level = -1;
-
-  // Constructs an ssrc stats update.
-  VoiceMediaInfo voice_info;
-  voice_info.senders.push_back(voice_sender_info);
-  voice_info.receivers.push_back(voice_receiver_info);
-
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  auto voice_media_channels = pc->AddVoiceChannel("voice", "transport");
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-  voice_media_channels.first->SetStats(voice_info);
-  voice_media_channels.second->SetStats(voice_info);
-
-  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
-
-  // Get stats for the local track.
-  StatsReports reports;
-  stats->GetStats(local_track.get(), &reports);
-  const StatsReport* report =
-      FindNthReportByType(reports, StatsReport::kStatsReportTypeSsrc, 1);
-  ASSERT_TRUE(report);
-  // The -1 will not be added to the stats report.
-  std::string value_in_report;
-  EXPECT_FALSE(
-      GetValue(report, StatsReport::kStatsValueNameRtt, &value_in_report));
-  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNamePacketsLost,
-                        &value_in_report));
-  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameJitterReceived,
-                        &value_in_report));
-  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameEchoDelayMedian,
-                        &value_in_report));
-  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameEchoDelayStdDev,
-                        &value_in_report));
-
-  // Get stats for the remote track.
-  reports.clear();
-  stats->GetStats(remote_track.get(), &reports);
-  report = FindNthReportByType(reports, StatsReport::kStatsReportTypeSsrc, 1);
-  ASSERT_TRUE(report);
-  EXPECT_FALSE(GetValue(report,
-                        StatsReport::kStatsValueNameCaptureStartNtpTimeMs,
-                        &value_in_report));
-  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameAudioInputLevel,
-                        &value_in_report));
-}
-
 // This test verifies that a local stats object can get statistics via
 // AudioTrackInterface::GetStats() method.
 TEST_P(StatsCollectorTrackTest, GetStatsFromLocalAudioTrack) {
@@ -1125,6 +1027,162 @@ TEST_P(StatsCollectorTrackTest, LocalAndRemoteTracksWithSameSsrc) {
   VerifyVoiceReceiverInfoReport(track_report, voice_receiver_info);
 }
 
+// This test verifies that stats are correctly set in video send ssrc stats.
+TEST_P(StatsCollectorTrackTest, VerifyVideoSendSsrcStats) {
+  auto pc = CreatePeerConnection();
+  auto stats = CreateStatsCollector(pc.get());
+
+  AddOutgoingVideoTrack(pc.get(), stats.get());
+
+  VideoSenderInfo video_sender_info;
+  video_sender_info.add_ssrc(1234);
+  video_sender_info.frames_encoded = 10;
+  video_sender_info.qp_sum = 11;
+  VideoMediaInfo video_info;
+  video_info.aggregated_senders.push_back(video_sender_info);
+
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  pc->AddVideoChannel("video", "transport", video_info);
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+
+  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
+  StatsReports reports;
+  stats->GetStats(nullptr, &reports);
+
+  EXPECT_EQ(absl::StrCat(video_sender_info.frames_encoded),
+            ExtractSsrcStatsValue(reports,
+                                  StatsReport::kStatsValueNameFramesEncoded));
+  EXPECT_EQ(absl::StrCat(*video_sender_info.qp_sum),
+            ExtractSsrcStatsValue(reports, StatsReport::kStatsValueNameQpSum));
+}
+
+// This test verifies that stats are correctly set in video receive ssrc stats.
+TEST_P(StatsCollectorTrackTest, VerifyVideoReceiveSsrcStatsNew) {
+  auto pc = CreatePeerConnection();
+  auto stats = CreateStatsCollector(pc.get());
+
+  AddIncomingVideoTrack(pc.get(), stats.get());
+
+  VideoReceiverInfo video_receiver_info;
+  video_receiver_info.add_ssrc(1234);
+  video_receiver_info.frames_decoded = 10;
+  video_receiver_info.qp_sum = 11;
+  VideoMediaInfo video_info;
+  video_info.receivers.push_back(video_receiver_info);
+
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  pc->AddVideoChannel("video", "transport", video_info);
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+
+  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
+  StatsReports reports;
+  stats->GetStats(nullptr, &reports);
+
+  EXPECT_EQ(absl::StrCat(video_receiver_info.frames_decoded),
+            ExtractSsrcStatsValue(reports,
+                                  StatsReport::kStatsValueNameFramesDecoded));
+  EXPECT_EQ(absl::StrCat(*video_receiver_info.qp_sum),
+            ExtractSsrcStatsValue(reports, StatsReport::kStatsValueNameQpSum));
+}
+
+// This test verifies that the audio/video related stats which are -1 initially
+// will be filtered out.
+TEST_P(StatsCollectorTrackTest, FilterOutNegativeInitialValues) {
+  // This test uses streams, but only works for the stream case.
+  if (!GetParam()) {
+    return;
+  }
+
+  auto pc = CreatePeerConnection();
+  auto stats = CreateStatsCollector(pc.get());
+
+  // Create a local stream with a local audio track and adds it to the stats.
+  stream_ = MediaStream::Create("streamid");
+  auto local_track = CreateFakeAudioTrack(kLocalTrackId, false);
+  stream_->AddTrack(scoped_refptr<AudioTrackInterface>(local_track.get()));
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  pc->AddSender(CreateMockSender(local_track, kSsrcOfTrack));
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  if (GetParam()) {
+    stats->AddStream(stream_.get());
+  }
+  stats->AddLocalAudioTrack(local_track.get(), kSsrcOfTrack);
+
+  // Create a remote stream with a remote audio track and adds it to the stats.
+  scoped_refptr<MediaStream> remote_stream(
+      MediaStream::Create("remotestreamid"));
+  scoped_refptr<AudioTrackInterface> remote_track =
+      CreateFakeAudioTrack(kRemoteTrackId, false);
+  remote_stream->AddTrack(remote_track);
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  pc->AddReceiver(CreateMockReceiver(remote_track, kSsrcOfTrack));
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  if (GetParam()) {
+    stats->AddStream(remote_stream.get());
+  }
+
+  VoiceSenderInfo voice_sender_info;
+  voice_sender_info.add_ssrc(kSsrcOfTrack);
+  // These values are set to -1 initially in audio_send_stream.
+  // The voice_sender_info will read the values from audio_send_stream.
+  voice_sender_info.rtt_ms = -1;
+  voice_sender_info.packets_lost = -1;
+  voice_sender_info.jitter_ms = -1;
+
+  // Some of the contents in `voice_sender_info` needs to be updated from the
+  // `audio_track_`.
+  UpdateVoiceSenderInfoFromAudioTrack(local_track.get(), &voice_sender_info,
+                                      true);
+
+  VoiceReceiverInfo voice_receiver_info;
+  voice_receiver_info.add_ssrc(kSsrcOfTrack);
+  voice_receiver_info.capture_start_ntp_time_ms = -1;
+  voice_receiver_info.audio_level = -1;
+
+  // Constructs an ssrc stats update.
+  VoiceMediaInfo voice_info;
+  voice_info.senders.push_back(voice_sender_info);
+  voice_info.receivers.push_back(voice_receiver_info);
+
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  auto voice_media_channels = pc->AddVoiceChannel("voice", "transport");
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  voice_media_channels.first->SetStats(voice_info);
+  voice_media_channels.second->SetStats(voice_info);
+
+  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
+
+  // Get stats for the local track.
+  StatsReports reports;
+  stats->GetStats(local_track.get(), &reports);
+  const StatsReport* report =
+      FindNthReportByType(reports, StatsReport::kStatsReportTypeSsrc, 1);
+  ASSERT_TRUE(report);
+  // The -1 will not be added to the stats report.
+  std::string value_in_report;
+  EXPECT_FALSE(
+      GetValue(report, StatsReport::kStatsValueNameRtt, &value_in_report));
+  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNamePacketsLost,
+                        &value_in_report));
+  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameJitterReceived,
+                        &value_in_report));
+  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameEchoDelayMedian,
+                        &value_in_report));
+  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameEchoDelayStdDev,
+                        &value_in_report));
+
+  // Get stats for the remote track.
+  reports.clear();
+  stats->GetStats(remote_track.get(), &reports);
+  report = FindNthReportByType(reports, StatsReport::kStatsReportTypeSsrc, 1);
+  ASSERT_TRUE(report);
+  EXPECT_FALSE(GetValue(report,
+                        StatsReport::kStatsValueNameCaptureStartNtpTimeMs,
+                        &value_in_report));
+  EXPECT_FALSE(GetValue(report, StatsReport::kStatsValueNameAudioInputLevel,
+                        &value_in_report));
+}
+
 // This test verifies that when two outgoing audio tracks are using the same
 // ssrc at different times, they populate stats reports correctly.
 // TODO(xians): Figure out if it is possible to encapsulate the setup and
@@ -1258,64 +1316,6 @@ TEST_P(StatsCollectorTrackTest, TwoLocalSendersWithSameTrack) {
   EXPECT_EQ(kLocalTrackId, GetValueInNthReportByType(
                                reports, StatsReport::kStatsReportTypeTrack,
                                StatsReport::kStatsValueNameTrackId, 1));
-}
-
-// This test verifies that stats are correctly set in video send ssrc stats.
-TEST_P(StatsCollectorTrackTest, VerifyVideoSendSsrcStats) {
-  auto pc = CreatePeerConnection();
-  auto stats = CreateStatsCollector(pc.get());
-
-  AddOutgoingVideoTrack(pc.get(), stats.get());
-
-  VideoSenderInfo video_sender_info;
-  video_sender_info.add_ssrc(1234);
-  video_sender_info.frames_encoded = 10;
-  video_sender_info.qp_sum = 11;
-  VideoMediaInfo video_info;
-  video_info.aggregated_senders.push_back(video_sender_info);
-
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  pc->AddVideoChannel("video", "transport", video_info);
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-
-  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
-  StatsReports reports;
-  stats->GetStats(nullptr, &reports);
-
-  EXPECT_EQ(absl::StrCat(video_sender_info.frames_encoded),
-            ExtractSsrcStatsValue(reports,
-                                  StatsReport::kStatsValueNameFramesEncoded));
-  EXPECT_EQ(absl::StrCat(*video_sender_info.qp_sum),
-            ExtractSsrcStatsValue(reports, StatsReport::kStatsValueNameQpSum));
-}
-
-// This test verifies that stats are correctly set in video receive ssrc stats.
-TEST_P(StatsCollectorTrackTest, VerifyVideoReceiveSsrcStatsNew) {
-  auto pc = CreatePeerConnection();
-  auto stats = CreateStatsCollector(pc.get());
-
-  AddIncomingVideoTrack(pc.get(), stats.get());
-
-  VideoReceiverInfo video_receiver_info;
-  video_receiver_info.add_ssrc(1234);
-  video_receiver_info.frames_decoded = 10;
-  video_receiver_info.qp_sum = 11;
-  VideoMediaInfo video_info;
-  video_info.receivers.push_back(video_receiver_info);
-
-  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-  pc->AddVideoChannel("video", "transport", video_info);
-  RTC_ALLOW_PLAN_B_DEPRECATION_END();
-
-  stats->UpdateStats(PeerConnectionInterface::kStatsOutputLevelStandard);
-  StatsReports reports;
-  stats->GetStats(nullptr, &reports);
-
-  EXPECT_EQ(absl::StrCat(video_receiver_info.frames_decoded),
-            ExtractSsrcStatsValue(reports,
-                                  StatsReport::kStatsValueNameFramesDecoded));
-  EXPECT_EQ(absl::StrCat(*video_receiver_info.qp_sum),
-            ExtractSsrcStatsValue(reports, StatsReport::kStatsValueNameQpSum));
 }
 
 INSTANTIATE_TEST_SUITE_P(HasStream, StatsCollectorTrackTest, ::testing::Bool());
