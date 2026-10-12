@@ -60,7 +60,9 @@ constexpr size_t kMaxPaddingLength = 255;
 //   `FecOrPaddingPacketMaxRtpHeaderLength()` and `EnqueuePackets()`. Note that
 //   these threads do not necessarily form a single sequence.
 // State that is accessed from both kinds of threads is guarded by
-// `send_mutex_`.
+// `send_mutex_`. State that is set at construction and doesn't change
+// afterwards, such as the timestamp offset, the MID and the RTX
+// configuration, is const and can be read from any thread.
 class RTPSender {
  public:
   RTPSender(const Environment& env,
@@ -77,12 +79,7 @@ class RTPSender {
   bool SendingMedia() const RTC_LOCKS_EXCLUDED(send_mutex_);
   bool IsAudioConfigured() const { return audio_configured_; }
 
-  uint32_t TimestampOffset() const RTC_LOCKS_EXCLUDED(send_mutex_);
-  [[deprecated("Set RtpRtcpInterface::Configuration::rtp_state instead.")]]
-  void SetTimestampOffset(uint32_t timestamp) RTC_LOCKS_EXCLUDED(send_mutex_);
-
-  [[deprecated("Set RtpRtcpInterface::Configuration::mid instead.")]]
-  void SetMid(absl::string_view mid) RTC_LOCKS_EXCLUDED(send_mutex_);
+  uint32_t TimestampOffset() const { return timestamp_offset_; }
 
   void SetMaxRtpPacketSize(size_t max_packet_size)
       RTC_LOCKS_EXCLUDED(send_mutex_);
@@ -118,18 +115,11 @@ class RTPSender {
       RTC_LOCKS_EXCLUDED(send_mutex_);
 
   // RTX.
-  [[deprecated("Set RtpRtcpInterface::Configuration::rtx_mode instead.")]]
-  void SetRtxStatus(int mode) RTC_LOCKS_EXCLUDED(send_mutex_);
-  int RtxStatus() const RTC_LOCKS_EXCLUDED(send_mutex_);
+  int RtxStatus() const { return rtx_; }
   std::optional<uint32_t> RtxSsrc() const { return rtx_ssrc_; }
   // Returns expected size difference between an RTX packet and media packet
   // that RTX packet is created from. Returns 0 if RTX is disabled.
   size_t RtxPacketOverhead() const RTC_LOCKS_EXCLUDED(send_mutex_);
-
-  [[deprecated(
-      "Set RtpRtcpInterface::Configuration::rtx_payload_types instead.")]]
-  void SetRtxPayloadType(int payload_type, int associated_payload_type)
-      RTC_LOCKS_EXCLUDED(send_mutex_);
 
   // Size info for header extensions used by FEC packets.
   static std::span<const RtpExtensionSize> FecExtensionSizes();
@@ -164,8 +154,6 @@ class RTPSender {
   void EnqueuePackets(std::vector<std::unique_ptr<RtpPacketToSend>> packets)
       RTC_LOCKS_EXCLUDED(send_mutex_);
 
-  [[deprecated("Set RtpRtcpInterface::Configuration::rtp_state instead.")]]
-  void SetRtpState(const RtpState& rtp_state) RTC_LOCKS_EXCLUDED(send_mutex_);
   RtpState GetRtpState() const RTC_LOCKS_EXCLUDED(send_mutex_);
   RtpState GetRtxRtpState() const RTC_LOCKS_EXCLUDED(send_mutex_);
 
@@ -225,11 +213,11 @@ class RTPSender {
   size_t max_padding_fec_packet_header_ RTC_GUARDED_BY(send_mutex_);
 
   // RTP variables
-  uint32_t timestamp_offset_ RTC_GUARDED_BY(send_mutex_);
+  const uint32_t timestamp_offset_;
   // RID value to send in the RID or RepairedRID header extension.
   const std::string rid_;
   // MID value to send in the MID header extension.
-  std::string mid_ RTC_GUARDED_BY(send_mutex_);
+  const std::string mid_;
   // Should we send MID/RID even when ACKed? (see below).
   const bool always_send_mid_and_rid_;
   // Track if any ACK has been received on the SSRC and RTX SSRC to indicate
@@ -239,10 +227,10 @@ class RTPSender {
   // Maximum number of csrcs this sender is used with.
   size_t max_num_csrcs_ RTC_GUARDED_BY(send_mutex_) = 0;
   // Mapping rtx_payload_type_map_[associated] = rtx.
-  flat_map<int8_t, int8_t> rtx_payload_type_map_ RTC_GUARDED_BY(send_mutex_);
+  const flat_map<int8_t, int8_t> rtx_payload_type_map_;
   // Declared after `rtx_payload_type_map_`, since its initial value depends on
   // the mapping.
-  int rtx_ RTC_GUARDED_BY(send_mutex_);
+  const int rtx_;
   bool supports_bwe_extension_ RTC_GUARDED_BY(worker_checker_);
 
   RateLimiter* const retransmission_rate_limiter_;

@@ -210,18 +210,18 @@ flat_map<int8_t, int8_t> CreateRtxPayloadTypeMap(
   return rtx_payload_type_map;
 }
 
-// Returns whether RTX can be used with `mode`, `rtx_ssrc` and
-// `rtx_payload_type_map`. Logs an error if not.
-bool IsValidRtxMode(int mode,
-                    std::optional<uint32_t> rtx_ssrc,
-                    const flat_map<int8_t, int8_t>& rtx_payload_type_map) {
+// Returns `mode` if RTX can be used with `mode`, `rtx_ssrc` and
+// `rtx_payload_type_map`. Otherwise logs an error and returns `kRtxOff`.
+int ValidatedRtxMode(int mode,
+                     std::optional<uint32_t> rtx_ssrc,
+                     const flat_map<int8_t, int8_t>& rtx_payload_type_map) {
   if (mode != kRtxOff &&
       (!rtx_ssrc.has_value() || rtx_payload_type_map.empty())) {
     RTC_LOG(LS_ERROR)
         << "Failed to enable RTX without RTX SSRC or payload types.";
-    return false;
+    return kRtxOff;
   }
-  return true;
+  return mode;
 }
 
 }  // namespace
@@ -256,9 +256,7 @@ RTPSender::RTPSender(const Environment& env,
       rtx_ssrc_has_acked_(config.rtx_rtp_state.has_value() &&
                           config.rtx_rtp_state->ssrc_has_acked),
       rtx_payload_type_map_(CreateRtxPayloadTypeMap(config.rtx_payload_types)),
-      rtx_(IsValidRtxMode(config.rtx_mode, rtx_ssrc_, rtx_payload_type_map_)
-               ? config.rtx_mode
-               : kRtxOff),
+      rtx_(ValidatedRtxMode(config.rtx_mode, rtx_ssrc_, rtx_payload_type_map_)),
       supports_bwe_extension_(false),
       retransmission_rate_limiter_(config.retransmission_rate_limiter) {
   RTC_DCHECK(paced_sender_);
@@ -316,26 +314,6 @@ void RTPSender::SetMaxRtpPacketSize(size_t max_packet_size) {
 size_t RTPSender::MaxRtpPacketSize() const {
   MutexLock lock(&send_mutex_);
   return max_packet_size_;
-}
-
-void RTPSender::SetRtxStatus(int mode) {
-  MutexLock lock(&send_mutex_);
-  if (!IsValidRtxMode(mode, rtx_ssrc_, rtx_payload_type_map_)) {
-    return;
-  }
-  rtx_ = mode;
-}
-
-int RTPSender::RtxStatus() const {
-  MutexLock lock(&send_mutex_);
-  return rtx_;
-}
-
-void RTPSender::SetRtxPayloadType(int payload_type,
-                                  int associated_payload_type) {
-  MutexLock lock(&send_mutex_);
-  AddRtxPayloadType(payload_type, associated_payload_type,
-                    rtx_payload_type_map_);
 }
 
 int32_t RTPSender::ReSendPacket(uint16_t packet_id) {
@@ -429,9 +407,9 @@ bool RTPSender::SupportsPadding() const {
 
 bool RTPSender::SupportsRtxPayloadPadding() const {
   RTC_DCHECK_RUN_ON(&worker_checker_);
-  MutexLock lock(&send_mutex_);
-  return sending_media_ && supports_bwe_extension_ &&
-         (rtx_ & kRtxRedundantPayloads);
+  // Only `sending_media_` requires `send_mutex_`, so check it last.
+  return supports_bwe_extension_ && (rtx_ & kRtxRedundantPayloads) &&
+         SendingMedia();
 }
 
 std::vector<std::unique_ptr<RtpPacketToSend>> RTPSender::GeneratePadding(
@@ -627,24 +605,6 @@ bool RTPSender::SendingMedia() const {
   return sending_media_;
 }
 
-void RTPSender::SetTimestampOffset(uint32_t timestamp) {
-  MutexLock lock(&send_mutex_);
-  timestamp_offset_ = timestamp;
-}
-
-uint32_t RTPSender::TimestampOffset() const {
-  MutexLock lock(&send_mutex_);
-  return timestamp_offset_;
-}
-
-void RTPSender::SetMid(absl::string_view mid) {
-  // This is configured via the API.
-  MutexLock lock(&send_mutex_);
-  RTC_DCHECK_LE(mid.length(), RtpMid::kMaxValueSizeBytes);
-  mid_ = std::string(mid);
-  UpdateHeaderSizes();
-}
-
 static void CopyHeaderAndExtensionsToRtxPacket(const RtpPacketToSend& packet,
                                                RtpPacketToSend* rtx_packet) {
   // Set the relevant fixed packet headers. The following are not set:
@@ -694,6 +654,12 @@ static void CopyHeaderAndExtensionsToRtxPacket(const RtpPacketToSend& packet,
 
 std::unique_ptr<RtpPacketToSend> RTPSender::BuildRtxPacket(
     const RtpPacketToSend& packet) {
+  // `rtx_payload_type_map_` is const, so the RTX payload type is looked up
+  // without holding `send_mutex_`.
+  auto kv = rtx_payload_type_map_.find(packet.PayloadType());
+  if (kv == rtx_payload_type_map_.end())
+    return nullptr;
+
   std::unique_ptr<RtpPacketToSend> rtx_packet;
 
   // Add original RTP header.
@@ -704,14 +670,10 @@ std::unique_ptr<RtpPacketToSend> RTPSender::BuildRtxPacket(
 
     RTC_DCHECK(rtx_ssrc_);
 
-    // Replace payload type.
-    auto kv = rtx_payload_type_map_.find(packet.PayloadType());
-    if (kv == rtx_payload_type_map_.end())
-      return nullptr;
-
     rtx_packet = std::make_unique<RtpPacketToSend>(&rtp_header_extension_map_,
                                                    max_packet_size_);
 
+    // Replace payload type.
     rtx_packet->SetPayloadType(kv->second);
 
     // Replace SSRC.
@@ -750,14 +712,6 @@ std::unique_ptr<RtpPacketToSend> RTPSender::BuildRtxPacket(
   rtx_packet->set_capture_time(packet.capture_time());
 
   return rtx_packet;
-}
-
-void RTPSender::SetRtpState(const RtpState& rtp_state) {
-  MutexLock lock(&send_mutex_);
-
-  timestamp_offset_ = rtp_state.start_timestamp;
-  ssrc_has_acked_ = rtp_state.ssrc_has_acked;
-  UpdateHeaderSizes();
 }
 
 RtpState RTPSender::GetRtpState() const {
