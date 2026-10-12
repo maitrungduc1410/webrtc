@@ -234,14 +234,6 @@ uint32_t ModuleRtpRtcpImpl2::local_media_ssrc() const {
   return rtcp_receiver_.local_media_ssrc();
 }
 
-void ModuleRtpRtcpImpl2::SetMid(absl::string_view mid) {
-  if (rtp_sender_) {
-    rtp_sender_->packet_generator.SetMid(mid);
-  }
-  // TODO(bugs.webrtc.org/4050): If we end up supporting the MID SDES item for
-  // RTCP, this will need to be passed down to the RTCPSender also.
-}
-
 // TODO(pbos): Handle media and RTX streams separately (separate RTCP
 // feedbacks).
 RTCPSender::FeedbackState ModuleRtpRtcpImpl2::GetFeedbackState() {

@@ -249,6 +249,7 @@ RTPSender::RTPSender(const Environment& env,
               ? config.rtp_state->start_timestamp
               : Random(clock_->TimeInMicroseconds()).Rand<uint32_t>()),
       rid_(config.rid),
+      mid_(config.mid),
       always_send_mid_and_rid_(config.always_send_mid_and_rid),
       ssrc_has_acked_(config.rtp_state.has_value() &&
                       config.rtp_state->ssrc_has_acked),
@@ -263,6 +264,7 @@ RTPSender::RTPSender(const Environment& env,
   RTC_DCHECK(paced_sender_);
   RTC_DCHECK(packet_history_);
   RTC_DCHECK_LE(rid_.size(), RtpStreamId::kMaxValueSizeBytes);
+  RTC_DCHECK_LE(mid_.size(), RtpMid::kMaxValueSizeBytes);
 
   UpdateHeaderSizes();
 }

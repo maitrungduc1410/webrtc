@@ -141,6 +141,7 @@ AudioSendStream::AudioSendStream(
                                              config.rtcp_report_interval_ms,
                                              config.rtp.ssrc,
                                              suspended_rtp_state,
+                                             config.rtp.mid,
                                              config.frame_transformer,
                                              rtp_transport)) {}
 
@@ -241,6 +242,7 @@ void AudioSendStream::ConfigureStream(
   RTC_DCHECK(first_time ||
              old_config.send_transport == new_config.send_transport);
   RTC_DCHECK(first_time || old_config.rtp.ssrc == new_config.rtp.ssrc);
+  RTC_DCHECK(first_time || old_config.rtp.mid == new_config.rtp.mid);
   if (first_time || old_config.rtp.c_name != new_config.rtp.c_name) {
     channel_send_->SetRTCP_CNAME(new_config.rtp.c_name);
   }
@@ -308,11 +310,9 @@ void AudioSendStream::ConfigureStream(
     channel_send_->RegisterSenderCongestionControlObjects(rtp_transport_);
   }
   // MID RTP header extension.
-  if ((first_time || new_ids.mid != old_ids.mid ||
-       new_config.rtp.mid != old_config.rtp.mid) &&
-      new_ids.mid.IsSet() && !new_config.rtp.mid.empty()) {
+  if ((first_time || new_ids.mid != old_ids.mid) && new_ids.mid.IsSet() &&
+      !new_config.rtp.mid.empty()) {
     rtp_rtcp_module_->RegisterRtpHeaderExtension(RtpMid::Uri(), new_ids.mid);
-    rtp_rtcp_module_->SetMid(new_config.rtp.mid);
   }
 
   if (first_time || new_ids.abs_capture_time != old_ids.abs_capture_time) {

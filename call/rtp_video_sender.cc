@@ -267,9 +267,6 @@ void ConfigureRtpModule(const RtpConfig& rtp_config,
     rtp_rtcp.RegisterRtpHeaderExtension(extension.uri, extension.id);
   }
 
-  if (!rtp_config.mid.empty())
-    rtp_rtcp.SetMid(rtp_config.mid);
-
   // Simulcast has one module for each layer. Set the CNAME on all modules.
   rtp_rtcp.SetCNAME(rtp_config.c_name.c_str());
   rtp_rtcp.SetMaxRtpPacketSize(rtp_config.max_packet_size);
@@ -314,6 +311,7 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
   configuration.require_frame_encryption =
       crypto_options.sframe.require_frame_encryption;
   configuration.extmap_allow_mixed = rtp_config.extmap_allow_mixed;
+  configuration.mid = rtp_config.mid;
   configuration.rtcp_report_interval_ms = rtcp_report_interval_ms;
   configuration.enable_send_packet_batching =
       rtp_config.enable_send_packet_batching;

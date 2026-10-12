@@ -934,15 +934,6 @@ class WebRtcVoiceSendChannel::WebRtcAudioSendStream : public AudioSource::Sink {
     ReconfigureAudioSendStream(nullptr);
   }
 
-  void SetMid(const std::string& mid) {
-    RTC_DCHECK_RUN_ON(&worker_thread_checker_);
-    if (config_.rtp.mid == mid) {
-      return;
-    }
-    config_.rtp.mid = mid;
-    ReconfigureAudioSendStream(nullptr);
-  }
-
   void SetRtcpMode(RtcpMode mode) {
     bool reduced_size = mode == RtcpMode::kReducedSize;
     if (rtp_parameters_.rtcp.reduced_size == reduced_size) {
@@ -1455,10 +1446,10 @@ void WebRtcVoiceSendChannel::SetMid(absl::string_view mid) {
   if (mid_ == mid) {
     return;
   }
+  // Send streams pass the MID to their RTP module at creation, after which it
+  // can't change.
+  RTC_DCHECK(send_streams_.empty());
   mid_ = std::string(mid);
-  for (auto& it : send_streams_) {
-    it.second->SetMid(mid_);
-  }
 }
 
 std::optional<Codec> WebRtcVoiceSendChannel::GetSendCodec() const {

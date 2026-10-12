@@ -621,6 +621,7 @@ TEST_F(RtpSenderVideoTest,
                  .rtx_mode = kRtxRetransmitted,
                  .rtx_payload_types = {{kMediaPayloadId, kRtxPayloadId}},
                  .rtp_state = RtpState{.start_timestamp = 0},
+                 .mid = "long_mid",
                  .rid = "rid"});
   rtp_module->SetSequenceNumber(kSeqNum);
   TestRtpSenderVideo rtp_sender_video(env_, rtp_module->RtpSender());
@@ -634,7 +635,6 @@ TEST_F(RtpSenderVideoTest,
                                          RtpHeaderExtensionId(3));
   rtp_module->RegisterRtpHeaderExtension(AbsoluteSendTime::Uri(),
                                          RtpHeaderExtensionId(4));
-  rtp_module->SetMid("long_mid");
   rtp_module->SetStorePacketsStatus(/*enable=*/true, 10);
 
   RTPVideoHeader header;

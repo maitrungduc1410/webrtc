@@ -124,7 +124,8 @@ class ChannelSendInterface {
 };
 
 // `rtp_state` is the initial state of the RTP stream, e.g. when a stream with
-// the same SSRC is recreated.
+// the same SSRC is recreated. `mid`, if not empty, is sent in the MID RTP
+// header extension once that is registered.
 std::unique_ptr<ChannelSendInterface> CreateChannelSend(
     const Environment& env,
     Transport* rtp_transport,
@@ -135,6 +136,7 @@ std::unique_ptr<ChannelSendInterface> CreateChannelSend(
     int rtcp_report_interval_ms,
     uint32_t ssrc,
     const std::optional<RtpState>& rtp_state,
+    absl::string_view mid,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     RtpTransportControllerSendInterface* transport_controller);
 

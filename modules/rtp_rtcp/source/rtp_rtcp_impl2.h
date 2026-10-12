@@ -137,8 +137,6 @@ class ModuleRtpRtcpImpl2 final : public RtpRtcpInterface,
   // RtpRtcpInterface::Configuration::local_media_ssrc.
   uint32_t local_media_ssrc() const;
 
-  void SetMid(absl::string_view mid) override;
-
   RTCPSender::FeedbackState GetFeedbackState();
 
   int RtxSendStatus() const override;

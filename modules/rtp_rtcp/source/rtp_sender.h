@@ -81,6 +81,7 @@ class RTPSender {
   [[deprecated("Set RtpRtcpInterface::Configuration::rtp_state instead.")]]
   void SetTimestampOffset(uint32_t timestamp) RTC_LOCKS_EXCLUDED(send_mutex_);
 
+  [[deprecated("Set RtpRtcpInterface::Configuration::mid instead.")]]
   void SetMid(absl::string_view mid) RTC_LOCKS_EXCLUDED(send_mutex_);
 
   void SetMaxRtpPacketSize(size_t max_packet_size)

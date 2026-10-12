@@ -136,6 +136,7 @@ class ChannelSend : public ChannelSendInterface,
               int rtcp_report_interval_ms,
               uint32_t ssrc,
               const std::optional<RtpState>& rtp_state,
+              absl::string_view mid,
               scoped_refptr<FrameTransformerInterface> frame_transformer,
               RtpTransportControllerSendInterface* transport_controller);
 
@@ -514,6 +515,7 @@ ChannelSend::ChannelSend(
     int rtcp_report_interval_ms,
     uint32_t ssrc,
     const std::optional<RtpState>& rtp_state,
+    absl::string_view mid,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     RtpTransportControllerSendInterface* transport_controller)
     : env_(env),
@@ -545,6 +547,7 @@ ChannelSend::ChannelSend(
   configuration.rtcp_packet_type_counter_observer = this;
   configuration.local_media_ssrc = ssrc;
   configuration.rtp_state = rtp_state;
+  configuration.mid = std::string(mid);
   configuration.rtcp_mode = RtcpMode::kCompound;
 
   rtp_rtcp_ = ModuleRtpRtcpImpl2::CreateSendModule(env_, configuration);
@@ -1021,11 +1024,12 @@ std::unique_ptr<ChannelSendInterface> CreateChannelSend(
     int rtcp_report_interval_ms,
     uint32_t ssrc,
     const std::optional<RtpState>& rtp_state,
+    absl::string_view mid,
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     RtpTransportControllerSendInterface* transport_controller) {
   return std::make_unique<ChannelSend>(
       env, rtp_transport, rtcp_rtt_stats, frame_encryptor, crypto_options,
-      extmap_allow_mixed, rtcp_report_interval_ms, ssrc, rtp_state,
+      extmap_allow_mixed, rtcp_report_interval_ms, ssrc, rtp_state, mid,
       std::move(frame_transformer), transport_controller);
 }
 

@@ -941,7 +941,8 @@ class VoiceMediaSendChannelInterface : public MediaSendChannelInterface {
   virtual bool SetSenderParameters(const AudioSenderParameter& params) = 0;
 
   // Sets the MID of the media section that is sent. Send streams are created
-  // with the MID, so it should be set before adding send streams.
+  // with the MID, so it must be set before adding send streams and can't be
+  // changed afterwards.
   virtual void SetMid(absl::string_view mid) = 0;
 
   // Configure stream for sending.

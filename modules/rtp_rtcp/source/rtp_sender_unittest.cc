@@ -259,10 +259,12 @@ class RtpSenderTest : public ::testing::Test {
   }
 
   // Enable sending of the MID header extension for both the primary SSRC and
-  // the RTX SSRC.
+  // the RTX SSRC. Since this recreates the sender, it must be called before
+  // any other configuration of the sender except for `EnableRtx()`.
   void EnableMidSending(absl::string_view mid) {
+    config_.mid = std::string(mid);
+    RecreateSender();
     rtp_sender_->RegisterRtpHeaderExtension(RtpMid::Uri(), kMidExtensionId);
-    rtp_sender_->SetMid(mid);
   }
 
   // Enable sending of the RSID header extension for the primary SSRC and the
@@ -961,7 +963,7 @@ TEST_F(RtpSenderTest, CountMidOnlyUntilAcked) {
 
   // Counted only if set.
   EXPECT_EQ(rtp_sender_->ExpectedPerPacketOverhead(), 12u);
-  rtp_sender_->SetMid("foo");
+  EnableMidSending("foo");
   EXPECT_EQ(rtp_sender_->ExpectedPerPacketOverhead(), 36u);
   rtp_sender_->RegisterRtpHeaderExtension(RtpStreamId::Uri(), kRidExtensionId);
   EXPECT_EQ(rtp_sender_->ExpectedPerPacketOverhead(), 52u);
@@ -983,7 +985,7 @@ TEST_F(RtpSenderTest, CountMidRidRridUntilAcked) {
 
   // Counted only if set.
   EXPECT_EQ(rtp_sender_->ExpectedPerPacketOverhead(), 14u);
-  rtp_sender_->SetMid("foo");
+  EnableMidSending("foo");
   EXPECT_EQ(rtp_sender_->ExpectedPerPacketOverhead(), 38u);
 
   rtp_sender_->RegisterRtpHeaderExtension(RtpStreamId::Uri(), kRidExtensionId);
