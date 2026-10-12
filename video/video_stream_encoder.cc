@@ -1629,8 +1629,6 @@ void VideoStreamEncoder::OnFrame(Timestamp post_time,
     log_stats = true;
   }
 
-  last_captured_timestamp_ = incoming_frame.ntp_time_ms();
-
   encoder_stats_observer_->OnIncomingFrame(incoming_frame.width(),
                                            incoming_frame.height());
   ++captured_frame_count_;
@@ -1638,6 +1636,10 @@ void VideoStreamEncoder::OnFrame(Timestamp post_time,
       cwnd_frame_drop_interval_ &&
       (cwnd_frame_counter_++ % cwnd_frame_drop_interval_.value() == 0);
   if (!queue_overload && !cwnd_frame_drop) {
+    // Only update `last_captured_timestamp_` when the frame is actually passed
+    // on for encoding; otherwise a newer frame queued in the same millisecond
+    // that triggered `queue_overload` would be dropped as a duplicate.
+    last_captured_timestamp_ = incoming_frame.ntp_time_ms();
     MaybePrepareVideoFrame(incoming_frame, post_time.us());
   } else {
     if (cwnd_frame_drop) {
