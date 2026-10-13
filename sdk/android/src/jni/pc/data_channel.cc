@@ -160,7 +160,7 @@ static jboolean JNI_DataChannel_Send(JNIEnv* jni,
                                      jboolean binary) {
   std::vector<int8_t> buffer = JavaToNativeByteArray(jni, data);
   bool ret = ExtractNativeDC(jni, j_dc)->Send(
-      DataBuffer(CopyOnWriteBuffer(buffer.data(), buffer.size()), binary));
+      DataBuffer(CopyOnWriteBuffer(buffer), binary));
   return ret;
 }
 
