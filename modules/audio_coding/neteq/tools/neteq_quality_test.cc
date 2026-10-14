@@ -94,8 +94,6 @@ ABSL_FLAG(std::string,
           "<first_event_time> <first_event_duration>, <second_event_time> "
           "<second_event_duration>, ...");
 
-ABSL_FLAG(int, frame_size_ms, 20, "Codec frame size (milliseconds).");
-
 namespace webrtc {
 namespace test {
 
