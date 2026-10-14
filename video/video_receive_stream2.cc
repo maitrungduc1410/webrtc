@@ -577,13 +577,14 @@ VideoReceiveStream2::GetReceiveCodecConfig() const {
 void VideoReceiveStream2::RegisterCodecsOnReceiver(
     const std::vector<Decoder>& old_decoders,
     const std::vector<Decoder>& new_decoders) {
-  // Deregister external decoders from the previous configuration that are
-  // removed or updated in the new configuration.
+  // Deregister all external decoders from the previous configuration, also
+  // the unchanged ones. DeregisterReceiveCodecs() below causes the active
+  // decoder to be released before the next frame is decoded, and a released
+  // decoder must not be configured again since not all implementations
+  // support that (e.g. hardware decoders may fall back to software). New
+  // decoder instances get created on demand instead.
   for (const Decoder& old_decoder : old_decoders) {
-    if (!absl::c_linear_search(new_decoders, old_decoder)) {
-      video_receiver_.RegisterExternalDecoder(nullptr,
-                                              old_decoder.payload_type);
-    }
+    video_receiver_.RegisterExternalDecoder(nullptr, old_decoder.payload_type);
   }
 
   video_receiver_.DeregisterReceiveCodecs();

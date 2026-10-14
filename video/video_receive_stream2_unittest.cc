@@ -927,6 +927,57 @@ TEST_P(VideoReceiveStream2Test,
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
 }
 
+// Changing the set of decoders while running releases the active decoder.
+// Verify that a new instance is created for an unchanged decoder, instead of
+// configuring the released instance again. Not all decoders support that, e.g.
+// hardware decoders may fall back to software decoding.
+TEST_P(VideoReceiveStream2Test, SetDecodersRecreatesUnchangedDecoder) {
+  video_receive_stream_->Start();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  // Decode initial frame to create and configure the AV1 decoder.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::name, Eq("AV1"))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(0)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(10000)
+                                             .AsLast()
+                                             .Build());
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Add a decoder while keeping the AV1 decoder unchanged, as happens when the
+  // receiving side creates an offer listing all of its receive codecs.
+  VideoReceiveStreamInterface::Decoder vp9_decoder;
+  vp9_decoder.video_format = SdpVideoFormat("VP9");
+  vp9_decoder.payload_type = kVp9PayloadType;
+  std::vector<VideoReceiveStreamInterface::Decoder> decoders = config_.decoders;
+  decoders.push_back(vp9_decoder);
+
+  video_receive_stream_->SetDecoders(std::move(decoders));
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Verify that a new AV1 decoder is created.
+  EXPECT_CALL(mock_decoder_factory_,
+              Create(_, Field(&SdpVideoFormat::name, Eq("AV1"))));
+  EXPECT_CALL(mock_decoder_, Configure);
+  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
+
+  video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
+                                             .Id(1)
+                                             .PayloadType(kAv1PayloadType)
+                                             .Time(12345)
+                                             .AsLast()
+                                             .Build());
+
+  time_controller_.AdvanceTime(TimeDelta::Millis(100));
+}
+
 TEST_P(VideoReceiveStream2Test, SetDecodersWhileStoppedUpdatesCodecs) {
   VideoReceiveStreamInterface::Decoder av1_decoder;
   av1_decoder.video_format = SdpVideoFormat("AV1");
