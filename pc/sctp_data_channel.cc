@@ -184,13 +184,12 @@ struct SctpDataChannel::CachedState {
 // and the ObserverAdapter no longer be necessary.
 class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
  public:
-  explicit ObserverAdapter(SctpDataChannel* channel)
-      : channel_(channel), controller_safety_(channel->controller_safety_) {}
-
-  void SetDelegate(DataChannelObserver* delegate) {
+  ObserverAdapter(SctpDataChannel* channel, DataChannelObserver* delegate)
+      : delegate_(delegate),
+        channel_(channel),
+        controller_safety_(channel->controller_safety_) {
     RTC_DCHECK_RUN_ON(signaling_thread());
-    delegate_ = delegate;
-    safety_.reset(PendingTaskSafetyFlag::CreateDetached());
+    RTC_DCHECK(delegate_);
   }
 
  private:
@@ -200,7 +199,7 @@ class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
     channel_->CacheStateAndCallBackOnSignalingThread(
         SafeTask(safety_.flag(), [this] {
           RTC_DCHECK_RUN_ON(signaling_thread());
-          if (delegate_ && controller_safety_->alive()) {
+          if (controller_safety_->alive()) {
             delegate_->OnStateChange();
           }
         }));
@@ -211,7 +210,7 @@ class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
     channel_->CacheStateAndCallBackOnSignalingThread(
         SafeTask(safety_.flag(), [this, buffer = buffer] {
           RTC_DCHECK_RUN_ON(signaling_thread());
-          if (delegate_ && controller_safety_->alive()) {
+          if (controller_safety_->alive()) {
             delegate_->OnMessage(buffer);
           }
         }));
@@ -222,7 +221,7 @@ class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
     channel_->CacheStateAndCallBackOnSignalingThread(
         SafeTask(safety_.flag(), [this, sent_data_size] {
           RTC_DCHECK_RUN_ON(signaling_thread());
-          if (delegate_ && controller_safety_->alive()) {
+          if (controller_safety_->alive()) {
             delegate_->OnBufferedAmountChange(sent_data_size);
           }
         }));
@@ -233,7 +232,7 @@ class SctpDataChannel::ObserverAdapter : public DataChannelObserver {
   Thread* signaling_thread() const { return signaling_thread_; }
   Thread* network_thread() const { return network_thread_; }
 
-  DataChannelObserver* delegate_ RTC_GUARDED_BY(signaling_thread()) = nullptr;
+  DataChannelObserver* const delegate_ RTC_GUARDED_BY(signaling_thread());
   SctpDataChannel* const channel_;
   // Keep a copy of controller_safety_ to safely check PC alive state on the
   // signaling thread without dereferencing `channel_`, which might be deleted.
@@ -268,7 +267,6 @@ absl_nonnull scoped_refptr<DataChannelInterface> SctpDataChannel::CreateProxy(
   // Copy thread params to local variables before `std::move()`.
   auto* signaling_thread = channel->signaling_thread_;
   auto* network_thread = channel->network_thread_;
-  channel->observer_adapter_ = std::make_unique<ObserverAdapter>(channel.get());
   return DataChannelProxy::Create(signaling_thread, network_thread,
                                   std::move(channel));
 }
@@ -317,6 +315,9 @@ SctpDataChannel::SctpDataChannel(
 }
 
 SctpDataChannel::~SctpDataChannel() {
+  if (!observer_adapter_) {
+    return;
+  }
   if (signaling_thread_->IsCurrent()) {
     observer_adapter_.reset();
   } else {
@@ -331,6 +332,7 @@ void SctpDataChannel::RegisterObserver(DataChannelObserver* observer) {
   // Note: at this point, we do not know on which thread we're being called
   // from since this method bypasses the proxy. On Android in particular,
   // registration methods are called from unknown threads.
+  RTC_DCHECK(observer);
 
   // Check if we should set up an observer adapter that will make sure that
   // callbacks are delivered on the signaling thread rather than directly
@@ -341,8 +343,8 @@ void SctpDataChannel::RegisterObserver(DataChannelObserver* observer) {
   if (!observer->IsOkToCallOnTheNetworkThread()) {
     RTC_LOG(LS_WARNING) << "DataChannelObserver - adapter needed";
     auto prepare_observer = [&]() {
-      RTC_DCHECK(observer_adapter_) << "CreateProxy hasn't been called";
-      observer_adapter_->SetDelegate(observer);
+      RTC_DCHECK_RUN_ON(signaling_thread_);
+      observer_adapter_ = std::make_unique<ObserverAdapter>(this, observer);
       return observer_adapter_.get();
     };
     // Instantiate the adapter in the right context and then substitute the
@@ -354,19 +356,13 @@ void SctpDataChannel::RegisterObserver(DataChannelObserver* observer) {
     }
   }
 
-  // Now do the observer registration on the network thread. In the common case,
-  // we'll do this asynchronously via `PostTask()`. For that reason we grab
-  // a reference to ourselves while the task is in flight. We can't use
-  // `SafeTask(network_safety_, ...)` for this since we can't assume that we
-  // have a transport (network_safety_ represents the transport connection).
-  scoped_refptr<SctpDataChannel> me(this);
-  auto register_observer = [me = std::move(me), observer = observer] {
-    RTC_DCHECK_RUN_ON(me->network_thread_);
-    me->observer_ = observer;
-    if (me->max_message_size_) {
-      observer->OnMaxMessageSize(*me->max_message_size_);
+  auto register_observer = [this, observer] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    observer_ = observer;
+    if (max_message_size_) {
+      observer_->OnMaxMessageSize(*max_message_size_);
     }
-    me->DeliverQueuedReceivedData();
+    DeliverQueuedReceivedData();
   };
 
   if (network_thread_ == current_thread) {
@@ -403,8 +399,8 @@ void SctpDataChannel::UnregisterObserver() {
   }
 
   auto clear_observer = [&]() {
-    if (observer_adapter_)
-      observer_adapter_->SetDelegate(nullptr);
+    RTC_DCHECK_RUN_ON(signaling_thread_);
+    observer_adapter_.reset();
   };
 
   if (current_thread != signaling_thread_) {
