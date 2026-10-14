@@ -899,6 +899,7 @@ TEST_P(VideoReceiveStream2Test,
                                              .AsLast()
                                              .Build());
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
+  const int pli_packets = rtcp_packet_parser_.pli()->num_packets();
 
   // Reconfigure PT kH264PayloadType with modified video_format parameters.
   VideoReceiveStreamInterface::Decoder new_decoder;
@@ -907,6 +908,9 @@ TEST_P(VideoReceiveStream2Test,
 
   video_receive_stream_->SetDecoders({new_decoder});
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // Replacing the decoder that is in use requires a keyframe.
+  EXPECT_EQ(rtcp_packet_parser_.pli()->num_packets(), pli_packets + 1);
 
   // Verify that modified format causes old decoder to be deregistered and a
   // new decoder created.
@@ -927,11 +931,11 @@ TEST_P(VideoReceiveStream2Test,
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
 }
 
-// Changing the set of decoders while running releases the active decoder.
-// Verify that a new instance is created for an unchanged decoder, instead of
-// configuring the released instance again. Not all decoders support that, e.g.
-// hardware decoders may fall back to software decoding.
-TEST_P(VideoReceiveStream2Test, SetDecodersRecreatesUnchangedDecoder) {
+// Changing the set of decoders while running should not affect an unchanged
+// decoder that is in use. Releasing and configuring it again would require a
+// keyframe and isn't supported by all decoders, e.g. hardware decoders may fall
+// back to software decoding.
+TEST_P(VideoReceiveStream2Test, SetDecodersKeepsUnchangedDecoder) {
   video_receive_stream_->Start();
   time_controller_.AdvanceTime(TimeDelta::Zero());
 
@@ -949,6 +953,14 @@ TEST_P(VideoReceiveStream2Test, SetDecodersRecreatesUnchangedDecoder) {
                                              .AsLast()
                                              .Build());
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
+  const int pli_packets = rtcp_packet_parser_.pli()->num_packets();
+
+  // Verify that the AV1 decoder keeps decoding without being released,
+  // configured again or recreated.
+  EXPECT_CALL(mock_decoder_factory_, Create).Times(0);
+  EXPECT_CALL(mock_decoder_, Release).Times(0);
+  EXPECT_CALL(mock_decoder_, Configure).Times(0);
+  EXPECT_CALL(mock_decoder_, Decode(_, _));
 
   // Add a decoder while keeping the AV1 decoder unchanged, as happens when the
   // receiving side creates an offer listing all of its receive codecs.
@@ -961,21 +973,19 @@ TEST_P(VideoReceiveStream2Test, SetDecodersRecreatesUnchangedDecoder) {
   video_receive_stream_->SetDecoders(std::move(decoders));
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
 
-  // Verify that a new AV1 decoder is created.
-  EXPECT_CALL(mock_decoder_factory_,
-              Create(_, Field(&SdpVideoFormat::name, Eq("AV1"))));
-  EXPECT_CALL(mock_decoder_, Configure);
-  EXPECT_CALL(mock_decoder_, RegisterDecodeCompleteCallback);
-  EXPECT_CALL(mock_decoder_, Decode(_, _));
-
   video_receive_stream_->OnCompleteFrame(test::FakeFrameBuilder()
                                              .Id(1)
                                              .PayloadType(kAv1PayloadType)
                                              .Time(12345)
                                              .AsLast()
                                              .Build());
-
   time_controller_.AdvanceTime(TimeDelta::Millis(100));
+
+  // No keyframe is needed since the decoder state is intact.
+  EXPECT_EQ(rtcp_packet_parser_.pli()->num_packets(), pli_packets);
+
+  // Allow the decoder to be released when the stream is stopped.
+  EXPECT_TRUE(testing::Mock::VerifyAndClearExpectations(&mock_decoder_));
 }
 
 TEST_P(VideoReceiveStream2Test, SetDecodersWhileStoppedUpdatesCodecs) {
