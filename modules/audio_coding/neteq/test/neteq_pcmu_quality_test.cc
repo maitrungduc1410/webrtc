@@ -23,8 +23,6 @@
 #include "rtc_base/numerics/safe_conversions.h"
 #include "test/gtest.h"
 
-ABSL_FLAG(int, frame_size_ms, 20, "Codec frame size (milliseconds).");
-
 using ::testing::InitGoogleTest;
 
 namespace webrtc {

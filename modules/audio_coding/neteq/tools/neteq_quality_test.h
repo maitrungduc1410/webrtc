@@ -17,6 +17,7 @@
 #include <memory>
 #include <set>
 
+#include "absl/flags/declare.h"
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_format.h"
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
@@ -28,6 +29,8 @@
 #include "modules/audio_coding/neteq/tools/rtp_generator.h"
 #include "rtc_base/buffer.h"
 #include "test/gtest.h"
+
+ABSL_DECLARE_FLAG(int, frame_size_ms);
 
 namespace webrtc {
 namespace test {
