@@ -116,7 +116,6 @@ rtc_library("stun_types") {
     "../../rtc_base:span_helpers",
     "../../rtc_base:stringutils",
     "../../system_wrappers:metrics",
-    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }
