@@ -1216,6 +1216,7 @@ if (rtc_include_tests) {
       ":rtp_rtcp",
       ":rtp_rtcp_format",
       "..:module_fec_api",
+      "../../rtc_base:byte_order",
       "../../rtc_base:checks",
       "../../rtc_base:random",
       "../../test:test_support",
