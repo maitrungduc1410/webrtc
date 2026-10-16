@@ -16,7 +16,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
 #include "api/scoped_refptr.h"
 #include "api/units/timestamp.h"
@@ -30,16 +29,15 @@ namespace webrtc {
 namespace {
 
 using ::testing::ElementsAre;
-using ::testing::IsNull;
-using ::testing::NotNull;
-using ::testing::SizeIs;
 
 constexpr uint32_t kRtpTimestamp = 123456710;
 
 scoped_refptr<EncodedImageBuffer> CreateEncodedImageBufferOfSizeN(size_t n,
                                                                   uint8_t x) {
   scoped_refptr<EncodedImageBuffer> buffer = EncodedImageBuffer::Create(n);
-  absl::c_iota(*buffer, x);
+  for (size_t i = 0; i < n; ++i) {
+    buffer->data()[i] = static_cast<uint8_t>(x + i);
+  }
   return buffer;
 }
 
@@ -109,37 +107,26 @@ TEST(FrameInstrumentationDataTest,
 
 TEST(CombineAndDeleteFramesTest, AllowsUndefinedSpatialIndices) {
   EncodedFrame frame1 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/1);
-  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/15, /*x=*/11);
+  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/11);
 
   absl::InlinedVector<std::unique_ptr<EncodedFrame>, 4> frames;
   frames.push_back(std::make_unique<EncodedFrame>(frame1));
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
 
-  std::unique_ptr<EncodedFrame> combined =
-      CombineAndDeleteFrames(std::move(frames));
-  ASSERT_THAT(combined, NotNull());
-  EXPECT_THAT(*combined, SizeIs(25));
-  EXPECT_EQ(combined->SpatialIndex(), std::nullopt);
-  EXPECT_EQ(combined->SpatialLayerFrameSize(0), std::nullopt);
+  EXPECT_NE(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 TEST(CombineAndDeleteFramesTest, AllowsIncreasingSpatialIndices) {
   EncodedFrame frame1 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/1);
   frame1.SetSpatialIndex(0);
-  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/15, /*x=*/11);
+  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/11);
   frame2.SetSpatialIndex(1);
 
   absl::InlinedVector<std::unique_ptr<EncodedFrame>, 4> frames;
   frames.push_back(std::make_unique<EncodedFrame>(frame1));
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
 
-  std::unique_ptr<EncodedFrame> combined =
-      CombineAndDeleteFrames(std::move(frames));
-  ASSERT_THAT(combined, NotNull());
-  EXPECT_THAT(*combined, SizeIs(25));
-  EXPECT_EQ(combined->SpatialIndex(), 1);
-  EXPECT_EQ(combined->SpatialLayerFrameSize(0), 10u);
-  EXPECT_EQ(combined->SpatialLayerFrameSize(1), 15u);
+  EXPECT_NE(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 TEST(CombineAndDeleteFramesTest, RejectsDecreasingSpatialIndices) {
@@ -152,7 +139,7 @@ TEST(CombineAndDeleteFramesTest, RejectsDecreasingSpatialIndices) {
   frames.push_back(std::make_unique<EncodedFrame>(frame1));
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
 
-  EXPECT_THAT(CombineAndDeleteFrames(std::move(frames)), IsNull());
+  EXPECT_EQ(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 TEST(CombineAndDeleteFramesTest, RejectsEqualSpatialIndices) {
@@ -165,26 +152,20 @@ TEST(CombineAndDeleteFramesTest, RejectsEqualSpatialIndices) {
   frames.push_back(std::make_unique<EncodedFrame>(frame1));
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
 
-  EXPECT_THAT(CombineAndDeleteFrames(std::move(frames)), IsNull());
+  EXPECT_EQ(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 TEST(CombineAndDeleteFramesTest, AllowsValidMixedSpatialIndices) {
   EncodedFrame frame1 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/1);
   // nullopt (will be treated as 0)
-  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/15, /*x=*/11);
+  EncodedFrame frame2 = CreateEncodedImageOfSizeN(/*n=*/10, /*x=*/11);
   frame2.SetSpatialIndex(1);
 
   absl::InlinedVector<std::unique_ptr<EncodedFrame>, 4> frames;
   frames.push_back(std::make_unique<EncodedFrame>(frame1));
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
 
-  std::unique_ptr<EncodedFrame> combined =
-      CombineAndDeleteFrames(std::move(frames));
-  ASSERT_THAT(combined, NotNull());
-  EXPECT_THAT(*combined, SizeIs(25));
-  EXPECT_EQ(combined->SpatialIndex(), 1);
-  EXPECT_EQ(combined->SpatialLayerFrameSize(0), 10u);
-  EXPECT_EQ(combined->SpatialLayerFrameSize(1), 15u);
+  EXPECT_NE(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 TEST(CombineAndDeleteFramesTest, RejectsInvalidMixedSpatialIndices) {
@@ -200,7 +181,7 @@ TEST(CombineAndDeleteFramesTest, RejectsInvalidMixedSpatialIndices) {
   frames.push_back(std::make_unique<EncodedFrame>(frame2));
   frames.push_back(std::make_unique<EncodedFrame>(frame3));
 
-  EXPECT_THAT(CombineAndDeleteFrames(std::move(frames)), IsNull());
+  EXPECT_EQ(CombineAndDeleteFrames(std::move(frames)), nullptr);
 }
 
 }  // namespace

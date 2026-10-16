@@ -12,10 +12,8 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 
-#include "api/field_trials_view.h"
 #include "modules/rtp_rtcp/source/frame_object.h"
 #include "modules/video_coding/rtp_frame_reference_finder.h"
 #include "rtc_base/checks.h"
@@ -24,13 +22,6 @@
 #include "rtc_base/numerics/sequence_number_util.h"
 
 namespace webrtc {
-
-RtpSeqNumOnlyRefFinder::RtpSeqNumOnlyRefFinder(
-    const FieldTrialsView* field_trials)
-    : set_spatial_index_to_zero_by_default_(
-          field_trials != nullptr &&
-          field_trials->IsEnabled(
-              "WebRTC-Video-SeqNumOnlyRefFinderSpatialIndexKillSwitch")) {}
 
 RtpFrameReferenceFinder::ReturnVector RtpSeqNumOnlyRefFinder::ManageFrame(
     std::unique_ptr<RtpFrameObject> frame) {
@@ -128,8 +119,7 @@ RtpSeqNumOnlyRefFinder::ManageFrameInternal(RtpFrameObject* frame) {
   }
 
   UpdateLastPictureIdWithPadding(frame->Id());
-  frame->SetSpatialIndex(
-      set_spatial_index_to_zero_by_default_ ? std::optional(0) : std::nullopt);
+  frame->SetSpatialIndex(0);
   frame->SetId(rtp_seq_num_unwrapper_.Unwrap(frame->Id()));
   return kHandOff;
 }
