@@ -65,8 +65,7 @@ BYPASS_PROXY_CONSTMETHOD0(std::optional<int>, maxRetransmitsOpt)
 BYPASS_PROXY_CONSTMETHOD0(std::optional<int>, maxPacketLifeTime)
 BYPASS_PROXY_CONSTMETHOD0(std::string, protocol)
 BYPASS_PROXY_CONSTMETHOD0(bool, negotiated)
-// Can't bypass the proxy since the id may change.
-PROXY_SECONDARY_CONSTMETHOD0(int, id)
+BYPASS_PROXY_CONSTMETHOD0(int, id)
 BYPASS_PROXY_CONSTMETHOD0(PriorityValue, priority)
 BYPASS_PROXY_CONSTMETHOD0(DataState, state)
 BYPASS_PROXY_CONSTMETHOD0(RTCError, error)
@@ -162,6 +161,7 @@ void SctpSidAllocator::ReleaseSid(StreamId sid) {
 }
 
 struct SctpDataChannel::CachedState {
+  int id;
   DataChannelInterface::DataState state;
   RTCError error;
 };
@@ -440,8 +440,22 @@ bool SctpDataChannel::negotiated() const {
 }
 
 int SctpDataChannel::id() const {
-  RTC_DCHECK_RUN_ON(network_thread_);
-  return id_n_.has_value() ? id_n_->stream_id_int() : -1;
+  const auto* current_thread = Thread::Current();
+  if (current_thread == signaling_thread_) {
+    RTC_DCHECK_RUN_ON(signaling_thread_);
+    if (cached_state_) {
+      return cached_state_->id;
+    }
+  }
+
+  auto return_id = [&] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    return id_n_.has_value() ? id_n_->stream_id_int() : -1;
+  };
+
+  return current_thread == network_thread_
+             ? return_id()
+             : network_thread_->BlockingCall(std::move(return_id));
 }
 
 PriorityValue SctpDataChannel::priority() const {
@@ -669,15 +683,16 @@ void SctpDataChannel::CacheStateAndCallBackOnSignalingThread(
     absl::AnyInvocable<void() &&> callback) {
   RTC_DCHECK_RUN_ON(network_thread_);
   scoped_refptr<SctpDataChannel> me(this);
-  signaling_thread_->PostTask([me = std::move(me),
-                               cache = CachedState{state_, error_},
-                               callback = std::move(callback)]() mutable {
-    RTC_DCHECK_RUN_ON(me->signaling_thread_);
-    RTC_DCHECK(!me->cached_state_);
-    me->cached_state_ = &cache;
-    std::move(callback)();
-    me->cached_state_ = nullptr;
-  });
+  signaling_thread_->PostTask(
+      [me = std::move(me),
+       cache = CachedState{.id = id(), .state = state_, .error = error_},
+       callback = std::move(callback)]() mutable {
+        RTC_DCHECK_RUN_ON(me->signaling_thread_);
+        RTC_DCHECK(!me->cached_state_);
+        me->cached_state_ = &cache;
+        std::move(callback)();
+        me->cached_state_ = nullptr;
+      });
 }
 
 void SctpDataChannel::OnDataReceived(DataMessageType type,
