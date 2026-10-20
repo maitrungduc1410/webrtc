@@ -7,8 +7,6 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#include "sdk/android/native_api/peerconnection/peer_connection_factory.h"
-
 #include <jni.h>
 
 #include <cstddef>
@@ -35,6 +33,7 @@
 #include "sdk/android/native_api/audio_device_module/audio_device_android.h"
 #include "sdk/android/native_api/jni/application_context_provider.h"
 #include "sdk/android/native_api/jni/jvm.h"
+#include "sdk/android/native_api/peerconnection/peer_connection_factory.h"
 #include "sdk/android/src/jni/pc/owned_factory_and_threads.h"
 #include "test/create_test_environment.h"
 #include "test/gtest.h"

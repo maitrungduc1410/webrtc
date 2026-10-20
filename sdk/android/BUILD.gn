@@ -1814,7 +1814,8 @@ if (is_android) {
     }
 
     rtc_cc_test("android_audio_device_unittest") {
-      sources = [ "native_unittests/audio_device/audio_device_unittest.cc" ]
+      sources =
+          [ "native_unittests/audio_device/android_audio_device_unittest.cc" ]
       data = [
         "../../resources/audio_device/audio_short44.pcm",
         "../../resources/audio_device/audio_short48.pcm",
@@ -1869,9 +1870,7 @@ if (is_android) {
     }
 
     rtc_cc_test("android_peer_connection_factory_unittest") {
-      sources = [
-        "native_unittests/peerconnection/peer_connection_factory_unittest.cc",
-      ]
+      sources = [ "native_unittests/peerconnection/android_peer_connection_factory_unittest.cc" ]
       deps = [
         ":generated_native_unittests_jni",
         ":native_api_audio_device_module",

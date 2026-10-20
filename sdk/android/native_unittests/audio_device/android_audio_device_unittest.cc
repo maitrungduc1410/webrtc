@@ -8,8 +8,6 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "api/audio/audio_device.h"
-
 #include <SLES/OpenSLES.h>
 #include <jni.h>
 
@@ -27,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "api/audio/audio_device.h"
 #include "api/audio/audio_device_defines.h"
 #include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
