@@ -16,6 +16,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import android.os.Build.VERSION_CODES;
 import androidx.test.runner.AndroidJUnit4;
 import java.time.Duration;
 import org.junit.Before;
@@ -29,7 +30,10 @@ import org.robolectric.shadows.ShadowLooper;
 import org.robolectric.shadows.ShadowChoreographer;
 
 @RunWith(AndroidJUnit4.class)
-@Config(manifest = Config.NONE)
+// TODO(crbug.com/webrtc/575489393): Run on all SDKs again. Robolectric's no-vsync
+// Choreographer for SDK 37 ignores ShadowChoreographer.setFrameDelay(), so the
+// simulated display refresh rate is wrong and equalRefreshRate/halfRefreshRate fail.
+@Config(manifest = Config.NONE, sdk = VERSION_CODES.Q)
 public class RenderSynchronizerTest {
 
   private static final Duration FRAME_DELAY = Duration.ofMillis(16);
