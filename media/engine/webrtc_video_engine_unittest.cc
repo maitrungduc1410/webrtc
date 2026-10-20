@@ -2812,6 +2812,42 @@ TEST_F(WebRtcVideoChannelBaseTest, SendCodecIsMovedToFrontInRtpParameters) {
   EXPECT_THAT("VP8", send_codecs[0].name);
 }
 
+TEST_F(WebRtcVideoChannelBaseTest,
+       SetRtpSendParametersAfterRequestEncoderSwitch) {
+  VideoSenderParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP9"));
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+
+  std::optional<Codec> codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP9", codec->name);
+
+  // Switch from VP9 to VP8.
+  SendImpl()->RequestEncoderSwitch(std::nullopt, true);
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP8", codec->name);
+
+  // SetRtpSendParameters() can still select VP9 because it was negotiated,
+  // even though we previously switched from it.
+  RtpParameters rtp_parameters = send_channel_->GetRtpSendParameters(kSsrc);
+  ASSERT_EQ(rtp_parameters.encodings.size(), 1u);
+  rtp_parameters.encodings[0].codec = GetEngineCodec("VP9").ToCodecParameters();
+  EXPECT_TRUE(send_channel_->SetRtpSendParameters(kSsrc, rtp_parameters).ok());
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP9", codec->name);
+
+  // A subsequent encoder switch can fall back to VP8 again.
+  SendImpl()->RequestEncoderSwitch(std::nullopt, true);
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP8", codec->name);
+}
+
 #endif  // defined(RTC_ENABLE_VP9)
 
 class WebRtcVideoChannelTest : public WebRtcVideoEngineTest {

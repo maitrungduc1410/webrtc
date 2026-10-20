@@ -1274,30 +1274,30 @@ void WebRtcVideoSendChannel::ApplyEncoderSwitch(
 
   ChangedSenderParameters params;
   if (!format) {
-    if (negotiated_codecs_.size() <= 1) {
+    if (available_negotiated_codecs_.size() <= 1) {
       RTC_LOG(LS_WARNING)
           << "Encoder failed but no fallback codec is available";
       return;
     }
 
-    params.negotiated_codecs = negotiated_codecs_;
     // Find and remove the current codec. It might not be the first on the list
     // because of SetParameters().
     if (send_codec().has_value()) {
-      auto it = std::find(params.negotiated_codecs->begin(),
-                          params.negotiated_codecs->end(), *send_codec());
-      if (it != params.negotiated_codecs->end()) {
-        params.negotiated_codecs->erase(it);
+      auto it = std::find(available_negotiated_codecs_.begin(),
+                          available_negotiated_codecs_.end(), *send_codec());
+      if (it != available_negotiated_codecs_.end()) {
+        available_negotiated_codecs_.erase(it);
       }
     }
-    params.send_codec = params.negotiated_codecs->front();
+    params.send_codec = available_negotiated_codecs_.front();
   } else {
     auto it = absl::c_find_if(
-        negotiated_codecs_, [&](const VideoCodecSettings& codec_setting) {
+        available_negotiated_codecs_,
+        [&](const VideoCodecSettings& codec_setting) {
           return format->IsSameCodec(
               {codec_setting.codec.name, codec_setting.codec.params});
         });
-    if (it == negotiated_codecs_.end()) {
+    if (it == available_negotiated_codecs_.end()) {
       RTC_LOG(LS_WARNING) << "Failed to switch encoder to: "
                           << format->ToString()
                           << ". Is default fallback allowed: "
@@ -1321,16 +1321,20 @@ void WebRtcVideoSendChannel::ApplyEncoderSwitch(
     params.send_codec = new_codec_setting;
   }
 
-  if (ApplyChangedParams(params) && parameters_changed_callback_) {
+  if (ApplyChangedParams(params, /*applying_encoder_switch=*/true) &&
+      parameters_changed_callback_) {
     parameters_changed_callback_();
   }
 }
 
 bool WebRtcVideoSendChannel::ApplyChangedParams(
-    const ChangedSenderParameters& changed_params) {
+    const ChangedSenderParameters& changed_params,
+    bool applying_encoder_switch) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   if (changed_params.negotiated_codecs)
     negotiated_codecs_ = *changed_params.negotiated_codecs;
+  if (!applying_encoder_switch)
+    available_negotiated_codecs_ = negotiated_codecs_;
 
   if (changed_params.send_codec)
     send_codec() = changed_params.send_codec;

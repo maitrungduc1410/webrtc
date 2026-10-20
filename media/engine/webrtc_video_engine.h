@@ -305,7 +305,8 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
   bool GetChangedSenderParameters(const VideoSenderParameters& params,
                                   ChangedSenderParameters* changed_params) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(worker_thread_);
-  bool ApplyChangedParams(const ChangedSenderParameters& changed_params);
+  bool ApplyChangedParams(const ChangedSenderParameters& changed_params,
+                          bool applying_encoder_switch = false);
   bool ValidateSendSsrcAvailability(const StreamParams& sp) const
       RTC_EXCLUSIVE_LOCKS_REQUIRED(worker_thread_);
   // Executes the actual encoder switch operation.
@@ -477,6 +478,11 @@ class WebRtcVideoSendChannel : public MediaChannelUtil,
 
   std::optional<VideoCodecSettings> send_codec_ RTC_GUARDED_BY(worker_thread_);
   std::vector<VideoCodecSettings> negotiated_codecs_
+      RTC_GUARDED_BY(worker_thread_);
+  // A version of `negotiated_codecs_` that is modified every time the encoder
+  // switches e.g. due to encoder failure. Thus represents the remaining
+  // fallback codecs, in negotiation order.
+  std::vector<VideoCodecSettings> available_negotiated_codecs_
       RTC_GUARDED_BY(worker_thread_);
   std::vector<VideoCodecSettings> send_codecs_ RTC_GUARDED_BY(worker_thread_);
 
