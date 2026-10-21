@@ -168,11 +168,9 @@ TEST_F(PeerConnectionCongestionControlTest,
 
 TEST_F(PeerConnectionCongestionControlTest, ReNegotiationBothSupportCcfb) {
   SetFieldTrials(kCallerName,
-                 "WebRTC-RFC8888CongestionControlFeedback/Enabled,offer:true/"
-                 "WebRTC-HeaderExtensionNegotiateMemory/Enabled/");
+                 "WebRTC-RFC8888CongestionControlFeedback/Enabled,offer:true/");
   SetFieldTrials(kCalleeName,
-                 "WebRTC-RFC8888CongestionControlFeedback/Enabled,offer:true/"
-                 "WebRTC-HeaderExtensionNegotiateMemory/Enabled/");
+                 "WebRTC-RFC8888CongestionControlFeedback/Enabled,offer:true/");
   ASSERT_TRUE(CreatePeerConnectionWrappers());
   ConnectFakeSignalingForSdpOnly();
   caller()->AddAudioVideoTracks();

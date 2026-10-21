@@ -290,16 +290,13 @@ RtpTransmissionManager::CreateAndAddTransceiver(
   RTC_DCHECK(!FindSenderById(sender_id));
   std::vector<RtpHeaderExtensionCapability> header_extensions =
       std::move(header_extensions_to_negotiate);
-  if (!env_.field_trials().IsDisabled(
-          "WebRTC-HeaderExtensionNegotiateMemory")) {
-    // If we have already negotiated header extensions for this type,
-    // and it is not stopped,
-    // reuse the negotiated state for new transceivers of the same type.
-    for (const auto& transceiver : transceivers()->List()) {
-      if (transceiver->media_type() == media_type && !transceiver->stopping()) {
-        header_extensions = transceiver->GetHeaderExtensionsToNegotiate();
-        break;
-      }
+  // If we have already negotiated header extensions for this type,
+  // and it is not stopped,
+  // reuse the negotiated state for new transceivers of the same type.
+  for (const auto& transceiver : transceivers()->List()) {
+    if (transceiver->media_type() == media_type && !transceiver->stopping()) {
+      header_extensions = transceiver->GetHeaderExtensionsToNegotiate();
+      break;
     }
   }
   if (header_extensions.empty()) {
