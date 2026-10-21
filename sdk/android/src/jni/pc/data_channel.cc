@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "api/data_channel_interface.h"
@@ -159,8 +160,10 @@ static jboolean JNI_DataChannel_Send(JNIEnv* jni,
                                      const jni_zero::JavaRef<jbyteArray>& data,
                                      jboolean binary) {
   std::vector<int8_t> buffer = JavaToNativeByteArray(jni, data);
-  bool ret = ExtractNativeDC(jni, j_dc)->Send(
-      DataBuffer(CopyOnWriteBuffer(buffer), binary));
+  bool ret = ExtractNativeDC(jni, j_dc)->Send(DataBuffer(
+      CopyOnWriteBuffer(std::span(
+          reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size())),
+      binary));
   return ret;
 }
 
