@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "api/sequence_checker.h"
 #include "rtc_base/checks.h"
@@ -250,11 +251,12 @@ ScopedJavaLocalRef<jobjectArray> NativeToJavaObjectArray(
 
 ScopedJavaLocalRef<jbyteArray> NativeToJavaByteArray(
     JNIEnv* env,
-    std::span<int8_t> container);
+    std::span<const int8_t> container);
 ScopedJavaLocalRef<jintArray> NativeToJavaIntArray(
     JNIEnv* env,
     std::span<int32_t> container);
 
+[[deprecated("Prefer JavaByteArrayRef")]]
 std::vector<int8_t> JavaToNativeByteArray(
     JNIEnv* env,
     const jni_zero::JavaRef<jbyteArray>& jarray);
@@ -280,6 +282,43 @@ ScopedJavaLocalRef<jobjectArray> NativeToJavaLongArray(
 ScopedJavaLocalRef<jobjectArray> NativeToJavaStringArray(
     JNIEnv* env,
     const std::vector<std::string>& container);
+
+// Class to convert java byte array into non-owning span of octets for native
+// code to immidetely consume.
+class JavaByteArrayRef {
+ public:
+  JavaByteArrayRef(JNIEnv* env ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                   const jni_zero::JavaRef<jbyteArray>& jarray
+                       ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : env_(*env),
+        jarray_(jarray),
+        array_(env_.GetByteArrayElements(jarray_.obj(), /*isCopy=*/nullptr)),
+        size_(env_.GetArrayLength(jarray_.obj())) {}
+  JavaByteArrayRef(const JavaByteArrayRef&) = delete;
+  JavaByteArrayRef& operator=(const JavaByteArrayRef&) = delete;
+
+  ~JavaByteArrayRef() {
+    env_.ReleaseByteArrayElements(jarray_.obj(), array_, /*mode=*/JNI_ABORT);
+  }
+
+  // Returns the ByteArray as span of uint8 - preferred way to represent block
+  // of memory within WebRTC, see https://issues.webrtc.org/42226010
+  std::span<const uint8_t> AsSpan() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::span(reinterpret_cast<const uint8_t*>(array_), size_);
+  }
+
+  // Returns the ByteArray as string_view - preferred way of represering block
+  // of memory by certain 3rd party apis, protobuf in particular.
+  absl::string_view AsStringView() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return absl::string_view(reinterpret_cast<const char*>(array_), size_);
+  }
+
+ private:
+  JNIEnv& env_;
+  const jni_zero::JavaRef<jbyteArray>& jarray_;
+  int8_t* const array_;
+  const size_t size_;
+};
 
 // This is a helper class for NativeToJavaList(). Use that function instead of
 // using this class directly.

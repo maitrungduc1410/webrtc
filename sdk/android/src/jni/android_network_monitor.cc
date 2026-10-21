@@ -20,33 +20,35 @@
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/field_trials_view.h"
+#include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
+#include "rtc_base/checks.h"
+#include "rtc_base/ip_address.h"
+#include "rtc_base/logging.h"
 #include "rtc_base/net_helpers.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/network_monitor.h"
+#include "rtc_base/strings/string_builder.h"
 #include "rtc_base/thread.h"
+#include "sdk/android/generated_base_jni/NetworkChangeDetector_jni.h"
+#include "sdk/android/generated_base_jni/NetworkMonitor_jni.h"
+#include "sdk/android/native_api/jni/java_types.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
+#include "sdk/android/src/jni/jni_helpers.h"
 #include "sdk/android/src/jni/jvm.h"
+#include "third_party/jni_zero/jni_zero.h"
+
 #ifndef RTLD_NOLOAD
 // This was added in Lollipop to dlfcn.h
 #define RTLD_NOLOAD 4
 #endif
-
-#include "api/sequence_checker.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/ip_address.h"
-#include "rtc_base/logging.h"
-#include "rtc_base/strings/string_builder.h"
-#include "sdk/android/generated_base_jni/NetworkChangeDetector_jni.h"
-#include "sdk/android/generated_base_jni/NetworkMonitor_jni.h"
-#include "sdk/android/native_api/jni/java_types.h"
-#include "sdk/android/src/jni/jni_helpers.h"
 
 namespace webrtc {
 namespace jni {
@@ -167,8 +169,10 @@ static AdapterType AdapterTypeFromNetworkType(NetworkType network_type,
 
 static IPAddress JavaToNativeIpAddress(JNIEnv* jni,
                                        const JavaRef<jobject>& j_ip_address) {
-  std::vector<int8_t> address =
-      JavaToNativeByteArray(jni, Java_IPAddress_getAddress(jni, j_ip_address));
+  jni_zero::ScopedJavaLocalRef<jbyteArray> jbyte_array_ref =
+      Java_IPAddress_getAddress(jni, j_ip_address);
+  JavaByteArrayRef byte_array_ref(jni, jbyte_array_ref);
+  std::span<const uint8_t> address = byte_array_ref.AsSpan();
   size_t address_length = address.size();
   if (address_length == 4) {
     // IP4

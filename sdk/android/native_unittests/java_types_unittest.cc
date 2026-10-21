@@ -20,11 +20,15 @@
 #include "sdk/android/generated_native_unittests_jni/JavaTypesTestHelper_jni.h"
 #include "sdk/android/native_api/jni/jvm.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
+#include "test/gmock.h"
 #include "test/gtest.h"
 
 namespace webrtc {
 namespace test {
 namespace {
+
+using ::testing::ElementsAre;
+
 TEST(JavaTypesTest, TestJavaToNativeStringMap) {
   JNIEnv* env = AttachCurrentThreadIfNeeded();
   ScopedJavaLocalRef<jobject> j_map =
@@ -49,13 +53,16 @@ TEST(JavaTypesTest, TestNativeToJavaToNativeIntArray) {
   EXPECT_EQ(test_data, JavaToNativeIntArray(env, array));
 }
 
-TEST(JavaTypesTest, TestNativeToJavaToNativeByteArray) {
+TEST(JavaTypesTest, JavaByteArrayRef) {
   JNIEnv* env = AttachCurrentThreadIfNeeded();
 
-  std::vector<int8_t> test_data{1, 20, 30};
+  ScopedJavaLocalRef<jbyteArray> array =
+      NativeToJavaByteArray(env, {{1, 20, 30}});
+  EXPECT_THAT(JavaByteArrayRef(env, array).AsSpan(), ElementsAre(1, 20, 30));
 
-  ScopedJavaLocalRef<jbyteArray> array = NativeToJavaByteArray(env, test_data);
-  EXPECT_EQ(test_data, JavaToNativeByteArray(env, array));
+  ScopedJavaLocalRef<jbyteArray> string =
+      NativeToJavaByteArray(env, {{'H', 'i'}});
+  EXPECT_EQ(JavaByteArrayRef(env, string).AsStringView(), "Hi");
 }
 
 TEST(JavaTypesTest, TestNativeToJavaToNativeIntArrayLeakTest) {
@@ -69,7 +76,7 @@ TEST(JavaTypesTest, TestNativeToJavaToNativeIntArrayLeakTest) {
   }
 }
 
-TEST(JavaTypesTest, TestNativeToJavaToNativeByteArrayLeakTest) {
+TEST(JavaTypesTest, JavaByteArrayRefDoesntLeakMemory) {
   JNIEnv* env = AttachCurrentThreadIfNeeded();
 
   std::vector<int8_t> test_data{1, 20, 30};
@@ -77,7 +84,7 @@ TEST(JavaTypesTest, TestNativeToJavaToNativeByteArrayLeakTest) {
   for (int i = 0; i < 2000; i++) {
     ScopedJavaLocalRef<jbyteArray> array =
         NativeToJavaByteArray(env, test_data);
-    EXPECT_EQ(test_data, JavaToNativeByteArray(env, array));
+    EXPECT_THAT(JavaByteArrayRef(env, array).AsSpan(), ElementsAre(1, 20, 30));
   }
 }
 }  // namespace
