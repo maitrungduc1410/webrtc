@@ -45,7 +45,6 @@ if (is_android) {
       ":hwcodecs_java",
       ":java_audio_device_module_java",
       ":libaom_av1_encoder_java",
-      ":libjingle_peerconnection_java",
       ":libjingle_peerconnection_metrics_default_java",
       ":libvpx_vp8_java",
       ":libvpx_vp9_java",
@@ -75,34 +74,13 @@ if (is_android) {
     ]
   }
 
-  # Old target that pulls in everything. This will be going away in the future,
-  # clients should depend on individual video_java etc. targets instead.
-  rtc_android_library("libjingle_peerconnection_java") {
-    sources = [ "src/java/org/webrtc/Empty.java" ]
-
-    deps = [
-      ":audio_api_java",
-      ":base_java",
-      ":camera_java",
-      ":filevideo_java",
-      ":hwcodecs_java",
-      ":java_audio_device_module_java",
-      ":peerconnection_java",
-      ":screencapturer_java",
-      ":surfaceviewrenderer_java",
-      ":video_api_java",
-      ":video_java",
-      "../../rtc_base:base_java",
-    ]
-  }
-
   rtc_android_library("libjingle_peerconnection_metrics_default_java") {
     sources = [ "api/org/webrtc/Metrics.java" ]
 
     deps = [
       ":base_java",
       ":generated_metrics_jni_java",
-      ":libjingle_peerconnection_java",
+      ":peerconnection_java",
       "../../rtc_base:base_java",
       "//third_party/jni_zero:jni_zero_java",
     ]
@@ -1712,7 +1690,6 @@ if (is_android) {
         ":filevideo_java",
         ":generated_instrumentationtests_jni_java",
         ":hwcodecs_java",
-        ":libjingle_peerconnection_java",
         ":libjingle_peerconnection_metrics_default_java",
         ":peerconnection_java",
         ":surfaceviewrenderer_java",
@@ -1994,7 +1971,6 @@ if (is_android) {
       ":generated_video_jni_java",
       ":hwcodecs_java",
       ":java_audio_device_module_java",
-      ":libjingle_peerconnection_java",
       ":peerconnection_java",
       ":video_api_java",
       ":video_java",
