@@ -544,6 +544,37 @@ TEST_F(JsepSessionDescriptionTest, RemoveCandidateAndSetConnectionAddress) {
   EXPECT_EQ("0.0.0.0:9", media_desc->connection_address().ToString());
 }
 
+// Tests that candidates passed to Create() update the connection address of
+// their media section the same way AddCandidate() does, and that media
+// sections without candidates keep their connection address.
+TEST_F(JsepSessionDescriptionTest,
+       CreateWithCandidatesUpdatesConnectionAddress) {
+  Candidate candidate(ICE_CANDIDATE_COMPONENT_RTP, "udp",
+                      SocketAddress("192.168.1.5", 1234), kCandidatePriority,
+                      "", "", IceCandidateType::kHost, kCandidateGeneration,
+                      kCandidateFoundation);
+  std::vector<IceCandidateCollection> candidates(2);
+  candidates[0].add(std::make_unique<IceCandidate>(kAudioMid, 0, candidate));
+
+  std::unique_ptr<SessionDescription> desc = CreateCricketSessionDescription();
+  const SocketAddress video_address("10.0.0.1", 5678);
+  desc->contents()[1].media_description()->set_connection_address(
+      video_address);
+  std::unique_ptr<SessionDescriptionInterface> jsep_desc =
+      SessionDescriptionInterface::Create(SdpType::kOffer, std::move(desc),
+                                          "id", "version",
+                                          std::move(candidates));
+  ASSERT_THAT(jsep_desc, NotNull());
+  ASSERT_EQ(jsep_desc->number_of_mediasections(), 2u);
+  EXPECT_EQ(jsep_desc->candidates(0)->count(), 1u);
+  EXPECT_EQ(jsep_desc->candidates(1)->count(), 0u);
+  const ContentInfos& contents = jsep_desc->description()->contents();
+  EXPECT_EQ(contents[0].media_description()->connection_address().ToString(),
+            "192.168.1.5:1234");
+  EXPECT_EQ(contents[1].media_description()->connection_address(),
+            video_address);
+}
+
 class EnumerateAllSdpTypesTest : public ::testing::Test,
                                  public ::testing::WithParamInterface<SdpType> {
 };
