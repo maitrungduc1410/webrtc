@@ -238,12 +238,6 @@ SessionDescriptionInterface::SessionDescriptionInterface(
   RTC_DCHECK(candidate_collection_.empty() ||
              candidate_collection_.size() == number_of_mediasections());
   candidate_collection_.resize(number_of_mediasections());
-  for (size_t i = 0; i < candidate_collection_.size(); ++i) {
-    if (!candidate_collection_[i].empty()) {
-      UpdateConnectionAddress(candidate_collection_[i],
-                              description_->contents()[i].media_description());
-    }
-  }
 }
 
 size_t SessionDescriptionInterface::number_of_mediasections() const {
