@@ -2474,6 +2474,7 @@ if (rtc_include_tests) {
       deps = [
         ":stringutils",
         "../test:test_support",
+        "//third_party/abseil-cpp/absl/container:inlined_vector",
         "//third_party/abseil-cpp/absl/strings:string_view",
       ]
     }
