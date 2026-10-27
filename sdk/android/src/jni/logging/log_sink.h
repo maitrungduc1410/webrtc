@@ -12,9 +12,6 @@
 
 #include <jni.h>
 
-#include <string>
-
-#include "absl/strings/string_view.h"
 #include "rtc_base/logging.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
 
@@ -26,13 +23,7 @@ class JNILogSink : public LogSink {
   JNILogSink(JNIEnv* env, const JavaRef<jobject>& j_logging);
   ~JNILogSink() override;
 
-  void OnLogMessage(const std::string& msg) override;
-  void OnLogMessage(const std::string& msg,
-                    LoggingSeverity severity,
-                    const char* tag) override;
-  void OnLogMessage(absl::string_view msg,
-                    LoggingSeverity severity,
-                    const char* tag) override;
+  void OnLogMessage(const LogLineRef& line) override;
 
  private:
   const ScopedJavaGlobalRef<jobject> j_logging_;

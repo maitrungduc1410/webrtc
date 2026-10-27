@@ -205,11 +205,8 @@ class LookoutLogSink final : public webrtc::LogSink {
  public:
   explicit LookoutLogSink(std::string look_for)
       : look_for_(std::move(look_for)) {}
-  void OnLogMessage(const std::string& message) override {
-    OnLogMessage(absl::string_view(message));
-  }
-  void OnLogMessage(absl::string_view message) override {
-    if (message.find(look_for_) != std::string::npos) {
+  void OnLogMessage(const webrtc::LogLineRef& line) override {
+    if (line.message().find(look_for_) != absl::string_view::npos) {
       when_found_.Set();
     }
   }
