@@ -1,0 +1,35 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp|java)"
+    path_expression: "rtc_base/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    path_expression: "sdk/(?:.*/)?[^/]*\\.(?:h|hpp|java|m|mm)"
+    rules: "knowledge_base/rules/api/annotate-deprecated-public-apis.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*_interface\\.h"
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    rules: "knowledge_base/rules/api/assert-notreached-in-default-interface-methods.md"
+  }
+  capability_groups {
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    path_expression: "sdk/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*test[^/]*"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/api/document-public-enum-values.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*_interface\\.h"
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/api/link-specifications-and-annotate-nonstandard-extensions.md"
+  }
+}

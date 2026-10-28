@@ -1,0 +1,15 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "net/dcsctp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/net/avoid-serializing-redundant-socket-handover-state.md"
+    rules: "knowledge_base/rules/net/match-handover-state-integer-types-to-protocol-spec.md"
+  }
+}

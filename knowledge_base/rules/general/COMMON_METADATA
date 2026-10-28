@@ -1,0 +1,87 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "sdk/.*"
+    rules: "knowledge_base/rules/general/annotate-requiresapi-without-sdk-checks.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/avoid-default-arguments-when-adding-parameters.md"
+    rules: "knowledge_base/rules/general/declare-member-dependencies-before-dependent-members.md"
+    rules: "knowledge_base/rules/general/delete-move-for-signal-and-callback-targets.md"
+    rules: "knowledge_base/rules/general/fire-deprecated-signals-during-migration-or-remove.md"
+    rules: "knowledge_base/rules/general/guard-async-tasks-with-safetask.md"
+    rules: "knowledge_base/rules/general/include-tracking-bug-in-deprecated-attribute.md"
+    rules: "knowledge_base/rules/general/no-legacy-sigslot.md"
+    rules: "knowledge_base/rules/general/prefer-constexpr-absl-string-view-for-string-constants.md"
+    rules: "knowledge_base/rules/general/ref-counted-base-for-concrete-classes.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/avoid-implicit-bool-conversion-for-integer-return-codes.md"
+  }
+  capability_groups {
+    path_expression: "api/.*"
+    rules: "knowledge_base/rules/general/avoid-raw-deprecated-on-public-api.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|gn|gni|h|hpp|m|mm)"
+    path_expression: "BUILD\\.gn"
+    rules: "knowledge_base/rules/general/explicit-deps-for-included-headers-in-build-gn.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*test[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "(?:.*/)?test/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/guard-death-tests-with-gtest-has-death-test.md"
+    rules: "knowledge_base/rules/general/prefer-timedelta-offsets-for-simulated-clock-advancement.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:gn|gni)"
+    rules: "knowledge_base/rules/general/guard-platform-specific-gn-targets.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression_exclusion: "third_party/.*"
+    rules: "knowledge_base/rules/general/omit-redundant-enclosing-namespace-qualifiers-2.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:gn|gni)"
+    path_expression: "BUILD\\.gn"
+    rules: "knowledge_base/rules/general/omit-redundant-gn-target-names.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?BUILD\\.gn"
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/preserve-backward-compatibility-with-deprecated-aliases.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?BUILD\\.gn"
+    path_expression: "(?:.*/)?[^/]*\\.gni"
+    rules: "knowledge_base/rules/general/preserve-link-time-gn-dependencies-with-keep.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/.*"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/general/provide-default-methods-for-new-java-interface-methods.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "pc/session_description\\.h"
+    rules: "knowledge_base/rules/general/todo-make-interface-methods-pure-virtual.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/general/update-callers-when-function-returns-null-on-failure.md"
+    rules: "knowledge_base/rules/general/use-elif-for-mutually-exclusive-preprocessor-blocks.md"
+  }
+}

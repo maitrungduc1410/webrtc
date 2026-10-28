@@ -1,0 +1,61 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/sdk/check-and-log-fallible-platform-apis.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/check-responds-to-selector-when-evolving-objc-protocols.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?instrumentationtests/.*"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/sdk/match-native-interface-in-wrapper-doc-comments.md"
+  }
+  capability_groups {
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/objc-assert-nonnull-parameters.md"
+    rules: "knowledge_base/rules/sdk/objc-block-parameter-handler-naming.md"
+  }
+  capability_groups {
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/sdk/objc-group-optional-protocol-methods-at-bottom.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:h|m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/objc-omit-nullability-in-implementation-files.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    rules: "knowledge_base/rules/sdk/place-public-android-sdk-classes-under-api.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "examples/objcnativeapi/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/separate-objc-import-and-include-directives.md"
+  }
+}

@@ -1,0 +1,228 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp|java)"
+    path_expression: "rtc_base/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    path_expression: "sdk/(?:.*/)?[^/]*\\.(?:h|hpp|java|m|mm)"
+    rules: "knowledge_base/rules/api/annotate-deprecated-public-apis.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*_interface\\.h"
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    rules: "knowledge_base/rules/api/assert-notreached-in-default-interface-methods.md"
+  }
+  capability_groups {
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:h|hpp)"
+    path_expression: "sdk/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*test[^/]*"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/api/document-public-enum-values.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*_interface\\.h"
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/api/link-specifications-and-annotate-nonstandard-extensions.md"
+  }
+  capability_groups {
+    path_expression: "api/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "audio/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/audio_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/rtp_rtcp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "pc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/audio/validate-or-clamp-protocol-bounded-frame-transformer-paramet.md"
+  }
+  capability_groups {
+    path_expression: "sdk/.*"
+    rules: "knowledge_base/rules/general/annotate-requiresapi-without-sdk-checks.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/avoid-default-arguments-when-adding-parameters.md"
+    rules: "knowledge_base/rules/general/declare-member-dependencies-before-dependent-members.md"
+    rules: "knowledge_base/rules/general/delete-move-for-signal-and-callback-targets.md"
+    rules: "knowledge_base/rules/general/fire-deprecated-signals-during-migration-or-remove.md"
+    rules: "knowledge_base/rules/general/guard-async-tasks-with-safetask.md"
+    rules: "knowledge_base/rules/general/include-tracking-bug-in-deprecated-attribute.md"
+    rules: "knowledge_base/rules/general/no-legacy-sigslot.md"
+    rules: "knowledge_base/rules/general/prefer-constexpr-absl-string-view-for-string-constants.md"
+    rules: "knowledge_base/rules/general/ref-counted-base-for-concrete-classes.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/avoid-implicit-bool-conversion-for-integer-return-codes.md"
+  }
+  capability_groups {
+    path_expression: "api/.*"
+    rules: "knowledge_base/rules/general/avoid-raw-deprecated-on-public-api.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|gn|gni|h|hpp|m|mm)"
+    path_expression: "BUILD\\.gn"
+    rules: "knowledge_base/rules/general/explicit-deps-for-included-headers-in-build-gn.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*test[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "(?:.*/)?test/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/guard-death-tests-with-gtest-has-death-test.md"
+    rules: "knowledge_base/rules/general/prefer-timedelta-offsets-for-simulated-clock-advancement.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:gn|gni)"
+    rules: "knowledge_base/rules/general/guard-platform-specific-gn-targets.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression_exclusion: "third_party/.*"
+    rules: "knowledge_base/rules/general/omit-redundant-enclosing-namespace-qualifiers-2.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:gn|gni)"
+    path_expression: "BUILD\\.gn"
+    rules: "knowledge_base/rules/general/omit-redundant-gn-target-names.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?BUILD\\.gn"
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/general/preserve-backward-compatibility-with-deprecated-aliases.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?BUILD\\.gn"
+    path_expression: "(?:.*/)?[^/]*\\.gni"
+    rules: "knowledge_base/rules/general/preserve-link-time-gn-dependencies-with-keep.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/.*"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/general/provide-default-methods-for-new-java-interface-methods.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "pc/session_description\\.h"
+    rules: "knowledge_base/rules/general/todo-make-interface-methods-pure-virtual.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:c|cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/general/update-callers-when-function-returns-null-on-failure.md"
+    rules: "knowledge_base/rules/general/use-elif-for-mutually-exclusive-preprocessor-blocks.md"
+  }
+  capability_groups {
+    path_expression: "audio/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "common_audio/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/audio_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/audio_processing/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression_exclusion: "third_party/.*"
+    rules: "knowledge_base/rules/modules/avoid-domain-ambiguous-power-in-dsp-calculations.md"
+  }
+  capability_groups {
+    path_expression: "modules/audio_processing/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/avoid-generic-process-name-for-metric-analysis.md"
+  }
+  capability_groups {
+    path_expression: "media/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/check-scalability-mode-before-legacy-codec-structs.md"
+  }
+  capability_groups {
+    path_expression: "common_video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/rtp_rtcp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/classify-all-h265-irap-nalus-as-keyframes.md"
+  }
+  capability_groups {
+    path_expression: "modules/congestion_controller/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/guard-empty-transport-feedback-before-delay-update.md"
+  }
+  capability_groups {
+    path_expression: "modules/.*"
+    rules: "knowledge_base/rules/modules/hoist-channel-invariant-computations.md"
+  }
+  capability_groups {
+    path_expression: "modules/rtp_rtcp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/qualify-codec-specific-packet-classes-and-cite-rfc.md"
+  }
+  capability_groups {
+    path_expression: "api/video_codecs/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "media/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "pc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/use-scalability-mode-helpers-over-switch.md"
+  }
+  capability_groups {
+    path_expression: "net/dcsctp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/net/avoid-serializing-redundant-socket-handover-state.md"
+    rules: "knowledge_base/rules/net/match-handover-state-integer-types-to-protocol-spec.md"
+  }
+  capability_groups {
+    path_expression: "media/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "pc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/pc/validate-rtp-header-extension-ids-against-history.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/sdk/check-and-log-fallible-platform-apis.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/check-responds-to-selector-when-evolving-objc-protocols.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    path_expression_exclusion: "(?:.*/)?[^/]*Test\\.java"
+    path_expression_exclusion: "(?:.*/)?instrumentationtests/.*"
+    path_expression_exclusion: "(?:.*/)?test/.*"
+    path_expression_exclusion: "(?:.*/)?testing/.*"
+    path_expression_exclusion: "(?:.*/)?tests/.*"
+    rules: "knowledge_base/rules/sdk/match-native-interface-in-wrapper-doc-comments.md"
+  }
+  capability_groups {
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/objc-assert-nonnull-parameters.md"
+    rules: "knowledge_base/rules/sdk/objc-block-parameter-handler-naming.md"
+  }
+  capability_groups {
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/sdk/objc-group-optional-protocol-methods-at-bottom.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:h|m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/objc-omit-nullability-in-implementation-files.md"
+  }
+  capability_groups {
+    path_expression: "sdk/android/(?:.*/)?[^/]*\\.java"
+    rules: "knowledge_base/rules/sdk/place-public-android-sdk-classes-under-api.md"
+  }
+  capability_groups {
+    path_expression: "(?:.*/)?[^/]*\\.(?:m|mm)"
+    path_expression: "examples/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "examples/objcnativeapi/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    path_expression: "sdk/objc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|m|mm)"
+    rules: "knowledge_base/rules/sdk/separate-objc-import-and-include-directives.md"
+  }
+}

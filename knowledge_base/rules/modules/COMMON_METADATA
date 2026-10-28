@@ -1,0 +1,55 @@
+# Copyright (c) 2026 The WebRTC project authors. All Rights Reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS.  All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+agentic_review {
+  capability_groups {
+    path_expression: "audio/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "common_audio/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/audio_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/audio_processing/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression_exclusion: "third_party/.*"
+    rules: "knowledge_base/rules/modules/avoid-domain-ambiguous-power-in-dsp-calculations.md"
+  }
+  capability_groups {
+    path_expression: "modules/audio_processing/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/avoid-generic-process-name-for-metric-analysis.md"
+  }
+  capability_groups {
+    path_expression: "media/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/check-scalability-mode-before-legacy-codec-structs.md"
+  }
+  capability_groups {
+    path_expression: "common_video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/rtp_rtcp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/classify-all-h265-irap-nalus-as-keyframes.md"
+  }
+  capability_groups {
+    path_expression: "modules/congestion_controller/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/guard-empty-transport-feedback-before-delay-update.md"
+  }
+  capability_groups {
+    path_expression: "modules/.*"
+    rules: "knowledge_base/rules/modules/hoist-channel-invariant-computations.md"
+  }
+  capability_groups {
+    path_expression: "modules/rtp_rtcp/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/qualify-codec-specific-packet-classes-and-cite-rfc.md"
+  }
+  capability_groups {
+    path_expression: "api/video_codecs/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "media/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "modules/video_coding/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "pc/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    path_expression: "video/(?:.*/)?[^/]*\\.(?:cc|cpp|h|hpp|mm)"
+    rules: "knowledge_base/rules/modules/use-scalability-mode-helpers-over-switch.md"
+  }
+}

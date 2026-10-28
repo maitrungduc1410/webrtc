@@ -17,6 +17,7 @@ include_rules = [
   "-g3doc",
   "-ios",
   "-infra",
+  "-knowledge_base",
   "-logging",
   "-media",
   "-net",
