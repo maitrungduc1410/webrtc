@@ -16,11 +16,14 @@
 #include <vector>
 
 #include "api/environment/environment.h"
-#include "api/environment/environment_factory.h"
 #include "api/make_ref_counted.h"
+#include "api/scoped_refptr.h"
+#include "api/video/video_codec_type.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
+#include "api/video/video_rotation.h"
 #include "api/video_codecs/sdp_video_format.h"
+#include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder.h"
 #include "media/base/media_constants.h"
 #include "modules/video_coding/include/video_error_codes.h"
@@ -31,6 +34,7 @@
 #include "sdk/android/src/jni/video_encoder_wrapper.h"
 #include "test/create_test_environment.h"
 #include "test/gtest.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 namespace webrtc {
 namespace test {
@@ -86,7 +90,7 @@ TEST(JavaCodecsWrapperTest, EncodeNullFrame) {
   codec_settings.height = 480;
   codec_settings.startBitrate = 300;
   codec_settings.maxFramerate = 30;
-  VideoEncoder::Settings settings(VideoEncoder::Capabilities(false), 1, 1200);
+  constexpr VideoEncoder::Settings settings(1, 1200);
   EXPECT_EQ(encoder->InitEncode(&codec_settings, settings),
             WEBRTC_VIDEO_CODEC_OK);
 

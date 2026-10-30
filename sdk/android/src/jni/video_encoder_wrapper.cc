@@ -96,8 +96,7 @@ int32_t VideoEncoderWrapper::InitEncodeInternal(JNIEnv* jni) {
   }
 
   RTC_DCHECK(capabilities_);
-  ScopedJavaLocalRef<jobject> capabilities =
-      Java_Capabilities_Constructor(jni, capabilities_->loss_notification);
+  ScopedJavaLocalRef<jobject> capabilities = Java_Capabilities_Constructor(jni);
 
   ScopedJavaLocalRef<jobject> settings = Java_Settings_Constructor(
       jni, number_of_cores_, codec_settings_.width, codec_settings_.height,

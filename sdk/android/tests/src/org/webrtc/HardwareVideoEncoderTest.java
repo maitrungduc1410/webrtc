@@ -77,7 +77,7 @@ public class HardwareVideoEncoderTest {
       /* maxFramerate= */ 30,
       /* numberOfSimulcastStreams= */ 1,
       /* automaticResizeOn= */ true,
-      /* capabilities= */ new VideoEncoder.Capabilities(false /* lossNotification */));
+      /* capabilities= */ new VideoEncoder.Capabilities());
   private static final long POLL_DELAY_MS = 10;
   private static final long DELIVER_ENCODED_IMAGE_DELAY_MS = 10;
   // Time for which a test callback blocks frame delivery.
@@ -467,7 +467,7 @@ public class HardwareVideoEncoderTest {
             /* maxFramerate= */ 15,
             /* numberOfSimulcastStreams= */ 1,
             /* automaticResizeOn= */ true,
-            /* capabilities= */ new VideoEncoder.Capabilities(false /* lossNotification */)),
+            /* capabilities= */ new VideoEncoder.Capabilities()),
         mockEncoderCallback);
 
     MediaFormat mediaFormat = fakeMediaCodecWrapper.getConfiguredFormat();

@@ -1827,14 +1827,17 @@ if (is_android) {
         ":native_api_jni",
         ":video_jni",
         "../../api:make_ref_counted",
+        "../../api:scoped_refptr",
         "../../api/environment",
         "../../api/environment:environment_factory",
         "../../api/video:video_frame",
+        "../../api/video:video_rtp_headers",
         "../../api/video_codecs:video_codecs_api",
         "../../media:media_constants",
         "../../modules/video_coding:video_codec_interface",
         "../../test:create_test_environment",
         "../../test:test_support",
+        "//third_party/jni_zero",
       ]
     }
 
