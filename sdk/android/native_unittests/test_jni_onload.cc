@@ -12,15 +12,12 @@
 #undef JNIEXPORT
 #define JNIEXPORT __attribute__((visibility("default")))
 
-#include "rtc_base/logging.h"
 #include "sdk/android/native_api/base/init.h"
 #include "test/android/native_test_launcher.h"  // nogncheck
 #include "third_party/jni_zero/jni_zero.h"
 
 // This is called by the VM when the shared library is first loaded.
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
-  RTC_LOG(LS_INFO) << "Entering JNI_OnLoad in test_jni_onload.cc";
-
   jni_zero::InitVM(vm);
   // TODO(webrtc:42223878): Set exception handler?
   // jni_zero::SetExceptionHandler(CheckException);

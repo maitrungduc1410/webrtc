@@ -123,7 +123,6 @@ if (is_android) {
       ":native_api_jni",
       ":video_egl_jni",
       "../../rtc_base:checks",
-      "../../rtc_base:logging",
       "../../rtc_base:ssl_adapter",
       "//third_party/jni_zero",
     ]
@@ -1728,7 +1727,6 @@ if (is_android) {
         ":libjingle_peerconnection_metrics_default_jni",
         ":native_api_jni",
         "../../rtc_base:checks",
-        "../../rtc_base:logging",
         "../../rtc_base:ssl_adapter",
       ]
       output_extension = "so"
@@ -1769,7 +1767,6 @@ if (is_android) {
       ":native_api_base",
       ":native_api_jni",
       "../../rtc_base:checks",
-      "../../rtc_base:logging",
       "//third_party/jni_zero",
     ]
   }
