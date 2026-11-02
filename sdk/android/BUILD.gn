@@ -1890,6 +1890,7 @@ if (is_android) {
         "../../rtc_base:threading",
         "../../rtc_base/synchronization:mutex",
         "../../rtc_base/system:inline",
+        "../../test:scoped_logging_config",
         "../../test:test_support",
         "//third_party/abseil-cpp/absl/strings:string_view",
       ]

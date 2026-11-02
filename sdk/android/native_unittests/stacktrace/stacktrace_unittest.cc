@@ -30,6 +30,7 @@
 #include "rtc_base/system/inline.h"
 #include "rtc_base/thread.h"
 #include "test/gtest.h"
+#include "test/scoped_logging_config.h"
 
 namespace webrtc {
 namespace test {
@@ -251,18 +252,6 @@ TEST(Stacktrace, TestRtcCriticalSection) {
 #endif
 
 TEST(Stacktrace, TestRtcEventDeadlockDetection) {
-  class ScopedLoggingConfig {
-   public:
-    explicit ScopedLoggingConfig(LoggingConfig config)
-        : saved_config_(ResetLoggingForTesting()) {
-      EXPECT_TRUE(InitializeLogging(std::move(config)));
-    }
-    ~ScopedLoggingConfig() { ResetLoggingForTesting(std::move(saved_config_)); }
-
-   private:
-    LoggingConfig saved_config_;
-  };
-
   // Start looking for the expected log output.
   webrtc::Event when_found;
   LoggingConfig config;
