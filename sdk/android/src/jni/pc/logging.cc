@@ -37,7 +37,10 @@ static void JNI_Logging_EnableLogThreads(JNIEnv* jni) {
 }
 
 static void JNI_Logging_EnableLogTimeStamps(JNIEnv* jni) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   LogMessage::LogTimestamps(true);
+#pragma clang diagnostic pop
 }
 
 static void JNI_Logging_Log(JNIEnv* jni,

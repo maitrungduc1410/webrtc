@@ -556,6 +556,8 @@ static void JNI_PeerConnectionFactory_InjectLoggable(
     jint nativeSeverity) {
   std::unique_ptr<JNILogSink>& jni_log_sink = GetStaticObjects().jni_log_sink;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   // If there is already a LogSink, remove it from LogMessage.
   if (jni_log_sink) {
     LogMessage::RemoveLogToStream(jni_log_sink.get());
@@ -563,6 +565,7 @@ static void JNI_PeerConnectionFactory_InjectLoggable(
   jni_log_sink = std::make_unique<JNILogSink>(jni, j_logging);
   LogMessage::AddLogToStream(jni_log_sink.get(),
                              static_cast<LoggingSeverity>(nativeSeverity));
+#pragma clang diagnostic pop
   LogMessage::LogToDebug(LS_NONE);
 }
 
@@ -570,7 +573,10 @@ static void JNI_PeerConnectionFactory_DeleteLoggable(JNIEnv* jni) {
   std::unique_ptr<JNILogSink>& jni_log_sink = GetStaticObjects().jni_log_sink;
 
   if (jni_log_sink) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     LogMessage::RemoveLogToStream(jni_log_sink.get());
+#pragma clang diagnostic pop
     jni_log_sink.reset();
   }
 }

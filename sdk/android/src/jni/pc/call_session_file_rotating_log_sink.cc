@@ -41,7 +41,10 @@ static jlong JNI_CallSessionFileRotatingLogSink_AddSink(
     delete sink;
     return 0;
   }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   LogMessage::AddLogToStream(sink, static_cast<LoggingSeverity>(j_severity));
+#pragma clang diagnostic pop
   return jlongFromPointer(sink);
 }
 
@@ -49,7 +52,10 @@ static void JNI_CallSessionFileRotatingLogSink_DeleteSink(JNIEnv* jni,
                                                           jlong j_sink) {
   CallSessionFileRotatingLogSink* sink =
       reinterpret_cast<CallSessionFileRotatingLogSink*>(j_sink);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   LogMessage::RemoveLogToStream(sink);
+#pragma clang diagnostic pop
   delete sink;
 }
 
