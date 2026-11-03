@@ -861,6 +861,7 @@ rtc_library("desktop_capture") {
       "shcore.lib",
     ]
     deps += [
+      "../../rtc_base:platform_thread",
       "../../rtc_base:threading",
       "../../rtc_base:win32",
       "../../rtc_base/containers:flat_map",

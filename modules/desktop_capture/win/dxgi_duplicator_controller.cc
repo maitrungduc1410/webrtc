@@ -30,6 +30,7 @@
 #include "modules/desktop_capture/win/dxgi_frame.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/platform_thread.h"
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
@@ -39,6 +40,10 @@ namespace webrtc {
 namespace {
 
 constexpr DWORD kInvalidSessionId = 0xFFFFFFFF;
+// Minimum interval between failed re-initialization attempts during capture so
+// transient failure states (e.g. Winlogon or display sleep) do not spawn a
+// worker thread on every capture tick.
+constexpr int64_t kInitializationRetryIntervalMs = 500;
 
 DWORD GetCurrentSessionId() {
   DWORD session_id = kInvalidSessionId;
@@ -189,13 +194,21 @@ DxgiDuplicatorController::Result DxgiDuplicatorController::DoDuplicate(
     Deinitialize();
   }
 
-  if (!Initialize()) {
+  if (duplicators_.empty()) {
     if (succeeded_duplications_ == 0 && !IsCurrentSessionSupported()) {
       RTC_LOG(LS_WARNING) << "Current binary is running in session 0. DXGI "
                              "components cannot be initialized.";
       return Result::UNSUPPORTED_SESSION;
     }
 
+    if (last_init_failure_ms_.has_value() &&
+        TimeMillis() - *last_init_failure_ms_ <
+            kInitializationRetryIntervalMs) {
+      return Result::INITIALIZATION_FAILED;
+    }
+  }
+
+  if (!Initialize()) {
     // Cannot initialize COM components now, display mode may be changing.
     return Result::INITIALIZATION_FAILED;
   }
@@ -246,9 +259,11 @@ bool DxgiDuplicatorController::Initialize() {
   }
 
   if (DoInitialize()) {
+    last_init_failure_ms_.reset();
     return true;
   }
   Deinitialize();
+  last_init_failure_ms_ = TimeMillis();
   return false;
 }
 
@@ -256,6 +271,33 @@ bool DxgiDuplicatorController::DoInitialize() {
   RTC_DCHECK(desktop_rect_.is_empty());
   RTC_DCHECK(duplicators_.empty());
 
+  // Run D3D11/DXGI initialization on an ephemeral thread so that any hidden
+  // windows or hooks attached to the calling thread by GPU driver DLLs (e.g.
+  // NVIDIA Optimus nvinitx.dll during D3D11CreateDevice) are cleaned up when
+  // the thread exits and do not cause ::SetThreadDesktop() to fail with
+  // ERROR_BUSY (170) if the caller later falls back to GDI capture on its
+  // capture thread. Propagate the caller's thread desktop and per-thread DPI
+  // awareness context so DXGI/GDI enumeration matches the caller thread.
+  HDESK caller_desktop = ::GetThreadDesktop(::GetCurrentThreadId());
+  DPI_AWARENESS_CONTEXT dpi_context = ::GetThreadDpiAwarenessContext();
+  bool result = false;
+  PlatformThread init_thread = PlatformThread::SpawnJoinable(
+      [this, caller_desktop, dpi_context,
+       &result]() RTC_NO_THREAD_SAFETY_ANALYSIS {
+        if (caller_desktop) {
+          ::SetThreadDesktop(caller_desktop);
+        }
+        if (dpi_context) {
+          ::SetThreadDpiAwarenessContext(dpi_context);
+        }
+        result = DoInitializeOnWorkerThread();
+      },
+      "DxgiInitThread");
+  init_thread.Finalize();
+  return result;
+}
+
+bool DxgiDuplicatorController::DoInitializeOnWorkerThread() {
   d3d_info_.min_feature_level = static_cast<D3D_FEATURE_LEVEL>(0);
   d3d_info_.max_feature_level = static_cast<D3D_FEATURE_LEVEL>(0);
 
@@ -317,6 +359,7 @@ void DxgiDuplicatorController::Deinitialize() {
   desktop_rect_ = DesktopRect();
   duplicators_.clear();
   display_configuration_monitor_.Reset();
+  last_init_failure_ms_.reset();
 }
 
 bool DxgiDuplicatorController::ContextExpired(

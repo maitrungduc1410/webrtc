@@ -171,8 +171,10 @@ class RTC_EXPORT DxgiDuplicatorController {
   bool Initialize() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Does the real initialization work, this function should only be called in
-  // Initialize().
+  // Initialize(). Runs D3D11/DXGI initialization on an ephemeral thread so GPU
+  // driver thread hooks/HWNDs do not pollute the capture thread.
   bool DoInitialize() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  bool DoInitializeOnWorkerThread() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Clears all COM components referred to by this instance. So next Duplicate()
   // call will eventually initialize this instance again.
@@ -263,6 +265,7 @@ class RTC_EXPORT DxgiDuplicatorController {
       RTC_GUARDED_BY(mutex_);
   // A number to indicate how many successful duplications have been performed.
   uint32_t succeeded_duplications_ RTC_GUARDED_BY(mutex_) = 0;
+  std::optional<int64_t> last_init_failure_ms_ RTC_GUARDED_BY(mutex_);
 };
 
 }  // namespace webrtc
