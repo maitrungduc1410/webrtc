@@ -1,7 +1,7 @@
 <!-- go/cmark -->
 <!--* freshness: {
   owner: 'jleconte'
-  reviewed: '2025-03-31'
+  reviewed: '2026-11-04'
   review_interval: '1 year'
 } *-->
 
@@ -72,7 +72,7 @@ The framework API is located in the namespace *`webrtc::webrtc_pc_e2e`*.
 
 *   *`<peer_name>_connected`* - peer successfully established connection to
     remote side
-*   *`cpu_usage`* - CPU usage excluding video analyzer
+*   *`cpu_usage_%`* - CPU usage excluding video analyzer
 *   *`audio_ahead_ms`* - Used to estimate how much audio and video is out of
     sync when the two tracks were from the same source. Stats are polled
     periodically during a call. The metric represents how much earlier was audio
@@ -112,11 +112,9 @@ See documentation for
     between nearby samples divided on sample interval.
 *   *`average_jitter_buffer_delay_ms`* - average size of NetEQ jitter buffer.
 *   *`preferred_buffer_size_ms`* - preferred size of NetEQ jitter buffer.
-*   *`visqol_mos`* - proxy for audio quality itself.
-*   *`asdm_samples`* - measure of how much acceleration/deceleration was in the
-    signal.
-*   *`word_error_rate`* - measure of how intelligible the audio was (percent of
-    words that could not be recognized in output audio).
+*   *`energy`* - audio energy of the received stream, computed between two
+    consecutive stats polls as the square root of the `totalAudioEnergy`
+    increase divided by the `totalSamplesDuration` increase.
 
 ### Network
 

@@ -1,7 +1,7 @@
 <!-- go/cmark -->
 <!--* freshness: {
   owner: 'jleconte'
-  reviewed: '2025-03-31'
+  reviewed: '2026-11-04'
   review_interval: '1 year'
 } *-->
 

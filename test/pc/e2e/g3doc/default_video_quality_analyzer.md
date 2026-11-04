@@ -1,7 +1,7 @@
 <!-- go/cmark -->
 <!--* freshness: {
   owner: 'jleconte'
-  reviewed: '2025-03-31'
+  reviewed: '2026-11-04'
   review_interval: '1 year'
 } *-->
 
@@ -89,15 +89,15 @@ Exported metrics are reported to WebRTC perf results reporting system.
 
 ### General
 
-*   *`cpu_usage`* - CPU usage excluding video analyzer
+*   *`cpu_usage_%`* - CPU usage excluding video analyzer
 
 ### Video
 
-*   *`psnr`* - peak signal-to-noise ratio:
+*   *`psnr_dB`* - peak signal-to-noise ratio:
     [wikipedia](https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio)
 *   *`ssim`* - structural similarity:
     [wikipedia](https://en.wikipedia.org/wiki/Structural_similarity).
-*   *`min_psnr`* - minimum value of psnr across all frames of video stream.
+*   *`min_psnr_dB`* - minimum value of psnr across all frames of video stream.
 *   *`encode_time`* - time to encode a single frame.
 *   *`decode_time`* - time to decode a single frame.
 *   *`transport_time`* - time from frame encoded to frame received for decoding.
@@ -111,6 +111,12 @@ Exported metrics are reported to WebRTC perf results reporting system.
 *   *`time_between_rendered_frames`* - time between frames out to renderer.
 *   *`dropped_frames`* - amount of frames that were sent, but weren't rendered
     and are known not to be “on the way” from sender to receiver.
+*   *`rendered_frames`* - amount of frames that were rendered.
+*   *`qp_sl<N>`* - sender side QP values of encoded images for spatial layer
+    `N`. If the spatial layer is not set for `webrtc::EncodedImage`, 0 is used.
+*   *`rendered_frame_qp`* - QP values of the rendered frames. In SVC or
+    simulcast scenarios the receiver renders only one spatial layer at a time,
+    so this should ideally match one of the `qp_sl<N>` values.
 
 Freeze is a pause when no new frames from decoder arrived for 150ms + avg time
 between frames or 3 * avg time between frames.
@@ -122,8 +128,8 @@ between frames or 3 * avg time between frames.
 *   *`pixels_per_frame`* - amount of pixels on frame (width * height).
 *   *`target_encode_bitrate`* - target encode bitrate provided by BWE to
     encoder.
-*   *`actual_encode_bitrate -`* - actual encode bitrate produced by encoder.
-*   *`available_send_bandwidth -`* - available send bandwidth estimated by BWE.
+*   *`actual_encode_bitrate`* - actual encode bitrate produced by encoder.
+*   *`available_send_bandwidth`* - available send bandwidth estimated by BWE.
 *   *`transmission_bitrate`* - bitrate of media in the emulated network, not
     counting retransmissions FEC, and RTCP messages
 *   *`retransmission_bitrate`* - bitrate of retransmission streams only.
