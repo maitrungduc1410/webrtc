@@ -899,6 +899,18 @@ void SharedScreenCastStreamPrivate::ProcessBuffer(pw_buffer* buffer) {
           mouse_frame->CopyPixelsFrom(
               bitmap_data, bitmap.stride,
               DesktopRect::MakeWH(bitmap.size.width, bitmap.size.height));
+          // TODO(bugs.webrtc.org/436974448): Remove this conversion when
+          // arbitrary pixel formats are supported.
+          if (bitmap.format == SPA_VIDEO_FORMAT_RGBx ||
+              bitmap.format == SPA_VIDEO_FORMAT_RGBA) {
+            // KWin sends the cursor as RGBA but MouseCursor
+            // expects BGRA like the rest of WebRTC.
+            uint8_t* tmp_src = mouse_frame->data();
+            for (uint32_t i = 0; i < bitmap.size.height; ++i) {
+              ConvertRGBxToBGRx(tmp_src, bitmap.size.width * kBytesPerPixel);
+              tmp_src += mouse_frame->stride();
+            }
+          }
           {
             MutexLock latest_frame_lock(&latest_frame_lock_);
             mouse_cursor_ = std::make_unique<MouseCursor>(
