@@ -22,6 +22,7 @@
 #include <list>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -395,22 +396,24 @@ class MockAudioTransportAndroid : public test::MockAudioTransport {
               Invoke(this, &MockAudioTransportAndroid::RealNeedMorePlayData));
     }
     if (rec_mode()) {
-      ON_CALL(*this, RecordedDataIsAvailable(_, _, _, _, _, _, _, _, _, _))
+      ON_CALL(*this, RecordedDataIsAvailable(_, _, _, _, _, _, _, _, _, _, _))
           .WillByDefault(Invoke(
               this, &MockAudioTransportAndroid::RealRecordedDataIsAvailable));
     }
   }
 
-  int32_t RealRecordedDataIsAvailable(const void* audioSamples,
-                                      const size_t nSamples,
-                                      const size_t nBytesPerSample,
-                                      const size_t nChannels,
-                                      const uint32_t samplesPerSec,
-                                      const uint32_t totalDelayMS,
-                                      const int32_t clockDrift,
-                                      const uint32_t currentMicLevel,
-                                      const bool keyPressed,
-                                      const uint32_t& newMicLevel) {
+  int32_t RealRecordedDataIsAvailable(
+      const void* audioSamples,
+      const size_t nSamples,
+      const size_t nBytesPerSample,
+      const size_t nChannels,
+      const uint32_t samplesPerSec,
+      const uint32_t totalDelayMS,
+      const int32_t clockDrift,
+      const uint32_t currentMicLevel,
+      const bool keyPressed,
+      const uint32_t& newMicLevel,
+      std::optional<int64_t> /* estimated_capture_time_ns */) {
     EXPECT_TRUE(rec_mode()) << "No test is expecting these callbacks.";
     rec_count_++;
     // Process the recorded audio stream if an AudioStreamInterface
