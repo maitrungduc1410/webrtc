@@ -1121,15 +1121,30 @@ void AddChannelStats(StatsMap& stats_map, typename StatsMap::key_type channel) {
 }  // namespace
 
 scoped_refptr<RTCStatsReport> RTCStatsCollector::CreateReportFilteredBySelector(
-    bool filter_by_sender_selector,
+    bool is_unified_plan,
+    const std::optional<std::string>& mid,
     scoped_refptr<const RTCStatsReport> report,
     scoped_refptr<RtpSenderInternal> sender_selector,
     scoped_refptr<RtpReceiverInternal> receiver_selector) {
   std::vector<std::string> rtpstream_ids;
-  if (filter_by_sender_selector) {
-    // Filter mode: RTCStatsCollector::RequestInfo::kSenderSelector
+  if (is_unified_plan) {
+    if (mid.has_value()) {
+      auto add_by_mid = [&](const auto& rtp_stream_stats) {
+        for (const auto* rtp_stream : rtp_stream_stats) {
+          if (rtp_stream->mid == mid) {
+            rtpstream_ids.push_back(rtp_stream->id());
+          }
+        }
+      };
+      if (sender_selector) {
+        add_by_mid(report->GetStatsOfType<RTCOutboundRtpStreamStats>());
+      } else if (receiver_selector) {
+        add_by_mid(report->GetStatsOfType<RTCInboundRtpStreamStats>());
+      }
+    }
+  } else {
+    // TODO: bugs.webrtc.org/467984837 - Remove when Plan B is removed.
     if (sender_selector) {
-      // Find outbound-rtp(s) of the sender using ssrc lookup.
       RtpParameters parameters =
           sender_selector->GetParametersInternal(/*with_all_layers=*/false);
       std::vector<RtpEncodingParameters>& encodings = parameters.encodings;
@@ -1145,11 +1160,7 @@ scoped_refptr<RTCStatsReport> RTCStatsCollector::CreateReportFilteredBySelector(
           rtpstream_ids.push_back(outbound_rtp->id());
         }
       }
-    }
-  } else {
-    // Filter mode: RTCStatsCollector::RequestInfo::kReceiverSelector
-    if (receiver_selector) {
-      // Find the inbound-rtp of the receiver using ssrc lookup.
+    } else if (receiver_selector) {
       std::optional<uint32_t> ssrc = receiver_selector->ssrc_s();
       if (ssrc.has_value()) {
         for (const auto* inbound_rtp :
@@ -1162,8 +1173,6 @@ scoped_refptr<RTCStatsReport> RTCStatsCollector::CreateReportFilteredBySelector(
       }
     }
   }
-  if (rtpstream_ids.empty())
-    return RTCStatsReport::Create(report->timestamp());
   return TakeReferencedStats(report->Copy(), rtpstream_ids);
 }
 
@@ -1307,6 +1316,24 @@ void RTCStatsCollector::GetStatsReportInternal(
     return;
   }
 
+  if (is_unified_plan_ &&
+      request.filter_mode() != RequestInfo::FilterMode::kAll) {
+    bool by_sender =
+        request.filter_mode() == RequestInfo::FilterMode::kSenderSelector;
+    std::optional<std::string> mid;
+    for (const auto& transceiver_proxy : pc_->GetTransceiversInternal()) {
+      RtpTransceiver* transceiver = transceiver_proxy->internal();
+      if (by_sender
+              ? transceiver->sender_internal() == request.sender_selector()
+              : transceiver->receiver_internal() ==
+                    request.receiver_selector()) {
+        mid = transceiver->mid();
+        break;
+      }
+    }
+    request.set_mid(std::move(mid));
+  }
+
   // "Now" using a monotonically increasing timer.
   int64_t cache_now_us = env_.clock().TimeInMicroseconds();
   if (cached_report_ &&
@@ -1316,8 +1343,9 @@ void RTCStatsCollector::GetStatsReportInternal(
     // reentrancy problems.
     signaling_thread_->PostTask(SafeTask(
         signaling_safety_,
-        [request = std::move(request), report = cached_report_]() mutable {
-          DeliverReport(request, report);
+        [is_unified_plan = is_unified_plan_, request = std::move(request),
+         report = cached_report_]() mutable {
+          DeliverReport(is_unified_plan, request, report);
         }));
     return;
   }
@@ -1518,30 +1546,29 @@ void RTCStatsCollector::OnNetworkReportReady(
     if (!signaling_safety->alive()) {
       break;
     }
-    DeliverReport(request, cached_report);
+    DeliverReport(is_unified_plan_, request, cached_report);
   }
 }
 
 void RTCStatsCollector::DeliverReport(
+    bool is_unified_plan,
     const RequestInfo& request,
     const scoped_refptr<const RTCStatsReport>& report) {
   if (request.filter_mode() == RequestInfo::FilterMode::kAll) {
     request.callback()->OnStatsDelivered(report);
   } else {
-    bool filter_by_sender_selector;
     scoped_refptr<RtpSenderInternal> sender_selector;
     scoped_refptr<RtpReceiverInternal> receiver_selector;
     if (request.filter_mode() == RequestInfo::FilterMode::kSenderSelector) {
-      filter_by_sender_selector = true;
       sender_selector = request.sender_selector();
     } else {
       RTC_DCHECK(request.filter_mode() ==
                  RequestInfo::FilterMode::kReceiverSelector);
-      filter_by_sender_selector = false;
       receiver_selector = request.receiver_selector();
     }
-    request.callback()->OnStatsDelivered(CreateReportFilteredBySelector(
-        filter_by_sender_selector, report, sender_selector, receiver_selector));
+    request.callback()->OnStatsDelivered(
+        CreateReportFilteredBySelector(is_unified_plan, request.mid(), report,
+                                       sender_selector, receiver_selector));
   }
 }
 

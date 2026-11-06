@@ -19,6 +19,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/functional/any_invocable.h"
@@ -201,6 +202,8 @@ class RTCStatsCollector {
       RTC_DCHECK(filter_mode_ == FilterMode::kReceiverSelector);
       return receiver_selector_;
     }
+    const std::optional<std::string>& mid() const { return mid_; }
+    void set_mid(std::optional<std::string> mid) { mid_ = std::move(mid); }
 
    private:
     RequestInfo(FilterMode filter_mode,
@@ -212,12 +215,14 @@ class RTCStatsCollector {
     scoped_refptr<RTCStatsCollectorCallback> callback_;
     scoped_refptr<RtpSenderInternal> sender_selector_;
     scoped_refptr<RtpReceiverInternal> receiver_selector_;
+    std::optional<std::string> mid_;
   };
 
   void GetStatsReportInternal(RequestInfo request);
 
   // Invokes the completion callback for a pending request.
-  static void DeliverReport(const RequestInfo& request,
+  static void DeliverReport(bool is_unified_plan,
+                            const RequestInfo& request,
                             const scoped_refptr<const RTCStatsReport>& report);
 
   // Produces `RTCCertificateStats`.
@@ -307,7 +312,8 @@ class RTCStatsCollector {
                             std::vector<DataChannelStats> data_channel_stats);
 
   static scoped_refptr<RTCStatsReport> CreateReportFilteredBySelector(
-      bool filter_by_sender_selector,
+      bool is_unified_plan,
+      const std::optional<std::string>& mid,
       scoped_refptr<const RTCStatsReport> report,
       scoped_refptr<RtpSenderInternal> sender_selector,
       scoped_refptr<RtpReceiverInternal> receiver_selector);

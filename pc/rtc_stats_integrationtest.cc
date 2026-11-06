@@ -1220,6 +1220,24 @@ TEST_F(RTCStatsIntegrationTest, GetStatsWithReceiverSelector) {
   EXPECT_TRUE(report->size());
 }
 
+TEST_F(RTCStatsIntegrationTest, GetStatsWithSelectorOnStoppingTransceiver) {
+  StartCall();
+
+  auto transceiver = caller_->pc()->GetTransceivers()[0];
+  transceiver->StopStandard();
+  ASSERT_FALSE(transceiver->stopped());
+
+  EXPECT_FALSE(GetStatsFromCaller()
+                   ->GetStatsOfType<RTCOutboundRtpStreamStats>()
+                   .empty());
+  EXPECT_FALSE(GetStatsFromCaller(transceiver->sender())
+                   ->GetStatsOfType<RTCOutboundRtpStreamStats>()
+                   .empty());
+  EXPECT_FALSE(GetStatsFromCaller(transceiver->receiver())
+                   ->GetStatsOfType<RTCInboundRtpStreamStats>()
+                   .empty());
+}
+
 TEST_F(RTCStatsIntegrationTest, GetStatsWithInvalidSenderSelector) {
   StartCall();
 
