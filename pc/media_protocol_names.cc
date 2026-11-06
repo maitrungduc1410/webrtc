@@ -53,9 +53,6 @@ const char kMediaProtocolUdpTlsSavp[] = "UDP/TLS/RTP/SAVP";
 // RFC7850
 const char kMediaProtocolTcpDtlsSavpf[] = "TCP/DTLS/RTP/SAVPF";
 const char kMediaProtocolTcpDtlsSavp[] = "TCP/DTLS/RTP/SAVP";
-// TODO: https://issues.webrtc.org/582417469 - Remove, not defined by any RFC.
-const char kMediaProtocolTcpTlsSavpf[] = "TCP/TLS/RTP/SAVPF";
-const char kMediaProtocolTcpTlsSavp[] = "TCP/TLS/RTP/SAVP";
 
 }  // namespace
 
@@ -97,9 +94,7 @@ bool IsDtlsRtp(absl::string_view protocol) {
   return protocol == kMediaProtocolDtlsSavpf ||
          protocol == kMediaProtocolTcpDtlsSavpf ||
          protocol == kMediaProtocolUdpTlsSavp ||
-         protocol == kMediaProtocolTcpDtlsSavp ||
-         protocol == kMediaProtocolTcpTlsSavpf ||
-         protocol == kMediaProtocolTcpTlsSavp;
+         protocol == kMediaProtocolTcpDtlsSavp;
 }
 
 bool IsPlainRtp(absl::string_view protocol) {

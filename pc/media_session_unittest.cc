@@ -532,8 +532,7 @@ constexpr char kAudioTrack3[] = "audio_3";
 const char* kMediaProtocols[] = {"RTP/AVP", "RTP/SAVP", "RTP/AVPF",
                                  "RTP/SAVPF"};
 const char* kMediaProtocolsDtls[] = {"TCP/DTLS/RTP/SAVPF", "TCP/DTLS/RTP/SAVP",
-                                     "UDP/TLS/RTP/SAVPF",  "UDP/TLS/RTP/SAVP",
-                                     "TCP/TLS/RTP/SAVPF",  "TCP/TLS/RTP/SAVP"};
+                                     "UDP/TLS/RTP/SAVPF", "UDP/TLS/RTP/SAVP"};
 
 // These constants are used to make the code using "AddMediaDescriptionOptions"
 // more readable.
