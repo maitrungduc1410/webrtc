@@ -10,9 +10,11 @@
 
 #include "rtc_base/async_udp_socket.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "api/environment/environment.h"
@@ -21,6 +23,7 @@
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/mock_socket.h"
 #include "rtc_base/network/received_packet.h"
+#include "rtc_base/network/sent_packet.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/virtual_socket_server.h"
@@ -34,6 +37,7 @@ namespace webrtc {
 
 using ::testing::_;
 using ::testing::MockFunction;
+using ::testing::NiceMock;
 using ::testing::NotNull;
 
 TEST(AsyncUDPSocketTest, SetSocketOptionIfEctChange) {
@@ -65,10 +69,36 @@ TEST(AsyncUDPSocketTest, SetSocketOptionIfEctChange) {
   EXPECT_EQ(ect, 0);
 }
 
+TEST(AsyncUDPSocketTest, SentPacketInfoHasIpOverheadOfAddressFamily) {
+  VirtualSocketServer socket_server;
+  auto ip_overhead_of_sent_packet =
+      [&](const SocketAddress& address) -> std::optional<size_t> {
+    // Declared first so that it outlives `udp_socket`, whose sent packet
+    // callback refers to it.
+    std::optional<size_t> ip_overhead_bytes;
+    std::unique_ptr<AsyncUDPSocket> udp_socket =
+        AsyncUDPSocket::Create(CreateTestEnvironment(), address, socket_server);
+    if (udp_socket == nullptr) {
+      return std::nullopt;
+    }
+    udp_socket->SubscribeSentPacket(
+        &ip_overhead_bytes, [&](AsyncPacketSocket* /* socket */,
+                                const SentPacketInfo& sent_packet) {
+          ip_overhead_bytes = sent_packet.info.ip_overhead_bytes;
+        });
+    constexpr uint8_t kPayload[] = {1, 2, 3};
+    udp_socket->SendTo(kPayload, sizeof(kPayload), address,
+                       AsyncSocketPacketOptions());
+    return ip_overhead_bytes;
+  };
+  EXPECT_EQ(ip_overhead_of_sent_packet(SocketAddress("22.22.22.22", 0)), 20u);
+  EXPECT_EQ(ip_overhead_of_sent_packet(SocketAddress("::2", 0)), 40u);
+}
+
 TEST(AsyncUDPSocketTest, ArrivalTimeStampCanBeBeforeCurrentTime) {
   SimulatedClock webrtc_clock(Timestamp::Seconds(456));
   Environment env = CreateTestEnvironment({.time = &webrtc_clock});
-  std::unique_ptr<MockSocket> socket = std::make_unique<MockSocket>();
+  std::unique_ptr<MockSocket> socket = std::make_unique<NiceMock<MockSocket>>();
   MockSocket* socket_ptr = socket.get();
   AsyncUDPSocket async_socket(env, std::move(socket));
   testing::MockFunction<void(AsyncPacketSocket*, const ReceivedIpPacket&)>
@@ -111,7 +141,7 @@ TEST(AsyncUDPSocketTest, ArrivalTimeStampCanBeBeforeCurrentTime) {
 TEST(AsyncUDPSocketTest, InitiallyBufferedPacketsGetSameArrivalTime) {
   SimulatedClock webrtc_clock(Timestamp::Seconds(456));
   Environment env = CreateTestEnvironment({.time = &webrtc_clock});
-  std::unique_ptr<MockSocket> socket = std::make_unique<MockSocket>();
+  std::unique_ptr<MockSocket> socket = std::make_unique<NiceMock<MockSocket>>();
   MockSocket* socket_ptr = socket.get();
   AsyncUDPSocket async_socket(env, std::move(socket));
   testing::MockFunction<void(AsyncPacketSocket*, const ReceivedIpPacket&)>
@@ -151,7 +181,7 @@ TEST(AsyncUDPSocketTest, InitiallyBufferedPacketsGetSameArrivalTime) {
 TEST(AsyncUDPSocketTest, ArrivalTimeStampCanNotBeAfterCurrentTime) {
   SimulatedClock webrtc_clock(Timestamp::Seconds(456));
   Environment env = CreateTestEnvironment({.time = &webrtc_clock});
-  std::unique_ptr<MockSocket> socket = std::make_unique<MockSocket>();
+  std::unique_ptr<MockSocket> socket = std::make_unique<NiceMock<MockSocket>>();
   MockSocket* socket_ptr = socket.get();
   AsyncUDPSocket async_socket(env, std::move(socket));
   testing::MockFunction<void(AsyncPacketSocket*, const ReceivedIpPacket&)>
@@ -195,7 +225,7 @@ TEST(AsyncUDPSocketTest, RecoversFromBackwardClockStep) {
   SimulatedClock webrtc_clock(Timestamp::Seconds(456));
   Environment env = CreateTestEnvironment(
       {.field_trials = "WebRTC-ClockAligner/Enabled/", .time = &webrtc_clock});
-  std::unique_ptr<MockSocket> socket = std::make_unique<MockSocket>();
+  std::unique_ptr<MockSocket> socket = std::make_unique<NiceMock<MockSocket>>();
   MockSocket* socket_ptr = socket.get();
   AsyncUDPSocket async_socket(env, std::move(socket));
   testing::MockFunction<void(AsyncPacketSocket*, const ReceivedIpPacket&)>

@@ -51,6 +51,7 @@ AsyncUDPSocket::AsyncUDPSocket(const Environment& env,
     : env_(env),
       sequence_checker_(SequenceChecker::kDetached),
       socket_(std::move(socket)),
+      ip_overhead_bytes_(socket_->GetLocalAddress().ipaddr().overhead()),
       clock_aligner_(env) {
   // The socket should start out readable but not writable.
   socket_->SubscribeReadEvent(this,
@@ -78,7 +79,8 @@ int AsyncUDPSocket::Send(const void* pv,
   SentPacketInfo sent_packet(options.packet_id,
                              env_.clock().TimeInMilliseconds(),
                              options.info_signaled_after_sent);
-  CopySocketInformationToPacketInfo(cb, *this, &sent_packet.info);
+  sent_packet.info.packet_size_bytes = cb;
+  sent_packet.info.ip_overhead_bytes = ip_overhead_bytes_;
   int ret = socket_->Send(pv, cb);
   NotifySentPacket(this, sent_packet);
   return ret;
@@ -91,7 +93,8 @@ int AsyncUDPSocket::SendTo(const void* pv,
   SentPacketInfo sent_packet(options.packet_id,
                              env_.clock().TimeInMilliseconds(),
                              options.info_signaled_after_sent);
-  CopySocketInformationToPacketInfo(cb, *this, &sent_packet.info);
+  sent_packet.info.packet_size_bytes = cb;
+  sent_packet.info.ip_overhead_bytes = ip_overhead_bytes_;
   if (has_set_ect1_options_ != options.ect_1) {
     // It is unclear what is most efficient, setting options on every sent
     // packet or when changed. Potentially, can separate send sockets be used?

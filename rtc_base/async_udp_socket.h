@@ -72,6 +72,9 @@ class AsyncUDPSocket : public AsyncPacketSocket {
   const Environment env_;
   RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_;
   std::unique_ptr<Socket> socket_;
+  // IP header size of sent packets. Determined once, since looking up the local
+  // address takes a system call.
+  const size_t ip_overhead_bytes_;
   bool has_set_ect1_options_ = false;
   Buffer buffer_ RTC_GUARDED_BY(sequence_checker_);
   ClockAligner clock_aligner_ RTC_GUARDED_BY(sequence_checker_);

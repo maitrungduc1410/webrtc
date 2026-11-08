@@ -1489,6 +1489,7 @@ if (rtc_include_tests) {
       "../test:near_matcher",
       "../test:test_support",
       "network:received_packet",
+      "network:sent_packet",
       "//third_party/abseil-cpp/absl/memory",
     ]
   }
