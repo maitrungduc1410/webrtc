@@ -509,6 +509,7 @@ TEST(CongestionControlFeedbackGeneratorTest,
 
   // 1000ms / 25ms = 40 feedback packets.
   EXPECT_EQ(number_of_feedback_packets, 40);
+  EXPECT_EQ(generator.SentFeedbackCount(), 40);
 }
 
 TEST(CongestionControlFeedbackGeneratorTest,

@@ -75,6 +75,8 @@ class CongestionControlFeedbackGenerator
   flat_map<uint32_t, SentCongestionControllerFeedbackStats> GetStatsPerSsrc()
       const;
 
+  int SentFeedbackCount() const;
+
  private:
   Timestamp NextFeedbackTime() const RTC_RUN_ON(sequence_checker_);
 
@@ -106,6 +108,7 @@ class CongestionControlFeedbackGenerator
   Timestamp last_feedback_sent_time_ = Timestamp::MinusInfinity();
   std::optional<Timestamp> first_arrival_time_since_feedback_;
   bool marker_bit_seen_ = false;
+  int sent_feedback_count_ RTC_GUARDED_BY(sequence_checker_) = 0;
   Timestamp next_possible_feedback_send_time_ = Timestamp::Zero();
 };
 

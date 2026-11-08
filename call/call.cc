@@ -1035,7 +1035,9 @@ Call::Stats Call::GetStats() const {
   stats.send_bandwidth_bps = last_bandwidth_bps_;
   stats.max_padding_bitrate_bps = configured_max_padding_bitrate_bps_;
 
-  // Congestion control feedback messages received.
+  // Congestion control feedback messages sent and received.
+  stats.ccfb_messages_sent =
+      receive_side_cc_.SentCongestionControlFeedbackCount();
   stats.ccfb_messages_received =
       transport_send_->ReceivedCongestionControlFeedbackCount();
 

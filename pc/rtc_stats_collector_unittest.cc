@@ -3052,6 +3052,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCTransportStatsWithCrypto) {
   pc_->SetTransportStats(kTransportName, {rtp_transport_channel_stats});
 
   Call::Stats call_stats;
+  call_stats.ccfb_messages_sent = 4;
   call_stats.ccfb_messages_received = 5;
   pc_->SetCallStats(call_stats);
 
@@ -3078,6 +3079,7 @@ TEST_P(RTCStatsCollectorTest, CollectRTCTransportStatsWithCrypto) {
   expected_rtp_transport.dtls_cipher = "TLS_RSA_WITH_AES_128_CBC_SHA";
   expected_rtp_transport.srtp_cipher = "SRTP_AES128_CM_HMAC_SHA1_80";
   // CCFB stats.
+  expected_rtp_transport.ccfb_messages_sent = 4;
   expected_rtp_transport.ccfb_messages_received = 5;
 
   ASSERT_TRUE(report->Get(expected_rtp_transport.id()));

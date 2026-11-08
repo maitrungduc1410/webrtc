@@ -1042,6 +1042,7 @@ class RTCStatsReportVerifier {
     verifier.TestAttributeIsDefined(transport.ice_local_username_fragment);
     verifier.TestAttributeIsDefined(transport.ice_state);
     // TODO: bugs.webrtc.org/437303401 - Flip when enabling L4S by default.
+    verifier.TestAttributeIsUndefined(transport.ccfb_messages_sent);
     verifier.TestAttributeIsUndefined(transport.ccfb_messages_received);
     return verifier.ExpectAllAttributesSuccessfullyTested();
   }
@@ -1352,6 +1353,7 @@ TEST_F(RTCStatsIntegrationTest, ExperimentalTransportCcfbStats) {
     if (stats.type() == RTCTransportStats::kType) {
       const RTCTransportStats& transport(stats.cast_to<RTCTransportStats>());
       RTCStatsVerifier verifier(report.get(), &transport);
+      verifier.TestAttributeIsNonNegative<int>(transport.ccfb_messages_sent);
       verifier.TestAttributeIsNonNegative<int>(
           transport.ccfb_messages_received);
     } else if (stats.type() == RTCInboundRtpStreamStats::kType) {

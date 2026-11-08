@@ -63,6 +63,7 @@ class Call {
     int recv_bandwidth_bps = 0;       // Estimated available receive bandwidth.
     int64_t pacer_delay_ms = 0;
     int64_t rtt_ms = -1;
+    std::optional<int64_t> ccfb_messages_sent = std::nullopt;
     std::optional<int64_t> ccfb_messages_received = std::nullopt;
     flat_map<uint32_t, SentCongestionControllerFeedbackStats>
         sent_ccfb_stats_per_ssrc;

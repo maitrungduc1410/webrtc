@@ -121,6 +121,7 @@ void CongestionControlFeedbackGenerator::SendFeedback(Timestamp now) {
   std::vector<std::unique_ptr<rtcp::RtcpPacket>> rtcp_packets;
   rtcp_packets.push_back(std::move(feedback));
   rtcp_sender_(std::move(rtcp_packets));
+  ++sent_feedback_count_;
 }
 
 void CongestionControlFeedbackGenerator::CalculateNextPossibleSendTime(
@@ -166,6 +167,11 @@ CongestionControlFeedbackGenerator::GetStatsPerSsrc() const {
         /*hint=*/result.end(), /*key=*/ssrc, tracker.GetStats());
   }
   return result;
+}
+
+int CongestionControlFeedbackGenerator::SentFeedbackCount() const {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  return sent_feedback_count_;
 }
 
 }  // namespace webrtc

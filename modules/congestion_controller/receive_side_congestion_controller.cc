@@ -157,6 +157,15 @@ ReceiveSideCongestionController::GetCongestionControllerStatsPerSsrc() const {
   return congestion_control_feedback_generator_.GetStatsPerSsrc();
 }
 
+std::optional<int>
+ReceiveSideCongestionController::SentCongestionControlFeedbackCount() const {
+  if (!send_rfc8888_congestion_feedback_) {
+    return std::nullopt;
+  }
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
+  return congestion_control_feedback_generator_.SentFeedbackCount();
+}
+
 void ReceiveSideCongestionController::OnBitrateChanged(int bitrate_bps) {
   OnBitrateChanged(DataRate::BitsPerSec(bitrate_bps),
                    /*is_bandwidth_limited=*/true,

@@ -165,12 +165,14 @@ TEST(ReceiveSideCongestionControllerTest, SendsRfc8888FeedbackIfEnabled) {
   // Expect that REMB is not sent.
   EXPECT_CALL(remb_sender, Call).Times(0);
 
+  EXPECT_EQ(controller.SentCongestionControlFeedbackCount(), 0);
   RtpPacketReceived packet;
   packet.set_arrival_time(clock.CurrentTime());
   controller.OnReceivedPacket(packet, MediaType::VIDEO);
   TimeDelta next_process = controller.MaybeProcess();
   clock.AdvanceTime(next_process);
   next_process = controller.MaybeProcess();
+  EXPECT_EQ(controller.SentCongestionControlFeedbackCount(), 1);
 }
 
 TEST(ReceiveSideCongestionControllerTest,

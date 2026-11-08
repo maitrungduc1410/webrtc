@@ -77,6 +77,9 @@ class ReceiveSideCongestionController : public CallStatsObserver {
   flat_map<uint32_t, SentCongestionControllerFeedbackStats>
   GetCongestionControllerStatsPerSsrc() const;
 
+  // Returns nullopt unless RFC 8888 feedback is sent.
+  std::optional<int> SentCongestionControlFeedbackCount() const;
+
   // Removes stream from receive side bandwidth estimation.
   // Noop if receive side bwe is not used or stream doesn't participate in it.
   void RemoveStream(uint32_t ssrc);

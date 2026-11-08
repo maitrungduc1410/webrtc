@@ -437,6 +437,7 @@ WEBRTC_RTCSTATS_IMPL(RTCTransportStats, RTCStats, "transport",
     AttributeInit("iceRole", &ice_role),
     AttributeInit("iceLocalUsernameFragment", &ice_local_username_fragment),
     AttributeInit("iceState", &ice_state),
+    AttributeInit("ccfbMessagesSent", &ccfb_messages_sent),
     AttributeInit("ccfbMessagesReceived", &ccfb_messages_received))
 // clang-format on
 

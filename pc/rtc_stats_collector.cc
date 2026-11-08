@@ -2204,6 +2204,8 @@ void RTCStatsCollector::ProduceTransportStats_s(
         channel_transport_stats->srtp_cipher =
             SrtpCryptoSuiteToName(channel_stats.srtp_crypto_suite);
       }
+      channel_transport_stats->ccfb_messages_sent =
+          call_stats.ccfb_messages_sent;
       channel_transport_stats->ccfb_messages_received =
           call_stats.ccfb_messages_received;
       report->AddStats(std::move(channel_transport_stats));
