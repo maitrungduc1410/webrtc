@@ -539,8 +539,23 @@ public class PeerConnectionFactory {
     lifecycleLock.runIfAlive(factory -> PeerConnectionFactoryJni.get().stopAecDump(factory));
   }
 
+  /**
+   * Releases the native factory and stops its threads. All PeerConnections created by this factory
+   * must be disposed first, including when both are disposed from the same callback.
+   *
+   * <p>As for {@link PeerConnection#dispose()}, the native factory is released on a background
+   * thread, after any pending PeerConnection teardown. This method waits for that unless it is
+   * called on a WebRTC thread.
+   *
+   * <p>When called on a WebRTC thread, this method can return before the factory has been
+   * released, and {@link #initialize} must not be called until then. Calling this method again on
+   * an application thread waits for the release.
+   */
   public void dispose() {
-    lifecycleLock.dispose(factory -> PeerConnectionFactoryJni.get().freeFactory(factory));
+    boolean onWebRtcThread = PeerConnectionFactoryJni.get().isOnWebRtcThread();
+    lifecycleLock.disposeOnTeardownThread(
+        factory -> PeerConnectionFactoryJni.get().freeFactory(factory),
+        /* waitForCompletion= */ !onWebRtcThread);
     networkThread = null;
     workerThread = null;
     signalingThread = null;
@@ -674,6 +689,8 @@ public class PeerConnectionFactory {
     void stopAecDump(long factory);
 
     void freeFactory(long factory);
+
+    boolean isOnWebRtcThread();
 
     long getNativePeerConnectionFactory(long factory);
 

@@ -11,6 +11,10 @@
 package org.webrtc;
 
 import androidx.annotation.Nullable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -39,13 +43,20 @@ class NativeLifecycleLock {
     void dispose(long nativePointer);
   }
 
+  // Runs disposeOnTeardownThread() requests in order on a thread that exits when idle.
+  private static final ThreadPoolExecutor teardownExecutor = createTeardownExecutor();
+
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
   private final String className;
   private long nativePointer;
+  // Set once the disposer has returned. disposeOnTeardownThread() clears nativePointer before it
+  // runs the disposer.
+  private volatile boolean disposeCompleted;
 
   NativeLifecycleLock(String className, long nativePointer) {
     this.className = className;
     this.nativePointer = nativePointer;
+    this.disposeCompleted = nativePointer == 0;
   }
 
   <T> T call(NativeCallable<T> callable) {
@@ -162,9 +173,47 @@ class NativeLifecycleLock {
       if (nativePointer != 0) {
         disposer.dispose(nativePointer);
         nativePointer = 0;
+        disposeCompleted = true;
       }
     } finally {
       lock.writeLock().unlock();
+    }
+  }
+
+  /**
+   * Disposes the native object on a shared teardown thread, which handles requests in order.
+   *
+   * <p>On that thread, this waits for in-flight calls to finish, marks this lock as disposed and
+   * then calls {@code disposer} without holding the lock. The disposer may therefore block on
+   * WebRTC threads and trigger callbacks that call back into the object.
+   *
+   * @param waitForCompletion Whether to block until the native object has been disposed, including
+   *     when an earlier request is still disposing it. Must be false on threads that in-flight
+   *     calls or native teardown may block on, such as WebRTC threads, and in disposers. Ignored if
+   *     the current thread holds the read lock, since waiting would then deadlock.
+   */
+  void disposeOnTeardownThread(NativeDisposer disposer, boolean waitForCompletion) {
+    boolean wait = waitForCompletion && lock.getReadHoldCount() == 0;
+    // isDisposed() is already true while the disposer runs. A request that waits is then queued
+    // anyway; requests run in order, so it completes once the disposer has returned.
+    if (disposeCompleted || (!wait && isDisposed())) {
+      return;
+    }
+    CountDownLatch disposed = new CountDownLatch(1);
+    teardownExecutor.execute(
+        () -> {
+          try {
+            long ptr = detach();
+            if (ptr != 0) {
+              disposer.dispose(ptr);
+            }
+          } finally {
+            disposeCompleted = true;
+            disposed.countDown();
+          }
+        });
+    if (wait) {
+      ThreadUtils.awaitUninterruptibly(disposed);
     }
   }
 
@@ -182,5 +231,35 @@ class NativeLifecycleLock {
     if (nativePointer == 0) {
       throw new IllegalStateException(className + " has been disposed.");
     }
+  }
+
+  // Waits for in-flight calls to finish, marks this lock as disposed and returns the native
+  // pointer, or 0 if already disposed.
+  private long detach() {
+    lock.writeLock().lock();
+    try {
+      long ptr = nativePointer;
+      nativePointer = 0;
+      return ptr;
+    } finally {
+      lock.writeLock().unlock();
+    }
+  }
+
+  private static ThreadPoolExecutor createTeardownExecutor() {
+    ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+            /* corePoolSize= */ 1,
+            /* maximumPoolSize= */ 1,
+            /* keepAliveTime= */ 10,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(),
+            runnable -> {
+              Thread thread = new Thread(runnable, "WebRtcTeardown");
+              thread.setDaemon(true);
+              return thread;
+            });
+    executor.allowCoreThreadTimeOut(true);
+    return executor;
   }
 }

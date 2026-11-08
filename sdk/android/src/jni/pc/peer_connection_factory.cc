@@ -387,6 +387,10 @@ static void JNI_PeerConnectionFactory_FreeFactory(JNIEnv*, jlong j_p) {
   GetStaticObjects().field_trials_init_string = nullptr;
 }
 
+static jboolean JNI_PeerConnectionFactory_IsOnWebRtcThread(JNIEnv*) {
+  return IsOnWebRtcThread();
+}
+
 static jlong JNI_PeerConnectionFactory_CreateLocalMediaStream(
     JNIEnv* jni,
     jlong native_factory,

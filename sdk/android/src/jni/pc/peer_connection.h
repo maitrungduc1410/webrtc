@@ -47,6 +47,14 @@ KeyType GetRtcConfigKeyType(JNIEnv* env, const JavaRef<jobject>& j_rtc_config);
 ScopedJavaLocalRef<jobject> NativeToJavaAdapterType(JNIEnv* env,
                                                     int adapterType);
 
+// Returns true if the current thread is a WebRTC thread or task queue. Native
+// PeerConnection and factory teardown may need to run tasks on those, so
+// callers on them must not wait for it. Application threads that are wrapped
+// as a webrtc::Thread, such as the thread that created a PeerConnectionFactory,
+// are not WebRTC threads. Java dispose() would therefore deadlock on a wrapped
+// thread that native code uses as a WebRTC thread, such as a signaling thread.
+bool IsOnWebRtcThread();
+
 // Adapter between the C++ PeerConnectionObserver interface and the Java
 // PeerConnection.Observer interface.  Wraps an instance of the Java interface
 // and dispatches C++ callbacks to Java.

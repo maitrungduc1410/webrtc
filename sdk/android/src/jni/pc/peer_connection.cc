@@ -52,6 +52,7 @@
 #include "api/rtp_sender_interface.h"
 #include "api/rtp_transceiver_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/bitrate_settings.h"
 #include "p2p/base/port.h"
 #include "rtc_base/checks.h"
@@ -60,6 +61,7 @@
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/system/plan_b_only.h"
+#include "rtc_base/thread.h"
 #include "sdk/android/generated_peerconnection_jni/CandidatePairChangeEvent_jni.h"
 #include "sdk/android/generated_peerconnection_jni/IceCandidateErrorEvent_jni.h"
 #include "sdk/android/generated_peerconnection_jni/PeerConnection_jni.h"
@@ -539,6 +541,26 @@ static void JNI_PeerConnection_FreeOwnedPeerConnection(JNIEnv*, jlong j_p) {
   delete reinterpret_cast<OwnedPeerConnection*>(j_p);
 }
 
+static void JNI_PeerConnection_CloseOwnedPeerConnection(JNIEnv*, jlong j_p) {
+  reinterpret_cast<OwnedPeerConnection*>(j_p)->pc()->Close();
+}
+
+bool IsOnWebRtcThread() {
+  TaskQueueBase* current = TaskQueueBase::Current();
+  if (current == nullptr) {
+    return false;
+  }
+  // CreatePeerConnectionFactoryForJava() wraps the calling application thread
+  // as a webrtc::Thread that isn't owned by WebRTC, which also makes it the
+  // current task queue.
+  Thread* thread = Thread::Current();
+  return thread != current || thread->IsOwned();
+}
+
+static jboolean JNI_PeerConnection_IsOnWebRtcThread(JNIEnv*) {
+  return IsOnWebRtcThread();
+}
+
 static jlong JNI_PeerConnection_GetNativePeerConnection(
     JNIEnv* jni,
     const jni_zero::JavaRef<jobject>& j_pc) {
@@ -765,6 +787,16 @@ static void JNI_PeerConnection_RemoveLocalStream(
   RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   ExtractNativePC(jni, j_pc)->RemoveStream(
       reinterpret_cast<MediaStreamInterface*>(native_stream));
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+}
+
+static void JNI_PeerConnection_RemoveLocalStreamFromOwned(JNIEnv*,
+                                                          jlong j_owned_pc,
+                                                          jlong native_stream) {
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  reinterpret_cast<OwnedPeerConnection*>(j_owned_pc)
+      ->pc()
+      ->RemoveStream(reinterpret_cast<MediaStreamInterface*>(native_stream));
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
 }
 

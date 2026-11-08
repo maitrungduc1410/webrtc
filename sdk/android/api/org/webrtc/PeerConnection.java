@@ -1313,29 +1313,32 @@ public class PeerConnection {
   /**
    * Free native resources associated with this PeerConnection instance.
    *
-   * This method removes a reference count from the C++ PeerConnection object,
+   * <p>This method removes a reference count from the C++ PeerConnection object,
    * which should result in it being destroyed. It also calls equivalent
    * "dispose" methods on the Java objects attached to this PeerConnection
    * (streams, senders, receivers), such that their associated C++ objects
    * will also be destroyed.
    *
-   * <p>Note that this method cannot be safely called from an observer callback
-   * (PeerConnection.Observer, DataChannel.Observer, etc.). If you want to, for
-   * example, destroy the PeerConnection after an "ICE failed" callback, you
-   * must do this asynchronously (in other words, unwind the stack first). See
-   * <a href="https://bugs.chromium.org/p/webrtc/issues/detail?id=3721">bug
-   * 3721</a> for more details.
+   * <p>The PeerConnection is closed and released on a background thread once calls that are in
+   * progress have finished. This method waits for that unless it is called on a WebRTC thread, for
+   * example from an observer callback (PeerConnection.Observer, SdpObserver, DataChannel.Observer,
+   * etc.), in which case it returns immediately. Observer callbacks may then still be invoked until
+   * the PeerConnection has been closed, and objects returned by calls that were in progress are
+   * disposed together with the PeerConnection.
    */
   public void dispose() {
-    if (lifecycleLock.isDisposed()) {
-      return;
-    }
-    close();
+    boolean onWebRtcThread = PeerConnectionJni.get().isOnWebRtcThread();
+    lifecycleLock.disposeOnTeardownThread(
+        this::closeAndFree, /* waitForCompletion= */ !onWebRtcThread);
+  }
+
+  // Runs on the teardown thread, after calls that were in progress have finished.
+  private void closeAndFree(long ownedPc) {
+    PeerConnectionJni.get().closeOwnedPeerConnection(ownedPc);
     for (MediaStream stream : localStreams) {
-      runWithNative(
-          () ->
-              stream.lifecycleLock.runIfAlive(
-                  nativeStream -> PeerConnectionJni.get().removeLocalStream(this, nativeStream)));
+      stream.lifecycleLock.runIfAlive(
+          nativeStream ->
+              PeerConnectionJni.get().removeLocalStreamFromOwned(ownedPc, nativeStream));
       stream.dispose();
     }
     localStreams.clear();
@@ -1351,8 +1354,7 @@ public class PeerConnection {
     }
     transceivers.clear();
     receivers.clear();
-    lifecycleLock.dispose(
-        ptr -> PeerConnectionJni.get().freeOwnedPeerConnection(ptr));
+    PeerConnectionJni.get().freeOwnedPeerConnection(ownedPc);
   }
 
   /** Returns a pointer to the native webrtc::PeerConnectionInterface. */
@@ -1413,6 +1415,10 @@ public class PeerConnection {
 
     void freeOwnedPeerConnection(long ownedPeerConnection);
 
+    void closeOwnedPeerConnection(long ownedPeerConnection);
+
+    boolean isOnWebRtcThread();
+
     boolean setConfiguration(PeerConnection caller, RTCConfiguration config);
 
     boolean addIceCandidate(
@@ -1430,6 +1436,8 @@ public class PeerConnection {
     boolean addLocalStream(PeerConnection caller, long stream);
 
     void removeLocalStream(PeerConnection caller, long stream);
+
+    void removeLocalStreamFromOwned(long ownedPeerConnection, long stream);
 
     boolean oldGetStats(PeerConnection caller, StatsObserver observer, long nativeTrack);
 
