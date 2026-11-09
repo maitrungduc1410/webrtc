@@ -861,18 +861,29 @@ EncodedImageCallback::Result VideoSendStreamImpl::OnEncodedImage(
   activity_ = true;
   RTC_DCHECK(!network_queue_->IsCurrent());
 
-  auto task_to_run_on_network = [this]() {
-    RTC_DCHECK_RUN_ON(&thread_checker_);
-    if (disable_padding_) {
-      disable_padding_ = false;
-      // To ensure that padding bitrate is propagated to the bitrate allocator.
-      SignalEncoderActive();
-    }
-  };
+  // Packetize and send the frame on the network thread, where the RTP modules
+  // and the pacer are used, instead of on the encoder thread. The copy of
+  // `encoded_image` shares the encoded buffer.
+  auto task_to_run_on_network =
+      [this, encoded_image,
+       codec_specific = codec_specific_info
+                            ? std::make_optional(*codec_specific_info)
+                            : std::nullopt]() {
+        RTC_DCHECK_RUN_ON(&thread_checker_);
+        if (disable_padding_) {
+          disable_padding_ = false;
+          // To ensure that padding bitrate is propagated to the bitrate
+          // allocator.
+          SignalEncoderActive();
+        }
+        rtp_video_sender_->OnEncodedImage(
+            encoded_image, codec_specific ? &*codec_specific : nullptr);
+      };
   network_queue_->PostTask(SafeTask(network_queue_safety_.flag(),
                                     std::move(task_to_run_on_network)));
 
-  return rtp_video_sender_->OnEncodedImage(encoded_image, codec_specific_info);
+  // The frame is sent asynchronously, so there is no send result to report.
+  return Result(Result::OK);
 }
 
 void VideoSendStreamImpl::OnFrameDropped(uint32_t rtp_timestamp,

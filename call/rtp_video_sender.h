@@ -124,8 +124,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   // Implements FecControllerOverride.
   void SetFecAllowed(bool fec_allowed) RTC_LOCKS_EXCLUDED(mutex_) override;
 
-  // Implements EncodedImageCallback.
-  // Returns 0 if the packet was routed / sent, -1 otherwise.
+  // Implements EncodedImageCallback. Called on the transport queue.
   EncodedImageCallback::Result OnEncodedImage(
       const EncodedImage& encoded_image,
       const CodecSpecificInfo* codec_specific_info)

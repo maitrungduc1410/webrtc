@@ -113,6 +113,9 @@ static_assert(std::is_trivial_v<CodecSpecificInfoUnion> &&
 struct RTC_EXPORT CodecSpecificInfo {
   CodecSpecificInfo();
   CodecSpecificInfo(const CodecSpecificInfo&);
+  CodecSpecificInfo(CodecSpecificInfo&&);
+  CodecSpecificInfo& operator=(const CodecSpecificInfo&);
+  CodecSpecificInfo& operator=(CodecSpecificInfo&&);
   ~CodecSpecificInfo();
 
   VideoCodecType codecType;

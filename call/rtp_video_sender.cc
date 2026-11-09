@@ -624,6 +624,7 @@ bool RtpVideoSender::IsActiveLocked() {
 EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
     const EncodedImage& encoded_image,
     const CodecSpecificInfo* codec_specific_info) {
+  RTC_DCHECK_RUN_ON(&transport_checker_);
   fec_controller_->UpdateWithEncodedData(encoded_image.size(),
                                          encoded_image.frame_type());
   MutexLock lock(&mutex_);

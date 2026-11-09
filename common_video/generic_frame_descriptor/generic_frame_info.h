@@ -38,6 +38,9 @@ struct RTC_EXPORT GenericFrameInfo : public FrameDependencyTemplate {
 
   GenericFrameInfo();
   GenericFrameInfo(const GenericFrameInfo&);
+  GenericFrameInfo(GenericFrameInfo&&);
+  GenericFrameInfo& operator=(const GenericFrameInfo&);
+  GenericFrameInfo& operator=(GenericFrameInfo&&);
   ~GenericFrameInfo();
 
   absl::InlinedVector<CodecBufferUsage, kMaxEncoderBuffers> encoder_buffers;

@@ -16,6 +16,10 @@ namespace webrtc {
 
 GenericFrameInfo::GenericFrameInfo() = default;
 GenericFrameInfo::GenericFrameInfo(const GenericFrameInfo&) = default;
+GenericFrameInfo::GenericFrameInfo(GenericFrameInfo&&) = default;
+GenericFrameInfo& GenericFrameInfo::operator=(const GenericFrameInfo&) =
+    default;
+GenericFrameInfo& GenericFrameInfo::operator=(GenericFrameInfo&&) = default;
 GenericFrameInfo::~GenericFrameInfo() = default;
 
 GenericFrameInfo::Builder::Builder() = default;

@@ -173,9 +173,9 @@ class VideoSendStreamImpl : public webrtc::VideoSendStream,
   void OnVideoLayersAllocationUpdated(
       VideoLayersAllocation allocation) override;
 
-  // Implements EncodedImageCallback. The implementation routes encoded frames
-  // to the `payload_router_` and `config.pre_encode_callback` if set.
-  // Called on an arbitrary encoder callback thread.
+  // Implements EncodedImageCallback. Called on an arbitrary encoder callback
+  // thread. The frame is posted to the network thread and passed to
+  // `rtp_video_sender_` there, so the result is always OK.
   EncodedImageCallback::Result OnEncodedImage(
       const EncodedImage& encoded_image,
       const CodecSpecificInfo* codec_specific_info) override;

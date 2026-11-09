@@ -29,6 +29,10 @@ namespace webrtc {
 class VideoBitrateAllocation;
 struct FecProtectionParams;
 
+// Methods are called on the transport queue, which is the network thread and
+// also runs the pacer, with these exceptions:
+// - OnVideoLayersAllocationUpdated() is called on the encoder queue.
+// - SetFecAllowed() may be called on any thread.
 class RtpVideoSenderInterface : public EncodedImageCallback,
                                 public FecControllerOverride {
  public:

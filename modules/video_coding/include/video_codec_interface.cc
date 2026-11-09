@@ -19,6 +19,10 @@ CodecSpecificInfo::CodecSpecificInfo() : codecType(kVideoCodecGeneric) {
 }
 
 CodecSpecificInfo::CodecSpecificInfo(const CodecSpecificInfo&) = default;
+CodecSpecificInfo::CodecSpecificInfo(CodecSpecificInfo&&) = default;
+CodecSpecificInfo& CodecSpecificInfo::operator=(const CodecSpecificInfo&) =
+    default;
+CodecSpecificInfo& CodecSpecificInfo::operator=(CodecSpecificInfo&&) = default;
 CodecSpecificInfo::~CodecSpecificInfo() = default;
 
 }  // namespace webrtc

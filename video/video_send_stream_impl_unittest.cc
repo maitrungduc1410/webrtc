@@ -36,6 +36,7 @@
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/encoded_image.h"
+#include "api/video/video_codec_type.h"
 #include "api/video/video_frame_type.h"
 #include "api/video/video_layers_allocation.h"
 #include "api/video_codecs/spatial_layer.h"
@@ -81,8 +82,10 @@ using ::testing::AnyNumber;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Field;
+using ::testing::IsNull;
 using ::testing::Mock;
 using ::testing::NiceMock;
+using ::testing::Pointee;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::Sequence;
@@ -575,6 +578,54 @@ TEST_F(VideoSendStreamImplTest,
   time_controller_.AdvanceTime(TimeDelta::Zero());
 
   vss_impl->Stop();
+}
+
+TEST_F(VideoSendStreamImplTest, SendsEncodedImageOnNetworkThread) {
+  auto vss_impl = CreateVideoSendStreamImpl(TestVideoEncoderConfig());
+  TaskQueueBase* const network_queue = time_controller_.GetMainThread();
+
+  bool sent = false;
+  EXPECT_CALL(rtp_video_sender_, OnEncodedImage)
+      .WillOnce([&](const EncodedImage& encoded_image,
+                    const CodecSpecificInfo* codec_specific_info) {
+        EXPECT_TRUE(network_queue->IsCurrent());
+        EXPECT_EQ(encoded_image.RtpTimestamp(), 123u);
+        EXPECT_THAT(codec_specific_info,
+                    Pointee(Field(&CodecSpecificInfo::codecType,
+                                  VideoCodecType::kVideoCodecVP8)));
+        sent = true;
+        return EncodedImageCallback::Result(
+            EncodedImageCallback::Result::ERROR_SEND_FAILED);
+      });
+
+  encoder_queue_->PostTask([&] {
+    // The image and the codec specific info only live during the call.
+    EncodedImage encoded_image;
+    encoded_image.SetRtpTimestamp(123);
+    CodecSpecificInfo codec_specific;
+    codec_specific.codecType = VideoCodecType::kVideoCodecVP8;
+    // The frame is sent later, so the encoder gets OK even though sending
+    // fails.
+    EXPECT_EQ(static_cast<EncodedImageCallback*>(vss_impl.get())
+                  ->OnEncodedImage(encoded_image, &codec_specific)
+                  .error,
+              EncodedImageCallback::Result::OK);
+    EXPECT_FALSE(sent);
+  });
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+  EXPECT_TRUE(sent);
+}
+
+TEST_F(VideoSendStreamImplTest, SendsEncodedImageWithoutCodecSpecificInfo) {
+  auto vss_impl = CreateVideoSendStreamImpl(TestVideoEncoderConfig());
+  EXPECT_CALL(rtp_video_sender_, OnEncodedImage(_, IsNull()))
+      .WillOnce(Return(
+          EncodedImageCallback::Result(EncodedImageCallback::Result::OK)));
+  encoder_queue_->PostTask([&] {
+    static_cast<EncodedImageCallback*>(vss_impl.get())
+        ->OnEncodedImage(EncodedImage(), /*codec_specific_info=*/nullptr);
+  });
+  time_controller_.AdvanceTime(TimeDelta::Zero());
 }
 
 TEST_F(VideoSendStreamImplTest, UpdatesObserverOnConfigurationChange) {
