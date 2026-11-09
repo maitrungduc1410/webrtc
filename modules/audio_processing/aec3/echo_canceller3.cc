@@ -294,34 +294,6 @@ EchoCanceller3Config AdjustConfig(const EchoCanceller3Config& config,
     adjusted_cfg.filter.config_change_duration_blocks = 10;
   }
 
-  if (field_trials.IsEnabled("WebRTC-Aec3UseZeroInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = 0.f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3UseDot1SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = .1f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3UseDot2SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = .2f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3UseDot3SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = .3f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3UseDot6SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = .6f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3UseDot9SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = .9f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3Use1Dot2SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = 1.2f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3Use1Dot6SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = 1.6f;
-  } else if (field_trials.IsEnabled(
-                 "WebRTC-Aec3Use2Dot0SecondsInitialStateDuration")) {
-    adjusted_cfg.filter.initial_state_seconds = 2.0f;
-  }
-
   const std::string use_nearend_reverb_len_tunings =
       field_trials.Lookup("WebRTC-Aec3UseNearendReverbLen");
   FieldTrialParameter<double> nearend_reverb_default_len(
