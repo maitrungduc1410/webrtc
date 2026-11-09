@@ -385,7 +385,7 @@ void DefaultVideoQualityAnalyzerFramesComparator::AddComparisonInternal(
 void DefaultVideoQualityAnalyzerFramesComparator::ProcessComparisons() {
   while (true) {
     // Try to pick next comparison to perform from the queue.
-    std::optional<FrameComparison> comparison = std::nullopt;
+    std::optional<FrameComparison> comparison;
     bool more_new_comparisons_expected;
     {
       MutexLock lock(&mutex_);

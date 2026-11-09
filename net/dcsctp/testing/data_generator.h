@@ -23,7 +23,7 @@ namespace dcsctp {
 
 struct DataGeneratorOptions {
   StreamID stream_id = StreamID(1);
-  std::optional<MID> mid = std::nullopt;
+  std::optional<MID> mid;
   PPID ppid = PPID(53);
 };
 

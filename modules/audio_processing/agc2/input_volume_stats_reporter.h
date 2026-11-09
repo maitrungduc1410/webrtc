@@ -84,7 +84,7 @@ class InputVolumeStatsReporter {
   const bool cannot_log_stats_;
 
   int log_volume_update_stats_counter_ = 0;
-  std::optional<int> previous_input_volume_ = std::nullopt;
+  std::optional<int> previous_input_volume_;
 };
 
 // Updates the histogram that keeps track of recommended input volume changes

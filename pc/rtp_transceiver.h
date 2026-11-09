@@ -550,10 +550,9 @@ class RtpTransceiver : public RtpTransceiverInterface {
   RtpTransceiverDirection direction_ = RtpTransceiverDirection::kInactive;
   std::optional<RtpTransceiverDirection> current_direction_;
   std::optional<RtpTransceiverDirection> fired_direction_;
-  std::optional<bool> sframe_enabled_ RTC_GUARDED_BY(thread_) = std::nullopt;
+  std::optional<bool> sframe_enabled_ RTC_GUARDED_BY(thread_);
   std::optional<std::string> mid_;
-  std::optional<std::string> transport_name_ RTC_GUARDED_BY(thread_) =
-      std::nullopt;
+  std::optional<std::string> transport_name_ RTC_GUARDED_BY(thread_);
   std::optional<size_t> mline_index_;
   bool created_by_addtrack_ = false;
   bool reused_for_addtrack_ = false;

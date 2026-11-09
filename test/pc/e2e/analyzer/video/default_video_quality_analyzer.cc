@@ -217,7 +217,7 @@ uint16_t DefaultVideoQualityAnalyzer::OnFrameCaptured(
     }
     AnalyzerStreamState* state = &stream_states_.at(stream_index);
     state->PushBack(frame_id);
-    std::optional<TimeDelta> time_between_captured_frames = std::nullopt;
+    std::optional<TimeDelta> time_between_captured_frames;
     if (state->last_captured_frame_time().has_value()) {
       time_between_captured_frames =
           captured_time - *state->last_captured_frame_time();
@@ -355,7 +355,7 @@ void DefaultVideoQualityAnalyzer::OnFrameEncoded(
   }
   Timestamp now = Now();
   AnalyzerStreamState& state = stream_states_.at(frame_in_flight.stream());
-  std::optional<TimeDelta> time_between_encoded_frames = std::nullopt;
+  std::optional<TimeDelta> time_between_encoded_frames;
   if (state.last_encoded_frame_time().has_value()) {
     time_between_encoded_frames = now - *state.last_encoded_frame_time();
   }

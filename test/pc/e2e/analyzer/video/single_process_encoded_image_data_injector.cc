@@ -104,7 +104,7 @@ EncodedImageExtractionResult SingleProcessEncodedImageDataInjector::ExtractData(
   }
 
   size_t prev_frames_size = 0;
-  std::optional<uint16_t> id = std::nullopt;
+  std::optional<uint16_t> id;
   bool discard = true;
   std::vector<ExtractionInfo> extraction_infos;
   for (size_t frame_size : frame_sizes) {

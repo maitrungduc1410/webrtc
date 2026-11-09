@@ -607,7 +607,7 @@ std::unique_ptr<RtcEventRtpPacketIncoming> EventGenerator::NewRtpPacketIncoming(
   RandomizeRtpPacket(payload_size, padding_size, ssrc, extension_map,
                      &rtp_packet, all_configured_exts);
 
-  std::optional<uint16_t> rtx_osn = std::nullopt;
+  std::optional<uint16_t> rtx_osn;
   if (prng_.Rand(0, 9) == 0) {
     rtx_osn = prng_.Rand(
         0u, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));
@@ -642,7 +642,7 @@ std::unique_ptr<RtcEventRtpPacketOutgoing> EventGenerator::NewRtpPacketOutgoing(
                      &rtp_packet, all_configured_exts);
 
   int probe_cluster_id = prng_.Rand(0, 100000);
-  std::optional<uint16_t> rtx_osn = std::nullopt;
+  std::optional<uint16_t> rtx_osn;
   if (prng_.Rand(0, 9) == 0) {
     rtx_osn = prng_.Rand(
         0u, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));

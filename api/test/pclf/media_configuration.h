@@ -432,7 +432,7 @@ class VideoSubscription {
   std::string ToString() const;
 
  private:
-  std::optional<VideoResolution> default_resolution_ = std::nullopt;
+  std::optional<VideoResolution> default_resolution_;
   std::map<std::string, VideoResolution> peers_resolution_;
 };
 

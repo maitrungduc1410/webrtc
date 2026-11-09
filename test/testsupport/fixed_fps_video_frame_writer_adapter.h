@@ -79,7 +79,7 @@ class FixedFpsVideoFrameWriterAdapter : public VideoFrameWriter {
 
   // Expected time slot for the last frame.
   Timestamp last_frame_time_ = Timestamp::MinusInfinity();
-  std::optional<VideoFrame> last_frame_ = std::nullopt;
+  std::optional<VideoFrame> last_frame_;
 };
 
 }  // namespace test

@@ -72,9 +72,9 @@ class VideoQualityAnalyzerInterface
     std::string decoder_name = "unknown";
     // Decode time provided by decoder itself. If decoder doesn’t produce such
     // information can be omitted.
-    std::optional<int32_t> decode_time_ms = std::nullopt;
+    std::optional<int32_t> decode_time_ms;
     // Decoder quantizer value.
-    std::optional<uint8_t> qp = std::nullopt;
+    std::optional<uint8_t> qp;
   };
 
   ~VideoQualityAnalyzerInterface() override = default;

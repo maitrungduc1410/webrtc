@@ -80,7 +80,7 @@ class Av1QpHeaderParser : public Av1QpParser {
  private:
   libgav1::BufferPool buffer_pool_;
   libgav1::DecoderState decoder_state_;
-  std::optional<libgav1::ObuSequenceHeader> sequence_header_ = std::nullopt;
+  std::optional<libgav1::ObuSequenceHeader> sequence_header_;
 };
 
 class Av1QpAverageParser : public Av1QpParser {

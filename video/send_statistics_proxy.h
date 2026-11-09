@@ -250,8 +250,8 @@ class SendStatisticsProxy : public VideoStreamEncoderObserver,
       RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   struct MaskedAdaptationCounts {
-    std::optional<int> resolution_adaptations = std::nullopt;
-    std::optional<int> num_framerate_reductions = std::nullopt;
+    std::optional<int> resolution_adaptations;
+    std::optional<int> num_framerate_reductions;
   };
 
   struct Adaptations {

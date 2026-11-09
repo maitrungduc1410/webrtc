@@ -244,7 +244,7 @@ class RetransmissionQueue {
 
   // If set, fast recovery is enabled until this TSN has been cumulative
   // acked.
-  std::optional<UnwrappedTSN> fast_recovery_exit_tsn_ = std::nullopt;
+  std::optional<UnwrappedTSN> fast_recovery_exit_tsn_;
 
   // The send queue.
   SendQueue& send_queue_;

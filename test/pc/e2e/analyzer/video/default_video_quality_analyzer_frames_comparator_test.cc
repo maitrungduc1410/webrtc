@@ -1640,7 +1640,7 @@ TEST(DefaultVideoQualityAnalyzerFramesComparatorTest,
 
   // Add 5 frames which were rendered with 30 fps (~30ms between frames)
   // Frame ids are in [1..5] and last frame is with 120ms offset from first.
-  std::optional<Timestamp> prev_frame_rendered_time = std::nullopt;
+  std::optional<Timestamp> prev_frame_rendered_time;
   for (int i = 0; i < 5; ++i) {
     FrameStats frame_stats = FrameStatsWith10msDeltaBetweenPhasesAnd10x10Frame(
         /*frame_id=*/i + 1, stream_start_time + TimeDelta::Millis(30 * i));

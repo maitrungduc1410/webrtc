@@ -68,37 +68,37 @@ class JitterEstimator {
 
     // If set, the "max" frame size is calculated as this percentile over a
     // window of recent frame sizes.
-    std::optional<double> max_frame_size_percentile = std::nullopt;
+    std::optional<double> max_frame_size_percentile;
 
     // The length of the percentile filters' window, in number of frames.
-    std::optional<int> frame_size_window = std::nullopt;
+    std::optional<int> frame_size_window;
 
     // The incoming frame delay variation samples are clamped to be at most
     // this number of standard deviations away from zero.
     //
     // Increasing this value clamps fewer samples.
-    std::optional<double> num_stddev_delay_clamp = std::nullopt;
+    std::optional<double> num_stddev_delay_clamp;
 
     // A (relative) frame delay variation sample is an outlier if its absolute
     // deviation from the Kalman filter model falls outside this number of
     // sample standard deviations.
     //
     // Increasing this value rejects fewer samples.
-    std::optional<double> num_stddev_delay_outlier = std::nullopt;
+    std::optional<double> num_stddev_delay_outlier;
 
     // An (absolute) frame size sample is an outlier if its positive deviation
     // from the estimated average frame size falls outside this number of sample
     // standard deviations.
     //
     // Increasing this value rejects fewer samples.
-    std::optional<double> num_stddev_size_outlier = std::nullopt;
+    std::optional<double> num_stddev_size_outlier;
 
     // A (relative) frame size variation sample is deemed "congested", and is
     // thus rejected, if its value is less than this factor times the estimated
     // max frame size.
     //
     // Decreasing this value rejects fewer samples.
-    std::optional<double> congestion_rejection_factor = std::nullopt;
+    std::optional<double> congestion_rejection_factor;
 
     // If true, the noise estimate will be updated for congestion rejected
     // frames. This is currently enabled by default, but that may not be optimal
@@ -108,11 +108,11 @@ class JitterEstimator {
 
     // The number of frames required to be NACKed within `nack_count_timeout`
     // in order for RttMult to be enabled.
-    std::optional<int> nack_limit = std::nullopt;
+    std::optional<int> nack_limit;
 
     // The time period in which `nack_limit` number of frames required to be
     // NACKed in order for RttMult to be enabled.
-    std::optional<TimeDelta> nack_count_timeout = std::nullopt;
+    std::optional<TimeDelta> nack_count_timeout;
   };
 
   JitterEstimator(Clock* clock, const FieldTrialsView& field_trials);

@@ -82,7 +82,7 @@ EncoderSpeedControllerImpl::Create(
     return nullptr;
   }
 
-  std::optional<int> last_seen_qp_limit = std::nullopt;
+  std::optional<int> last_seen_qp_limit;
 
   for (size_t i = 0; i < config.speed_levels.size(); ++i) {
     const auto& speed_level = config.speed_levels[i];

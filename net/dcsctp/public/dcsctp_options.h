@@ -134,7 +134,7 @@ struct DcSctpOptions {
   // transient network issues. Setting this value may require changing
   // `max_retransmissions` and `max_init_retransmits` to ensure that the
   // connection is not closed too quickly.
-  std::optional<DurationMs> max_timer_backoff_duration = std::nullopt;
+  std::optional<DurationMs> max_timer_backoff_duration;
 
   // Hearbeat interval (on idle connections only). Set to zero to disable.
   DurationMs heartbeat_interval = DurationMs(30000);

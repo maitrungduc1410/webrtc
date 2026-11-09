@@ -302,7 +302,7 @@ class SctpDataChannel : public DataChannelInterface {
 
   Thread* const signaling_thread_;
   Thread* const network_thread_;
-  std::optional<StreamId> id_n_ RTC_GUARDED_BY(network_thread_) = std::nullopt;
+  std::optional<StreamId> id_n_ RTC_GUARDED_BY(network_thread_);
   const int internal_id_;
   const std::string label_;
   const std::string protocol_;

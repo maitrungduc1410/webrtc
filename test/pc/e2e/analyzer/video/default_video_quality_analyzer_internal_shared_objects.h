@@ -60,10 +60,10 @@ struct FrameStats {
   Timestamp rendered_time = Timestamp::MinusInfinity();
 
   // Next timings are set if and only if previous frame exist.
-  std::optional<Timestamp> prev_frame_rendered_time = std::nullopt;
-  std::optional<TimeDelta> time_between_captured_frames = std::nullopt;
-  std::optional<TimeDelta> time_between_encoded_frames = std::nullopt;
-  std::optional<TimeDelta> time_between_rendered_frames = std::nullopt;
+  std::optional<Timestamp> prev_frame_rendered_time;
+  std::optional<TimeDelta> time_between_captured_frames;
+  std::optional<TimeDelta> time_between_encoded_frames;
+  std::optional<TimeDelta> time_between_rendered_frames;
 
   VideoFrameType encoded_frame_type = VideoFrameType::kEmptyFrame;
   DataSize encoded_image_size = DataSize::Bytes(0);
@@ -77,15 +77,15 @@ struct FrameStats {
   // time index. The QP value here corresponds to one of the encoded spatial
   // layer's QP given in `spatial_layers_qp`, i.e. to the one that corresponds
   // to the rendered frame.
-  std::optional<uint8_t> decoded_frame_qp = std::nullopt;
+  std::optional<uint8_t> decoded_frame_qp;
 
-  std::optional<int> decoded_frame_width = std::nullopt;
-  std::optional<int> decoded_frame_height = std::nullopt;
+  std::optional<int> decoded_frame_width;
+  std::optional<int> decoded_frame_height;
 
   // Can be not set if frame was dropped by encoder.
-  std::optional<StreamCodecInfo> used_encoder = std::nullopt;
+  std::optional<StreamCodecInfo> used_encoder;
   // Can be not set if frame was dropped in the network.
-  std::optional<StreamCodecInfo> used_decoder = std::nullopt;
+  std::optional<StreamCodecInfo> used_decoder;
 
   bool decoder_failed = false;
 };

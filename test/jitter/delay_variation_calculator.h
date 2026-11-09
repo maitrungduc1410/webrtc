@@ -82,7 +82,7 @@ class DelayVariationCalculator {
   MetadataT BuildMetadata(const Frame& frame);
 
   RtpTimestampUnwrapper unwrapper_;
-  std::optional<Frame> prev_frame_ = std::nullopt;
+  std::optional<Frame> prev_frame_;
   TimeSeries time_series_;
 };
 

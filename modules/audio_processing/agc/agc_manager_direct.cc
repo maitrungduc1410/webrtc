@@ -645,7 +645,7 @@ void AgcManagerDirect::Process(const AudioBuffer& audio_buffer,
   }
 
   const size_t num_frames_per_band = audio_buffer.num_frames_per_band();
-  std::optional<int> rms_error_override = std::nullopt;
+  std::optional<int> rms_error_override;
   if (speech_probability.has_value() && speech_level_dbfs.has_value()) {
     rms_error_override =
         GetSpeechLevelErrorDb(*speech_level_dbfs, *speech_probability);

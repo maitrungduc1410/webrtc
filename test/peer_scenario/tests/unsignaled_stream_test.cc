@@ -161,7 +161,7 @@ TEST_P(UnsignaledStreamTest, ReplacesUnsignaledStreamOnCompletedSignaling) {
 
   uint32_t first_ssrc = 0;
   uint32_t second_ssrc = 0;
-  std::optional<RtpHeaderExtensionId> mid_header_extension_id = std::nullopt;
+  std::optional<RtpHeaderExtensionId> mid_header_extension_id;
 
   signaling.NegotiateSdp(
       /* munge_sdp = */

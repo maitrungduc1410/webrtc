@@ -198,7 +198,7 @@ class TransmissionControlBlock : public Context {
   // including a COOKIE ECHO). So if `cookie_echo_chunk_` is present, the
   // SendBufferedChunks will always only just send one packet, with this chunk
   // as the first chunk in the packet.
-  std::optional<CookieEchoChunk> cookie_echo_chunk_ = std::nullopt;
+  std::optional<CookieEchoChunk> cookie_echo_chunk_;
 };
 }  // namespace dcsctp
 

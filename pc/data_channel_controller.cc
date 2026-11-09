@@ -430,7 +430,7 @@ RTCError DataChannelController::ReserveOrAllocateSid(
 RTCErrorOr<scoped_refptr<SctpDataChannel>>
 DataChannelController::CreateDataChannel(absl::string_view label,
                                          InternalDataChannelInit& config) {
-  std::optional<StreamId> sid = std::nullopt;
+  std::optional<StreamId> sid;
   if (config.id != -1) {
     if (config.id < 0 || config.id > kMaxSctpSid) {
       return RTCError(RTCErrorType::INVALID_RANGE, "StreamId out of range.");

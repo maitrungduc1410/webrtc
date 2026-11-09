@@ -38,20 +38,20 @@ struct ReceiverFrameStats {
   Timestamp rendered_time = Timestamp::MinusInfinity();
 
   // Will be set if there is frame rendered before this one.
-  std::optional<Timestamp> prev_frame_rendered_time = std::nullopt;
-  std::optional<TimeDelta> time_between_rendered_frames = std::nullopt;
+  std::optional<Timestamp> prev_frame_rendered_time;
+  std::optional<TimeDelta> time_between_rendered_frames;
 
   // Type and encoded size of received frame.
   VideoFrameType frame_type = VideoFrameType::kEmptyFrame;
   DataSize encoded_image_size = DataSize::Bytes(0);
 
-  std::optional<int> decoded_frame_width = std::nullopt;
-  std::optional<int> decoded_frame_height = std::nullopt;
+  std::optional<int> decoded_frame_width;
+  std::optional<int> decoded_frame_height;
 
-  std::optional<uint8_t> decoded_frame_qp = std::nullopt;
+  std::optional<uint8_t> decoded_frame_qp;
 
   // Can be not set if frame was dropped in the network.
-  std::optional<StreamCodecInfo> used_decoder = std::nullopt;
+  std::optional<StreamCodecInfo> used_decoder;
 
   bool dropped = false;
   bool decoder_failed = false;
@@ -171,8 +171,8 @@ class FrameInFlight {
   Timestamp pre_encode_time_ = Timestamp::MinusInfinity();
   Timestamp encoded_time_ = Timestamp::MinusInfinity();
 
-  std::optional<TimeDelta> time_between_captured_frames_ = std::nullopt;
-  std::optional<TimeDelta> time_between_encoded_frames_ = std::nullopt;
+  std::optional<TimeDelta> time_between_captured_frames_;
+  std::optional<TimeDelta> time_between_encoded_frames_;
 
   // Type and encoded size of sent frame.
   VideoFrameType frame_type_ = VideoFrameType::kEmptyFrame;
@@ -182,7 +182,7 @@ class FrameInFlight {
   // spatial or simulcast index is set in `EncodedImage`, 0 is used.
   std::map<int, SamplesStatsCounter> stream_layers_qp_;
   // Can be not set if frame was dropped by encoder.
-  std::optional<StreamCodecInfo> used_encoder_ = std::nullopt;
+  std::optional<StreamCodecInfo> used_encoder_;
   // Map from the receiver peer's index to frame stats for that peer.
   std::unordered_map<size_t, ReceiverFrameStats> receiver_stats_;
 };

@@ -441,7 +441,7 @@ ParsedRtcEventLog::ParseStatus StoreRtpPackets(
     } else {
       RTC_PARSE_CHECK_OR_RETURN(!proto.has_voice_activity());
     }
-    std::optional<uint16_t> base_rtx_osn = std::nullopt;
+    std::optional<uint16_t> base_rtx_osn;
     if (proto.has_rtx_original_sequence_number()) {
       RTC_PARSE_CHECK_OR_RETURN(IsValueInRangeForNumericType<uint16_t>(
           proto.rtx_original_sequence_number()));
@@ -687,7 +687,7 @@ ParsedRtcEventLog::ParseStatus StoreRtpPackets(
       RTC_PARSE_CHECK_OR_RETURN(voice_activity_values.size() <= i ||
                                 !voice_activity_values[i].has_value());
     }
-    std::optional<uint16_t> rtx_osn = std::nullopt;
+    std::optional<uint16_t> rtx_osn;
     if (rtx_osn_values.size() > i && rtx_osn_values[i].has_value()) {
       RTC_PARSE_CHECK_OR_RETURN(
           IsValueInRangeForNumericType<uint16_t>(rtx_osn_values[i].value()));

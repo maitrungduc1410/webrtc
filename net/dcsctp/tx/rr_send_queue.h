@@ -247,8 +247,8 @@ class RRSendQueue : public SendQueue {
       size_t remaining_size;
       // If set, an allocated Message ID and SSN. Will be allocated when the
       // first fragment is sent.
-      std::optional<MID> mid = std::nullopt;
-      std::optional<SSN> ssn = std::nullopt;
+      std::optional<MID> mid;
+      std::optional<SSN> ssn;
       // The current Fragment Sequence Number, incremented for each fragment.
       FSN current_fsn = FSN(0);
     };

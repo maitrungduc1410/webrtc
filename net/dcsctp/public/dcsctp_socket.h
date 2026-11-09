@@ -50,11 +50,11 @@ struct SendOptions {
   // If set, will discard messages that haven't been correctly sent and
   // received before the lifetime has expired. This is only available if the
   // peer supports Partial Reliability Extension (RFC3758).
-  std::optional<DurationMs> lifetime = std::nullopt;
+  std::optional<DurationMs> lifetime;
 
   // If set, limits the number of retransmissions. This is only available
   // if the peer supports Partial Reliability Extension (RFC3758).
-  std::optional<size_t> max_retransmissions = std::nullopt;
+  std::optional<size_t> max_retransmissions;
 
   // If set, will generate lifecycle events for this message. See e.g.
   // `DcSctpSocketCallbacks::OnLifecycleMessageFullySent`. This value is decided
