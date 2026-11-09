@@ -77,6 +77,17 @@ TEST(AudioDecoderMultiOpusTest, InvalidChannelMappings) {
   }
 }
 
+TEST(AudioDecoderMultiOpusTest, TooLargeStreamCountsAreRejected) {
+  // num_streams + coupled_streams overflows int.
+  const SdpAudioFormat sdp_format("multiopus", 48000, 1,
+                                  {{"channel_mapping", "255"},
+                                   {"coupled_streams", "1"},
+                                   {"num_streams", "2147483647"}});
+  const std::optional<AudioDecoderMultiChannelOpus::Config> decoder_config =
+      AudioDecoderMultiChannelOpus::SdpToConfig(sdp_format);
+  EXPECT_FALSE(decoder_config.has_value());
+}
+
 TEST(AudioDecoderMultiOpusTest, ValidSdpToConfigProducesCorrectConfig) {
   const SdpAudioFormat sdp_format("multiopus", 48000, 4,
                                   {{"channel_mapping", "3,1,2,0"},

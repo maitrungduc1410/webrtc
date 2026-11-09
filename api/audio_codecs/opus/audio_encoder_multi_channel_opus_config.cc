@@ -39,10 +39,20 @@ bool AudioEncoderMultiChannelOpusConfig::IsOk() const {
   if (channel_mapping.size() != static_cast<size_t>(num_channels)) {
     return false;
   }
+  // Bound `num_streams`, and thereby `coupled_streams`, before they are summed
+  // below so that the sum can't overflow.
+  if (num_streams >= 255) {
+    return false;
+  }
 
   // Every mono stream codes one channel, every coupled stream codes two. This
   // is the total coded channel count:
   const int max_coded_channel = num_streams + coupled_streams;
+  // Check the upper bounds before `max_coded_channel` is used to size
+  // `coded_channels_to_input_channels` below.
+  if (num_channels > 255 || max_coded_channel >= 255) {
+    return false;
+  }
   for (const auto& x : channel_mapping) {
     // Coded channels >= max_coded_channel don't exist. Except for 255, which
     // tells Opus to ignore input channel x.
@@ -80,9 +90,6 @@ bool AudioEncoderMultiChannelOpusConfig::IsOk() const {
     }
   }
 
-  if (num_channels > 255 || max_coded_channel >= 255) {
-    return false;
-  }
   return true;
 }
 

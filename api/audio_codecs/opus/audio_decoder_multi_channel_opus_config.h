@@ -43,6 +43,11 @@ struct AudioDecoderMultiChannelOpusConfig {
     if (channel_mapping.size() != static_cast<size_t>(num_channels)) {
       return false;
     }
+    // Bound `num_streams`, and thereby `coupled_streams`, before they are
+    // summed below so that the sum can't overflow.
+    if (num_streams >= 255) {
+      return false;
+    }
 
     // Every mono stream codes one channel, every coupled stream codes two. This
     // is the total coded channel count:

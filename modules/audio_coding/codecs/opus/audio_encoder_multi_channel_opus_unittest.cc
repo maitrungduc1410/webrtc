@@ -89,6 +89,29 @@ TEST(AudioEncoderMultiOpusTest, CheckConfigValidity) {
   }
 }
 
+TEST(AudioEncoderMultiOpusTest, TooLargeStreamCountsAreRejected) {
+  {
+    // Far more streams than Opus supports.
+    const SdpAudioFormat sdp_format("multiopus", 48000, 1,
+                                    {{"channel_mapping", "0"},
+                                     {"coupled_streams", "0"},
+                                     {"num_streams", "2000000000"}});
+    const std::optional<AudioEncoderMultiChannelOpus::Config> encoder_config =
+        AudioEncoderMultiChannelOpus::SdpToConfig(sdp_format);
+    EXPECT_FALSE(encoder_config.has_value());
+  }
+  {
+    // num_streams + coupled_streams overflows int.
+    const SdpAudioFormat sdp_format("multiopus", 48000, 1,
+                                    {{"channel_mapping", "255"},
+                                     {"coupled_streams", "1"},
+                                     {"num_streams", "2147483647"}});
+    const std::optional<AudioEncoderMultiChannelOpus::Config> encoder_config =
+        AudioEncoderMultiChannelOpus::SdpToConfig(sdp_format);
+    EXPECT_FALSE(encoder_config.has_value());
+  }
+}
+
 TEST(AudioEncoderMultiOpusTest, ConfigValuesAreParsedCorrectly) {
   SdpAudioFormat sdp_format({"multiopus",
                              48000,
