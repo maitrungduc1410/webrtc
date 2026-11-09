@@ -111,6 +111,9 @@ class BitstreamReader {
   // can't fit into a uint64_t.
   uint64_t ReadLeb128();
 
+  // Reads `num_bytes` bytes as a string. On failure, e.g. if `num_bytes` is
+  // negative or if fewer than `8 * num_bytes` bits remain, sets
+  // `BitstreamReader` into the failure state and returns an empty string.
   std::string ReadString(int num_bytes);
 
  private:

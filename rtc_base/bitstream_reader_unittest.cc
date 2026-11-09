@@ -16,14 +16,18 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <string>
 #include <utility>
 
 #include "absl/numeric/bits.h"
 #include "rtc_base/checks.h"
+#include "test/gmock.h"
 #include "test/gtest.h"
 
 namespace webrtc {
 namespace {
+
+using ::testing::IsEmpty;
 
 TEST(BitstreamReaderTest, InDebugModeRequiresToCheckOkStatusBeforeDestruction) {
   const uint8_t bytes[32] = {};
@@ -366,6 +370,61 @@ TEST(BitstreamReaderTest, ReadLeb128NoEndByte) {
   BitstreamReader reader(bytes);
   EXPECT_EQ(reader.ReadLeb128(), uint64_t{0});
   EXPECT_FALSE(reader.Ok());
+}
+
+TEST(BitstreamReaderTest, ReadString) {
+  const uint8_t bytes[] = {'a', 'b', 'c'};
+  BitstreamReader reader(bytes);
+  EXPECT_EQ(reader.ReadString(2), "ab");
+  EXPECT_THAT(reader.ReadString(0), IsEmpty());
+  EXPECT_EQ(reader.ReadString(1), "c");
+  EXPECT_TRUE(reader.Ok());
+  EXPECT_EQ(reader.RemainingBitCount(), 0);
+}
+
+TEST(BitstreamReaderTest, ReadStringOffset4) {
+  const uint8_t bytes[] = {0x0A, 0xBC};
+  BitstreamReader reader(bytes);
+  reader.ConsumeBits(4);
+  EXPECT_EQ(reader.ReadString(1), "\xAB");
+  EXPECT_EQ(reader.RemainingBitCount(), 4);
+}
+
+TEST(BitstreamReaderTest, ReadStringFailsIfNotEnoughBitsRemain) {
+  const uint8_t bytes[] = {0x0A, 0xBC};
+  BitstreamReader reader(bytes);
+  reader.ConsumeBits(4);
+  // 12 bits remain, which is not enough for 2 bytes.
+  EXPECT_THAT(reader.ReadString(2), IsEmpty());
+  EXPECT_FALSE(reader.Ok());
+}
+
+TEST(BitstreamReaderTest, ReadStringWithHugeLengthFails) {
+  const uint8_t bytes[] = {'a', 'b', 'c', 'd'};
+  BitstreamReader reader(bytes);
+  // Must fail upfront, without reserving memory for or looping over
+  // `num_bytes` (otherwise this allocates ~2 GiB and loops INT_MAX times).
+  EXPECT_THAT(reader.ReadString(std::numeric_limits<int>::max()), IsEmpty());
+  EXPECT_FALSE(reader.Ok());
+}
+
+TEST(BitstreamReaderTest, ReadStringWithNegativeLengthFails) {
+  const uint8_t bytes[] = {'a', 'b', 'c', 'd'};
+  BitstreamReader reader(bytes);
+  EXPECT_THAT(reader.ReadString(-1), IsEmpty());
+  EXPECT_FALSE(reader.Ok());
+}
+
+TEST(BitstreamReaderTest,
+     InDebugModeRequiresToCheckOkStatusAfterFailedReadString) {
+  const uint8_t bytes[4] = {};
+  std::optional<BitstreamReader> reader(std::in_place, bytes);
+
+  EXPECT_THAT(reader->ReadString(5), IsEmpty());
+#if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(OS_ANDROID)
+  EXPECT_DEATH(reader = std::nullopt, "");
+#endif
+  EXPECT_FALSE(reader->Ok());
 }
 
 }  // namespace

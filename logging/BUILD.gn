@@ -303,6 +303,7 @@ rtc_library("rtc_event_log_optional_blob_encoding") {
     "../rtc_base:bitstream_reader",
     "../rtc_base:checks",
     "../rtc_base:logging",
+    "../rtc_base:safe_conversions",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }

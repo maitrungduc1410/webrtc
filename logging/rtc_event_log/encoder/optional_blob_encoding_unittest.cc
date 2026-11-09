@@ -210,5 +210,35 @@ TEST(OptionalBlobDecoding, TooLongEncodedBufferLength) {
   EXPECT_THAT(decoded, IsEmpty());
 }
 
+TEST(OptionalBlobDecoding, TooShortEncodedBufferForPresentBits) {
+  // The all-blobs-present bit plus 8 present bits don't fit in a single byte.
+  std::string encoded = BitBuilder().Bytes({0x00}).AsString();
+  auto decoded = DecodeOptionalBlobs(encoded, 8);
+  EXPECT_THAT(decoded, IsEmpty());
+}
+
+TEST(OptionalBlobDecoding, EncodedBlobLengthOutOfIntRange) {
+  // LEB128 encoding of 2^32 - 1, which is -1 if truncated to int.
+  std::string encoded = BitBuilder()
+                            .Bit(1)
+                            .ByteAlign()
+                            .Bytes({0xFF, 0xFF, 0xFF, 0xFF, 0x0F})
+                            .AsString();
+  auto decoded = DecodeOptionalBlobs(encoded, 1);
+  EXPECT_THAT(decoded, IsEmpty());
+}
+
+TEST(OptionalBlobDecoding, EncodedBlobLengthOutOfIntRangeIsNotTruncated) {
+  // LEB128 encoding of 2^32 + 1, which is 1 if truncated to int, followed by
+  // a single byte.
+  std::string encoded = BitBuilder()
+                            .Bit(1)
+                            .ByteAlign()
+                            .Bytes({0x81, 0x80, 0x80, 0x80, 0x10, 'a'})
+                            .AsString();
+  auto decoded = DecodeOptionalBlobs(encoded, 1);
+  EXPECT_THAT(decoded, IsEmpty());
+}
+
 }  // namespace
 }  // namespace webrtc

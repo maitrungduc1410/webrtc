@@ -20,6 +20,7 @@
 #include "rtc_base/bit_buffer.h"
 #include "rtc_base/bitstream_reader.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/numerics/safe_conversions.h"
 
 namespace webrtc {
 
@@ -99,6 +100,11 @@ std::vector<std::optional<std::string>> DecodeOptionalBlobs(
     }
   }
 
+  // Fail if the buffer is too short for the present bits.
+  if (!reader.Ok()) {
+    return {};
+  }
+
   // Byte align the reader.
   reader.ConsumeBits(reader.RemainingBitCount() % 8);
 
@@ -107,7 +113,12 @@ std::vector<std::optional<std::string>> DecodeOptionalBlobs(
     if (!all_blobs_present && !present[i]) {
       continue;
     }
-    res[i] = reader.ReadString(reader.ReadLeb128());
+    const uint64_t length = reader.ReadLeb128();
+    if (!IsValueInRangeForNumericType<int>(length)) {
+      reader.Invalidate();
+      break;
+    }
+    res[i] = reader.ReadString(static_cast<int>(length));
   }
 
   // The result is only valid if exactly all bits was consumed during decoding.

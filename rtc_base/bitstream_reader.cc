@@ -156,13 +156,20 @@ uint64_t BitstreamReader::ReadLeb128() {
 }
 
 std::string BitstreamReader::ReadString(int num_bytes) {
+  set_last_read_is_verified(false);
+  // Validate `num_bytes` before reserving memory.
+  if (num_bytes < 0 || num_bytes > remaining_bits_ / 8) {
+    Invalidate();
+    return std::string();
+  }
+
   std::string res;
   res.reserve(num_bytes);
   for (int i = 0; i < num_bytes; ++i) {
     res += Read<uint8_t>();
   }
 
-  return Ok() ? res : std::string();
+  return res;
 }
 
 }  // namespace webrtc
