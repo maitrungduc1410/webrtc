@@ -124,11 +124,17 @@ class WgcCapturerWin : public DesktopCapturer {
       DesktopCapturer::SourceId source_id,
       bool fullscreen_slide_show_started_after_capture_start = true);
 
- private:
   typedef HRESULT(WINAPI* CreateDispatcherQueueControllerFunc)(
       DispatcherQueueOptions,
       ABI::Windows::System::IDispatcherQueueController**);
 
+  // Replaces CreateDispatcherQueueController() from CoreMessaging.dll.
+  void SetCreateDispatcherQueueControllerFuncForTest(
+      CreateDispatcherQueueControllerFunc func) {
+    create_dispatcher_queue_controller_func_ = func;
+  }
+
+ private:
   DesktopCaptureOptions options_;
 
   // We need to either create or ensure that someone else created a

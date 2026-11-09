@@ -10,6 +10,7 @@
 
 #include "modules/desktop_capture/win/wgc_capturer_win.h"
 
+#include <DispatcherQueue.h>
 #include <dxgi.h>
 #include <wrl/client.h>
 
@@ -55,6 +56,7 @@ constexpr char kCapturerResultHistogram[] =
     "WebRTC.DesktopCapture.Win.WgcCapturerResult";
 constexpr int kSuccess = 0;
 constexpr int kSessionStartFailure = 4;
+constexpr int kCreateDispatcherQueueFailure = 7;
 
 constexpr char kCaptureSessionResultHistogram[] =
     "WebRTC.DesktopCapture.Win.WgcCaptureSessionStartResult";
@@ -111,6 +113,12 @@ constexpr UINT kQuitRunning = WM_APP + 1;
 // don't happen immediately, we want to keep trying until we see the effect but
 // only for a reasonable amount of time.
 constexpr int kMaxTries = 50;
+
+HRESULT WINAPI FailCreateDispatcherQueueController(
+    DispatcherQueueOptions /*options*/,
+    ABI::Windows::System::IDispatcherQueueController** /*controller*/) {
+  return E_FAIL;
+}
 
 }  // namespace
 
@@ -289,6 +297,7 @@ class WgcCapturerWinTest : public ::testing::TestWithParam<CaptureType>,
   // returns.
   void OnCaptureResult(DesktopCapturer::Result result,
                        std::unique_ptr<DesktopFrame> frame) override {
+    ++num_capture_results_;
     result_ = result;
     frame_ = std::move(frame);
   }
@@ -301,6 +310,7 @@ class WgcCapturerWinTest : public ::testing::TestWithParam<CaptureType>,
   intptr_t source_id_;
   bool window_open_ = false;
   DesktopCapturer::Result result_;
+  int num_capture_results_ = 0;
   int total_successful_captures_ = 0;
   std::unique_ptr<DesktopFrame> frame_;
   std::unique_ptr<DesktopCapturer> capturer_;
@@ -716,6 +726,24 @@ TEST_F(WgcCapturerWindowTest, CloseWindowMidCapture) {
   EXPECT_GE(metrics::NumEvents(kCaptureSessionResultHistogram, kSourceClosed),
             1);
   EXPECT_EQ(result_, DesktopCapturer::Result::ERROR_PERMANENT);
+}
+
+TEST_F(WgcCapturerWindowTest, CreateDispatcherQueueFailureReportsOneResult) {
+  metrics::Reset();
+  SetUpForWindowCapture();
+  static_cast<WgcCapturerWin*>(capturer_.get())
+      ->SetCreateDispatcherQueueControllerFuncForTest(
+          &FailCreateDispatcherQueueController);
+  EXPECT_TRUE(capturer_->SelectSource(source_id_));
+
+  capturer_->Start(this);
+  capturer_->CaptureFrame();
+  EXPECT_EQ(num_capture_results_, 1);
+  EXPECT_EQ(result_, DesktopCapturer::Result::ERROR_PERMANENT);
+  EXPECT_EQ(metrics::NumEvents(kCapturerResultHistogram,
+                               kCreateDispatcherQueueFailure),
+            1);
+  EXPECT_EQ(metrics::NumEvents(kCapturerResultHistogram, kSuccess), 0);
 }
 
 class WgcCapturerFullScreenDetectorTest : public WgcCapturerWindowTest {

@@ -379,9 +379,9 @@ void WgcCapturerWin::CaptureFrame() {
       RecordWgcCapturerResult(WgcCapturerResult::kCreateDispatcherQueueFailure);
       callback_->OnCaptureResult(DesktopCapturer::Result::ERROR_PERMANENT,
                                  /*frame=*/nullptr);
-    } else {
-      dispatcher_queue_created_ = true;
+      return;
     }
+    dispatcher_queue_created_ = true;
   }
 
   int64_t capture_start_time_nanos = TimeNanos();
