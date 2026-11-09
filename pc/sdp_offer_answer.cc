@@ -2369,22 +2369,8 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     RemoveUnusedChannels(local_description()->description());
   }
 
-  error = UpdateSessionState(type, CS_LOCAL, local_description()->description(),
-                             bundle_groups_by_mid);
-  if (!error.ok()) {
-    return RTC_LOG_ERROR(error);
-  }
-
-  // Now that we have a local description, we can push down remote candidates.
-  UseCandidatesInRemoteDescription();
-
-  pending_ice_restarts_.clear();
-  if (session_error() != SessionError::kNone) {
-    return RTC_LOG_ERROR(RTCError(RTCErrorType::INTERNAL_ERROR)
-                         << GetSessionErrorMsg());
-  }
-
-  // Validate SSRCs, we do not allow duplicates.
+  // Validate SSRCs, we do not allow duplicates. This is done before the
+  // description is applied, since applying it assigns the SSRCs to the senders.
   if (ConfiguredForMedia()) {
     flat_set<uint32_t> used_ssrcs;
     for (const auto& content : local_description()->description()->contents()) {
@@ -2401,9 +2387,24 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     }
   }
 
-  if (IsUnifiedPlan()) {
-    UpdateSenderSsrcsFromLocalDescription();
-  } else {
+  error = UpdateSessionState(type, CS_LOCAL, local_description()->description(),
+                             bundle_groups_by_mid);
+  if (!error.ok()) {
+    return RTC_LOG_ERROR(error);
+  }
+
+  // Now that we have a local description, we can push down remote candidates.
+  UseCandidatesInRemoteDescription();
+
+  pending_ice_restarts_.clear();
+  if (session_error() != SessionError::kNone) {
+    return RTC_LOG_ERROR(RTCError(RTCErrorType::INTERNAL_ERROR)
+                         << GetSessionErrorMsg());
+  }
+
+  // In Unified Plan, the sender SSRCs have been updated by
+  // UpdateSessionState(), before the signaling state change was signaled.
+  if (!IsUnifiedPlan()) {
     // Plan B semantics.
 
     // Update state and SSRC of local MediaStreams and DataChannels based on the
@@ -3770,6 +3771,13 @@ RTCError SdpOfferAnswerHandler::UpdateSessionState(
   // Update internal objects according to the session description's media
   // descriptions.
   RTCError error = PushdownMediaDescription(type, source, bundle_groups_by_mid);
+
+  // Connect the senders to the send streams that were created when applying
+  // the local description. This requires the description to have been pushed
+  // down.
+  if (error.ok() && source == CS_LOCAL && IsUnifiedPlan()) {
+    UpdateSenderSsrcsFromLocalDescription();
+  }
 
   // Only update the signaling state (and notify the observer) once the media
   // descriptions have been applied, so that an observer that inspects e.g.

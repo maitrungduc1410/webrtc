@@ -76,8 +76,16 @@
 namespace webrtc {
 
 using RTCConfiguration = PeerConnectionInterface::RTCConfiguration;
+using ::testing::AllOf;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::Field;
+using ::testing::IsEmpty;
+using ::testing::Matcher;
+using ::testing::Ne;
+using ::testing::Not;
+using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 
@@ -2197,10 +2205,29 @@ class SignalingChangeHookObserver : public MockPeerConnectionObserver {
       on_signaling_change;
 };
 
+// Matches the RtpParameters returned by RtpSender::GetParameters(), given
+// whether there are any codecs and whether the encodings have SSRCs, i.e.
+// whether the sender is connected to a send stream.
+Matcher<const RtpParameters&> SenderParametersAre(bool has_codecs,
+                                                  bool has_ssrc) {
+  using CodecsMatcher = Matcher<const std::vector<RtpCodecParameters>&>;
+  using SsrcMatcher = Matcher<const std::optional<uint32_t>&>;
+  return AllOf(
+      Field("codecs", &RtpParameters::codecs,
+            has_codecs ? CodecsMatcher(Not(IsEmpty()))
+                       : CodecsMatcher(IsEmpty())),
+      Field("encodings", &RtpParameters::encodings,
+            AllOf(Not(IsEmpty()),
+                  Each(Field("ssrc", &RtpEncodingParameters::ssrc,
+                             has_ssrc ? SsrcMatcher(Ne(std::nullopt))
+                                      : SsrcMatcher(Eq(std::nullopt)))))));
+}
+
 // OnSignalingChange() must fire after the description has been applied, so
-// that the negotiated send codecs are visible, for audio and video alike.
+// that the negotiated send parameters are visible, for audio and video alike.
+// This covers the offerer, i.e. when the negotiation starts with a local offer.
 TEST_F(PeerConnectionRtpTestUnifiedPlan,
-       SendCodecsAreAppliedBeforeOnSignalingChange) {
+       SendCodecsAreAppliedBeforeOnSignalingChangeWhenStartingWithLocalOffer) {
   auto observer = std::make_unique<SignalingChangeHookObserver>();
   SignalingChangeHookObserver* hook = observer.get();
   auto caller = CreatePeerConnectionWithObserver(std::move(observer));
@@ -2208,24 +2235,84 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   auto audio_sender = caller->AddAudioTrack("a");
   auto video_sender = caller->AddVideoTrack("v");
 
-  // Snapshot the parameters as seen from within OnSignalingChange(stable).
-  std::optional<RtpParameters> audio_parameters;
-  std::optional<RtpParameters> video_parameters;
+  // Snapshot the parameters as seen from within OnSignalingChange().
+  std::vector<std::pair<PeerConnectionInterface::SignalingState, RtpParameters>>
+      audio;
+  std::vector<std::pair<PeerConnectionInterface::SignalingState, RtpParameters>>
+      video;
   hook->on_signaling_change =
       [&](PeerConnectionInterface::SignalingState state) {
-        if (state == PeerConnectionInterface::kStable) {
-          audio_parameters = audio_sender->GetParameters();
-          video_parameters = video_sender->GetParameters();
-        }
+        audio.emplace_back(state, audio_sender->GetParameters());
+        video.emplace_back(state, video_sender->GetParameters());
       };
-  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+
+  // Initial negotiation, where the answer is first applied as a provisional
+  // answer.
+  ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      callee->CreateAnswerAndSetAsLocal();
+  std::string answer_sdp;
+  ASSERT_TRUE(answer->ToString(&answer_sdp));
+  ASSERT_TRUE(caller->SetRemoteDescription(
+      CreateSessionDescription(SdpType::kPrAnswer, answer_sdp)));
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+  // Renegotiation initiated by the callee.
+  ASSERT_TRUE(caller->SetRemoteDescription(callee->CreateOfferAndSetAsLocal()));
   hook->on_signaling_change = nullptr;
 
-  // The negotiated send codecs must already have been applied.
-  ASSERT_TRUE(audio_parameters.has_value());
-  ASSERT_TRUE(video_parameters.has_value());
-  EXPECT_FALSE(audio_parameters->codecs.empty());
-  EXPECT_FALSE(video_parameters->codecs.empty());
+  // Nothing has been negotiated for sending until a remote description is
+  // applied.
+  const auto expected = ElementsAre(
+      Pair(PeerConnectionInterface::kHaveLocalOffer,
+           SenderParametersAre(/*has_codecs=*/false, /*has_ssrc=*/true)),
+      Pair(PeerConnectionInterface::kHaveRemotePrAnswer,
+           SenderParametersAre(/*has_codecs=*/true, /*has_ssrc=*/true)),
+      Pair(PeerConnectionInterface::kStable,
+           SenderParametersAre(/*has_codecs=*/true, /*has_ssrc=*/true)),
+      Pair(PeerConnectionInterface::kHaveRemoteOffer,
+           SenderParametersAre(/*has_codecs=*/true, /*has_ssrc=*/true)));
+  EXPECT_THAT(audio, expected);
+  EXPECT_THAT(video, expected);
+}
+
+// Same as above, but for the answerer, i.e. when the negotiation starts with a
+// remote offer. The senders are connected to their send streams when the local
+// answer is applied, which must also happen before OnSignalingChange().
+TEST_F(PeerConnectionRtpTestUnifiedPlan,
+       SendCodecsAreAppliedBeforeOnSignalingChangeWhenStartingWithRemoteOffer) {
+  auto observer = std::make_unique<SignalingChangeHookObserver>();
+  SignalingChangeHookObserver* hook = observer.get();
+  auto callee = CreatePeerConnectionWithObserver(std::move(observer));
+  auto caller = CreatePeerConnection();
+  caller->AddAudioTrack("a");
+  caller->AddVideoTrack("v");
+  auto audio_sender = callee->AddAudioTrack("a");
+  auto video_sender = callee->AddVideoTrack("v");
+
+  // Snapshot the parameters as seen from within OnSignalingChange().
+  std::vector<std::pair<PeerConnectionInterface::SignalingState, RtpParameters>>
+      audio;
+  std::vector<std::pair<PeerConnectionInterface::SignalingState, RtpParameters>>
+      video;
+  hook->on_signaling_change =
+      [&](PeerConnectionInterface::SignalingState state) {
+        audio.emplace_back(state, audio_sender->GetParameters());
+        video.emplace_back(state, video_sender->GetParameters());
+      };
+
+  ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  ASSERT_TRUE(callee->CreateAnswerAndSetAsLocal());
+  hook->on_signaling_change = nullptr;
+
+  // The senders are not connected to send streams until the local answer is
+  // applied.
+  const auto expected = ElementsAre(
+      Pair(PeerConnectionInterface::kHaveRemoteOffer,
+           SenderParametersAre(/*has_codecs=*/false, /*has_ssrc=*/false)),
+      Pair(PeerConnectionInterface::kStable,
+           SenderParametersAre(/*has_codecs=*/true, /*has_ssrc=*/true)));
+  EXPECT_THAT(audio, expected);
+  EXPECT_THAT(video, expected);
 }
 
 TEST_F(PeerConnectionRtpTestUnifiedPlan,
