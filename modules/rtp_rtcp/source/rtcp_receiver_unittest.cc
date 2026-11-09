@@ -1646,6 +1646,64 @@ TEST(RtcpReceiverTest, NotifiesNetworkLinkObserverOnCongestionControlFeedback) {
   receiver.IncomingPacket(packet.Build());
 }
 
+TEST(RtcpReceiverTest, NotifiesNetworkLinkObserverOnEachTransportFeedback) {
+  ReceiverMocks mocks;
+  RTCPReceiver receiver = Create(mocks);
+  receiver.SetRemoteSSRC(kSenderSsrc);
+
+  rtcp::CompoundPacket compound;
+  for (uint16_t base_sequence_number : {123, 456}) {
+    auto feedback = std::make_unique<rtcp::TransportFeedback>();
+    feedback->SetMediaSsrc(mocks.config.local_media_ssrc);
+    feedback->SetSenderSsrc(kSenderSsrc);
+    feedback->SetBase(base_sequence_number, Timestamp::Millis(1));
+    feedback->AddReceivedPacket(base_sequence_number, Timestamp::Millis(1));
+    compound.Append(std::move(feedback));
+  }
+
+  InSequence s;
+  EXPECT_CALL(mocks.network_link_rtcp_observer,
+              OnTransportFeedback(
+                  mocks.clock.CurrentTime(),
+                  Property(&rtcp::TransportFeedback::GetBaseSequence, 123)));
+  EXPECT_CALL(mocks.network_link_rtcp_observer,
+              OnTransportFeedback(
+                  mocks.clock.CurrentTime(),
+                  Property(&rtcp::TransportFeedback::GetBaseSequence, 456)));
+  receiver.IncomingPacket(compound.Build());
+}
+
+TEST(RtcpReceiverTest,
+     NotifiesNetworkLinkObserverOnEachCongestionControlFeedback) {
+  ReceiverMocks mocks;
+  mocks.field_trials = "WebRTC-RFC8888CongestionControlFeedback/Enabled/";
+  RTCPReceiver receiver = Create(mocks);
+
+  rtcp::CompoundPacket compound;
+  for (uint16_t sequence_number : {1, 2}) {
+    auto feedback = std::make_unique<rtcp::CongestionControlFeedback>(
+        std::vector<rtcp::CongestionControlFeedback::PacketInfo>{
+            {.ssrc = mocks.config.local_media_ssrc,
+             .sequence_number = sequence_number}},
+        /*report_timestamp_compact_ntp=*/324);
+    feedback->SetSenderSsrc(kSenderSsrc);
+    compound.Append(std::move(feedback));
+  }
+
+  InSequence s;
+  for (uint16_t sequence_number : {1, 2}) {
+    EXPECT_CALL(
+        mocks.network_link_rtcp_observer,
+        OnCongestionControlFeedback(
+            mocks.clock.CurrentTime(),
+            Property(&rtcp::CongestionControlFeedback::packets,
+                     ElementsAre(Field(&rtcp::CongestionControlFeedback::
+                                           PacketInfo::sequence_number,
+                                       sequence_number)))));
+  }
+  receiver.IncomingPacket(compound.Build());
+}
+
 TEST(RtcpReceiverTest, FiltersCongestionControlFeedbackOnFirstSsrc) {
   ReceiverMocks mocks_1;
   mocks_1.field_trials = "WebRTC-RFC8888CongestionControlFeedback/Enabled/";

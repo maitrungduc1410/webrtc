@@ -140,8 +140,9 @@ struct RTCPReceiver::PacketInformation {
   std::vector<ReportBlockData> report_block_datas;
   std::optional<TimeDelta> rtt;
   uint32_t receiver_estimated_max_bitrate_bps = 0;
-  std::unique_ptr<rtcp::TransportFeedback> transport_feedback;
-  std::optional<rtcp::CongestionControlFeedback> congestion_control_feedback;
+  // A compound packet may contain several feedback packets of each kind.
+  std::vector<std::unique_ptr<rtcp::TransportFeedback>> transport_feedbacks;
+  std::vector<rtcp::CongestionControlFeedback> congestion_control_feedbacks;
   std::optional<NetworkStateEstimate> network_state_estimate;
 };
 
@@ -886,7 +887,8 @@ void RTCPReceiver::HandleTransportFeedback(
   if (media_source_ssrc == local_media_ssrc() ||
       registered_ssrcs_.contains(media_source_ssrc)) {
     packet_information->packet_type_flags |= kRtcpTransportFeedback;
-    packet_information->transport_feedback = std::move(transport_feedback);
+    packet_information->transport_feedbacks.push_back(
+        std::move(transport_feedback));
   }
 }
 
@@ -900,7 +902,7 @@ bool RTCPReceiver::HandleCongestionControlFeedback(
   uint32_t first_media_source_ssrc = feedback.packets()[0].ssrc;
   if (first_media_source_ssrc == local_media_ssrc() ||
       registered_ssrcs_.contains(first_media_source_ssrc)) {
-    packet_information->congestion_control_feedback.emplace(
+    packet_information->congestion_control_feedbacks.push_back(
         std::move(feedback));
   }
   return true;
@@ -986,13 +988,15 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     if (packet_information.rtt.has_value()) {
       network_link_rtcp_observer_->OnRttUpdate(now, *packet_information.rtt);
     }
-    if (packet_information.transport_feedback != nullptr) {
-      network_link_rtcp_observer_->OnTransportFeedback(
-          now, *packet_information.transport_feedback);
+    for (const std::unique_ptr<rtcp::TransportFeedback>& transport_feedback :
+         packet_information.transport_feedbacks) {
+      network_link_rtcp_observer_->OnTransportFeedback(now,
+                                                       *transport_feedback);
     }
-    if (packet_information.congestion_control_feedback) {
+    for (const rtcp::CongestionControlFeedback& congestion_control_feedback :
+         packet_information.congestion_control_feedbacks) {
       network_link_rtcp_observer_->OnCongestionControlFeedback(
-          now, *packet_information.congestion_control_feedback);
+          now, congestion_control_feedback);
     }
   }
 
