@@ -547,4 +547,44 @@ class ObjCCallbackVideoSink
   [self waitForExpectations:@[ callbackExpectation ] timeout:10.0];
 }
 
+- (void)testOnCapturedFrameCVPixelBufferAppliesRotation {
+  CVPixelBufferRef pixelBufferRef = NULL;
+  CVPixelBufferCreate(NULL,
+                      360,
+                      640,
+                      kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                      NULL,
+                      &pixelBufferRef);
+
+  RTC_OBJC_TYPE(RTCCVPixelBuffer) *buffer = [[RTC_OBJC_TYPE(RTCCVPixelBuffer)
+      alloc] initWithPixelBuffer:pixelBufferRef];
+  RTC_OBJC_TYPE(RTCVideoFrame) *frame =
+      [[RTC_OBJC_TYPE(RTCVideoFrame) alloc] initWithBuffer:buffer
+                                                  rotation:RTCVideoRotation_90
+                                               timeStampNs:0];
+
+  XCTestExpectation *callbackExpectation =
+      [self expectationWithDescription:@"videoSinkCallback"];
+  ObjCCallbackVideoSink callback_video_sink(
+      ^void(RTC_OBJC_TYPE(RTCVideoFrame) * outputFrame) {
+        XCTAssertEqual(outputFrame.width, 640);
+        XCTAssertEqual(outputFrame.height, 360);
+        XCTAssertEqual(outputFrame.rotation, RTCVideoRotation_0);
+
+        [callbackExpectation fulfill];
+      });
+
+  webrtc::VideoSinkWants video_sink_wants;
+  video_sink_wants.rotation_applied = true;
+  webrtc::VideoSourceInterface<webrtc::VideoFrame> *video_source_interface =
+      _video_source.get();
+  video_source_interface->AddOrUpdateSink(&callback_video_sink,
+                                          video_sink_wants);
+
+  _video_source->OnCapturedFrame(frame);
+
+  [self waitForExpectations:@[ callbackExpectation ] timeout:10.0];
+  CVBufferRelease(pixelBufferRef);
+}
+
 @end

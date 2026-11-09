@@ -1931,6 +1931,7 @@ if (is_android) {
         "../../api:media_stream_interface",
         "../../api:scoped_refptr",
         "../../api/video:video_frame",
+        "../../api/video:video_rtp_headers",
         "../../rtc_base:threading",
         "../../test:create_test_environment",
         "../../test:test_support",
