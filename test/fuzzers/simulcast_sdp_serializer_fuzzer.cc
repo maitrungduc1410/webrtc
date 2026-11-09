@@ -8,12 +8,17 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "absl/strings/string_view.h"
+#include "pc/session_description.h"
 #include "pc/simulcast_sdp_serializer.h"
 #include "test/fuzzers/fuzz_data_helper.h"
 
 namespace webrtc {
 void FuzzOneInput(FuzzDataHelper fuzz_data) {
   SimulcastSdpSerializer deserializer;
-  deserializer.DeserializeSimulcastDescription(fuzz_data.ReadString());
+  absl::string_view input = fuzz_data.ReadString();
+  deserializer.DeserializeSimulcastDescription(input);
+  VideoContentDescription media_desc;
+  deserializer.DeserializeRidDescription(media_desc, input);
 }
 }  // namespace webrtc

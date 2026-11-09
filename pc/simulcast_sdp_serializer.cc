@@ -179,9 +179,15 @@ RTCError ParseRidPayloadList(absl::string_view payload_list,
     return ParseError("Payload list must have at least one value.");
   }
 
+  constexpr size_t kMaxPayloadTypes =
+      PayloadType::kUpperDynamicRangeMax.value() + 1;
+  if (string_payloads.size() > kMaxPayloadTypes) {
+    return ParseError("Payload list contains too many values.");
+  }
+
   for (absl::string_view payload_type : string_payloads) {
     std::optional<int> value = StringToNumber<int>(payload_type);
-    if (!value.has_value()) {
+    if (!value.has_value() || !PayloadType::Create(*value).has_value()) {
       return ParseError("Invalid payload type: " + std::string(payload_type));
     }
 

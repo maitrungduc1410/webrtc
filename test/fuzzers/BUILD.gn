@@ -484,7 +484,9 @@ webrtc_fuzzer_test("simulcast_sdp_serializer_fuzzer") {
   sources = [ "simulcast_sdp_serializer_fuzzer.cc" ]
   deps = [
     ":fuzz_data_helper",
+    "../../pc:session_description",
     "../../pc:simulcast_sdp_serializer",
+    "//third_party/abseil-cpp/absl/strings:string_view",
   ]
   libfuzzer_options = [ "max_len=1024" ]
 }

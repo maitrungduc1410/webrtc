@@ -549,6 +549,22 @@ TEST_F(RidDescriptionSdpSerializerTest, Deserialize_AmbiguousCase) {
                       rid_description);
 }
 
+TEST_F(RidDescriptionSdpSerializerTest, DeserializeTooManyPayloadTypes) {
+  SimulcastSdpSerializer deserializer;
+  std::string input = "1 send pt=0";
+  for (int i = 1; i <= 127; ++i) {
+    input += "," + std::to_string(i);
+  }
+  EXPECT_TRUE(
+      deserializer.DeserializeRidDescription(VideoContentDescription(), input)
+          .ok());
+
+  input += ",128";
+  EXPECT_FALSE(
+      deserializer.DeserializeRidDescription(VideoContentDescription(), input)
+          .ok());
+}
+
 // Parameterized negative test case for deserialization with invalid inputs.
 TEST_P(RidDescriptionSdpSerializerTest, RidDescriptionDeserializationFailed) {
   VideoContentDescription video_desc;
@@ -579,6 +595,8 @@ const char* kRidDescriptionMalformedStrings[] = {
     "1 recv max-width=720;max-width=720",
     "1 send pt=",
     "1 send pt=abc",
+    "1 send pt=-1",
+    "1 send pt=128",
     "1 recv ;;",
     "~1 recv",
     "1$2 send",
