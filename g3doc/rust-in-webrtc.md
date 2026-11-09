@@ -38,9 +38,10 @@ define and require all downstream builds to provide a working Rust toolchain.
 
 ## Style guide
 
-With few exceptions, WebRTC follows
-[Chromium Rust Style guide][rust-chromium-style-guide], which in turn follows
+With few exceptions, WebRTC follows Chrome's variant of
+[Google Rust Style guide][rust-google-style-guide], which in turn follows
 [Rust Style Guide][rust-style-guide] and [Rust API Guidelines][rust-api-guide].
+See also [Chromium Rust Style guide][rust-chromium-style-guide].
 
 ### Use webrtc::import! macro
 
@@ -190,6 +191,7 @@ uint64_t MaybeUseRust(int64_t value) {
 [rust-api-guide]: https://rust-lang.github.io/api-guidelines/
 [rust-chromium-style-guide]: https://chromium.googlesource.com/chromium/src/+/main/styleguide/rust/rust.md
 [rust-chromium-test]: https://source.chromium.org/chromium/chromium/src/+/main:testing/rust_gtest_interop/
+[rust-google-style-guide]: https://google.github.io/styleguide/rustguide.html
 [rust-google-test]: https://github.com/google/googletest-rust
 [rust-style-guide]: https://doc.rust-lang.org/style-guide/
 [rust-test]: https://doc.rust-lang.org/book/ch11-01-writing-tests.html
