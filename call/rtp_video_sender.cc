@@ -70,7 +70,6 @@
 #include "rtc_base/containers/flat_map.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
-#include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/trace_event.h"
 
 namespace webrtc {
@@ -564,19 +563,18 @@ RtpVideoSender::RtpVideoSender(
 
 RtpVideoSender::~RtpVideoSender() {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  SetActiveModulesLocked(/*sending=*/false);
+  SetActiveModules(/*sending=*/false);
 }
 
 void RtpVideoSender::SetSending(bool enabled) {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  MutexLock lock(&mutex_);
   if (enabled == active_) {
     return;
   }
-  SetActiveModulesLocked(/*sending=*/enabled);
+  SetActiveModules(/*sending=*/enabled);
 }
 
-void RtpVideoSender::SetActiveModulesLocked(bool sending) {
+void RtpVideoSender::SetActiveModules(bool sending) {
   RTC_DCHECK_RUN_ON(&transport_checker_);
   if (active_ == sending) {
     return;
@@ -610,11 +608,6 @@ void RtpVideoSender::SetModuleIsActive(bool sending,
 
 bool RtpVideoSender::IsActive() {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  MutexLock lock(&mutex_);
-  return IsActiveLocked();
-}
-
-bool RtpVideoSender::IsActiveLocked() {
   return active_ && !rtp_streams_.empty();
 }
 
@@ -624,7 +617,6 @@ EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
   RTC_DCHECK_RUN_ON(&transport_checker_);
   fec_controller_->UpdateWithEncodedData(encoded_image.size(),
                                          encoded_image.frame_type());
-  MutexLock lock(&mutex_);
   RTC_DCHECK(!rtp_streams_.empty());
   if (!active_)
     return Result(Result::ERROR_SEND_FAILED);
@@ -724,8 +716,7 @@ void RtpVideoSender::OnFrameDropped(uint32_t /*rtp_timestamp*/,
 void RtpVideoSender::OnVideoLayersAllocationUpdated(
     const VideoLayersAllocation& allocation) {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  MutexLock lock(&mutex_);
-  if (IsActiveLocked()) {
+  if (IsActive()) {
     for (size_t i = 0; i < rtp_streams_.size(); ++i) {
       VideoLayersAllocation stream_allocation = allocation;
       stream_allocation.rtp_stream_index = i;
@@ -811,7 +802,6 @@ std::map<uint32_t, RtpState> RtpVideoSender::GetRtpStates() const {
 std::map<uint32_t, RtpPayloadState> RtpVideoSender::GetRtpPayloadStates()
     const {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  MutexLock lock(&mutex_);
   std::map<uint32_t, RtpPayloadState> payload_states;
   for (const auto& param : params_) {
     payload_states[param.ssrc()] = param.state();
@@ -1037,7 +1027,6 @@ void RtpVideoSender::SetEncodingData(size_t width,
 
 void RtpVideoSender::SetCsrcs(std::span<const uint32_t> csrcs) {
   RTC_DCHECK_RUN_ON(&transport_checker_);
-  MutexLock lock(&mutex_);
   csrcs_ = LimitCsrcs(csrcs);
 }
 

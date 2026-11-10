@@ -46,7 +46,6 @@
 #include "modules/rtp_rtcp/source/rtp_sequence_number_map.h"
 #include "modules/rtp_rtcp/source/video_fec_generator.h"
 #include "rtc_base/containers/flat_map.h"
-#include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -101,34 +100,28 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   RtpVideoSender(const RtpVideoSender&) = delete;
   RtpVideoSender& operator=(const RtpVideoSender&) = delete;
 
-  void SetSending(bool enabled) RTC_LOCKS_EXCLUDED(mutex_) override;
-  bool IsActive() RTC_LOCKS_EXCLUDED(mutex_) override;
+  void SetSending(bool enabled) override;
+  bool IsActive() override;
 
-  void OnNetworkAvailability(bool network_available)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
-  std::map<uint32_t, RtpState> GetRtpStates() const
-      RTC_LOCKS_EXCLUDED(mutex_) override;
-  std::map<uint32_t, RtpPayloadState> GetRtpPayloadStates() const
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+  void OnNetworkAvailability(bool network_available) override;
+  std::map<uint32_t, RtpState> GetRtpStates() const override;
+  std::map<uint32_t, RtpPayloadState> GetRtpPayloadStates() const override;
 
-  void DeliverRtcp(std::span<const uint8_t> packet)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+  void DeliverRtcp(std::span<const uint8_t> packet) override;
   // Implements webrtc::VCMProtectionCallback.
   int ProtectionRequest(const FecProtectionParams* delta_params,
                         const FecProtectionParams* key_params,
                         uint32_t* sent_video_rate_bps,
                         uint32_t* sent_nack_rate_bps,
-                        uint32_t* sent_fec_rate_bps)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+                        uint32_t* sent_fec_rate_bps) override;
 
   // Implements FecControllerOverride.
-  void SetFecAllowed(bool fec_allowed) RTC_LOCKS_EXCLUDED(mutex_) override;
+  void SetFecAllowed(bool fec_allowed) override;
 
   // Implements EncodedImageCallback. Called on the transport queue.
   EncodedImageCallback::Result OnEncodedImage(
       const EncodedImage& encoded_image,
-      const CodecSpecificInfo* codec_specific_info)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+      const CodecSpecificInfo* codec_specific_info) override;
 
   void OnFrameDropped(uint32_t rtp_timestamp,
                       int spatial_id,
@@ -136,35 +129,30 @@ class RtpVideoSender : public RtpVideoSenderInterface,
 
   void OnVideoLayersAllocationUpdated(
       const VideoLayersAllocation& layers) override;
-  void OnBitrateUpdated(BitrateAllocationUpdate update, int framerate)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
-  uint32_t GetPayloadBitrateBps() const RTC_LOCKS_EXCLUDED(mutex_) override;
-  uint32_t GetProtectionBitrateBps() const RTC_LOCKS_EXCLUDED(mutex_) override;
-  void SetEncodingData(size_t width, size_t height, size_t num_temporal_layers)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+  void OnBitrateUpdated(BitrateAllocationUpdate update, int framerate) override;
+  uint32_t GetPayloadBitrateBps() const override;
+  uint32_t GetProtectionBitrateBps() const override;
+  void SetEncodingData(size_t width,
+                       size_t height,
+                       size_t num_temporal_layers) override;
 
   // Sets the list of CSRCs to be included in every packet. If more than
   // kRtpCsrcSize CSRCs are provided, only the first kRtpCsrcSize elements are
   // kept.
-  void SetCsrcs(std::span<const uint32_t> csrcs)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+  void SetCsrcs(std::span<const uint32_t> csrcs) override;
 
   std::vector<RtpSequenceNumberMap::Info> GetSentRtpPacketInfos(
       uint32_t ssrc,
-      std::span<const uint16_t> sequence_numbers) const
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+      std::span<const uint16_t> sequence_numbers) const override;
 
   std::vector<uint32_t> GetRtpTimestampOffsets() const override;
 
   // From StreamFeedbackObserver.
   void OnPacketFeedbackVector(
-      std::vector<StreamPacketInfo> packet_feedback_vector)
-      RTC_LOCKS_EXCLUDED(mutex_) override;
+      std::vector<StreamPacketInfo> packet_feedback_vector) override;
 
  private:
-  bool IsActiveLocked() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void SetActiveModulesLocked(bool sending)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void SetActiveModules(bool sending);
   bool NackEnabled() const;
   DataRate GetPostEncodeOverhead() const;
   DataRate CalculateOverheadRate(DataRate data_rate,
@@ -178,15 +166,12 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   const bool use_frame_rate_for_overhead_;
   const bool has_packet_feedback_;
 
-  // Semantically equivalent to checking for `transport_->GetWorkerQueue()`
-  // but some tests need to be updated to call from the correct context.
+  // All methods except SetFecAllowed() run on `transport_queue_`, which is the
+  // network thread.
   RTC_NO_UNIQUE_ADDRESS SequenceChecker transport_checker_;
   TaskQueueBase& transport_queue_;
 
-  // TODO(bugs.webrtc.org/13517): Remove mutex_ once RtpVideoSender runs on the
-  // transport task queue.
-  mutable Mutex mutex_;
-  bool active_ RTC_GUARDED_BY(mutex_) = false;
+  bool active_ RTC_GUARDED_BY(transport_checker_) = false;
 
   const std::unique_ptr<FecController> fec_controller_;
   bool fec_allowed_ RTC_GUARDED_BY(transport_checker_) = true;
@@ -198,15 +183,15 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   RtpTransportControllerSendInterface* const transport_;
 
   // The list of CSRCs to be included when sending an encoded image.
-  std::vector<uint32_t> csrcs_ RTC_GUARDED_BY(mutex_);
+  std::vector<uint32_t> csrcs_ RTC_GUARDED_BY(transport_checker_);
 
   // When using the generic descriptor we want all simulcast streams to share
   // one frame id space (so that the SFU can switch stream without having to
   // rewrite the frame id), therefore `shared_frame_id` has to live in a place
   // where we are aware of all the different streams.
-  int64_t shared_frame_id_ RTC_GUARDED_BY(mutex_);
+  int64_t shared_frame_id_ RTC_GUARDED_BY(transport_checker_);
   const bool independent_frame_ids_;
-  std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(mutex_);
+  std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(transport_checker_);
 
   size_t transport_overhead_bytes_per_packet_
       RTC_GUARDED_BY(transport_checker_) = 0;
@@ -215,7 +200,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
 
   std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(transport_checker_);
 
-  std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(mutex_);
+  std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(transport_checker_);
   FrameCountObserver* const frame_count_observer_;
 
   // Map from SSRC to RtpRtcp, for all media SSRCs.
