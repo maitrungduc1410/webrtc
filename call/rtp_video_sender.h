@@ -154,6 +154,8 @@ class RtpVideoSender : public RtpVideoSenderInterface,
       std::span<const uint16_t> sequence_numbers) const
       RTC_LOCKS_EXCLUDED(mutex_) override;
 
+  std::vector<uint32_t> GetRtpTimestampOffsets() const override;
+
   // From StreamFeedbackObserver.
   void OnPacketFeedbackVector(
       std::vector<StreamPacketInfo> packet_feedback_vector)

@@ -929,6 +929,16 @@ std::vector<RtpSequenceNumberMap::Info> RtpVideoSender::GetSentRtpPacketInfos(
   return std::vector<RtpSequenceNumberMap::Info>();
 }
 
+std::vector<uint32_t> RtpVideoSender::GetRtpTimestampOffsets() const {
+  RTC_DCHECK_RUN_ON(&transport_checker_);
+  std::vector<uint32_t> offsets;
+  offsets.reserve(rtp_streams_.size());
+  for (const auto& rtp_stream : rtp_streams_) {
+    offsets.push_back(rtp_stream.rtp_rtcp->StartTimestamp());
+  }
+  return offsets;
+}
+
 int RtpVideoSender::ProtectionRequest(const FecProtectionParams* delta_params,
                                       const FecProtectionParams* key_params,
                                       uint32_t* sent_video_rate_bps,

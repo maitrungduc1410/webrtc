@@ -456,6 +456,7 @@ VideoSendStreamImpl::VideoSendStreamImpl(
           std::move(fec_controller),
           CreateFrameEncryptionConfig(&config_),
           config_.frame_transformer)),
+      rtp_timestamp_offsets_(rtp_video_sender_->GetRtpTimestampOffsets()),
       has_alr_probing_(
           config_.periodic_alr_bandwidth_probing ||
           GetAlrSettings(env_.field_trials(), encoder_config.content_type)),
@@ -475,6 +476,7 @@ VideoSendStreamImpl::VideoSendStreamImpl(
   RTC_DCHECK_GE(config_.rtp.payload_type, 0);
   RTC_DCHECK_LE(config_.rtp.payload_type, 127);
   RTC_DCHECK(!config_.rtp.ssrcs.empty());
+  RTC_DCHECK_EQ(rtp_timestamp_offsets_.size(), config_.rtp.ssrcs.size());
   RTC_DCHECK(transport_);
   RTC_LOG(LS_INFO) << "VideoSendStreamImpl: " << config_.ToString();
 
@@ -867,6 +869,14 @@ EncodedImageCallback::Result VideoSendStreamImpl::OnEncodedImage(
   activity_ = true;
   RTC_DCHECK(!network_queue_->IsCurrent());
 
+  size_t simulcast_index = encoded_image.SimulcastIndex().value_or(0);
+  if (simulcast_index >= rtp_timestamp_offsets_.size()) {
+    RTC_DCHECK_NOTREACHED();
+    return Result(Result::ERROR_SEND_FAILED);
+  }
+  uint32_t frame_id =
+      encoded_image.RtpTimestamp() + rtp_timestamp_offsets_[simulcast_index];
+
   // Packetize and send the frame on the network thread, where the RTP modules
   // and the pacer are used, instead of on the encoder thread. The copy of
   // `encoded_image` shares the encoded buffer.
@@ -889,7 +899,7 @@ EncodedImageCallback::Result VideoSendStreamImpl::OnEncodedImage(
                                     std::move(task_to_run_on_network)));
 
   // The frame is sent asynchronously, so there is no send result to report.
-  return Result(Result::OK);
+  return Result(Result::OK, frame_id);
 }
 
 void VideoSendStreamImpl::OnFrameDropped(uint32_t rtp_timestamp,

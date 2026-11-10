@@ -59,6 +59,9 @@ class RtpVideoSenderInterface : public EncodedImageCallback,
       uint32_t ssrc,
       std::span<const uint16_t> sequence_numbers) const = 0;
 
+  // Returns one RTP timestamp offset per stream, ordered by RtpConfig::ssrcs.
+  virtual std::vector<uint32_t> GetRtpTimestampOffsets() const = 0;
+
   // Implements FecControllerOverride.
   void SetFecAllowed(bool fec_allowed) override = 0;
 };

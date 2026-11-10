@@ -1860,4 +1860,31 @@ TEST(RtpVideoSenderTest, AllocationUpdateWhenInactiveDoesNotReRegisterSender) {
       transport_controller.packet_router()->SsrcOfFirstSender().has_value());
 }
 
+TEST(RtpVideoSenderTest, FrameIdMatchesRtpTimestampOffset) {
+  constexpr uint8_t kPayload = 'a';
+  EncodedImage encoded_image;
+  encoded_image.SetRtpTimestamp(100);
+  encoded_image.capture_time_ms_ = 2;
+  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
+  encoded_image.SetEncodedData(EncodedImageBuffer::Create(&kPayload, 1));
+  encoded_image.SetSimulcastIndex(0);
+
+  RtpVideoSenderTestFixture test({kSsrc1, kSsrc2}, {kRtxSsrc1, kRtxSsrc2},
+                                 kPayloadType, {});
+  test.SetSending(true);
+
+  auto offsets = test.router()->GetRtpTimestampOffsets();
+  ASSERT_EQ(offsets.size(), 2u);
+
+  auto result = test.router()->OnEncodedImage(encoded_image, nullptr);
+  EXPECT_EQ(result.error, EncodedImageCallback::Result::OK);
+  EXPECT_EQ(result.frame_id, encoded_image.RtpTimestamp() + offsets[0]);
+
+  // Test non-zero simulcast index with a wrap-around RTP timestamp.
+  encoded_image.SetSimulcastIndex(1);
+  encoded_image.SetRtpTimestamp(0xFFFFFFFE);
+  result = test.router()->OnEncodedImage(encoded_image, nullptr);
+  EXPECT_EQ(result.error, EncodedImageCallback::Result::OK);
+  EXPECT_EQ(result.frame_id, encoded_image.RtpTimestamp() + offsets[1]);
+}
 }  // namespace webrtc

@@ -175,7 +175,7 @@ class VideoSendStreamImpl : public webrtc::VideoSendStream,
 
   // Implements EncodedImageCallback. Called on an arbitrary encoder callback
   // thread. The frame is posted to the network thread and passed to
-  // `rtp_video_sender_` there, so the result is always OK.
+  // `rtp_video_sender_` there.
   EncodedImageCallback::Result OnEncodedImage(
       const EncodedImage& encoded_image,
       const CodecSpecificInfo* codec_specific_info) override;
@@ -213,6 +213,7 @@ class VideoSendStreamImpl : public webrtc::VideoSendStream,
   std::unique_ptr<VideoStreamEncoderInterface> video_stream_encoder_;
   EncoderRtcpFeedback encoder_feedback_;
   RtpVideoSenderInterface* const rtp_video_sender_;
+  const std::vector<uint32_t> rtp_timestamp_offsets_;
   bool running_ RTC_GUARDED_BY(thread_checker_) = false;
 
   const bool has_alr_probing_;

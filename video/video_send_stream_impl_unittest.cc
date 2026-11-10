@@ -138,6 +138,10 @@ class MockRtpVideoSender : public RtpVideoSenderInterface {
               GetSentRtpPacketInfos,
               (uint32_t ssrc, std::span<const uint16_t> sequence_numbers),
               (const, override));
+  MOCK_METHOD(std::vector<uint32_t>,
+              GetRtpTimestampOffsets,
+              (),
+              (const, override));
 
   MOCK_METHOD(void, SetFecAllowed, (bool fec_allowed), (override));
 };
@@ -179,6 +183,9 @@ class VideoSendStreamImplTest : public ::testing::Test {
     });
     ON_CALL(rtp_video_sender_, SetSending)
         .WillByDefault(SaveArg<0>(&rtp_sending_));
+    ON_CALL(rtp_video_sender_, GetRtpTimestampOffsets()).WillByDefault([&]() {
+      return std::vector<uint32_t>(config_.rtp.ssrcs.size(), 0);
+    });
   }
   ~VideoSendStreamImplTest() override {}
 
@@ -581,6 +588,8 @@ TEST_F(VideoSendStreamImplTest,
 }
 
 TEST_F(VideoSendStreamImplTest, SendsEncodedImageOnNetworkThread) {
+  EXPECT_CALL(rtp_video_sender_, GetRtpTimestampOffsets())
+      .WillOnce(Return(std::vector<uint32_t>{1000}));
   auto vss_impl = CreateVideoSendStreamImpl(TestVideoEncoderConfig());
   TaskQueueBase* const network_queue = time_controller_.GetMainThread();
 
@@ -602,14 +611,15 @@ TEST_F(VideoSendStreamImplTest, SendsEncodedImageOnNetworkThread) {
     // The image and the codec specific info only live during the call.
     EncodedImage encoded_image;
     encoded_image.SetRtpTimestamp(123);
+    encoded_image.SetSimulcastIndex(0);
     CodecSpecificInfo codec_specific;
     codec_specific.codecType = VideoCodecType::kVideoCodecVP8;
     // The frame is sent later, so the encoder gets OK even though sending
     // fails.
-    EXPECT_EQ(static_cast<EncodedImageCallback*>(vss_impl.get())
-                  ->OnEncodedImage(encoded_image, &codec_specific)
-                  .error,
-              EncodedImageCallback::Result::OK);
+    auto result = static_cast<EncodedImageCallback*>(vss_impl.get())
+                      ->OnEncodedImage(encoded_image, &codec_specific);
+    EXPECT_EQ(result.error, EncodedImageCallback::Result::OK);
+    EXPECT_EQ(result.frame_id, 1123u);
     EXPECT_FALSE(sent);
   });
   time_controller_.AdvanceTime(TimeDelta::Zero());
