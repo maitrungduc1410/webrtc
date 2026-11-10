@@ -71,6 +71,7 @@ rtc_library("libaom_av1_encoder") {
     "../../../../api/units:timestamp",
     "../../../../api/video:encoded_image",
     "../../../../api/video:render_resolution",
+    "../../../../api/video:video_bitrate_allocation",
     "../../../../api/video:video_codec_constants",
     "../../../../api/video:video_frame",
     "../../../../api/video:video_frame_type",
@@ -204,6 +205,7 @@ if (rtc_include_tests) {
       "../../../../test:fileutils",
       "../../../../test:test_support",
       "../../../../test:video_test_support",
+      "//api/video:video_codec_constants",
     ]
     data_deps = [ "../../../../resources:video_coding_tests_data" ]
     if (is_ios) {

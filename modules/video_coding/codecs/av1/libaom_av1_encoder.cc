@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -30,6 +29,7 @@
 #include "api/units/timestamp.h"
 #include "api/video/encoded_image.h"
 #include "api/video/render_resolution.h"
+#include "api/video/video_bitrate_allocation.h"
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_content_type.h"
@@ -93,6 +93,22 @@ constexpr int kHighQindex = 205;  // High qindex threshold for QP scaling.
 constexpr int kBitDepth = 8;
 constexpr int kLagInFrames = 0;  // No look ahead.
 constexpr double kMinFrameRateFps = 1.0;
+// Rate controller buffer level threshold, in percent of the optimal buffer
+// level, below which libaom starts dropping frames.
+constexpr unsigned int kFrameDropThreshold = 30;
+
+VideoBitrateAllocation KeepBaseTemporalLayerOnly(
+    const VideoBitrateAllocation& allocation) {
+  VideoBitrateAllocation tl0_allocation = allocation;
+  for (size_t sid = 0; sid < kMaxSpatialLayers; ++sid) {
+    for (size_t tid = 1; tid < kMaxTemporalStreams; ++tid) {
+      if (tl0_allocation.HasBitrate(sid, tid)) {
+        tl0_allocation.SetBitrate(sid, tid, 0);
+      }
+    }
+  }
+  return tl0_allocation;
+}
 
 aom_superblock_size_t GetSuperblockSize(int width, int height, int threads) {
   int resolution = width * height;
@@ -186,6 +202,17 @@ class LibaomAv1Encoder final : public VideoEncoder {
   // will be the input resolution.
   void AdjustScalingFactorsForTopActiveLayer();
 
+  // Enables or disables frame dropping in libaom rate controller. Has no
+  // effect when frame dropping is disabled in `encoder_settings_`.
+  void SetFrameDropping(bool enabled);
+
+  // Updates encoder and SVC state for `frame` (including repeat-frame modes)
+  // and returns the layer configs to encode, an empty vector if `frame` is
+  // intentionally dropped, or `std::nullopt` on error.
+  std::optional<std::vector<ScalableVideoController::LayerFrameConfig>>
+  PrepareLayerFrames(const VideoFrame& frame,
+                     const std::vector<VideoFrameType>* frame_types);
+
   EncoderSpeedController::ReferenceClass AsSpeedControllerFrameType(
       const ScalableVideoController::LayerFrameConfig& layer_frame) const;
 
@@ -227,7 +254,9 @@ class LibaomAv1Encoder final : public VideoEncoder {
   // Determine whether the frame should be sampled for PSNR.
   FrameSampler psnr_frame_sampler_;
   const bool drop_repeat_frames_on_enhancement_layers_;
-  std::map<int, uint32_t> last_encoded_timestamp_by_sid_;
+  VideoBitrateAllocation configured_bitrates_;
+  bool tl0_only_for_keep_alive_ = false;
+  std::optional<uint32_t> last_keep_alive_rtp_timestamp_;
 
   const EncoderSpeedExperiment encoder_speed_experiment_;
   // One speed controller per spatial layer.
@@ -344,7 +373,8 @@ int LibaomAv1Encoder::InitEncode(const VideoCodec* codec_settings,
   cfg_.g_timebase.num = 1;
   cfg_.g_timebase.den = kVideoPayloadTypeFrequency;
   cfg_.rc_target_bitrate = encoder_settings_.startBitrate;  // kilobits/sec.
-  cfg_.rc_dropframe_thresh = encoder_settings_.GetFrameDropEnabled() ? 30 : 0;
+  cfg_.rc_dropframe_thresh =
+      encoder_settings_.GetFrameDropEnabled() ? kFrameDropThreshold : 0;
   cfg_.g_input_bit_depth = kBitDepth;
   cfg_.kf_mode = AOM_KF_DISABLED;
   cfg_.rc_min_quantizer = kMinQp;
@@ -653,6 +683,9 @@ int32_t LibaomAv1Encoder::Release() {
   }
   speed_controllers_.clear();
   fixed_speeds_.clear();
+  configured_bitrates_ = VideoBitrateAllocation();
+  tl0_only_for_keep_alive_ = false;
+  last_keep_alive_rtp_timestamp_.reset();
   rates_configured_ = false;
   return WEBRTC_VIDEO_CODEC_OK;
 }
@@ -712,6 +745,94 @@ void LibaomAv1Encoder::AdjustScalingFactorsForTopActiveLayer() {
   }
 }
 
+void LibaomAv1Encoder::SetFrameDropping(bool enabled) {
+  const unsigned int threshold =
+      enabled && encoder_settings_.GetFrameDropEnabled() ? kFrameDropThreshold
+                                                         : 0;
+  if (cfg_.rc_dropframe_thresh == threshold) {
+    return;
+  }
+  cfg_.rc_dropframe_thresh = threshold;
+  aom_codec_err_t error_code = aom_codec_enc_config_set(&ctx_, &cfg_);
+  if (error_code != AOM_CODEC_OK) {
+    RTC_LOG(LS_WARNING) << "Error configuring frame dropping, error code: "
+                        << error_code;
+  }
+}
+
+std::optional<std::vector<ScalableVideoController::LayerFrameConfig>>
+LibaomAv1Encoder::PrepareLayerFrames(
+    const VideoFrame& frame,
+    const std::vector<VideoFrameType>* frame_types) {
+  const bool keyframe_required =
+      frame_types != nullptr &&
+      absl::c_linear_search(*frame_types, VideoFrameType::kVideoFrameKey);
+
+  if (drop_repeat_frames_on_enhancement_layers_) {
+    const bool is_keep_alive_frame =
+        frame.repeat_mode() == VideoFrame::RepeatMode::kKeepAlive;
+    // A keep-alive frame dropped by the rate controller is not retried by the
+    // frame cadence adapter, which leaves the base temporal layer without
+    // updates until the next keep-alive frame. Frame dropping is restored on
+    // the next frame which is not a keep-alive frame.
+    SetFrameDropping(/*enabled=*/!is_keep_alive_frame);
+
+    // While in a converged (`kKeepAlive`) state, temporarily zero non-TL0
+    // bitrates in `svc_controller_` so keep-alive frames fast-forward to T0.
+    // Restore `configured_bitrates_` on new/non-keep-alive input frames or
+    // when a keyframe is requested.
+    const bool use_tl0_only = is_keep_alive_frame && !keyframe_required;
+    if (use_tl0_only != tl0_only_for_keep_alive_) {
+      svc_controller_->OnRatesUpdated(
+          use_tl0_only ? KeepBaseTemporalLayerOnly(configured_bitrates_)
+                       : configured_bitrates_);
+      tl0_only_for_keep_alive_ = use_tl0_only;
+    }
+
+    // `last_keep_alive_rtp_timestamp_` tracks consecutive keep-alive frames
+    // only; any other frame resets it.
+    if (use_tl0_only) {
+      if (last_keep_alive_rtp_timestamp_.has_value()) {
+        // Keep-alive repeat frames are expected at most once every 500 ms.
+        const uint32_t delta_rtp =
+            frame.rtp_timestamp() - *last_keep_alive_rtp_timestamp_;
+        if (delta_rtp < kVideoPayloadTypeFrequency / 2) {
+          RTC_LOG(LS_WARNING)
+              << "Keep-alive repeat frames arriving too frequently: delta_rtp="
+              << delta_rtp;
+        }
+      }
+      last_keep_alive_rtp_timestamp_ = frame.rtp_timestamp();
+    } else {
+      last_keep_alive_rtp_timestamp_.reset();
+    }
+  }
+
+  std::vector<ScalableVideoController::LayerFrameConfig> layer_frames =
+      svc_controller_->NextFrameConfig(keyframe_required);
+  if (layer_frames.empty()) {
+    RTC_LOG(LS_ERROR) << "SVCController returned no configuration for a frame.";
+    return std::nullopt;
+  }
+
+  if (drop_repeat_frames_on_enhancement_layers_ && !keyframe_required &&
+      frame.repeat_mode() == VideoFrame::RepeatMode::kQualityConvergence &&
+      absl::c_all_of(
+          layer_frames,
+          [](const ScalableVideoController::LayerFrameConfig& layer_frame) {
+            return layer_frame.TemporalId() > 0;
+          })) {
+    RTC_LOG(LS_VERBOSE) << "Dropping repeat frame on enhancement layers.";
+    for (const ScalableVideoController::LayerFrameConfig& layer_frame :
+         layer_frames) {
+      svc_controller_->OnFrameDropped(layer_frame);
+    }
+    layer_frames.clear();
+  }
+
+  return layer_frames;
+}
+
 EncoderSpeedController::ReferenceClass
 LibaomAv1Encoder::AsSpeedControllerFrameType(
     const ScalableVideoController::LayerFrameConfig& layer_frame) const {
@@ -764,46 +885,15 @@ int32_t LibaomAv1Encoder::Encode(
     return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
   }
 
-  bool keyframe_required =
-      frame_types != nullptr &&
-      absl::c_linear_search(*frame_types, VideoFrameType::kVideoFrameKey);
-
-  std::vector<ScalableVideoController::LayerFrameConfig> layer_frames =
-      svc_controller_->NextFrameConfig(keyframe_required);
-
-  if (layer_frames.empty()) {
-    RTC_LOG(LS_ERROR) << "SVCController returned no configuration for a frame.";
+  std::optional<std::vector<ScalableVideoController::LayerFrameConfig>>
+      layer_frames = PrepareLayerFrames(frame, frame_types);
+  if (!layer_frames.has_value()) {
     return WEBRTC_VIDEO_CODEC_ERROR;
   }
-
-  if (drop_repeat_frames_on_enhancement_layers_ && frame.is_repeat_frame()) {
-    bool all_layers_droppable = !layer_frames.empty();
-    for (const auto& layer_frame : layer_frames) {
-      if (layer_frame.TemporalId() == 0) {
-        all_layers_droppable = false;
-        break;
-      }
-      if (auto it =
-              last_encoded_timestamp_by_sid_.find(layer_frame.SpatialId());
-          it != last_encoded_timestamp_by_sid_.end()) {
-        // Get the time since the last encoded frame for this spatial layer.
-        // Don't drop enhancement layer repeat frame if last encode was more
-        // than 500ms ago.
-        if ((frame.rtp_timestamp() - it->second) >
-            kVideoPayloadTypeFrequency / 2) {
-          all_layers_droppable = false;
-          break;
-        }
-      }
-    }
-
-    if (all_layers_droppable) {
-      RTC_LOG(LS_VERBOSE) << "Dropping repeat frame on enhancement layers.";
-      for (const auto& layer_frame : layer_frames) {
-        svc_controller_->OnEncodeDone(layer_frame);
-      }
-      return WEBRTC_VIDEO_CODEC_OK;  // Frame dropped
-    }
+  if (layer_frames->empty()) {
+    // Frame intentionally dropped (e.g. a repeat frame on an enhancement
+    // layer).
+    return WEBRTC_VIDEO_CODEC_OK;
   }
 
   scoped_refptr<VideoFrameBuffer> buffer = frame.video_frame_buffer();
@@ -903,7 +993,7 @@ int32_t LibaomAv1Encoder::Encode(
 
   const size_t num_spatial_layers =
       svc_params_ ? svc_params_->number_spatial_layers : 1;
-  auto next_layer_frame = layer_frames.begin();
+  auto next_layer_frame = layer_frames->begin();
   std::vector<std::pair<EncodedImage, CodecSpecificInfo>> encoded_images;
   // Index into `encoded_images` indicating the last active layer which produced
   // an encoded image. Used to correctly set `end_of_picture`.
@@ -915,7 +1005,7 @@ int32_t LibaomAv1Encoder::Encode(
     std::optional<ScalableVideoController::LayerFrameConfig>
         non_encoded_layer_frame;
     ScalableVideoController::LayerFrameConfig* layer_frame;
-    if (next_layer_frame != layer_frames.end() &&
+    if (next_layer_frame != layer_frames->end() &&
         next_layer_frame->SpatialId() == static_cast<int>(sid)) {
       layer_frame = &*next_layer_frame;
       ++next_layer_frame;
@@ -1059,10 +1149,6 @@ int32_t LibaomAv1Encoder::Encode(
     codec_specifics.end_of_picture = i == last_encoded_image_index;
     if (encoded_image.size() > 0) {
       encoded_image_callback_->OnEncodedImage(encoded_image, &codec_specifics);
-      if (encoded_image.SpatialIndex().has_value()) {
-        last_encoded_timestamp_by_sid_[*encoded_image.SpatialIndex()] =
-            frame.rtp_timestamp();
-      }
       continue;
     }
     // Size 0 indicates a dropped frame (inserted above).
@@ -1203,9 +1289,11 @@ void LibaomAv1Encoder::SetRates(const RateControlParameters& parameters) {
     return;
   }
 
-  // The bitrates caluclated internally in libaom when `AV1E_SET_SVC_PARAMS` is
+  // The bitrates calculated internally in libaom when `AV1E_SET_SVC_PARAMS` is
   // called depends on the currently configured `rc_target_bitrate`. If the
   // total target bitrate is not updated first a division by zero could happen.
+  configured_bitrates_ = parameters.bitrate;
+  tl0_only_for_keep_alive_ = false;
   svc_controller_->OnRatesUpdated(parameters.bitrate);
   cfg_.rc_target_bitrate = parameters.bitrate.get_sum_kbps();
 

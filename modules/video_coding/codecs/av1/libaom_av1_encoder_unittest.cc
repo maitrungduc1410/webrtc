@@ -34,6 +34,7 @@
 #include "api/video/i420_buffer.h"
 #include "api/video/render_resolution.h"
 #include "api/video/video_bitrate_allocation.h"
+#include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
@@ -729,7 +730,8 @@ TEST_P(LibaomAv1EncoderTest, EnableDisableSpatialLayersWithSvcController) {
   }
 }
 
-TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrame) {
+TEST_P(LibaomAv1EncoderTest,
+       L1T2QualityConvergenceRepeatFramesDroppedOnEnhancementLayer) {
   std::unique_ptr<VideoEncoder> encoder =
       CreateLibaomAv1Encoder(CreateTestEnvironment());
   VideoCodec codec_settings = DefaultCodecSettings();
@@ -746,9 +748,10 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrame) {
   MockEncodedImageCallback callback;
   encoder->RegisterEncodeCompleteCallback(&callback);
 
-  auto frame_generator = test::CreateSquareFrameGenerator(
-      codec_settings.width, codec_settings.height,
-      test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
+  std::unique_ptr<test::FrameGeneratorInterface> frame_generator =
+      test::CreateSquareFrameGenerator(
+          codec_settings.width, codec_settings.height,
+          test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
 
   // Encode a key frame.
   VideoFrame key_frame =
@@ -766,15 +769,16 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrame) {
             WEBRTC_VIDEO_CODEC_OK);
   testing::Mock::VerifyAndClearExpectations(&callback);
 
-  // Encode 4 delta frames, marked as repeat.
+  // Encode 4 quality-convergence repeat frames. With the drop feature enabled,
+  // the T1 frames are dropped and only the two T0 frames are encoded.
+  // Otherwise all 4 frames are encoded, alternating T1, T0, T1, T0.
   const int expected_frames = drop_repeat_frames_on_enhancement_layers_ ? 2 : 4;
+  std::vector<int> temporal_indices;
   EXPECT_CALL(callback, OnEncodedImage)
       .Times(expected_frames)
       .WillRepeatedly(
-          [&](const EncodedImage& image, const CodecSpecificInfo* info) {
-            if (drop_repeat_frames_on_enhancement_layers_) {
-              EXPECT_EQ(image.TemporalIndex(), 0);
-            }
+          [&](const EncodedImage& image, const CodecSpecificInfo* /*info*/) {
+            temporal_indices.push_back(image.TemporalIndex().value_or(-1));
             return EncodedImageCallback::Result(
                 EncodedImageCallback::Result::Error::OK);
           });
@@ -784,16 +788,22 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrame) {
         VideoFrame::Builder()
             .set_video_frame_buffer(frame_generator->NextFrame().buffer)
             .set_rtp_timestamp(key_frame.rtp_timestamp() + (i + 1) * 3000)
-            .set_is_repeat_frame(true)
+            .set_repeat_mode(VideoFrame::RepeatMode::kQualityConvergence)
             .build();
     std::vector<VideoFrameType> delta_frame_types = {
         VideoFrameType::kVideoFrameDelta};
     ASSERT_EQ(encoder->Encode(delta_frame, &delta_frame_types),
               WEBRTC_VIDEO_CODEC_OK);
   }
+  if (drop_repeat_frames_on_enhancement_layers_) {
+    EXPECT_THAT(temporal_indices, ElementsAre(0, 0));
+  } else {
+    EXPECT_THAT(temporal_indices, ElementsAre(1, 0, 1, 0));
+  }
 }
 
-TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrameNotDroppedIfDeltaTooLarge) {
+TEST_P(LibaomAv1EncoderTest,
+       L1T2KeepAliveRepeatFramesEncodedOnBaseLayerAndRestoredOnNewFrame) {
   if (!drop_repeat_frames_on_enhancement_layers_) {
     GTEST_SKIP() << "Test only relevant when drop feature is enabled";
   }
@@ -814,9 +824,10 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrameNotDroppedIfDeltaTooLarge) {
   MockEncodedImageCallback callback;
   encoder->RegisterEncodeCompleteCallback(&callback);
 
-  auto frame_generator = test::CreateSquareFrameGenerator(
-      codec_settings.width, codec_settings.height,
-      test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
+  std::unique_ptr<test::FrameGeneratorInterface> frame_generator =
+      test::CreateSquareFrameGenerator(
+          codec_settings.width, codec_settings.height,
+          test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
 
   // Encode a key frame.
   VideoFrame key_frame =
@@ -828,7 +839,12 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrameNotDroppedIfDeltaTooLarge) {
       VideoFrameType::kVideoFrameKey};
   EXPECT_CALL(callback, OnEncodedImage)
       .Times(1)
-      .WillOnce([](const EncodedImage& image, const CodecSpecificInfo* info) {
+      .WillOnce([](const EncodedImage& /*image*/,
+                   const CodecSpecificInfo* info) {
+        EXPECT_NE(info, nullptr);
+        if (info && info->generic_frame_info.has_value()) {
+          EXPECT_EQ(info->generic_frame_info->active_decode_targets, 0b11u);
+        }
         return EncodedImageCallback::Result(
             EncodedImageCallback::Result::Error::OK);
       });
@@ -836,13 +852,13 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrameNotDroppedIfDeltaTooLarge) {
             WEBRTC_VIDEO_CODEC_OK);
   testing::Mock::VerifyAndClearExpectations(&callback);
 
-  // Encode a repeat delta frame with a small gap - should be dropped.
+  // Encode a quality-convergence repeat delta frame on T1 - should be dropped.
   EXPECT_CALL(callback, OnEncodedImage).Times(0);
   VideoFrame delta_frame_drop =
       VideoFrame::Builder()
           .set_video_frame_buffer(frame_generator->NextFrame().buffer)
           .set_rtp_timestamp(key_frame.rtp_timestamp() + 3000)
-          .set_is_repeat_frame(true)
+          .set_repeat_mode(VideoFrame::RepeatMode::kQualityConvergence)
           .build();
   std::vector<VideoFrameType> delta_frame_types = {
       VideoFrameType::kVideoFrameDelta};
@@ -850,20 +866,313 @@ TEST_P(LibaomAv1EncoderTest, L1T2RepeatFrameNotDroppedIfDeltaTooLarge) {
             WEBRTC_VIDEO_CODEC_OK);
   testing::Mock::VerifyAndClearExpectations(&callback);
 
-  // Encode a repeat delta frame with a large gap - should NOT be dropped.
+  // Encode two consecutive keep-alive repeat delta frames - both must be
+  // fast-forwarded onto T0 while non-TL0 bitrate is zeroed on svc_controller_.
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_CALL(callback, OnEncodedImage(
+                              Property(&EncodedImage::TemporalIndex, Eq(0)), _))
+        .WillOnce([](const EncodedImage& /*image*/,
+                     const CodecSpecificInfo* info) {
+          EXPECT_NE(info, nullptr);
+          if (info && info->generic_frame_info.has_value()) {
+            EXPECT_EQ(info->generic_frame_info->active_decode_targets, 0b01u);
+          }
+          return EncodedImageCallback::Result(
+              EncodedImageCallback::Result::Error::OK);
+        });
+    VideoFrame delta_frame_keep =
+        VideoFrame::Builder()
+            .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+            .set_rtp_timestamp(key_frame.rtp_timestamp() + 93000 + i * 90000)
+            .set_repeat_mode(VideoFrame::RepeatMode::kKeepAlive)
+            .build();
+    ASSERT_EQ(encoder->Encode(delta_frame_keep, &delta_frame_types),
+              WEBRTC_VIDEO_CODEC_OK);
+    testing::Mock::VerifyAndClearExpectations(&callback);
+  }
+
+  // New input frames (`RepeatMode::kNone`) must restore the non-TL0 bitrates
+  // and resume the regular T1, T0 pattern without emitting a keyframe.
+  std::vector<int> resumed_temporal_indices;
   EXPECT_CALL(callback, OnEncodedImage)
-      .Times(1)
-      .WillOnce([](const EncodedImage& image, const CodecSpecificInfo* info) {
+      .Times(2)
+      .WillRepeatedly([&](const EncodedImage& image,
+                          const CodecSpecificInfo* info) {
+        EXPECT_EQ(image.frame_type(), VideoFrameType::kVideoFrameDelta);
+        resumed_temporal_indices.push_back(image.TemporalIndex().value_or(-1));
+        EXPECT_NE(info, nullptr);
+        if (info && info->generic_frame_info.has_value()) {
+          EXPECT_EQ(info->generic_frame_info->active_decode_targets, 0b11u);
+        }
         return EncodedImageCallback::Result(
             EncodedImageCallback::Result::Error::OK);
       });
-  VideoFrame delta_frame_keep =
+  for (int i = 0; i < 2; ++i) {
+    VideoFrame new_frame =
+        VideoFrame::Builder()
+            .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+            .set_rtp_timestamp(key_frame.rtp_timestamp() + 273000 + i * 3000)
+            .set_repeat_mode(VideoFrame::RepeatMode::kNone)
+            .build();
+    ASSERT_EQ(encoder->Encode(new_frame, &delta_frame_types),
+              WEBRTC_VIDEO_CODEC_OK);
+  }
+  EXPECT_THAT(resumed_temporal_indices, ElementsAre(1, 0));
+}
+
+TEST_P(LibaomAv1EncoderTest,
+       KeepAliveRepeatFramesResetBitrateOverrideOnKeyframeRequest) {
+  if (!drop_repeat_frames_on_enhancement_layers_) {
+    GTEST_SKIP() << "Test only relevant when drop feature is enabled";
+  }
+
+  std::unique_ptr<VideoEncoder> encoder =
+      CreateLibaomAv1Encoder(CreateTestEnvironment());
+  VideoCodec codec_settings = DefaultCodecSettings();
+  codec_settings.SetScalabilityMode(ScalabilityMode::kL1T2);
+  ASSERT_EQ(encoder->InitEncode(&codec_settings, DefaultEncoderSettings()),
+            WEBRTC_VIDEO_CODEC_OK);
+
+  VideoEncoder::RateControlParameters rate_parameters;
+  rate_parameters.framerate_fps = 30;
+  rate_parameters.bitrate.SetBitrate(0, 0, 150'000);
+  rate_parameters.bitrate.SetBitrate(0, 1, 150'000);
+  encoder->SetRates(rate_parameters);
+
+  MockEncodedImageCallback callback;
+  encoder->RegisterEncodeCompleteCallback(&callback);
+
+  std::unique_ptr<test::FrameGeneratorInterface> frame_generator =
+      test::CreateSquareFrameGenerator(
+          codec_settings.width, codec_settings.height,
+          test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
+
+  std::vector<VideoFrameType> key_frame_types = {
+      VideoFrameType::kVideoFrameKey};
+  std::vector<VideoFrameType> delta_frame_types = {
+      VideoFrameType::kVideoFrameDelta};
+
+  // Initial keyframe.
+  EXPECT_CALL(callback, OnEncodedImage)
+      .WillOnce(Return(EncodedImageCallback::Result(
+          EncodedImageCallback::Result::Error::OK)));
+  VideoFrame initial_frame =
       VideoFrame::Builder()
           .set_video_frame_buffer(frame_generator->NextFrame().buffer)
-          .set_rtp_timestamp(key_frame.rtp_timestamp() + 93000)
-          .set_is_repeat_frame(true)
+          .set_rtp_timestamp(1000)
           .build();
-  ASSERT_EQ(encoder->Encode(delta_frame_keep, &delta_frame_types),
+  ASSERT_EQ(encoder->Encode(initial_frame, &key_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  // Enter converged state via a keep-alive repeat frame (sets non-TL0 bitrate
+  // to 0 on svc_controller_).
+  EXPECT_CALL(callback,
+              OnEncodedImage(Property(&EncodedImage::TemporalIndex, Eq(0)), _))
+      .WillOnce(
+          [](const EncodedImage& /*image*/, const CodecSpecificInfo* info) {
+            EXPECT_NE(info, nullptr);
+            if (info && info->generic_frame_info.has_value()) {
+              EXPECT_EQ(info->generic_frame_info->active_decode_targets, 0b01u);
+            }
+            return EncodedImageCallback::Result(
+                EncodedImageCallback::Result::Error::OK);
+          });
+  VideoFrame keep_alive_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(91000)
+          .set_repeat_mode(VideoFrame::RepeatMode::kKeepAlive)
+          .build();
+  ASSERT_EQ(encoder->Encode(keep_alive_frame, &delta_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  // Requesting a keyframe while still receiving a `kKeepAlive` frame must
+  // reset the temporary TL0-only override so the keyframe advertises all
+  // configured decode targets as active.
+  EXPECT_CALL(callback, OnEncodedImage)
+      .WillOnce([](const EncodedImage& image, const CodecSpecificInfo* info) {
+        EXPECT_EQ(image.frame_type(), VideoFrameType::kVideoFrameKey);
+        EXPECT_EQ(image.TemporalIndex(), 0);
+        EXPECT_NE(info, nullptr);
+        if (info && info->generic_frame_info.has_value()) {
+          EXPECT_EQ(info->generic_frame_info->active_decode_targets, 0b11u);
+        }
+        return EncodedImageCallback::Result(
+            EncodedImageCallback::Result::Error::OK);
+      });
+  VideoFrame keyframe_on_keep_alive =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(181000)
+          .set_repeat_mode(VideoFrame::RepeatMode::kKeepAlive)
+          .build();
+  ASSERT_EQ(encoder->Encode(keyframe_on_keep_alive, &key_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+}
+
+TEST_P(LibaomAv1EncoderTest, KeepAliveRepeatFramesAreNotDroppedByRateControl) {
+  if (!drop_repeat_frames_on_enhancement_layers_) {
+    GTEST_SKIP() << "Test only relevant when drop feature is enabled";
+  }
+
+  std::unique_ptr<VideoEncoder> encoder =
+      CreateLibaomAv1Encoder(CreateTestEnvironment());
+  VideoCodec codec_settings = DefaultCodecSettings();
+  // The scalability mode does not matter for rate control frame dropping;
+  // L1T1 keeps the expectations simple.
+  codec_settings.SetScalabilityMode(ScalabilityMode::kL1T1);
+  codec_settings.SetFrameDropEnabled(true);
+  ASSERT_EQ(encoder->InitEncode(&codec_settings, DefaultEncoderSettings()),
+            WEBRTC_VIDEO_CODEC_OK);
+
+  MockEncodedImageCallback callback;
+  encoder->RegisterEncodeCompleteCallback(&callback);
+
+  VideoEncoder::RateControlParameters rate_parameters;
+  rate_parameters.framerate_fps = 30;
+  rate_parameters.bitrate.SetBitrate(0, 0, 100'000);
+  encoder->SetRates(rate_parameters);
+
+  std::unique_ptr<test::FrameGeneratorInterface> frame_generator =
+      test::CreateSquareFrameGenerator(
+          codec_settings.width, codec_settings.height,
+          test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
+
+  EXPECT_CALL(callback, OnEncodedImage)
+      .WillOnce(Return(EncodedImageCallback::Result(
+          EncodedImageCallback::Result::Error::OK)));
+  VideoFrame key_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(1000)
+          .build();
+  std::vector<VideoFrameType> key_frame_types = {
+      VideoFrameType::kVideoFrameKey};
+  ASSERT_EQ(encoder->Encode(key_frame, &key_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  // Lower the bitrate to provoke frame drops.
+  rate_parameters.bitrate.SetBitrate(0, 0, 1'000);
+  encoder->SetRates(rate_parameters);
+
+  // A keep-alive repeat frame must be encoded despite the low bitrate.
+  EXPECT_CALL(callback, OnFrameDropped).Times(0);
+  EXPECT_CALL(callback, OnEncodedImage)
+      .WillOnce(Return(EncodedImageCallback::Result(
+          EncodedImageCallback::Result::Error::OK)));
+  VideoFrame keep_alive_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(key_frame.rtp_timestamp() + 90'000)
+          .set_repeat_mode(VideoFrame::RepeatMode::kKeepAlive)
+          .build();
+  std::vector<VideoFrameType> delta_frame_types = {
+      VideoFrameType::kVideoFrameDelta};
+  ASSERT_EQ(encoder->Encode(keep_alive_frame, &delta_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  // Frame dropping is restored for the next non-keep-alive frame.
+  EXPECT_CALL(callback, OnEncodedImage).Times(0);
+  EXPECT_CALL(callback, OnFrameDropped);
+  VideoFrame delta_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(keep_alive_frame.rtp_timestamp() + 3'000)
+          .build();
+  ASSERT_EQ(encoder->Encode(delta_frame, &delta_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+}
+
+TEST_P(LibaomAv1EncoderTest, L1T3T2ReferencesT0WhenT1RepeatFrameIsDropped) {
+  if (!drop_repeat_frames_on_enhancement_layers_) {
+    GTEST_SKIP() << "Test only relevant when drop feature is enabled";
+  }
+
+  const Environment env = CreateTestEnvironment();
+  std::unique_ptr<VideoEncoder> encoder = CreateLibaomAv1Encoder(env);
+  VideoCodec codec_settings = DefaultCodecSettings();
+  codec_settings.SetScalabilityMode(ScalabilityMode::kL1T3);
+  ASSERT_EQ(encoder->InitEncode(&codec_settings, DefaultEncoderSettings()),
+            WEBRTC_VIDEO_CODEC_OK);
+
+  VideoEncoder::RateControlParameters rate_parameters;
+  rate_parameters.framerate_fps = 30;
+  rate_parameters.bitrate.SetBitrate(0, 0, 100'000);
+  rate_parameters.bitrate.SetBitrate(0, 1, 100'000);
+  rate_parameters.bitrate.SetBitrate(0, 2, 100'000);
+  encoder->SetRates(rate_parameters);
+
+  MockEncodedImageCallback callback;
+  encoder->RegisterEncodeCompleteCallback(&callback);
+
+  std::unique_ptr<test::FrameGeneratorInterface> frame_generator =
+      test::CreateSquareFrameGenerator(
+          codec_settings.width, codec_settings.height,
+          test::FrameGeneratorInterface::OutputType::kI420, std::nullopt);
+
+  // Frame 0: Keyframe (T0, updates buffer 0).
+  VideoFrame key_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(1000)
+          .build();
+  std::vector<VideoFrameType> key_frame_types = {
+      VideoFrameType::kVideoFrameKey};
+  EXPECT_CALL(callback,
+              OnEncodedImage(Property(&EncodedImage::TemporalIndex, Eq(0)), _))
+      .WillOnce(Return(EncodedImageCallback::Result(
+          EncodedImageCallback::Result::Error::OK)));
+  ASSERT_EQ(encoder->Encode(key_frame, &key_frame_types),
+            WEBRTC_VIDEO_CODEC_OK);
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  std::vector<VideoFrameType> delta_frame_types = {
+      VideoFrameType::kVideoFrameDelta};
+
+  // Frame 1 (T2a) and Frame 2 (T1): Quality-convergence repeat frames, dropped.
+  EXPECT_CALL(callback, OnEncodedImage).Times(0);
+  for (int i = 1; i <= 2; ++i) {
+    VideoFrame repeat_frame =
+        VideoFrame::Builder()
+            .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+            .set_rtp_timestamp(key_frame.rtp_timestamp() + i * 3000)
+            .set_repeat_mode(VideoFrame::RepeatMode::kQualityConvergence)
+            .build();
+    ASSERT_EQ(encoder->Encode(repeat_frame, &delta_frame_types),
+              WEBRTC_VIDEO_CODEC_OK);
+  }
+  testing::Mock::VerifyAndClearExpectations(&callback);
+
+  // Frame 3 (T2b): Non-repeat frame. Because Frame 2 (T1) was dropped, T2b
+  // must fall back to referencing buffer 0 (T0) instead of buffer 1 (T1).
+  EXPECT_CALL(callback, OnEncodedImage)
+      .WillOnce([](const EncodedImage& image, const CodecSpecificInfo* info) {
+        EXPECT_EQ(image.TemporalIndex(), 2);
+        EXPECT_NE(info, nullptr);
+        if (info && info->generic_frame_info.has_value()) {
+          EXPECT_EQ(info->generic_frame_info->encoder_buffers.size(), 1u);
+          if (!info->generic_frame_info->encoder_buffers.empty()) {
+            EXPECT_EQ(info->generic_frame_info->encoder_buffers[0].id, 0);
+            EXPECT_TRUE(
+                info->generic_frame_info->encoder_buffers[0].referenced);
+            EXPECT_FALSE(info->generic_frame_info->encoder_buffers[0].updated);
+          }
+        }
+        return EncodedImageCallback::Result(
+            EncodedImageCallback::Result::Error::OK);
+      });
+  VideoFrame new_frame =
+      VideoFrame::Builder()
+          .set_video_frame_buffer(frame_generator->NextFrame().buffer)
+          .set_rtp_timestamp(key_frame.rtp_timestamp() + 3 * 3000)
+          .set_repeat_mode(VideoFrame::RepeatMode::kNone)
+          .build();
+  ASSERT_EQ(encoder->Encode(new_frame, &delta_frame_types),
             WEBRTC_VIDEO_CODEC_OK);
 }
 
