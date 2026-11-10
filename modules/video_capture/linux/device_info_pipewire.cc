@@ -13,12 +13,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "modules/video_capture/device_info_impl.h"
 #include "modules/video_capture/linux/pipewire_session.h"
 #include "modules/video_capture/video_capture_impl.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/synchronization/mutex.h"
 
 namespace webrtc {
 namespace videocapturemodule {
@@ -33,6 +35,7 @@ DeviceInfoPipeWire::~DeviceInfoPipeWire() = default;
 
 uint32_t DeviceInfoPipeWire::NumberOfDevices() {
   RTC_CHECK(pipewire_session_);
+  MutexLock lock(&pipewire_session_->nodes_lock());
 
   return pipewire_session_->nodes().size();
 }
@@ -46,10 +49,13 @@ int32_t DeviceInfoPipeWire::GetDeviceName(uint32_t deviceNumber,
                                           uint32_t productUniqueIdUTF8Length) {
   RTC_CHECK(pipewire_session_);
 
-  if (deviceNumber >= NumberOfDevices())
+  // The PipeWire thread can remove the node, so hold the lock while using it.
+  MutexLock lock(&pipewire_session_->nodes_lock());
+  if (deviceNumber >= pipewire_session_->nodes().size())
     return -1;
 
   const auto& node = pipewire_session_->nodes().at(deviceNumber);
+  const std::string model_id = node->model_id();
 
   if (deviceNameLength <= node->display_name().length()) {
     RTC_LOG(LS_INFO) << "deviceNameUTF8 buffer passed is too small";
@@ -59,8 +65,7 @@ int32_t DeviceInfoPipeWire::GetDeviceName(uint32_t deviceNumber,
     RTC_LOG(LS_INFO) << "deviceUniqueIdUTF8 buffer passed is too small";
     return -1;
   }
-  if (productUniqueIdUTF8 &&
-      productUniqueIdUTF8Length <= node->model_id().length()) {
+  if (productUniqueIdUTF8 && productUniqueIdUTF8Length <= model_id.length()) {
     RTC_LOG(LS_INFO) << "productUniqueIdUTF8 buffer passed is too small";
     return -1;
   }
@@ -73,7 +78,7 @@ int32_t DeviceInfoPipeWire::GetDeviceName(uint32_t deviceNumber,
 
   if (productUniqueIdUTF8) {
     memset(productUniqueIdUTF8, 0, productUniqueIdUTF8Length);
-    node->model_id().copy(productUniqueIdUTF8, productUniqueIdUTF8Length);
+    model_id.copy(productUniqueIdUTF8, productUniqueIdUTF8Length);
   }
 
   return 0;
@@ -83,6 +88,7 @@ int32_t DeviceInfoPipeWire::CreateCapabilityMap(
     const char* deviceUniqueIdUTF8) {
   RTC_CHECK(pipewire_session_);
 
+  MutexLock lock(&pipewire_session_->nodes_lock());
   for (auto& node : pipewire_session_->nodes()) {
     if (node->unique_id().compare(deviceUniqueIdUTF8) != 0)
       continue;

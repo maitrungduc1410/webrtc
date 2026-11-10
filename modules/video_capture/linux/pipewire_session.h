@@ -55,8 +55,12 @@ class PipeWireNode {
   uint32_t id() const { return id_; }
   const std::string& display_name() const { return display_name_; }
   const std::string& unique_id() const { return unique_id_; }
-  const std::string& model_id() const { return model_id_; }
-  const std::vector<VideoCaptureCapability>& capabilities() const {
+  std::string model_id() const {
+    webrtc::MutexLock lock(&lock_);
+    return model_id_;
+  }
+  std::vector<VideoCaptureCapability> capabilities() const {
+    webrtc::MutexLock lock(&lock_);
     return capabilities_;
   }
 
@@ -81,10 +85,12 @@ class PipeWireNode {
   uint32_t id_;
   std::string display_name_;
   std::string unique_id_;
-  std::string model_id_;
+  // The PipeWire thread changes these while other threads read them.
+  mutable webrtc::Mutex lock_;
+  std::string model_id_ RTC_GUARDED_BY(&lock_);
   struct pw_node_info* info_ = nullptr;
   int sync_seq_ = 0;
-  std::vector<VideoCaptureCapability> capabilities_;
+  std::vector<VideoCaptureCapability> capabilities_ RTC_GUARDED_BY(&lock_);
   std::vector<VideoCaptureCapability> pending_capabilities_;
 };
 
@@ -107,7 +113,11 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
 
   void Init(VideoCaptureOptions::Callback* callback,
             int fd = kInvalidPipeWireFd);
-  const std::deque<PipeWireNode::PipeWireNodePtr>& nodes() const {
+  webrtc::Mutex& nodes_lock() RTC_LOCK_RETURNED(&nodes_lock_) {
+    return nodes_lock_;
+  }
+  const std::deque<PipeWireNode::PipeWireNodePtr>& nodes() const
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&nodes_lock_) {
     return nodes_;
   }
 
@@ -156,7 +166,13 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
 
   int sync_seq_ = 0;
 
-  std::deque<PipeWireNode::PipeWireNodePtr> nodes_;
+  // The PipeWire thread adds and removes nodes, while DeviceInfoPipeWire and
+  // VideoCaptureModulePipeWire read the list on other threads. Hold it while
+  // using a node from the list: removing a node deletes it. Do not hold it
+  // while calling out of the session, e.g. Finish(): the callback can list
+  // the cameras.
+  webrtc::Mutex nodes_lock_;
+  std::deque<PipeWireNode::PipeWireNodePtr> nodes_ RTC_GUARDED_BY(&nodes_lock_);
   std::unique_ptr<CameraPortal> portal_;
   std::unique_ptr<CameraPortalNotifier> portal_notifier_;
 };

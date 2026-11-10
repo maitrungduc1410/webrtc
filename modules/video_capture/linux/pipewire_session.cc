@@ -85,7 +85,10 @@ void PipeWireNode::PipeWireNodeDeleter::operator()(
   spa_hook_remove(&node->node_listener_);
   spa_hook_remove(&node->proxy_listener_);
   pw_proxy_destroy(node->proxy_);
-  pw_node_info_free(node->info_);
+  // The info comes after the node is bound, so a node can go without it.
+  if (node->info_)
+    pw_node_info_free(node->info_);
+  delete node;
 }
 
 // static
@@ -150,6 +153,7 @@ void PipeWireNode::OnNodeInfo(void* data, const pw_node_info* info) {
       char model_str[10];
       snprintf(model_str, sizeof(model_str), "%04x:%04x", vid.value(),
                pid.value());
+      webrtc::MutexLock lock(&that->lock_);
       that->model_id_ = model_str;
     }
   }
@@ -245,6 +249,7 @@ void PipeWireNode::OnProxyDone(void* data, int seq) {
   if (seq != that->sync_seq_)
     return;
 
+  webrtc::MutexLock lock(&that->lock_);
   that->capabilities_ = std::move(that->pending_capabilities_);
   that->pending_capabilities_.clear();
 }
@@ -431,11 +436,14 @@ void PipeWireSession::OnCoreDone(void* data, uint32_t id, int seq) {
     if (seq == that->sync_seq_) {
       RTC_LOG(LS_VERBOSE) << "Enumerating PipeWire camera devices complete.";
 
-      // Remove camera devices with no capabilities
-      std::erase_if(that->nodes_,
-                    [](const PipeWireNode::PipeWireNodePtr& node) {
-                      return node->capabilities().empty();
-                    });
+      {
+        // Remove camera devices with no capabilities
+        webrtc::MutexLock lock(&that->nodes_lock_);
+        std::erase_if(that->nodes_,
+                      [](const PipeWireNode::PipeWireNodePtr& node) {
+                        return node->capabilities().empty();
+                      });
+      }
 
       that->Finish(VideoCaptureOptions::Status::SUCCESS);
     }
@@ -451,6 +459,7 @@ void PipeWireSession::OnRegistryGlobal(void* data,
                                        uint32_t version,
                                        const spa_dict* props) {
   PipeWireSession* that = static_cast<PipeWireSession*>(data);
+  webrtc::MutexLock lock(&that->nodes_lock_);
 
   // Skip already added nodes to avoid duplicate camera entries
   if (std::find_if(that->nodes_.begin(), that->nodes_.end(),
@@ -476,6 +485,7 @@ void PipeWireSession::OnRegistryGlobal(void* data,
 // static
 void PipeWireSession::OnRegistryGlobalRemove(void* data, uint32_t id) {
   PipeWireSession* that = static_cast<PipeWireSession*>(data);
+  webrtc::MutexLock lock(&that->nodes_lock_);
 
   std::erase_if(that->nodes_, [id](const PipeWireNode::PipeWireNodePtr& node) {
     return node->id() == id;
