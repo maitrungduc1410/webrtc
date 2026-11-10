@@ -731,6 +731,7 @@ void RtpTransceiver::SetMediaChannels(MediaSendChannelInterface* send,
 }
 VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
 RtpTransceiver::GetEncoderSwitchRequestCallback() {
+  RTC_DCHECK_RUN_ON(thread_);
   if (media_type() != MediaType::VIDEO) {
     return nullptr;
   }
@@ -758,6 +759,7 @@ RtpTransceiver::GetEncoderSwitchRequestCallback() {
 }
 
 absl::AnyInvocable<void()> RtpTransceiver::GetParametersChangedCallback() {
+  RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(signaling_thread_safety_);
   return [this, signaling_safety = signaling_thread_safety_]() {
     thread_->PostTask(SafeTask(signaling_safety, [this]() {
@@ -873,6 +875,7 @@ MediaType RtpTransceiver::media_type() const {
 }
 
 std::optional<std::string> RtpTransceiver::mid() const {
+  RTC_DCHECK_RUN_ON(thread_);
   return mid_;
 }
 
@@ -938,6 +941,7 @@ scoped_refptr<RtpReceiverInterface> RtpTransceiver::receiver() const {
 }
 
 void RtpTransceiver::set_current_direction(RtpTransceiverDirection direction) {
+  RTC_DCHECK_RUN_ON(thread_);
   if (current_direction_ == direction)
     return;
   RTC_LOG(LS_INFO) << "Changing transceiver (MID=" << mid_.value_or("<not set>")
@@ -954,6 +958,7 @@ void RtpTransceiver::set_current_direction(RtpTransceiverDirection direction) {
 
 void RtpTransceiver::set_fired_direction(
     std::optional<RtpTransceiverDirection> direction) {
+  RTC_DCHECK_RUN_ON(thread_);
   fired_direction_ = direction;
 }
 
@@ -968,6 +973,7 @@ bool RtpTransceiver::stopping() const {
 }
 
 RtpTransceiverDirection RtpTransceiver::direction() const {
+  RTC_DCHECK_RUN_ON(thread_);
   if (unified_plan_ && stopping())
     return RtpTransceiverDirection::kStopped;
 
@@ -976,6 +982,7 @@ RtpTransceiverDirection RtpTransceiver::direction() const {
 
 RTCError RtpTransceiver::SetDirectionWithError(
     RtpTransceiverDirection new_direction) {
+  RTC_DCHECK_RUN_ON(thread_);
   if (unified_plan_ && stopping()) {
     return RTC_LOG_ERROR(RTCError::InvalidState()
                          << "Cannot set direction on a stopping transceiver.");
@@ -996,6 +1003,7 @@ RTCError RtpTransceiver::SetDirectionWithError(
 
 std::optional<RtpTransceiverDirection> RtpTransceiver::current_direction()
     const {
+  RTC_DCHECK_RUN_ON(thread_);
   if (unified_plan_ && stopped())
     return RtpTransceiverDirection::kStopped;
 
@@ -1003,6 +1011,7 @@ std::optional<RtpTransceiverDirection> RtpTransceiver::current_direction()
 }
 
 std::optional<RtpTransceiverDirection> RtpTransceiver::fired_direction() const {
+  RTC_DCHECK_RUN_ON(thread_);
   return fired_direction_;
 }
 
@@ -1197,6 +1206,7 @@ RtpTransceiver::GetStopTransceiverProcedure() {
 
 RTCError RtpTransceiver::SetCodecPreferences(
     std::span<RtpCodecCapability> codec_capabilities) {
+  RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(unified_plan_);
   RTCError error = RTCError::OK();
   // 3. If codecs is an empty list, set transceiver's [[PreferredCodecs]] slot
@@ -1225,6 +1235,7 @@ RTCError RtpTransceiver::SetCodecPreferences(
 
 RTCError RtpTransceiver::UpdateCodecPreferencesCaches(
     const std::vector<RtpCodecCapability>& codecs) {
+  RTC_DCHECK_RUN_ON(thread_);
   // Get codec capabilities from media engine.
   std::vector<Codec> send_codecs, recv_codecs;
   if (media_type_ == MediaType::AUDIO) {
@@ -1290,11 +1301,13 @@ RTCError RtpTransceiver::UpdateCodecPreferencesCaches(
 }
 
 std::vector<RtpCodecCapability> RtpTransceiver::codec_preferences() const {
+  RTC_DCHECK_RUN_ON(thread_);
   return codec_preferences_;
 }
 
 std::vector<RtpCodecCapability> RtpTransceiver::filtered_codec_preferences()
     const {
+  RTC_DCHECK_RUN_ON(thread_);
   switch (direction_) {
     case RtpTransceiverDirection::kSendRecv:
     case RtpTransceiverDirection::kInactive:
@@ -1699,6 +1712,7 @@ void RtpTransceiver::OnFrameDeliveredOnSignalingThread(
 
 absl::AnyInvocable<void(uint32_t ssrc, const RtpPacketInfos&, Timestamp) const>
 RtpTransceiver::GetOnFrameDeliveredCallback() {
+  RTC_DCHECK_RUN_ON(thread_);
   TaskQueueBase* thread = thread_;
   scoped_refptr<PendingTaskSafetyFlag> safety = signaling_thread_safety_;
   return [thread, safety, this](uint32_t ssrc, const RtpPacketInfos& infos,

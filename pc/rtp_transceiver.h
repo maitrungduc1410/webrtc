@@ -272,8 +272,12 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // when setting a local offer we need a way to remember which transceiver was
   // used to create which media section in the offer. Storing the mline index
   // in CreateOffer is specified in JSEP to allow us to do that.
-  std::optional<size_t> mline_index() const { return mline_index_; }
+  std::optional<size_t> mline_index() const {
+    RTC_DCHECK_RUN_ON(thread_);
+    return mline_index_;
+  }
   void set_mline_index(std::optional<size_t> mline_index) {
+    RTC_DCHECK_RUN_ON(thread_);
     mline_index_ = mline_index;
   }
 
@@ -292,12 +296,16 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // Sets the MID for this transceiver. If the MID is not null, then the
   // transceiver is considered "associated" with the media section that has the
   // same MID.
-  void set_mid(const std::optional<std::string>& mid) { mid_ = std::move(mid); }
+  void set_mid(const std::optional<std::string>& mid) {
+    RTC_DCHECK_RUN_ON(thread_);
+    mid_ = std::move(mid);
+  }
 
   // Sets the intended direction for this transceiver. Intended to be used
   // internally over SetDirection since this does not trigger a negotiation
   // needed callback.
   void set_direction(RtpTransceiverDirection direction) {
+    RTC_DCHECK_RUN_ON(thread_);
     direction_ = direction;
   }
 
@@ -316,21 +324,30 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // According to JSEP rules for SetRemoteDescription, RtpTransceivers can be
   // reused only if they were added by AddTrack.
   void set_created_by_addtrack(bool created_by_addtrack) {
+    RTC_DCHECK_RUN_ON(thread_);
     created_by_addtrack_ = created_by_addtrack;
   }
   // If AddTrack has been called then transceiver can't be removed during
   // rollback.
   void set_reused_for_addtrack(bool reused_for_addtrack) {
+    RTC_DCHECK_RUN_ON(thread_);
     reused_for_addtrack_ = reused_for_addtrack;
   }
 
-  bool created_by_addtrack() const { return created_by_addtrack_; }
+  bool created_by_addtrack() const {
+    RTC_DCHECK_RUN_ON(thread_);
+    return created_by_addtrack_;
+  }
 
-  bool reused_for_addtrack() const { return reused_for_addtrack_; }
+  bool reused_for_addtrack() const {
+    RTC_DCHECK_RUN_ON(thread_);
+    return reused_for_addtrack_;
+  }
 
   // Returns true if this transceiver has ever had the current direction set to
   // sendonly or sendrecv.
   bool has_ever_been_used_to_send() const {
+    RTC_DCHECK_RUN_ON(thread_);
     return has_ever_been_used_to_send_;
   }
 
@@ -538,8 +555,10 @@ class RtpTransceiver : public RtpTransceiverInterface {
   TaskQueueBase* const thread_;
   const bool unified_plan_;
   const MediaType media_type_;
-  scoped_refptr<PendingTaskSafetyFlag> signaling_thread_safety_;
-  scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;
+  scoped_refptr<PendingTaskSafetyFlag> signaling_thread_safety_
+      RTC_GUARDED_BY(thread_);
+  scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_
+      RTC_GUARDED_BY(thread_);
   std::vector<scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>>>
       senders_;
   std::vector<scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>>
@@ -547,16 +566,19 @@ class RtpTransceiver : public RtpTransceiverInterface {
 
   bool stopped_ RTC_GUARDED_BY(thread_) = false;
   bool stopping_ RTC_GUARDED_BY(thread_) = false;
-  RtpTransceiverDirection direction_ = RtpTransceiverDirection::kInactive;
-  std::optional<RtpTransceiverDirection> current_direction_;
-  std::optional<RtpTransceiverDirection> fired_direction_;
+  RtpTransceiverDirection direction_ RTC_GUARDED_BY(thread_) =
+      RtpTransceiverDirection::kInactive;
+  std::optional<RtpTransceiverDirection> current_direction_
+      RTC_GUARDED_BY(thread_);
+  std::optional<RtpTransceiverDirection> fired_direction_
+      RTC_GUARDED_BY(thread_);
   std::optional<bool> sframe_enabled_ RTC_GUARDED_BY(thread_);
-  std::optional<std::string> mid_;
+  std::optional<std::string> mid_ RTC_GUARDED_BY(thread_);
   std::optional<std::string> transport_name_ RTC_GUARDED_BY(thread_);
-  std::optional<size_t> mline_index_;
-  bool created_by_addtrack_ = false;
-  bool reused_for_addtrack_ = false;
-  bool has_ever_been_used_to_send_ = false;
+  std::optional<size_t> mline_index_ RTC_GUARDED_BY(thread_);
+  bool created_by_addtrack_ RTC_GUARDED_BY(thread_) = false;
+  bool reused_for_addtrack_ RTC_GUARDED_BY(thread_) = false;
+  bool has_ever_been_used_to_send_ RTC_GUARDED_BY(thread_) = false;
   bool receptive_ RTC_GUARDED_BY(thread_) = false;
   bool receptive_n_ RTC_GUARDED_BY(context()->network_thread()) = false;
   bool packet_notified_after_receptive_
@@ -572,10 +594,13 @@ class RtpTransceiver : public RtpTransceiverInterface {
   CodecLookupHelper* const codec_lookup_helper_;
   LegacyStatsCollectorInterface* const legacy_stats_;
   RtpSenderBase::SetStreamsObserver* const set_streams_observer_ = nullptr;
-  std::vector<RtpCodecCapability> codec_preferences_;
-  std::vector<RtpCodecCapability> sendrecv_codec_preferences_;
-  std::vector<RtpCodecCapability> sendonly_codec_preferences_;
-  std::vector<RtpCodecCapability> recvonly_codec_preferences_;
+  std::vector<RtpCodecCapability> codec_preferences_ RTC_GUARDED_BY(thread_);
+  std::vector<RtpCodecCapability> sendrecv_codec_preferences_
+      RTC_GUARDED_BY(thread_);
+  std::vector<RtpCodecCapability> sendonly_codec_preferences_
+      RTC_GUARDED_BY(thread_);
+  std::vector<RtpCodecCapability> recvonly_codec_preferences_
+      RTC_GUARDED_BY(thread_);
   std::vector<RtpHeaderExtensionCapability> header_extensions_to_negotiate_
       RTC_GUARDED_BY(thread_);
   std::vector<RtpHeaderExtensionCapability> header_extensions_for_rollback_
@@ -586,7 +611,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
   // PushdownMediaDescription().
   RtpHeaderExtensions negotiated_header_extensions_ RTC_GUARDED_BY(thread_);
 
-  absl::AnyInvocable<void()> on_negotiation_needed_;
+  absl::AnyInvocable<void()> on_negotiation_needed_ RTC_GUARDED_BY(thread_);
   std::unique_ptr<MediaSendChannelInterface> owned_send_channel_;
   std::unique_ptr<MediaReceiveChannelInterface> owned_receive_channel_;
   const AudioOptions audio_options_;
