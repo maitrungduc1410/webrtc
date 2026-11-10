@@ -154,9 +154,17 @@ bool StunRequestManager::CheckResponse(StunMessage* msg) {
     RTC_DCHECK(false)
         << "CheckResponse called on a passwordless request. Fix test!";
   } else {
+    // A request protected with MESSAGE-INTEGRITY-SHA256 (RFC 8489) must be
+    // answered with MESSAGE-INTEGRITY-SHA256 as well.
+    const bool sha256 = request->msg()->GetByteString(
+                            STUN_ATTR_MESSAGE_INTEGRITY_SHA256) != nullptr;
     if (msg->integrity() == StunMessage::IntegrityStatus::kNotSet) {
       // Checking status for the first time. Normal.
-      msg->ValidateMessageIntegrity(request->msg()->password());
+      if (sha256) {
+        msg->ValidateMessageIntegritySha256(request->msg()->password());
+      } else {
+        msg->ValidateMessageIntegrity(request->msg()->password());
+      }
     } else if (msg->password() == request->msg()->password()) {
       // Status is already checked, with the same password. This is the case
       // we would want to see happen.
@@ -165,7 +173,11 @@ bool StunRequestManager::CheckResponse(StunMessage* msg) {
       // (e.g. ice-pwd changed between ping and response).
       // Bad design, needs revisiting.
       // TODO(crbug.com/1177125): Fix this.
-      msg->RevalidateMessageIntegrity(request->msg()->password());
+      if (sha256) {
+        msg->RevalidateMessageIntegritySha256(request->msg()->password());
+      } else {
+        msg->RevalidateMessageIntegrity(request->msg()->password());
+      }
     }
   }
 

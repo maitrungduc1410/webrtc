@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/strings/string_view.h"
+#include "rtc_base/base64.h"
 #include "rtc_base/byte_buffer.h"
 #include "rtc_base/byte_order.h"
 #include "rtc_base/checks.h"
@@ -72,6 +73,9 @@ bool LengthValid(int type, int length) {
     case STUN_ATTR_MESSAGE_INTEGRITY:
       return length ==
              kMessageIntegrityAttributeLength;  // RFC 8489 section 14.5
+    case STUN_ATTR_MESSAGE_INTEGRITY_SHA256:
+      // RFC 8489 section 14.6: 16..32 bytes, multiple of 4.
+      return length >= 16 && length <= 32 && length % 4 == 0;
     case STUN_ATTR_REALM:
       return length <=
              k127Utf8CharactersLengthInBytes;  // RFC 8489 section 14.9
@@ -149,6 +153,7 @@ void StunMessage::AddAttribute(std::unique_ptr<StunAttribute> attr) {
   // Once a message is signed, adding attributes is a programming error.
   // Exceptions are the Integrity attributes and Fingerprint.
   if (attr->type() != STUN_ATTR_MESSAGE_INTEGRITY &&
+      attr->type() != STUN_ATTR_MESSAGE_INTEGRITY_SHA256 &&
       attr->type() != STUN_ATTR_GOOG_MESSAGE_INTEGRITY_32 &&
       attr->type() != STUN_ATTR_FINGERPRINT) {
     RTC_CHECK(integrity_ != IntegrityStatus::kIntegrityOk)
@@ -174,6 +179,7 @@ void StunMessage::AddAttribute(std::unique_ptr<StunAttribute> attr) {
 
 std::unique_ptr<StunAttribute> StunMessage::RemoveAttribute(int type) {
   if (type != STUN_ATTR_MESSAGE_INTEGRITY &&
+      type != STUN_ATTR_MESSAGE_INTEGRITY_SHA256 &&
       type != STUN_ATTR_GOOG_MESSAGE_INTEGRITY_32) {
     // Removing attributes will break integrity, so don't allow
     // removing attributes from a signed message.
@@ -195,6 +201,7 @@ std::unique_ptr<StunAttribute> StunMessage::RemoveAttribute(int type) {
     }
     length_ -= static_cast<uint16_t>(attr_length + 4);
     if (type == STUN_ATTR_MESSAGE_INTEGRITY ||
+        type == STUN_ATTR_MESSAGE_INTEGRITY_SHA256 ||
         type == STUN_ATTR_GOOG_MESSAGE_INTEGRITY_32) {
       // If the message was signed, it is now unsigned, and adding more
       // attributes is possible.
@@ -298,6 +305,31 @@ StunMessage::IntegrityStatus StunMessage::ValidateMessageIntegrity(
   } else {
     integrity_ = IntegrityStatus::kNoIntegrity;
   }
+  RecordIntegrityHistogram();
+  return integrity_;
+}
+
+StunMessage::IntegrityStatus StunMessage::ValidateMessageIntegritySha256(
+    const std::string& password) {
+  RTC_DCHECK(integrity_ == IntegrityStatus::kNotSet)
+      << "Usage error: Verification should only be done once";
+  password_ = password;
+  if (GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256)) {
+    if (ValidateMessageIntegrityOfType(STUN_ATTR_MESSAGE_INTEGRITY_SHA256,
+                                       kStunMessageIntegritySha256Size, buffer_,
+                                       password)) {
+      integrity_ = IntegrityStatus::kIntegrityOk;
+    } else {
+      integrity_ = IntegrityStatus::kIntegrityBad;
+    }
+  } else {
+    integrity_ = IntegrityStatus::kNoIntegrity;
+  }
+  RecordIntegrityHistogram();
+  return integrity_;
+}
+
+void StunMessage::RecordIntegrityHistogram() {
   // Log the result of integrity checking. See crbug.com/1177125 for background.
   // Convert args to integer for the benefit of the macros.
   int bucket_count = static_cast<int>(IntegrityStatus::kMaxValue) + 1;
@@ -363,7 +395,6 @@ StunMessage::IntegrityStatus StunMessage::ValidateMessageIntegrity(
       }
     }
   }
-  return integrity_;
 }
 
 StunMessage::IntegrityStatus StunMessage::RevalidateMessageIntegrity(
@@ -374,11 +405,27 @@ StunMessage::IntegrityStatus StunMessage::RevalidateMessageIntegrity(
   return ValidateMessageIntegrity(password);
 }
 
+StunMessage::IntegrityStatus StunMessage::RevalidateMessageIntegritySha256(
+    const std::string& password) {
+  RTC_LOG(LS_INFO) << "Message revalidation, old status was "
+                   << static_cast<int>(integrity_);
+  integrity_ = IntegrityStatus::kNotSet;
+  return ValidateMessageIntegritySha256(password);
+}
+
 bool StunMessage::ValidateMessageIntegrityForTesting(
     const std::string& password,
     std::span<const uint8_t> data) {
   return ValidateMessageIntegrityOfType(
       STUN_ATTR_MESSAGE_INTEGRITY, kStunMessageIntegritySize, data, password);
+}
+
+bool StunMessage::ValidateMessageIntegritySha256ForTesting(
+    const std::string& password,
+    std::span<const uint8_t> data) {
+  return ValidateMessageIntegrityOfType(STUN_ATTR_MESSAGE_INTEGRITY_SHA256,
+                                        kStunMessageIntegritySha256Size, data,
+                                        password);
 }
 
 bool StunMessage::ValidateMessageIntegrity32ForTesting(
@@ -395,7 +442,9 @@ bool StunMessage::ValidateMessageIntegrityOfType(int mi_attr_type,
                                                  size_t mi_attr_size,
                                                  std::span<const uint8_t> data,
                                                  const std::string& password) {
-  RTC_DCHECK(mi_attr_size <= kStunMessageIntegritySize);
+  const bool sha256 = mi_attr_type == STUN_ATTR_MESSAGE_INTEGRITY_SHA256;
+  RTC_DCHECK(mi_attr_size <= (sha256 ? kStunMessageIntegritySha256Size
+                                     : kStunMessageIntegritySize));
 
   // Verifying the size of the message.
   if ((data.size() % 4) != 0 || data.size() < kStunHeaderSize) {
@@ -411,15 +460,20 @@ bool StunMessage::ValidateMessageIntegrityOfType(int mi_attr_type,
   // Finding Message Integrity attribute in stun message.
   size_t current_pos = kStunHeaderSize;
   bool has_message_integrity_attr = false;
+  uint16_t attr_type = 0;
+  uint16_t attr_length = 0;
   while (current_pos + 4 <= data.size()) {
-    uint16_t attr_type, attr_length;
     // Getting attribute type and length.
     attr_type = GetBE16(data.subspan(current_pos, 2));
     attr_length = GetBE16(data.subspan(current_pos + sizeof(attr_type), 2));
 
     // If M-I, sanity check it, and break out.
     if (attr_type == mi_attr_type) {
-      if (attr_length != mi_attr_size ||
+      // MI-SHA256 may be truncated to 16..32 bytes (multiple of 4) on receipt.
+      bool length_ok = sha256 ? (attr_length >= 16 && attr_length <= 32 &&
+                                 attr_length % 4 == 0)
+                              : attr_length == mi_attr_size;
+      if (!length_ok ||
           current_pos + sizeof(attr_type) + sizeof(attr_length) + attr_length >
               data.size()) {
         return false;
@@ -443,11 +497,11 @@ bool StunMessage::ValidateMessageIntegrityOfType(int mi_attr_type,
   size_t mi_pos = current_pos;
   std::unique_ptr<uint8_t[]> temp_data(new uint8_t[current_pos]);
   memcpy(temp_data.get(), data.data(), current_pos);
-  if (data.size() > mi_pos + kStunAttributeHeaderSize + mi_attr_size) {
+  if (data.size() > mi_pos + kStunAttributeHeaderSize + attr_length) {
     // Stun message has other attributes after message integrity.
     // Adjust the length parameter in stun message to calculate HMAC.
     size_t extra_offset =
-        data.size() - (mi_pos + kStunAttributeHeaderSize + mi_attr_size);
+        data.size() - (mi_pos + kStunAttributeHeaderSize + attr_length);
     size_t new_adjusted_len = data.size() - extra_offset - kStunHeaderSize;
 
     // Writing new length of the STUN message @ Message Length in temp buffer.
@@ -460,23 +514,33 @@ bool StunMessage::ValidateMessageIntegrityOfType(int mi_attr_type,
             static_cast<uint16_t>(new_adjusted_len));
   }
 
-  std::array<uint8_t, kStunMessageIntegritySize> hmac;
-  size_t ret = ComputeHmac(DIGEST_SHA_1, AsUint8Span(password),
-                           std::span(temp_data.get(), mi_pos), hmac);
-  if (ret != hmac.size()) {
+  static_assert(kStunMessageIntegritySha256Size >= kStunMessageIntegritySize,
+                "hmac buffer must fit both SHA-1 and SHA-256 digests");
+  std::array<uint8_t, kStunMessageIntegritySha256Size> hmac;
+  const size_t expected_hmac_size =
+      sha256 ? kStunMessageIntegritySha256Size : kStunMessageIntegritySize;
+  size_t ret =
+      ComputeHmac(sha256 ? DIGEST_SHA_256 : DIGEST_SHA_1, AsUint8Span(password),
+                  std::span(temp_data.get(), mi_pos), hmac);
+  if (ret != expected_hmac_size) {
     RTC_DCHECK_NOTREACHED() << "hmac return != hmac.size()";
     return false;
   }
 
   // Comparing the calculated HMAC with the one present in the message.
   return std::ranges::equal(
-      data.subspan(current_pos + kStunAttributeHeaderSize, mi_attr_size),
-      std::span(hmac).first(mi_attr_size));
+      data.subspan(current_pos + kStunAttributeHeaderSize, attr_length),
+      std::span(hmac).first(attr_length));
 }
 
 bool StunMessage::AddMessageIntegrity(absl::string_view password) {
   return AddMessageIntegrityOfType(STUN_ATTR_MESSAGE_INTEGRITY,
                                    kStunMessageIntegritySize, password);
+}
+
+bool StunMessage::AddMessageIntegritySha256(absl::string_view key) {
+  return AddMessageIntegrityOfType(STUN_ATTR_MESSAGE_INTEGRITY_SHA256,
+                                   kStunMessageIntegritySha256Size, key);
 }
 
 bool StunMessage::AddMessageIntegrity32(absl::string_view password) {
@@ -489,7 +553,9 @@ bool StunMessage::AddMessageIntegrityOfType(int attr_type,
                                             absl::string_view key) {
   // Add the attribute with a dummy value. Since this is a known attribute, it
   // can't fail.
-  RTC_DCHECK(attr_size <= kStunMessageIntegritySize);
+  const bool sha256 = attr_type == STUN_ATTR_MESSAGE_INTEGRITY_SHA256;
+  RTC_DCHECK(attr_size <= (sha256 ? kStunMessageIntegritySha256Size
+                                  : kStunMessageIntegritySize));
   auto msg_integrity_attr_ptr = std::make_unique<StunByteStringAttribute>(
       attr_type, std::string(attr_size, '0'));
   auto* msg_integrity_attr = msg_integrity_attr_ptr.get();
@@ -502,10 +568,15 @@ bool StunMessage::AddMessageIntegrityOfType(int attr_type,
 
   int msg_len_for_hmac = static_cast<int>(
       buf.Length() - kStunAttributeHeaderSize - msg_integrity_attr->length());
-  std::array<uint8_t, kStunMessageIntegritySize> hmac;
-  size_t ret = ComputeHmac(DIGEST_SHA_1, AsUint8Span(key),
-                           std::span(buf.Data(), msg_len_for_hmac), hmac);
-  if (ret != hmac.size()) {
+  static_assert(kStunMessageIntegritySha256Size >= kStunMessageIntegritySize,
+                "hmac buffer must fit both SHA-1 and SHA-256 digests");
+  std::array<uint8_t, kStunMessageIntegritySha256Size> hmac;
+  const size_t expected_hmac_size =
+      sha256 ? kStunMessageIntegritySha256Size : kStunMessageIntegritySize;
+  size_t ret =
+      ComputeHmac(sha256 ? DIGEST_SHA_256 : DIGEST_SHA_1, AsUint8Span(key),
+                  std::span(buf.Data(), msg_len_for_hmac), hmac);
+  if (ret != expected_hmac_size) {
     RTC_DCHECK_NOTREACHED();
     RTC_LOG(LS_ERROR) << "HMAC computation failed. Message-Integrity "
                          "has dummy value.";
@@ -648,6 +719,7 @@ bool StunMessage::Read(ByteBufferReader* buf) {
 
   size_t rest = buf->Length() - length_;
   bool seen_message_integrity = false;
+  bool seen_message_integrity_sha256 = false;
   while (buf->Length() > rest) {
     uint16_t attr_type, attr_length;
     if (!buf->ReadUInt16(&attr_type))
@@ -659,7 +731,13 @@ bool StunMessage::Read(ByteBufferReader* buf) {
     // attribute, which appears after MESSAGE-INTEGRITY, agents MUST ignore
     // all other attributes that follow MESSAGE-INTEGRITY.
     std::unique_ptr<StunAttribute> attr;
-    if (!seen_message_integrity || attr_type == STUN_ATTR_FINGERPRINT) {
+    // RFC 8489 section 14.5/14.6: MESSAGE-INTEGRITY-SHA256 may follow
+    // MESSAGE-INTEGRITY; after MESSAGE-INTEGRITY-SHA256 only FINGERPRINT is
+    // considered.
+    if (attr_type == STUN_ATTR_FINGERPRINT ||
+        (!seen_message_integrity_sha256 &&
+         (!seen_message_integrity ||
+          attr_type == STUN_ATTR_MESSAGE_INTEGRITY_SHA256))) {
       attr.reset(CreateAttribute(attr_type, attr_length));
     }
     if (!attr) {
@@ -674,8 +752,10 @@ bool StunMessage::Read(ByteBufferReader* buf) {
       if (!attr->Read(buf)) {
         return false;
       }
-      if (attr_type == STUN_ATTR_MESSAGE_INTEGRITY ||
-          attr_type == STUN_ATTR_GOOG_MESSAGE_INTEGRITY_32) {
+      if (attr_type == STUN_ATTR_MESSAGE_INTEGRITY_SHA256) {
+        seen_message_integrity_sha256 = true;
+      } else if (attr_type == STUN_ATTR_MESSAGE_INTEGRITY ||
+                 attr_type == STUN_ATTR_GOOG_MESSAGE_INTEGRITY_32) {
         seen_message_integrity = true;
       }
       attrs_.push_back(std::move(attr));
@@ -725,6 +805,10 @@ StunAttributeValueType StunMessage::GetAttributeValueType(int type) const {
     case STUN_ATTR_USERNAME:
       return STUN_VALUE_BYTE_STRING;
     case STUN_ATTR_MESSAGE_INTEGRITY:
+      return STUN_VALUE_BYTE_STRING;
+    case STUN_ATTR_MESSAGE_INTEGRITY_SHA256:
+    case STUN_ATTR_PASSWORD_ALGORITHM:
+    case STUN_ATTR_PASSWORD_ALGORITHMS:
       return STUN_VALUE_BYTE_STRING;
     case STUN_ATTR_ERROR_CODE:
       return STUN_VALUE_ERROR_CODE;
@@ -1430,9 +1514,19 @@ bool ComputeStunCredentialHash(const std::string& username,
                                const std::string& realm,
                                const std::string& password,
                                std::string* hash) {
-  // http://tools.ietf.org/html/rfc5389#section-15.4
+  return ComputeStunCredentialHash(StunPasswordAlgorithm::kMd5, username, realm,
+                                   password, hash);
+}
+
+bool ComputeStunCredentialHash(StunPasswordAlgorithm algorithm,
+                               const std::string& username,
+                               const std::string& realm,
+                               const std::string& password,
+                               std::string* hash) {
+  // http://tools.ietf.org/html/rfc5389#section-15.4 and RFC 8489 section 9.2.2
   // long-term credentials will be calculated using the key and key is
-  // key = MD5(username ":" realm ":" SASLprep(password))
+  // key = H(username ":" realm ":" SASLprep(password)) where H is MD5 or
+  // SHA-256. No OpaqueString/SASLprep processing is done here.
   std::string input = username;
   input += ':';
   input += realm;
@@ -1440,7 +1534,9 @@ bool ComputeStunCredentialHash(const std::string& username,
   input += password;
 
   std::array<uint8_t, MessageDigest::kMaxSize> digest;
-  size_t size = ComputeDigest(DIGEST_MD5, AsUint8Span(input), digest);
+  size_t size = ComputeDigest(
+      algorithm == StunPasswordAlgorithm::kSha256 ? DIGEST_SHA_256 : DIGEST_MD5,
+      AsUint8Span(input), digest);
 
   if (size == 0) {
     return false;
@@ -1448,6 +1544,64 @@ bool ComputeStunCredentialHash(const std::string& username,
 
   *hash = std::string(AsStringView(std::span(digest).first(size)));
   return true;
+}
+
+std::optional<std::vector<StunPasswordAlgorithmEntry>>
+ParseStunPasswordAlgorithms(absl::string_view value) {
+  std::vector<StunPasswordAlgorithmEntry> entries;
+  std::span<const uint8_t> bytes = AsUint8Span(value);
+  size_t pos = 0;
+  while (pos < value.size()) {
+    if (value.size() - pos < 4) {
+      return std::nullopt;
+    }
+    uint16_t algorithm = GetBE16(bytes.subspan(pos, 2));
+    size_t params_len = GetBE16(bytes.subspan(pos + 2, 2));
+    pos += 4;
+    if (value.size() - pos < params_len) {
+      return std::nullopt;
+    }
+    entries.push_back({algorithm, std::string(value.substr(pos, params_len))});
+    pos += params_len;
+    // Skip padding. The final entry's padding may be absent or truncated.
+    pos += (4 - params_len % 4) % 4;
+  }
+  return entries;
+}
+
+std::string EncodeStunPasswordAlgorithm(uint16_t algorithm,
+                                        absl::string_view parameters) {
+  RTC_DCHECK_LE(parameters.size(), 0xFFFFu);
+  ByteBufferWriter buf;
+  buf.WriteUInt16(algorithm);
+  buf.WriteUInt16(static_cast<uint16_t>(parameters.size()));
+  buf.WriteString(parameters);
+  for (size_t i = parameters.size() % 4; i != 0 && i < 4; ++i) {
+    buf.WriteUInt8(0);
+  }
+  return std::string(AsStringView(buf.DataView()));
+}
+
+std::optional<uint32_t> GetStunNonceSecurityFeatures(absl::string_view nonce) {
+  constexpr absl::string_view kCookie = "obMatJos2";
+  if (nonce.size() < kCookie.size() + 4 ||
+      nonce.substr(0, kCookie.size()) != kCookie) {
+    return std::nullopt;
+  }
+  std::optional<std::string> decoded =
+      Base64Decode(nonce.substr(kCookie.size(), 4));
+  if (!decoded || decoded->size() != 3) {
+    return std::nullopt;
+  }
+  const std::string& d = *decoded;
+  return (static_cast<uint32_t>(static_cast<uint8_t>(d[0])) << 16) |
+         (static_cast<uint32_t>(static_cast<uint8_t>(d[1])) << 8) |
+         static_cast<uint32_t>(static_cast<uint8_t>(d[2]));
+}
+
+bool StunNonceHasPasswordAlgorithmsBit(absl::string_view nonce) {
+  std::optional<uint32_t> features = GetStunNonceSecurityFeatures(nonce);
+  return features.has_value() && (*features & 0x800000) != 0;
 }
 
 std::unique_ptr<StunAttribute> CopyStunAttribute(

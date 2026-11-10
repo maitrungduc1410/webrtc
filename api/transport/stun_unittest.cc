@@ -26,6 +26,7 @@
 #include "rtc_base/byte_order.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/ip_address.h"
+#include "rtc_base/message_digest.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/span_helpers.h"
 #include "system_wrappers/include/metrics.h"
@@ -1813,5 +1814,409 @@ TEST_F(StunTest, RemovingAttributesAfterSigningCrashesDeathTest) {
   EXPECT_DEATH(msg.RemoveAttribute(STUN_ATTR_USERNAME), "");
 }
 #endif
+
+// RFC 8489 Appendix B.1: request with MESSAGE-INTEGRITY-SHA256 and USERHASH.
+constexpr uint8_t kRfc8489B1Request[] = {
+    0x00, 0x01, 0x00, 0x9c, 0x21, 0x12, 0xa4, 0x42, 0x78, 0xad, 0x34, 0x33,
+    0xc6, 0xad, 0x72, 0xc0, 0x29, 0xda, 0x41, 0x2e,
+    // USERHASH
+    0x00, 0x1e, 0x00, 0x20, 0x4a, 0x3c, 0xf3, 0x8f, 0xef, 0x69, 0x92, 0xbd,
+    0xa9, 0x52, 0xc6, 0x78, 0x04, 0x17, 0xda, 0x0f, 0x24, 0x81, 0x94, 0x15,
+    0x56, 0x9e, 0x60, 0xb2, 0x05, 0xc4, 0x6e, 0x41, 0x40, 0x7f, 0x17, 0x04,
+    // NONCE
+    0x00, 0x15, 0x00, 0x29, 0x6f, 0x62, 0x4d, 0x61, 0x74, 0x4a, 0x6f, 0x73,
+    0x32, 0x41, 0x41, 0x41, 0x43, 0x66, 0x2f, 0x2f, 0x34, 0x39, 0x39, 0x6b,
+    0x39, 0x35, 0x34, 0x64, 0x36, 0x4f, 0x4c, 0x33, 0x34, 0x6f, 0x4c, 0x39,
+    0x46, 0x53, 0x54, 0x76, 0x79, 0x36, 0x34, 0x73, 0x41, 0x00, 0x00, 0x00,
+    // REALM
+    0x00, 0x14, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
+    0x6f, 0x72, 0x67, 0x00,
+    // MESSAGE-INTEGRITY-SHA256
+    0x00, 0x1c, 0x00, 0x20, 0xe4, 0x68, 0x6c, 0x8f, 0x0e, 0xde, 0xb5, 0x90,
+    0x13, 0xe0, 0x70, 0x90, 0x01, 0x0a, 0x93, 0xef, 0xcc, 0xbc, 0xcc, 0x54,
+    0x4c, 0x0a, 0x45, 0xd9, 0xf8, 0x30, 0xaa, 0x6d, 0x6f, 0x73, 0x5a, 0x01};
+
+// "TheMatrIX" username in UTF-8 katakana.
+constexpr char kRfc8489B1Username[] =
+    "\xe3\x83\x9e\xe3\x83\x88\xe3\x83\xaa\xe3\x83\x83\xe3\x82\xaf\xe3\x82\xb9";
+
+std::string HexToBytes(absl::string_view hex) {
+  std::string out;
+  for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+    out.push_back(static_cast<char>(
+        std::stoi(std::string(hex.substr(i, 2)), nullptr, 16)));
+  }
+  return out;
+}
+
+// A message that understands USERHASH as an opaque byte string.
+class UserhashStunMessage : public StunMessage {
+ public:
+  using StunMessage::StunMessage;
+
+ protected:
+  StunAttributeValueType GetAttributeValueType(int type) const override {
+    if (type == 0x001e) {
+      return STUN_VALUE_BYTE_STRING;
+    }
+    return StunMessage::GetAttributeValueType(type);
+  }
+};
+
+TEST_F(StunTest, ComputeStunCredentialHashSha256RfcVector) {
+  std::string key;
+  ASSERT_TRUE(ComputeStunCredentialHash(StunPasswordAlgorithm::kSha256,
+                                        kRfc8489B1Username, "example.org",
+                                        "TheMatrIX", &key));
+  EXPECT_EQ(key, HexToBytes("dd295a613b9058c3c23d6dc7165bda07"
+                            "2304d989c9d0af3a8c7e184b4f9bb4a1"));
+}
+
+TEST_F(StunTest, ComputeStunCredentialHashMd5Unchanged) {
+  std::string key;
+  ASSERT_TRUE(ComputeStunCredentialHash("user", "realm", "pass", &key));
+  EXPECT_EQ(key, HexToBytes("8493fbc53ba582fb4c044c456bdc40eb"));
+  std::string key2;
+  ASSERT_TRUE(ComputeStunCredentialHash(StunPasswordAlgorithm::kMd5, "user",
+                                        "realm", "pass", &key2));
+  EXPECT_EQ(key, key2);
+}
+
+// NOTE: The RFC 8489 B.1 message as printed is internally inconsistent: its
+// header says "message length" 0x009c (156), which is the total size of the
+// message including the 20 byte header; the correct length is 0x0088 (136).
+// The printed MESSAGE-INTEGRITY-SHA256 was evidently computed with the 0x009c
+// value. We therefore (1) check that the printed HMAC matches that computation
+// and that a conforming parser rejects the as-printed bytes, and (2) check the
+// message with the length corrected (and the HMAC recomputed from it).
+std::vector<uint8_t> Rfc8489B1CorrectedRequest() {
+  std::vector<uint8_t> bytes(std::begin(kRfc8489B1Request),
+                             std::end(kRfc8489B1Request));
+  bytes[3] = 0x88;
+  const std::string key = HexToBytes(
+      "dd295a613b9058c3c23d6dc7165bda072304d989c9d0af3a8c7e184b4f9bb4a1");
+  std::array<uint8_t, MessageDigest::kMaxSize> hmac;
+  size_t n = ComputeHmac(
+      DIGEST_SHA_256, AsUint8Span(key),
+      std::span<const uint8_t>(bytes).first(bytes.size() - 36), hmac);
+  EXPECT_EQ(n, 32u);
+  std::copy(hmac.begin(), hmac.begin() + 32, bytes.end() - 32);
+  return bytes;
+}
+
+TEST_F(StunTest, Rfc8489PrintedMessageIntegritySha256) {
+  const std::string key = HexToBytes(
+      "dd295a613b9058c3c23d6dc7165bda072304d989c9d0af3a8c7e184b4f9bb4a1");
+  std::array<uint8_t, MessageDigest::kMaxSize> hmac;
+  size_t n = ComputeHmac(DIGEST_SHA_256, AsUint8Span(key),
+                         std::span<const uint8_t>(kRfc8489B1Request)
+                             .first(sizeof(kRfc8489B1Request) - 36),
+                         hmac);
+  ASSERT_EQ(n, 32u);
+  EXPECT_THAT(
+      std::vector<uint8_t>(hmac.begin(), hmac.begin() + 32),
+      ElementsAreArray(std::span<const uint8_t>(kRfc8489B1Request).last(32)));
+  // Header length is wrong in the RFC text, so parsing/validation fails.
+  StunMessage message;
+  ByteBufferReader reader(kRfc8489B1Request);
+  EXPECT_FALSE(message.Read(&reader));
+  EXPECT_FALSE(StunMessage::ValidateMessageIntegritySha256ForTesting(
+      key, kRfc8489B1Request));
+}
+
+TEST_F(StunTest, Rfc8489CorrectedMessageIntegritySha256Validates) {
+  const std::string key = HexToBytes(
+      "dd295a613b9058c3c23d6dc7165bda072304d989c9d0af3a8c7e184b4f9bb4a1");
+  std::vector<uint8_t> bytes = Rfc8489B1CorrectedRequest();
+  EXPECT_TRUE(
+      StunMessage::ValidateMessageIntegritySha256ForTesting(key, bytes));
+  EXPECT_FALSE(StunMessage::ValidateMessageIntegritySha256ForTesting(
+      "wrong key", bytes));
+  // The MD5 style validator finds no MESSAGE-INTEGRITY.
+  EXPECT_FALSE(StunMessage::ValidateMessageIntegrityForTesting(key, bytes));
+
+  StunMessage message;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(message.Read(&reader));
+  ASSERT_NE(message.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_EQ(message.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256)->length(),
+            32u);
+  EXPECT_EQ(message.ValidateMessageIntegritySha256(key),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+
+  StunMessage bad;
+  ByteBufferReader reader2(bytes);
+  ASSERT_TRUE(bad.Read(&reader2));
+  EXPECT_EQ(bad.ValidateMessageIntegritySha256("wrong key"),
+            StunMessage::IntegrityStatus::kIntegrityBad);
+}
+
+TEST_F(StunTest, Rfc8489CorrectedMessageIntegritySha256Reproduced) {
+  const std::string key = HexToBytes(
+      "dd295a613b9058c3c23d6dc7165bda072304d989c9d0af3a8c7e184b4f9bb4a1");
+  std::vector<uint8_t> expected = Rfc8489B1CorrectedRequest();
+  StunMessage parsed;
+  ByteBufferReader reader(expected);
+  ASSERT_TRUE(parsed.Read(&reader));
+
+  UserhashStunMessage msg(
+      STUN_BINDING_REQUEST,
+      absl::string_view(reinterpret_cast<const char*>(expected.data()) + 8,
+                        12));
+  auto userhash = StunAttribute::CreateByteString(0x001e);
+  userhash->CopyBytes(std::span<const uint8_t>(expected).subspan(24, 32));
+  msg.AddAttribute(std::move(userhash));
+  for (int type : {STUN_ATTR_NONCE, STUN_ATTR_REALM}) {
+    auto attr = StunAttribute::CreateByteString(type);
+    attr->CopyBytes(parsed.GetByteString(type)->string_view());
+    msg.AddAttribute(std::move(attr));
+  }
+  ASSERT_TRUE(msg.AddMessageIntegritySha256(key));
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  EXPECT_THAT(std::vector<uint8_t>(out.Data(), out.Data() + out.Length()),
+              ElementsAreArray(expected));
+}
+
+TEST_F(StunTest, MessageIntegritySha256RoundTripWithFingerprint) {
+  const std::string key = "secret key";
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  msg.AddAttribute(StunAttribute::CreateByteString(STUN_ATTR_USERNAME));
+  ASSERT_TRUE(msg.AddMessageIntegritySha256(key));
+  EXPECT_TRUE(msg.IntegrityOk());
+  ASSERT_TRUE(msg.AddFingerprint());
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  std::vector<uint8_t> bytes(out.Data(), out.Data() + out.Length());
+  EXPECT_TRUE(StunMessage::ValidateFingerprint(bytes));
+  EXPECT_TRUE(
+      StunMessage::ValidateMessageIntegritySha256ForTesting(key, bytes));
+  EXPECT_FALSE(
+      StunMessage::ValidateMessageIntegritySha256ForTesting("other", bytes));
+
+  IceMessage parsed;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(parsed.Read(&reader));
+  EXPECT_EQ(parsed.ValidateMessageIntegritySha256(key),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+  EXPECT_EQ(parsed.RevalidateMessageIntegritySha256("other"),
+            StunMessage::IntegrityStatus::kIntegrityBad);
+
+  // Clone keeps the attributes and can be validated.
+  auto clone = msg.Clone();
+  ASSERT_TRUE(clone);
+  EXPECT_EQ(clone->ValidateMessageIntegritySha256(key),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+
+  // Tamper with a byte in the header's transaction id.
+  bytes[10] ^= 0x01;
+  EXPECT_FALSE(
+      StunMessage::ValidateMessageIntegritySha256ForTesting(key, bytes));
+  IceMessage tampered;
+  ByteBufferReader reader2(bytes);
+  ASSERT_TRUE(tampered.Read(&reader2));
+  EXPECT_EQ(tampered.ValidateMessageIntegritySha256(key),
+            StunMessage::IntegrityStatus::kIntegrityBad);
+}
+
+TEST_F(StunTest, MessageIntegrityAndSha256Together) {
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  ASSERT_TRUE(msg.AddMessageIntegrity("sha1 key"));
+  ASSERT_TRUE(msg.AddMessageIntegritySha256("sha256 key"));
+  ASSERT_TRUE(msg.AddFingerprint());
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  std::vector<uint8_t> bytes(out.Data(), out.Data() + out.Length());
+
+  EXPECT_TRUE(
+      StunMessage::ValidateMessageIntegrityForTesting("sha1 key", bytes));
+  EXPECT_TRUE(StunMessage::ValidateMessageIntegritySha256ForTesting(
+      "sha256 key", bytes));
+  EXPECT_TRUE(StunMessage::ValidateFingerprint(bytes));
+
+  IceMessage parsed;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(parsed.Read(&reader));
+  EXPECT_NE(parsed.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY), nullptr);
+  // MESSAGE-INTEGRITY-SHA256 and FINGERPRINT may follow MESSAGE-INTEGRITY.
+  EXPECT_NE(parsed.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_NE(parsed.GetUInt32(STUN_ATTR_FINGERPRINT), nullptr);
+  // The generic validator only looks at MESSAGE-INTEGRITY.
+  EXPECT_EQ(parsed.ValidateMessageIntegrity("sha1 key"),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+  EXPECT_EQ(parsed.RevalidateMessageIntegrity("sha256 key"),
+            StunMessage::IntegrityStatus::kIntegrityBad);
+
+  IceMessage parsed2;
+  ByteBufferReader reader2(bytes);
+  ASSERT_TRUE(parsed2.Read(&reader2));
+  EXPECT_EQ(parsed2.ValidateMessageIntegritySha256("sha256 key"),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+}
+
+TEST_F(StunTest, AttributesAfterMessageIntegritySha256AreIgnored) {
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  ASSERT_TRUE(msg.AddMessageIntegritySha256("sha256 key"));
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  std::vector<uint8_t> bytes(out.Data(), out.Data() + out.Length());
+  // Append a SOFTWARE attribute and fix up the header length.
+  const uint8_t software[] = {0x80, 0x22, 0x00, 0x04, 'a', 'b', 'c', 'd'};
+  bytes.insert(bytes.end(), std::begin(software), std::end(software));
+  uint16_t length = static_cast<uint16_t>(bytes.size() - kStunHeaderSize);
+  bytes[2] = length >> 8;
+  bytes[3] = length & 0xff;
+  IceMessage parsed;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(parsed.Read(&reader));
+  EXPECT_NE(parsed.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_EQ(parsed.GetByteString(STUN_ATTR_SOFTWARE), nullptr);
+  EXPECT_EQ(parsed.ValidateMessageIntegritySha256("sha256 key"),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+}
+
+TEST_F(StunTest, GenericValidatorIgnoresMessageIntegritySha256) {
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  ASSERT_TRUE(msg.AddMessageIntegritySha256("sha256 key"));
+  ASSERT_TRUE(msg.AddFingerprint());
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  std::vector<uint8_t> bytes(out.Data(), out.Data() + out.Length());
+
+  IceMessage parsed;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(parsed.Read(&reader));
+  EXPECT_NE(parsed.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_NE(parsed.GetUInt32(STUN_ATTR_FINGERPRINT), nullptr);
+  EXPECT_EQ(parsed.ValidateMessageIntegrity("sha256 key"),
+            StunMessage::IntegrityStatus::kNoIntegrity);
+
+  IceMessage parsed2;
+  ByteBufferReader reader2(bytes);
+  ASSERT_TRUE(parsed2.Read(&reader2));
+  EXPECT_EQ(parsed2.ValidateMessageIntegritySha256("sha256 key"),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+}
+
+TEST_F(StunTest, GenericValidatorIgnoresBadSha256WhenMessageIntegrityIsValid) {
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  ASSERT_TRUE(msg.AddMessageIntegrity("sha1 key"));
+  ASSERT_TRUE(msg.AddMessageIntegritySha256("sha256 key"));
+  ByteBufferWriter out;
+  ASSERT_TRUE(msg.Write(&out));
+  std::vector<uint8_t> bytes(out.Data(), out.Data() + out.Length());
+  IceMessage parsed;
+  ByteBufferReader reader(bytes);
+  ASSERT_TRUE(parsed.Read(&reader));
+  // MESSAGE-INTEGRITY-SHA256 following MESSAGE-INTEGRITY is parsed, but the
+  // generic validator ignores it, so it cannot influence the result.
+  EXPECT_NE(parsed.GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_EQ(parsed.ValidateMessageIntegrity("sha1 key"),
+            StunMessage::IntegrityStatus::kIntegrityOk);
+}
+
+TEST_F(StunTest, InvalidMessageIntegritySha256LengthIsRejected) {
+  const std::string key = "secret key";
+  for (size_t len : {15u, 18u, 36u}) {
+    ByteBufferWriter w;
+    w.WriteUInt16(STUN_BINDING_REQUEST);
+    size_t padded = (len + 3) / 4 * 4;
+    w.WriteUInt16(static_cast<uint16_t>(4 + padded));
+    w.WriteUInt32(kStunMagicCookie);
+    w.WriteString("0123456789ab");
+    w.WriteUInt16(STUN_ATTR_MESSAGE_INTEGRITY_SHA256);
+    w.WriteUInt16(static_cast<uint16_t>(len));
+    w.WriteString(std::string(padded, 'x'));
+    // Raw validation refuses the attribute.
+    EXPECT_FALSE(StunMessage::ValidateMessageIntegritySha256ForTesting(
+        key, std::span<const uint8_t>(w.Data(), w.Length())))
+        << len;
+    // The parser accepts the bytes (as for other bad lengths), but the
+    // attribute can not be written back out.
+    IceMessage parsed;
+    ByteBufferReader reader(w);
+    ASSERT_TRUE(parsed.Read(&reader)) << len;
+    EXPECT_EQ(parsed.ValidateMessageIntegritySha256(key),
+              StunMessage::IntegrityStatus::kIntegrityBad)
+        << len;
+    ByteBufferWriter out;
+    EXPECT_FALSE(parsed.Write(&out)) << len;
+  }
+  // 16 bytes is a valid length.
+  ByteBufferWriter w;
+  w.WriteUInt16(STUN_BINDING_REQUEST);
+  w.WriteUInt16(20);
+  w.WriteUInt32(kStunMagicCookie);
+  w.WriteString("0123456789ab");
+  w.WriteUInt16(STUN_ATTR_MESSAGE_INTEGRITY_SHA256);
+  w.WriteUInt16(16);
+  w.WriteString(std::string(16, 'x'));
+  IceMessage parsed;
+  ByteBufferReader reader(w);
+  ASSERT_TRUE(parsed.Read(&reader));
+  ByteBufferWriter out;
+  EXPECT_TRUE(parsed.Write(&out));
+}
+
+TEST_F(StunTest, ParsePasswordAlgorithms) {
+  std::string value =
+      EncodeStunPasswordAlgorithm(0x0002) + EncodeStunPasswordAlgorithm(0x0001);
+  EXPECT_EQ(value, std::string("\x00\x02\x00\x00\x00\x01\x00\x00", 8));
+  auto parsed = ParseStunPasswordAlgorithms(value);
+  ASSERT_TRUE(parsed);
+  ASSERT_EQ(parsed->size(), 2u);
+  EXPECT_EQ((*parsed)[0].algorithm,
+            static_cast<uint16_t>(StunPasswordAlgorithm::kSha256));
+  EXPECT_EQ((*parsed)[1].algorithm,
+            static_cast<uint16_t>(StunPasswordAlgorithm::kMd5));
+
+  // Unknown algorithm with 3 bytes of parameters (1 byte padding).
+  value = EncodeStunPasswordAlgorithm(0x1234, "abc") +
+          EncodeStunPasswordAlgorithm(0x0002);
+  EXPECT_EQ(value.size(), 12u);
+  EXPECT_EQ(value.substr(0, 8), std::string("\x12\x34\x00\x03"
+                                            "abc\x00",
+                                            8));
+  parsed = ParseStunPasswordAlgorithms(value);
+  ASSERT_TRUE(parsed);
+  ASSERT_EQ(parsed->size(), 2u);
+  EXPECT_EQ((*parsed)[0].algorithm, 0x1234);
+  EXPECT_EQ((*parsed)[0].parameters, "abc");
+  EXPECT_EQ((*parsed)[1].algorithm, 0x0002);
+  EXPECT_EQ((*parsed)[1].parameters, "");
+
+  EXPECT_EQ(ParseStunPasswordAlgorithms("")->size(), 0u);
+  // Truncated header.
+  EXPECT_FALSE(ParseStunPasswordAlgorithms(std::string("\x00\x02\x00", 3)));
+  // Parameters overrun.
+  EXPECT_FALSE(
+      ParseStunPasswordAlgorithms(std::string("\x00\x02\x00\x08"
+                                              "abcd",
+                                              8)));
+}
+
+TEST_F(StunTest, EncodePasswordAlgorithmAttribute) {
+  EXPECT_EQ(EncodeStunPasswordAlgorithm(0x0002),
+            std::string("\x00\x02\x00\x00", 4));
+  EXPECT_EQ(EncodeStunPasswordAlgorithm(0x0003, "12345").size(), 12u);
+  IceMessage msg(STUN_BINDING_REQUEST, "0123456789ab");
+  auto attr = StunAttribute::CreateByteString(STUN_ATTR_PASSWORD_ALGORITHM);
+  attr->CopyBytes(EncodeStunPasswordAlgorithm(0x0002));
+  msg.AddAttribute(std::move(attr));
+  ASSERT_NE(msg.GetByteString(STUN_ATTR_PASSWORD_ALGORITHM), nullptr);
+}
+
+TEST_F(StunTest, NonceCookiePasswordAlgorithmsBit) {
+  EXPECT_TRUE(StunNonceHasPasswordAlgorithmsBit("obMatJos2gAAAxyz"));
+  EXPECT_EQ(GetStunNonceSecurityFeatures("obMatJos2gAAA"), 0x800000u);
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("obMatJos2AAAAxyz"));
+  EXPECT_EQ(GetStunNonceSecurityFeatures("obMatJos2AAAA"), 0u);
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("somenonce"));
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit(""));
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("obMatJos2"));
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("obMatJos2gAA"));
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("obMatJos2g!AA"));
+  EXPECT_FALSE(StunNonceHasPasswordAlgorithmsBit("xbMatJos2gAAA"));
+}
 
 }  // namespace webrtc

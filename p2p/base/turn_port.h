@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <span>
 #include <string>
@@ -312,8 +313,34 @@ class TurnPort : public Port {
   int Send(std::span<const uint8_t> data,
            const AsyncSocketPacketOptions& options);
   void UpdateHash();
-  bool UpdateNonce(StunMessage* response);
+  enum class AuthChallengeResult {
+    kOk,
+    // A mandatory REALM/NONCE is missing; nothing was applied.
+    kMissingAttribute,
+    // RFC 8489 section 9.2.5: password algorithm negotiation failed; the
+    // request must not be retried. The previous state is kept unchanged.
+    kNegotiationFailed,
+  };
+  struct PasswordAlgorithmChoice {
+    // nullopt: legacy MD5 with MESSAGE-INTEGRITY.
+    std::optional<StunPasswordAlgorithm> algorithm;
+    // Raw PASSWORD-ALGORITHMS value, to be echoed unchanged.
+    std::string algorithms_value;
+  };
+  AuthChallengeResult UpdateNonce(StunMessage* response);
   void ResetNonce();
+  // Applies realm, nonce and password algorithm of a 401/438/300 response
+  // atomically (see AuthChallengeResult). If `attributes_required` is false,
+  // missing REALM/NONCE are skipped.
+  AuthChallengeResult ApplyAuthChallenge(const StunMessage& response,
+                                         bool attributes_required,
+                                         absl::string_view what);
+  // RFC 8489 section 9.2: selects the password algorithm from a response
+  // carrying `nonce`. Returns nullopt if the response must not be acted upon.
+  std::optional<PasswordAlgorithmChoice> NegotiatePasswordAlgorithm(
+      const StunMessage& response,
+      absl::string_view nonce,
+      absl::string_view realm) const;
 
   bool HasPermission(const IPAddress& ipaddr) const;
   TurnEntry* FindEntry(const SocketAddress& address) const;
@@ -353,7 +380,14 @@ class TurnPort : public Port {
   StunRequestManager request_manager_;
   std::string realm_;  // From 401/438 response message.
   std::string nonce_;  // From 401/438 response message.
-  std::string hash_;   // Digest of username:realm:password
+  // Key derived from username:realm:password. 16 bytes (MD5) or 32 bytes
+  // (SHA-256), depending on `password_algorithm_`.
+  std::string hash_;
+  // Set iff a password algorithm was negotiated (RFC 8489 section 9.2). If
+  // unset, legacy MD5 with MESSAGE-INTEGRITY is used.
+  std::optional<StunPasswordAlgorithm> password_algorithm_;
+  // Raw value of the server's PASSWORD-ALGORITHMS, echoed unchanged.
+  std::string password_algorithms_value_;
 
   int next_channel_number_;
   std::vector<std::unique_ptr<TurnEntry>> entries_;
@@ -385,6 +419,5 @@ class TurnPort : public Port {
 };
 
 }  // namespace webrtc
-
 
 #endif  // P2P_BASE_TURN_PORT_H_

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -1242,7 +1243,20 @@ void TurnPort::AddRequestAuthInfo(StunMessage* msg) {
       std::make_unique<StunByteStringAttribute>(STUN_ATTR_REALM, realm_));
   msg->AddAttribute(
       std::make_unique<StunByteStringAttribute>(STUN_ATTR_NONCE, nonce_));
-  const bool success = msg->AddMessageIntegrity(hash());
+  bool success;
+  if (password_algorithm_) {
+    // RFC 8489 section 9.2.3: echo the server's PASSWORD-ALGORITHMS unchanged
+    // and protect the message with MESSAGE-INTEGRITY-SHA256 (only).
+    msg->AddAttribute(std::make_unique<StunByteStringAttribute>(
+        STUN_ATTR_PASSWORD_ALGORITHMS, password_algorithms_value_));
+    msg->AddAttribute(std::make_unique<StunByteStringAttribute>(
+        STUN_ATTR_PASSWORD_ALGORITHM,
+        EncodeStunPasswordAlgorithm(
+            static_cast<uint16_t>(*password_algorithm_))));
+    success = msg->AddMessageIntegritySha256(hash());
+  } else {
+    success = msg->AddMessageIntegrity(hash());
+  }
   RTC_DCHECK(success);
 }
 
@@ -1253,41 +1267,133 @@ int TurnPort::Send(std::span<const uint8_t> data,
 }
 
 void TurnPort::UpdateHash() {
-  const bool success = ComputeStunCredentialHash(credentials_.username, realm_,
-                                                 credentials_.password, &hash_);
+  const bool success = ComputeStunCredentialHash(
+      password_algorithm_.value_or(StunPasswordAlgorithm::kMd5),
+      credentials_.username, realm_, credentials_.password, &hash_);
   RTC_DCHECK(success);
 }
 
-bool TurnPort::UpdateNonce(StunMessage* response) {
+TurnPort::AuthChallengeResult TurnPort::UpdateNonce(StunMessage* response) {
   // When stale nonce error received, we should update
   // hash and store realm and nonce.
-  // Check the mandatory attributes.
-  const StunByteStringAttribute* realm_attr =
-      response->GetByteString(STUN_ATTR_REALM);
-  if (!realm_attr) {
-    RTC_LOG(LS_ERROR) << ToString()
-                      << ": Missing STUN_ATTR_REALM attribute in "
-                         "stale nonce error response.";
-    return false;
-  }
-  set_realm(realm_attr->string_view());
-
-  const StunByteStringAttribute* nonce_attr =
-      response->GetByteString(STUN_ATTR_NONCE);
-  if (!nonce_attr) {
-    RTC_LOG(LS_ERROR) << ToString()
-                      << ": Missing STUN_ATTR_NONCE attribute in "
-                         "stale nonce error response.";
-    return false;
-  }
-  set_nonce(nonce_attr->string_view());
-  return true;
+  return ApplyAuthChallenge(*response, /*attributes_required=*/true,
+                            "stale nonce error response");
 }
 
 void TurnPort::ResetNonce() {
   hash_.clear();
   nonce_.clear();
   realm_.clear();
+  password_algorithm_.reset();
+  password_algorithms_value_.clear();
+}
+
+TurnPort::AuthChallengeResult TurnPort::ApplyAuthChallenge(
+    const StunMessage& response,
+    bool attributes_required,
+    absl::string_view what) {
+  const StunByteStringAttribute* realm_attr =
+      response.GetByteString(STUN_ATTR_REALM);
+  const StunByteStringAttribute* nonce_attr =
+      response.GetByteString(STUN_ATTR_NONCE);
+  if (attributes_required) {
+    if (!realm_attr) {
+      RTC_LOG(LS_ERROR) << ToString()
+                        << ": Missing STUN_ATTR_REALM attribute in " << what
+                        << ".";
+      return AuthChallengeResult::kMissingAttribute;
+    }
+    if (!nonce_attr) {
+      set_realm(realm_attr->string_view());
+      RTC_LOG(LS_ERROR) << ToString()
+                        << ": Missing STUN_ATTR_NONCE attribute in " << what
+                        << ".";
+      return AuthChallengeResult::kMissingAttribute;
+    }
+  }
+
+  // Negotiate first; realm, nonce and algorithm state are only committed
+  // together, so a failure leaves the previous (consistent) state untouched.
+  std::optional<PasswordAlgorithmChoice> choice;
+  if (nonce_attr) {
+    choice = NegotiatePasswordAlgorithm(
+        response, nonce_attr->string_view(),
+        realm_attr ? realm_attr->string_view() : absl::string_view(realm_));
+    if (!choice) {
+      RTC_LOG(LS_ERROR) << ToString()
+                        << ": Password algorithm negotiation failed for "
+                        << what << ".";
+      return AuthChallengeResult::kNegotiationFailed;
+    }
+    password_algorithms_value_ = std::move(choice->algorithms_value);
+    if (choice->algorithm != password_algorithm_) {
+      password_algorithm_ = choice->algorithm;
+      if (!hash_.empty()) {
+        UpdateHash();
+      }
+    }
+  }
+  if (realm_attr) {
+    set_realm(realm_attr->string_view());
+  }
+  if (nonce_attr) {
+    set_nonce(nonce_attr->string_view());
+  }
+  return AuthChallengeResult::kOk;
+}
+
+std::optional<TurnPort::PasswordAlgorithmChoice>
+TurnPort::NegotiatePasswordAlgorithm(const StunMessage& response,
+                                     absl::string_view nonce,
+                                     absl::string_view realm) const {
+  if (env().field_trials().IsEnabled(
+          "WebRTC-TurnPasswordAlgorithmsKillSwitch") ||
+      !StunNonceHasPasswordAlgorithmsBit(nonce)) {
+    // Legacy behavior (kill switch enabled, or the server did not signal
+    // password algorithm support): MD5 and MESSAGE-INTEGRITY.
+    return PasswordAlgorithmChoice();
+  }
+
+  // RFC 8489 section 9.2.5: the server signalled support for password
+  // algorithms; without a usable PASSWORD-ALGORITHMS the response must not be
+  // acted upon.
+  const StunByteStringAttribute* algorithms_attr =
+      response.GetByteString(STUN_ATTR_PASSWORD_ALGORITHMS);
+  if (!algorithms_attr) {
+    RTC_LOG(LS_ERROR) << ToString()
+                      << ": Nonce signals password algorithms but "
+                         "PASSWORD-ALGORITHMS is missing.";
+    return std::nullopt;
+  }
+  std::optional<std::vector<StunPasswordAlgorithmEntry>> algorithms =
+      ParseStunPasswordAlgorithms(algorithms_attr->string_view());
+  if (!algorithms) {
+    RTC_LOG(LS_ERROR) << ToString()
+                      << ": Malformed PASSWORD-ALGORITHMS attribute.";
+    return std::nullopt;
+  }
+
+  // Pick the first algorithm in the server's order that we support.
+  for (const StunPasswordAlgorithmEntry& entry : *algorithms) {
+    if (!entry.parameters.empty()) {
+      continue;  // SHA-256 and MD5 have no parameters.
+    }
+    if (entry.algorithm ==
+            static_cast<uint16_t>(StunPasswordAlgorithm::kSha256) ||
+        entry.algorithm == static_cast<uint16_t>(StunPasswordAlgorithm::kMd5)) {
+      if (realm.empty()) {
+        RTC_LOG(LS_ERROR) << ToString() << ": Missing realm.";
+        return std::nullopt;
+      }
+      PasswordAlgorithmChoice choice;
+      choice.algorithm = static_cast<StunPasswordAlgorithm>(entry.algorithm);
+      choice.algorithms_value = std::string(algorithms_attr->string_view());
+      return choice;
+    }
+  }
+  RTC_LOG(LS_ERROR) << ToString()
+                    << ": No supported password algorithm offered.";
+  return std::nullopt;
 }
 
 bool TurnPort::HasPermission(const IPAddress& ipaddr) const {
@@ -1528,26 +1634,17 @@ void TurnAllocateRequest::OnAuthChallenge(StunMessage* response, int code) {
     return;
   }
 
-  // Check the mandatory attributes.
-  const StunByteStringAttribute* realm_attr =
-      response->GetByteString(STUN_ATTR_REALM);
-  if (!realm_attr) {
-    RTC_LOG(LS_WARNING) << port_->ToString()
-                        << ": Missing STUN_ATTR_REALM attribute in "
-                           "allocate unauthorized response.";
-    return;
+  switch (port_->ApplyAuthChallenge(*response, /*attributes_required=*/true,
+                                    "allocate unauthorized response")) {
+    case TurnPort::AuthChallengeResult::kOk:
+      break;
+    case TurnPort::AuthChallengeResult::kMissingAttribute:
+      return;
+    case TurnPort::AuthChallengeResult::kNegotiationFailed:
+      port_->OnAllocateError(STUN_ERROR_UNAUTHORIZED,
+                             "Password algorithm negotiation failed.");
+      return;
   }
-  port_->set_realm(realm_attr->string_view());
-
-  const StunByteStringAttribute* nonce_attr =
-      response->GetByteString(STUN_ATTR_NONCE);
-  if (!nonce_attr) {
-    RTC_LOG(LS_WARNING) << port_->ToString()
-                        << ": Missing STUN_ATTR_NONCE attribute in "
-                           "allocate unauthorized response.";
-    return;
-  }
-  port_->set_nonce(nonce_attr->string_view());
 
   // Send another allocate request, with the received realm and nonce values.
   port_->SendRequest(new TurnAllocateRequest(port_), 0);
@@ -1570,30 +1667,34 @@ void TurnAllocateRequest::OnTryAlternate(StunMessage* response, int code) {
                            "Missing alternate server attribute.");
     return;
   }
+  // With the password algorithms trial, a nonce signalling password
+  // algorithms without a usable PASSWORD-ALGORITHMS must not be acted upon
+  // (RFC 8489 section 9.2.5), so the redirect is not followed. This check has
+  // no side effects.
+  const StunByteStringAttribute* nonce_check_attr =
+      response->GetByteString(STUN_ATTR_NONCE);
+  if (nonce_check_attr) {
+    const StunByteStringAttribute* realm_check_attr =
+        response->GetByteString(STUN_ATTR_REALM);
+    if (!port_->NegotiatePasswordAlgorithm(
+            *response, nonce_check_attr->string_view(),
+            realm_check_attr ? realm_check_attr->string_view()
+                             : absl::string_view(port_->realm_))) {
+      port_->OnAllocateError(STUN_ERROR_TRY_ALTERNATE,
+                             "Password algorithm negotiation failed.");
+      return;
+    }
+  }
+
   if (!port_->SetAlternateServer(alternate_server_attr->GetAddress())) {
     port_->OnAllocateError(STUN_ERROR_TRY_ALTERNATE,
                            "Failed to set alternate server.");
     return;
   }
 
-  // Check the attributes.
-  const StunByteStringAttribute* realm_attr =
-      response->GetByteString(STUN_ATTR_REALM);
-  if (realm_attr) {
-    RTC_LOG(LS_INFO) << port_->ToString()
-                     << ": Applying STUN_ATTR_REALM attribute in "
-                        "try alternate error response.";
-    port_->set_realm(realm_attr->string_view());
-  }
-
-  const StunByteStringAttribute* nonce_attr =
-      response->GetByteString(STUN_ATTR_NONCE);
-  if (nonce_attr) {
-    RTC_LOG(LS_INFO) << port_->ToString()
-                     << ": Applying STUN_ATTR_NONCE attribute in "
-                        "try alternate error response.";
-    port_->set_nonce(nonce_attr->string_view());
-  }
+  // Apply the realm, nonce and (with the trial) password algorithm if present.
+  port_->ApplyAuthChallenge(*response, /*attributes_required=*/false,
+                            "try alternate error response");
 
   // For TCP, we can't close the original Tcp socket during handling a 300 as
   // we're still inside that socket's event handler. Doing so will cause
@@ -1661,9 +1762,16 @@ void TurnRefreshRequest::OnErrorResponse(StunMessage* response) {
   int error_code = response->GetErrorCodeValue();
 
   if (error_code == STUN_ERROR_STALE_NONCE) {
-    if (port_->UpdateNonce(response)) {
-      // Send RefreshRequest immediately.
-      port_->SendRequest(new TurnRefreshRequest(port_), 0);
+    switch (port_->UpdateNonce(response)) {
+      case TurnPort::AuthChallengeResult::kOk:
+        // Send RefreshRequest immediately.
+        port_->SendRequest(new TurnRefreshRequest(port_), 0);
+        break;
+      case TurnPort::AuthChallengeResult::kMissingAttribute:
+        break;
+      case TurnPort::AuthChallengeResult::kNegotiationFailed:
+        port_->OnRefreshError();
+        break;
     }
   } else {
     RTC_LOG(LS_WARNING) << port_->ToString()
@@ -1924,8 +2032,15 @@ void TurnEntry::OnCreatePermissionSuccess() {
 
 void TurnEntry::OnCreatePermissionError(StunMessage* response, int code) {
   if (code == STUN_ERROR_STALE_NONCE) {
-    if (port_->UpdateNonce(response)) {
-      SendCreatePermissionRequest(0);
+    switch (port_->UpdateNonce(response)) {
+      case TurnPort::AuthChallengeResult::kOk:
+        SendCreatePermissionRequest(0);
+        break;
+      case TurnPort::AuthChallengeResult::kMissingAttribute:
+        break;
+      case TurnPort::AuthChallengeResult::kNegotiationFailed:
+        port_->FailAndPruneConnection(ext_addr_);
+        break;
     }
   } else {
     bool found = port_->FailAndPruneConnection(ext_addr_);
@@ -1953,9 +2068,17 @@ void TurnEntry::OnChannelBindError(StunMessage* response, int code) {
   // we will fail and prune the connection and rely on ICE restart to
   // re-establish a new connection if needed.
   if (code == STUN_ERROR_STALE_NONCE) {
-    if (port_->UpdateNonce(response)) {
-      // Send channel bind request with fresh nonce.
-      SendChannelBindRequest(0);
+    switch (port_->UpdateNonce(response)) {
+      case TurnPort::AuthChallengeResult::kOk:
+        // Send channel bind request with fresh nonce.
+        SendChannelBindRequest(0);
+        break;
+      case TurnPort::AuthChallengeResult::kMissingAttribute:
+        break;
+      case TurnPort::AuthChallengeResult::kNegotiationFailed:
+        state_ = STATE_UNBOUND;
+        port_->FailAndPruneConnection(ext_addr_);
+        break;
     }
   } else {
     state_ = STATE_UNBOUND;

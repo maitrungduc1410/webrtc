@@ -16,9 +16,11 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
@@ -162,6 +164,16 @@ class TurnAuthInterface {
   virtual bool GetKey(absl::string_view username,
                       absl::string_view realm,
                       std::string* key) = 0;
+  // Gets the long-term credential key for `algorithm` (RFC 8489 section
+  // 9.2.2): MD5(A1) or SHA-256(A1). The default only supports MD5, via
+  // GetKey().
+  virtual bool GetKeyForAlgorithm(StunPasswordAlgorithm algorithm,
+                                  absl::string_view username,
+                                  absl::string_view realm,
+                                  std::string* key) {
+    return algorithm == StunPasswordAlgorithm::kMd5 &&
+           GetKey(username, realm, key);
+  }
   virtual ~TurnAuthInterface() = default;
 };
 
@@ -249,6 +261,76 @@ class TurnServer {
     enable_permission_checks_ = enable;
   }
 
+  // RFC 8489 section 9.2 password algorithms. If empty (default), the server
+  // behaves as a legacy RFC 5389 server: MD5 and MESSAGE-INTEGRITY only.
+  // Otherwise nonces carry the "obMatJos2" cookie with the password algorithms
+  // bit set, 401/438 responses carry PASSWORD-ALGORITHMS with this list (in
+  // order), and requests are checked according to section 9.2.4. May be
+  // changed at any time; each nonce remembers the list it was issued with.
+  void set_password_algorithms(std::vector<StunPasswordAlgorithm> algorithms) {
+    RTC_DCHECK_RUN_ON(thread_);
+    password_algorithms_ = std::move(algorithms);
+  }
+
+  // For testing only. If set, the PASSWORD-ALGORITHMS attribute placed in
+  // 401/438 responses is built from this list instead of the list recorded
+  // for the nonce, simulating a modification by an on-path attacker.
+  void set_tampered_password_algorithms(
+      std::optional<std::vector<StunPasswordAlgorithm>> algorithms) {
+    RTC_DCHECK_RUN_ON(thread_);
+    tampered_password_algorithms_ = std::move(algorithms);
+  }
+
+  // For testing only. If true, 401/438 responses carry a nonce with the
+  // password algorithms bit set but no PASSWORD-ALGORITHMS attribute.
+  void set_omit_password_algorithms_attribute(bool omit) {
+    RTC_DCHECK_RUN_ON(thread_);
+    omit_password_algorithms_attribute_ = omit;
+  }
+
+  // For testing only. If set, this raw value is sent as PASSWORD-ALGORITHMS
+  // in 401/438 responses (e.g. to send a malformed list).
+  void set_raw_password_algorithms_override(
+      std::optional<std::string> raw_value) {
+    RTC_DCHECK_RUN_ON(thread_);
+    raw_password_algorithms_override_ = std::move(raw_value);
+  }
+
+  // For testing only. If true, 300 (try alternate) responses also carry REALM,
+  // NONCE and PASSWORD-ALGORITHMS as a 401 would.
+  void set_add_challenge_to_try_alternate(bool add) {
+    RTC_DCHECK_RUN_ON(thread_);
+    add_challenge_to_try_alternate_ = add;
+  }
+
+  // For testing only. If true, the 401/438 challenges are sent as an
+  // on-path attacker forcing a downgrade would modify them: the nonce loses
+  // the password algorithms cookie and PASSWORD-ALGORITHMS is removed.
+  void set_strip_password_algorithms_from_challenges(bool strip) {
+    RTC_DCHECK_RUN_ON(thread_);
+    strip_password_algorithms_ = strip;
+  }
+
+  // For testing only. Integrity attribute put in success responses to
+  // requests that used a password algorithm.
+  enum class SuccessResponseIntegrity {
+    kMessageIntegritySha256,  // The correct one.
+    kMessageIntegrity,
+    kBoth,  // MESSAGE-INTEGRITY followed by MESSAGE-INTEGRITY-SHA256.
+    kNone,
+  };
+  void set_success_response_integrity(SuccessResponseIntegrity integrity) {
+    RTC_DCHECK_RUN_ON(thread_);
+    success_response_integrity_ = integrity;
+  }
+
+  // For testing only. The next authenticated request that would otherwise be
+  // accepted is answered with 438 (stale nonce) and a fresh nonce.
+  void ExpireNonceForNextRequest() {
+    RTC_DCHECK_RUN_ON(thread_);
+    force_stale_nonce_ = true;
+  }
+
   // Starts listening for packets from internal clients.
   void AddInternalSocket(std::unique_ptr<AsyncPacketSocket> socket,
                          ProtocolType protocol);
@@ -283,6 +365,8 @@ class TurnServer {
   // TurnServerAllocation (via friend declaration).
 
   std::string GenerateNonce(int64_t now) const RTC_RUN_ON(thread_);
+  static std::string EncodePasswordAlgorithms(
+      const std::vector<StunPasswordAlgorithm>& algorithms);
   void OnInternalPacket(AsyncPacketSocket* socket,
                         const ReceivedIpPacket& packet) RTC_RUN_ON(thread_);
 
@@ -317,6 +401,7 @@ class TurnServer {
                          int code,
                          absl::string_view reason);
 
+  void AddChallengeAttributes(TurnMessage* resp) RTC_RUN_ON(thread_);
   void SendErrorResponseWithRealmAndNonce(TurnServerConnection* conn,
                                           const StunMessage* req,
                                           int code,
@@ -358,6 +443,29 @@ class TurnServer {
   // Check for permission when receiving an external packet.
   bool enable_permission_checks_ = true;
 
+  std::vector<StunPasswordAlgorithm> password_algorithms_
+      RTC_GUARDED_BY(thread_);
+  std::optional<std::vector<StunPasswordAlgorithm>>
+      tampered_password_algorithms_ RTC_GUARDED_BY(thread_);
+  bool omit_password_algorithms_attribute_ RTC_GUARDED_BY(thread_) = false;
+  bool strip_password_algorithms_ RTC_GUARDED_BY(thread_) = false;
+  bool add_challenge_to_try_alternate_ RTC_GUARDED_BY(thread_) = false;
+  std::optional<std::string> raw_password_algorithms_override_
+      RTC_GUARDED_BY(thread_);
+  SuccessResponseIntegrity success_response_integrity_ RTC_GUARDED_BY(thread_) =
+      SuccessResponseIntegrity::kMessageIntegritySha256;
+  bool force_stale_nonce_ RTC_GUARDED_BY(thread_) = false;
+  // Encoded PASSWORD-ALGORITHMS value sent together with each nonce.
+  std::map<std::string, std::string> nonce_password_algorithms_
+      RTC_GUARDED_BY(thread_);
+  // If set, success responses to the request currently being handled carry
+  // MESSAGE-INTEGRITY-SHA256 computed with this key instead of
+  // MESSAGE-INTEGRITY. Only valid during synchronous request handling.
+  std::optional<std::string> response_sha256_key_;
+  // Only meaningful together with `response_sha256_key_`.
+  SuccessResponseIntegrity response_integrity_ =
+      SuccessResponseIntegrity::kMessageIntegritySha256;
+
   ServerSocketMap server_sockets_ RTC_GUARDED_BY(thread_);
   std::map<std::unique_ptr<Socket>, ServerSocketInfo, less_unique_ptr>
       server_listen_sockets_ RTC_GUARDED_BY(thread_);
@@ -379,6 +487,5 @@ class TurnServer {
 };
 
 }  //  namespace webrtc
-
 
 #endif  // P2P_TEST_TURN_SERVER_H_

@@ -85,6 +85,11 @@ class TestTurnServer : public TurnAuthInterface {
     server_.set_enable_otu_nonce(enable);
   }
 
+  void set_password_algorithms(std::vector<StunPasswordAlgorithm> algorithms) {
+    RTC_DCHECK(thread_checker_.IsCurrent());
+    server_.set_password_algorithms(std::move(algorithms));
+  }
+
   TurnServer* server() {
     RTC_DCHECK(thread_checker_.IsCurrent());
     return &server_;
@@ -163,6 +168,16 @@ class TestTurnServer : public TurnAuthInterface {
                                      std::string(username), key);
   }
 
+  bool GetKeyForAlgorithm(StunPasswordAlgorithm algorithm,
+                          absl::string_view username,
+                          absl::string_view realm,
+                          std::string* key) override {
+    RTC_DCHECK(thread_checker_.IsCurrent());
+    return ComputeStunCredentialHash(algorithm, std::string(username),
+                                     std::string(realm), std::string(username),
+                                     key);
+  }
+
   const Environment env_;
   TurnServer server_;
   SocketFactory* socket_factory_;
@@ -170,6 +185,5 @@ class TestTurnServer : public TurnAuthInterface {
 };
 
 }  //  namespace webrtc
-
 
 #endif  // P2P_TEST_TEST_TURN_SERVER_H_

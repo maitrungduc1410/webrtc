@@ -199,10 +199,12 @@ class TestConnectionWrapper {
 // (between local port and TURN server) of kSimulatedRtt.
 class TurnPortTest : public ::testing::Test {
  public:
-  TurnPortTest()
+  TurnPortTest() : TurnPortTest("") {}
+  explicit TurnPortTest(absl::string_view field_trials)
       : ss_(new TurnPortTestVirtualSocketServer()),
         time_controller_(Timestamp::Seconds(1), ss_.get()),
-        env_(CreateTestEnvironment({.time = &time_controller_})),
+        env_(CreateTestEnvironment(
+            {.field_trials = field_trials, .time = &time_controller_})),
         main_(time_controller_.GetMainThread()),
         turn_server_(env_, main_, ss_.get(), kTurnUdpIntAddr, kTurnUdpExtAddr),
         socket_factory_(ss_.get()) {}
@@ -2514,22 +2516,21 @@ class TurnPortIPAddressTypeMetricsTest
 TEST_P(TurnPortIPAddressTypeMetricsTest, TestIPAddressTypeMetrics) {
   metrics::Reset();
 
-  SetDnsResolverExpectations(
-      [](MockAsyncDnsResolver* resolver,
-         MockAsyncDnsResolverResult* resolver_result) {
-        EXPECT_CALL(*resolver, Start(SocketAddress("localhost", 5000),
-                                     /*family=*/AF_INET, _))
-            .WillOnce([](const SocketAddress& /* addr */, int /* family */,
-                         absl::AnyInvocable<void()> callback) { callback(); });
-        EXPECT_CALL(*resolver, result)
-            .WillRepeatedly(ReturnPointee(resolver_result));
-        EXPECT_CALL(*resolver_result, GetError).WillRepeatedly(Return(0));
-        EXPECT_CALL(*resolver_result, GetResolvedAddress(AF_INET, _))
-            .WillOnce([](int /*family*/, SocketAddress* addr) {
-              *addr = SocketAddress("127.0.0.1", 5000);
-              return true;
-            });
-      });
+  SetDnsResolverExpectations([](MockAsyncDnsResolver* resolver,
+                                MockAsyncDnsResolverResult* resolver_result) {
+    EXPECT_CALL(*resolver, Start(SocketAddress("localhost", 5000),
+                                 /*family=*/AF_INET, _))
+        .WillOnce([](const SocketAddress& /* addr */, int /* family */,
+                     absl::AnyInvocable<void()> callback) { callback(); });
+    EXPECT_CALL(*resolver, result)
+        .WillRepeatedly(ReturnPointee(resolver_result));
+    EXPECT_CALL(*resolver_result, GetError).WillRepeatedly(Return(0));
+    EXPECT_CALL(*resolver_result, GetResolvedAddress(AF_INET, _))
+        .WillOnce([](int /*family*/, SocketAddress* addr) {
+          *addr = SocketAddress("127.0.0.1", 5000);
+          return true;
+        });
+  });
 
   ProtocolAddress server_address({GetParam().address, 5000}, PROTO_UDP);
   SocketAddress local_address = server_address.address.family() == AF_INET6
@@ -2549,5 +2550,608 @@ TEST_P(TurnPortIPAddressTypeMetricsTest, TestIPAddressTypeMetrics) {
 INSTANTIATE_TEST_SUITE_P(All,
                          TurnPortIPAddressTypeMetricsTest,
                          ::testing::ValuesIn(kAllIPAddressTypeTestConfigs));
+
+// Records what the client sent to the TURN server.
+class PasswordAlgorithmsObserver : public StunMessageObserver {
+ public:
+  struct Request {
+    int type = 0;
+    bool has_username = false;
+    bool has_mi = false;
+    size_t mi_sha256_size = 0;
+    std::optional<std::string> algorithms;
+    std::optional<std::string> algorithm;
+  };
+
+  explicit PasswordAlgorithmsObserver(std::vector<Request>* requests)
+      : requests_(requests) {}
+
+  void ReceivedMessage(const TurnMessage* msg) override {
+    Request r;
+    r.type = msg->type();
+    r.has_username = msg->GetByteString(STUN_ATTR_USERNAME) != nullptr;
+    r.has_mi = msg->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY) != nullptr;
+    if (auto* a = msg->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256)) {
+      r.mi_sha256_size = a->length();
+    }
+    if (auto* a = msg->GetByteString(STUN_ATTR_PASSWORD_ALGORITHMS)) {
+      r.algorithms = std::string(a->string_view());
+    }
+    if (auto* a = msg->GetByteString(STUN_ATTR_PASSWORD_ALGORITHM)) {
+      r.algorithm = std::string(a->string_view());
+    }
+    requests_->push_back(std::move(r));
+  }
+  void ReceivedChannelData(std::span<const uint8_t> payload) override {}
+
+ private:
+  std::vector<Request>* const requests_;
+};
+
+std::string EncodeAlgorithms(const std::vector<StunPasswordAlgorithm>& list) {
+  std::string value;
+  for (StunPasswordAlgorithm a : list) {
+    value += EncodeStunPasswordAlgorithm(static_cast<uint16_t>(a));
+  }
+  return value;
+}
+
+class TurnPortPasswordAlgorithmsTestBase : public TurnPortTest {
+ public:
+  using Request = PasswordAlgorithmsObserver::Request;
+
+  explicit TurnPortPasswordAlgorithmsTestBase(absl::string_view field_trials)
+      : TurnPortTest(field_trials) {
+    turn_server_.server()->SetStunMessageObserver(
+        std::make_unique<PasswordAlgorithmsObserver>(&requests_));
+  }
+
+  // Authenticated (carrying USERNAME) requests of `type` seen by the server.
+  std::vector<Request> Authenticated(int type) const {
+    std::vector<Request> result;
+    for (const Request& r : requests_) {
+      if (r.type == type && r.has_username) {
+        result.push_back(r);
+      }
+    }
+    return result;
+  }
+
+  void ExpectLegacy(const Request& r) {
+    EXPECT_TRUE(r.has_mi);
+    EXPECT_EQ(r.mi_sha256_size, 0u);
+    EXPECT_FALSE(r.algorithms.has_value());
+    EXPECT_FALSE(r.algorithm.has_value());
+  }
+
+  void ExpectAlgorithm(const Request& r,
+                       const std::vector<StunPasswordAlgorithm>& offered,
+                       StunPasswordAlgorithm selected) {
+    EXPECT_FALSE(r.has_mi);
+    EXPECT_EQ(r.mi_sha256_size, kStunMessageIntegritySha256Size);
+    ASSERT_TRUE(r.algorithms.has_value());
+    EXPECT_EQ(*r.algorithms, EncodeAlgorithms(offered));
+    ASSERT_TRUE(r.algorithm.has_value());
+    EXPECT_EQ(*r.algorithm, EncodeAlgorithms({selected}));
+  }
+
+  void Allocate() {
+    CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+    PrepareTurnAndUdpPorts(PROTO_UDP);
+    ASSERT_TRUE(turn_ready_);
+  }
+
+  // Sends a refresh and waits for the response(s).
+  void Refresh() {
+    turn_port_->request_manager().FlushForTest(TURN_REFRESH_REQUEST);
+    time_controller_.AdvanceTime(kSimulatedRtt * 3);
+  }
+
+  // A successful refresh response schedules the next refresh; verify that by
+  // flushing it and seeing it arrive at the server, still being accepted.
+  void ExpectRefreshWasAnswered() {
+    const size_t before = Authenticated(TURN_REFRESH_REQUEST).size();
+    Refresh();
+    EXPECT_GT(Authenticated(TURN_REFRESH_REQUEST).size(), before);
+    EXPECT_TRUE(turn_port_->connected());
+  }
+
+  // Sends `msg` from a plain socket to the TURN server and returns the
+  // response, if any.
+  std::unique_ptr<TurnMessage> RawExchange(AsyncPacketSocket* socket,
+                                           StunMessage& msg) {
+    raw_response_.reset();
+    ByteBufferWriter buf;
+    EXPECT_TRUE(msg.Write(&buf));
+    socket->SendTo(buf.Data(), buf.Length(), kTurnUdpIntAddr, options);
+    time_controller_.AdvanceTime(kSimulatedRtt * 2);
+    return std::move(raw_response_);
+  }
+
+  std::unique_ptr<AsyncPacketSocket> CreateRawSocket() {
+    std::unique_ptr<AsyncPacketSocket> socket =
+        socket_factory()->CreateUdpSocket(
+            env_, SocketAddress(kLocalAddr1.ipaddr(), 0), 0, 0);
+    socket->RegisterReceivedPacketCallback(
+        [this](AsyncPacketSocket*, const ReceivedIpPacket& packet) {
+          auto response = std::make_unique<TurnMessage>();
+          ByteBufferReader reader(packet.payload());
+          if (response->Read(&reader)) {
+            raw_response_ = std::move(response);
+          }
+        });
+    return socket;
+  }
+
+  // Performs the unauthenticated Allocate and returns the 401.
+  std::unique_ptr<TurnMessage> RawChallenge(AsyncPacketSocket* socket) {
+    TurnMessage allocate(STUN_ALLOCATE_REQUEST);
+    auto transport = StunAttribute::CreateUInt32(STUN_ATTR_REQUESTED_TRANSPORT);
+    transport->SetValue(IPPROTO_UDP << 24);
+    allocate.AddAttribute(std::move(transport));
+    return RawExchange(socket, allocate);
+  }
+
+  // Sends an authenticated Allocate in reply to `challenge`. `algorithms` and
+  // `algorithm` are added if non-empty. Returns the response.
+  std::unique_ptr<TurnMessage> RawAuthenticatedAllocate(
+      AsyncPacketSocket* socket,
+      const TurnMessage& challenge,
+      std::optional<std::string> algorithms,
+      std::optional<std::string> algorithm,
+      StunPasswordAlgorithm key_algorithm) {
+    TurnMessage allocate(STUN_ALLOCATE_REQUEST);
+    auto transport = StunAttribute::CreateUInt32(STUN_ATTR_REQUESTED_TRANSPORT);
+    transport->SetValue(IPPROTO_UDP << 24);
+    allocate.AddAttribute(std::move(transport));
+    std::string realm(challenge.GetByteString(STUN_ATTR_REALM)->string_view());
+    allocate.AddAttribute(std::make_unique<StunByteStringAttribute>(
+        STUN_ATTR_USERNAME, kTurnUsername));
+    allocate.AddAttribute(
+        std::make_unique<StunByteStringAttribute>(STUN_ATTR_REALM, realm));
+    allocate.AddAttribute(std::make_unique<StunByteStringAttribute>(
+        STUN_ATTR_NONCE,
+        challenge.GetByteString(STUN_ATTR_NONCE)->string_view()));
+    if (algorithms) {
+      allocate.AddAttribute(std::make_unique<StunByteStringAttribute>(
+          STUN_ATTR_PASSWORD_ALGORITHMS, *algorithms));
+    }
+    if (algorithm) {
+      allocate.AddAttribute(std::make_unique<StunByteStringAttribute>(
+          STUN_ATTR_PASSWORD_ALGORITHM, *algorithm));
+    }
+    std::string key;
+    EXPECT_TRUE(ComputeStunCredentialHash(key_algorithm, kTurnUsername, realm,
+                                          kTurnPassword, &key));
+    if (algorithm || algorithms) {
+      EXPECT_TRUE(allocate.AddMessageIntegritySha256(key));
+    } else {
+      EXPECT_TRUE(allocate.AddMessageIntegrity(key));
+    }
+    return RawExchange(socket, allocate);
+  }
+
+  std::vector<Request> requests_;
+  std::unique_ptr<TurnMessage> raw_response_;
+};
+
+class TurnPortPasswordAlgorithmsTest
+    : public TurnPortPasswordAlgorithmsTestBase {
+ public:
+  TurnPortPasswordAlgorithmsTest() : TurnPortPasswordAlgorithmsTestBase("") {}
+};
+
+class TurnPortPasswordAlgorithmsKillSwitchTest
+    : public TurnPortPasswordAlgorithmsTestBase {
+ public:
+  TurnPortPasswordAlgorithmsKillSwitchTest()
+      : TurnPortPasswordAlgorithmsTestBase(
+            "WebRTC-TurnPasswordAlgorithmsKillSwitch/Enabled/") {}
+};
+
+TEST_F(TurnPortPasswordAlgorithmsTest, Sha256OnlyAllocateCreatePermission) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+
+  // The first allocate is unauthenticated, the retry carries the attributes.
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectAlgorithm(allocates[0], offered, StunPasswordAlgorithm::kSha256);
+
+  Connection* conn = turn_port_->CreateConnection(udp_port_->Candidates()[0],
+                                                  Port::ORIGIN_MESSAGE);
+  ASSERT_TRUE(conn != nullptr);
+  time_controller_.AdvanceTime(kSimulatedRtt);
+  EXPECT_TRUE(HasPermission(udp_port_->Candidates()[0].address().ipaddr()));
+  std::vector<Request> permissions =
+      Authenticated(TURN_CREATE_PERMISSION_REQUEST);
+  ASSERT_GE(permissions.size(), 1u);
+  ExpectAlgorithm(permissions[0], offered, StunPasswordAlgorithm::kSha256);
+
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+  std::vector<Request> refreshes = Authenticated(TURN_REFRESH_REQUEST);
+  ASSERT_GE(refreshes.size(), 1u);
+  ExpectAlgorithm(refreshes[0], offered, StunPasswordAlgorithm::kSha256);
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, ChannelBindCarriesAttributes) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+  Connection* conn1 = turn_port_->CreateConnection(udp_port_->Candidates()[0],
+                                                   Port::ORIGIN_MESSAGE);
+  Connection* conn2 = udp_port_->CreateConnection(turn_port_->Candidates()[0],
+                                                  Port::ORIGIN_MESSAGE);
+  ASSERT_TRUE(conn1 != nullptr);
+  ASSERT_TRUE(conn2 != nullptr);
+  conn1->Ping();
+  EXPECT_TRUE(
+      WaitUntil([&] { return conn1->writable(); },
+                {.timeout = kSimulatedRtt * 2, .clock = &time_controller_}));
+  auto data = std::to_array<uint8_t>({'A', 'B', 'C'});
+  conn1->Send(data, options);
+  time_controller_.AdvanceTime(kSimulatedRtt * 3);
+  std::vector<Request> binds = Authenticated(TURN_CHANNEL_BIND_REQUEST);
+  ASSERT_GE(binds.size(), 1u);
+  ExpectAlgorithm(binds[0], offered, StunPasswordAlgorithm::kSha256);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, PrefersSha256OverMd5InServerOrder) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256, StunPasswordAlgorithm::kMd5};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectAlgorithm(allocates[0], offered, StunPasswordAlgorithm::kSha256);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, FollowsServerOrderWhenMd5First) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kMd5, StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectAlgorithm(allocates[0], offered, StunPasswordAlgorithm::kMd5);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, LegacyServerUsesMessageIntegrity) {
+  Allocate();
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectLegacy(allocates[0]);
+  EXPECT_EQ(turn_port_->hash().size(), 16u);
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+  std::vector<Request> refreshes = Authenticated(TURN_REFRESH_REQUEST);
+  ASSERT_GE(refreshes.size(), 1u);
+  ExpectLegacy(refreshes[0]);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, Md5OnlyServerUsesMd5KeyWithSha256MI) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kMd5};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectAlgorithm(allocates[0], offered, StunPasswordAlgorithm::kMd5);
+  EXPECT_EQ(turn_port_->hash().size(), 16u);
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+}
+
+TEST_F(TurnPortPasswordAlgorithmsKillSwitchTest,
+       BehavesLegacyWhenKillSwitchEnabled) {
+  turn_server_.set_password_algorithms(
+      {StunPasswordAlgorithm::kSha256, StunPasswordAlgorithm::kMd5});
+  Allocate();
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectLegacy(allocates[0]);
+  EXPECT_EQ(turn_port_->hash().size(), 16u);
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+  std::vector<Request> refreshes = Authenticated(TURN_REFRESH_REQUEST);
+  ASSERT_GE(refreshes.size(), 1u);
+  ExpectLegacy(refreshes[0]);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, StaleNonceDuringRefreshKeepsSha256) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  Allocate();
+  const std::string old_nonce = turn_port_->nonce();
+  turn_server_.server()->ExpireNonceForNextRequest();
+  // Make sure that the new nonce differs from the old one.
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+  EXPECT_NE(turn_port_->nonce(), old_nonce);
+  std::vector<Request> refreshes = Authenticated(TURN_REFRESH_REQUEST);
+  ASSERT_GE(refreshes.size(), 2u);
+  ExpectAlgorithm(refreshes[0], offered, StunPasswordAlgorithm::kSha256);
+  ExpectAlgorithm(refreshes[1], offered, StunPasswordAlgorithm::kSha256);
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+  ExpectRefreshWasAnswered();
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, ListChangeBetween401And438Renegotiates) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  Allocate();
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+
+  const std::vector<StunPasswordAlgorithm> new_list = {
+      StunPasswordAlgorithm::kMd5, StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(new_list);
+  turn_server_.server()->ExpireNonceForNextRequest();
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+  Refresh();
+  EXPECT_TRUE(turn_port_->connected());
+  std::vector<Request> refreshes = Authenticated(TURN_REFRESH_REQUEST);
+  ASSERT_GE(refreshes.size(), 2u);
+  // The first refresh used the old list and was answered with 438; the retry
+  // used the new list, and thus MD5.
+  ExpectAlgorithm(refreshes[0], {StunPasswordAlgorithm::kSha256},
+                  StunPasswordAlgorithm::kSha256);
+  ExpectAlgorithm(refreshes[1], new_list, StunPasswordAlgorithm::kMd5);
+  EXPECT_EQ(turn_port_->hash().size(), 16u);
+  ExpectRefreshWasAnswered();
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       TamperedPasswordAlgorithmsGetsBadRequest) {
+  // The server records [SHA256, MD5] for the nonce but the 401 says [MD5], as
+  // if modified by an on-path attacker. The client's echo does not match what
+  // the server recorded.
+  turn_server_.set_password_algorithms(
+      {StunPasswordAlgorithm::kSha256, StunPasswordAlgorithm::kMd5});
+  turn_server_.server()->set_tampered_password_algorithms(
+      std::vector<StunPasswordAlgorithm>{StunPasswordAlgorithm::kMd5});
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_error_; },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  EXPECT_FALSE(turn_ready_);
+  EXPECT_EQ(error_event_.error_code, STUN_ERROR_BAD_REQUEST);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, MissingPasswordAlgorithmsDoesNotRetry) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_omit_password_algorithms_attribute(true);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_error_; },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  time_controller_.AdvanceTime(kSimulatedRtt * 3);
+  EXPECT_FALSE(turn_ready_);
+  EXPECT_TRUE(Authenticated(STUN_ALLOCATE_REQUEST).empty());
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, NoSupportedAlgorithmDoesNotRetry) {
+  turn_server_.set_password_algorithms(
+      {static_cast<StunPasswordAlgorithm>(0x7777)});
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_error_; },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  time_controller_.AdvanceTime(kSimulatedRtt * 3);
+  EXPECT_FALSE(turn_ready_);
+  EXPECT_TRUE(Authenticated(STUN_ALLOCATE_REQUEST).empty());
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, MissingAlgorithmsOn438FailsRefresh) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  Allocate();
+  turn_server_.server()->set_omit_password_algorithms_attribute(true);
+  turn_server_.server()->ExpireNonceForNextRequest();
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+  const std::string old_nonce = turn_port_->nonce();
+  Refresh();
+  // No retry, and the failure is not silent: the refresh error path ran.
+  EXPECT_EQ(Authenticated(TURN_REFRESH_REQUEST).size(), 1u);
+  EXPECT_FALSE(turn_port_->connected());
+  EXPECT_FALSE(turn_port_->HasRequests());
+  // State was not half-updated.
+  EXPECT_EQ(turn_port_->nonce(), old_nonce);
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, UnparseableAlgorithmsOn438FailsRefresh) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  Allocate();
+  // Header claims 8 bytes of parameters but only 1 is present.
+  turn_server_.server()->set_raw_password_algorithms_override(
+      std::string("\x00\x02\x00\x08\x01\x00\x00\x00", 8));
+  turn_server_.server()->ExpireNonceForNextRequest();
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+  Refresh();
+  EXPECT_EQ(Authenticated(TURN_REFRESH_REQUEST).size(), 1u);
+  EXPECT_FALSE(turn_port_->connected());
+  EXPECT_FALSE(turn_port_->HasRequests());
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, MissingAlgorithmsOn438FailsPermission) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  Allocate();
+  turn_server_.server()->set_omit_password_algorithms_attribute(true);
+  turn_server_.server()->ExpireNonceForNextRequest();
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+  Connection* conn = turn_port_->CreateConnection(udp_port_->Candidates()[0],
+                                                  Port::ORIGIN_MESSAGE);
+  ASSERT_TRUE(conn != nullptr);
+  EXPECT_TRUE(
+      WaitUntil([&] { return CheckConnectionFailedAndPruned(conn); },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  EXPECT_EQ(Authenticated(TURN_CREATE_PERMISSION_REQUEST).size(), 1u);
+  EXPECT_FALSE(HasPermission(udp_port_->Candidates()[0].address().ipaddr()));
+  // The port itself is intact and later requests still use the old state.
+  EXPECT_EQ(turn_port_->hash().size(), 32u);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, StrippedChallengeIsRejectedByServer) {
+  // An on-path attacker removes the cookie and PASSWORD-ALGORITHMS from the
+  // 401. The client falls back to MD5 with MESSAGE-INTEGRITY, which a server
+  // offering algorithms must refuse: the nonce lacks the cookie it always
+  // issues, so it was modified. The server answers 400.
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_strip_password_algorithms_from_challenges(true);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_error_; },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  EXPECT_FALSE(turn_ready_);
+  EXPECT_EQ(error_event_.error_code, STUN_ERROR_BAD_REQUEST);
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_EQ(allocates.size(), 1u);
+  ExpectLegacy(allocates[0]);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       ServerRejectsInconsistentAlgorithmAttrs) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  std::unique_ptr<AsyncPacketSocket> socket = CreateRawSocket();
+  std::unique_ptr<TurnMessage> challenge = RawChallenge(socket.get());
+  ASSERT_TRUE(challenge);
+  ASSERT_EQ(challenge->GetErrorCodeValue(), STUN_ERROR_UNAUTHORIZED);
+  const std::string list = EncodeAlgorithms(offered);
+  EXPECT_EQ(
+      challenge->GetByteString(STUN_ATTR_PASSWORD_ALGORITHMS)->string_view(),
+      list);
+
+  // Only PASSWORD-ALGORITHM, no list.
+  auto r = RawAuthenticatedAllocate(
+      socket.get(), *challenge, std::nullopt,
+      EncodeAlgorithms({StunPasswordAlgorithm::kSha256}),
+      StunPasswordAlgorithm::kSha256);
+  ASSERT_TRUE(r);
+  EXPECT_EQ(r->GetErrorCodeValue(), STUN_ERROR_BAD_REQUEST);
+
+  // Only PASSWORD-ALGORITHMS, no selected algorithm.
+  r = RawAuthenticatedAllocate(socket.get(), *challenge, list, std::nullopt,
+                               StunPasswordAlgorithm::kSha256);
+  ASSERT_TRUE(r);
+  EXPECT_EQ(r->GetErrorCodeValue(), STUN_ERROR_BAD_REQUEST);
+
+  // PASSWORD-ALGORITHM not in the offered list.
+  r = RawAuthenticatedAllocate(socket.get(), *challenge, list,
+                               EncodeAlgorithms({StunPasswordAlgorithm::kMd5}),
+                               StunPasswordAlgorithm::kMd5);
+  ASSERT_TRUE(r);
+  EXPECT_EQ(r->GetErrorCodeValue(), STUN_ERROR_BAD_REQUEST);
+
+  // Neither attribute: processed as MD5 with MESSAGE-INTEGRITY.
+  r = RawAuthenticatedAllocate(socket.get(), *challenge, std::nullopt,
+                               std::nullopt, StunPasswordAlgorithm::kMd5);
+  ASSERT_TRUE(r);
+  EXPECT_EQ(r->type(), STUN_ALLOCATE_RESPONSE);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, ServerAcceptsConsistentAlgorithmAttrs) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  std::unique_ptr<AsyncPacketSocket> socket = CreateRawSocket();
+  std::unique_ptr<TurnMessage> challenge = RawChallenge(socket.get());
+  ASSERT_TRUE(challenge);
+  auto r = RawAuthenticatedAllocate(
+      socket.get(), *challenge, EncodeAlgorithms(offered),
+      EncodeAlgorithms(offered), StunPasswordAlgorithm::kSha256);
+  ASSERT_TRUE(r);
+  EXPECT_EQ(r->type(), STUN_ALLOCATE_RESPONSE);
+  EXPECT_NE(r->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256), nullptr);
+  EXPECT_EQ(r->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY), nullptr);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       SuccessResponseWithMiInsteadOfSha256IsDropped) {
+  // With MD5 selected, the request key equals the key the server signs its
+  // MESSAGE-INTEGRITY with, so the MI is correct and only the downgrade from
+  // MESSAGE-INTEGRITY-SHA256 makes the response invalid.
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kMd5});
+  turn_server_.server()->set_success_response_integrity(
+      TurnServer::SuccessResponseIntegrity::kMessageIntegrity);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  time_controller_.AdvanceTime(kSimulatedRtt * 6);
+  // The authenticated Allocate reached the server (and was answered).
+  EXPECT_GE(Authenticated(STUN_ALLOCATE_REQUEST).size(), 1u);
+  EXPECT_FALSE(turn_ready_);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       SuccessResponseWithMiAndSha256IsAccepted) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_success_response_integrity(
+      TurnServer::SuccessResponseIntegrity::kBoth);
+  Allocate();
+  EXPECT_TRUE(turn_ready_);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       SuccessResponseWithoutIntegrityIsDropped) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_success_response_integrity(
+      TurnServer::SuccessResponseIntegrity::kNone);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  time_controller_.AdvanceTime(kSimulatedRtt * 6);
+  EXPECT_FALSE(turn_ready_);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest, TryAlternateAppliesAlgorithmsFrom300) {
+  const std::vector<StunPasswordAlgorithm> offered = {
+      StunPasswordAlgorithm::kSha256};
+  turn_server_.set_password_algorithms(offered);
+  turn_server_.server()->set_add_challenge_to_try_alternate(true);
+  std::vector<SocketAddress> redirect_addresses = {kTurnAlternateIntAddr};
+  TestTurnRedirector redirector(redirect_addresses);
+  turn_server_.AddInternalSocket(kTurnAlternateIntAddr, PROTO_UDP);
+  turn_server_.set_redirect_hook(&redirector);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_ready_; },
+                {.timeout = kSimulatedRtt * 4, .clock = &time_controller_}));
+  // The first authenticated Allocate (sent to the alternate server) already
+  // uses the algorithm announced in the 300.
+  std::vector<Request> allocates = Authenticated(STUN_ALLOCATE_REQUEST);
+  ASSERT_GE(allocates.size(), 1u);
+  ExpectAlgorithm(allocates[0], offered, StunPasswordAlgorithm::kSha256);
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       TryAlternateWithoutAlgorithmsIsRejected) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_add_challenge_to_try_alternate(true);
+  turn_server_.server()->set_omit_password_algorithms_attribute(true);
+  std::vector<SocketAddress> redirect_addresses = {kTurnAlternateIntAddr};
+  TestTurnRedirector redirector(redirect_addresses);
+  turn_server_.AddInternalSocket(kTurnAlternateIntAddr, PROTO_UDP);
+  turn_server_.set_redirect_hook(&redirector);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+  const SocketAddress old_addr = turn_port_->server_address().address;
+  turn_port_->PrepareAddress();
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_error_; },
+                {.timeout = kSimulatedRtt * 3, .clock = &time_controller_}));
+  EXPECT_FALSE(turn_ready_);
+  // The redirect was not followed.
+  EXPECT_EQ(turn_port_->server_address().address, old_addr);
+}
 
 }  // namespace webrtc

@@ -14,13 +14,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <tuple>  // for std::tie
 #include <utility>
+#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
 #include "api/packet_socket_factory.h"
@@ -61,6 +64,9 @@ constexpr TimeDelta kChannelTimeout = TimeDelta::Minutes(10);
 
 constexpr size_t kNonceKeySize = 16;
 constexpr size_t kNonceSize = 48;
+// RFC 8489 section 9.2 nonce cookie with the "Password algorithms" feature bit
+// (MSB of the 24 bit security features field) set.
+constexpr absl::string_view kPasswordAlgorithmsNonceCookie = "obMatJos2gAAA";
 
 constexpr size_t TURN_CHANNEL_HEADER_SIZE = 4U;
 
@@ -212,6 +218,13 @@ void TurnServer::HandleStunMessage(TurnServerConnection* conn,
     stun_message_observer_->ReceivedMessage(&msg);
   }
 
+  // Cleared again when the message has been handled (responses are sent
+  // synchronously).
+  struct ResetResponseKey {
+    ~ResetResponseKey() { key.reset(); }
+    std::optional<std::string>& key;
+  } reset_response_key{response_sha256_key_};
+
   // If it's a STUN binding request, handle that specially.
   if (msg.type() == STUN_BINDING_REQUEST) {
     HandleBindingRequest(conn, &msg);
@@ -282,17 +295,28 @@ bool TurnServer::CheckAuthorization(TurnServerConnection* conn,
                                     absl::string_view key) {
   // RFC 5389, 10.2.2.
   RTC_DCHECK(IsStunRequestType(msg->type()));
+  const StunByteStringAttribute* nonce_attr =
+      msg->GetByteString(STUN_ATTR_NONCE);
+  // RFC 8489 section 9.2.4 is driven by the cookie in the request's nonce, not
+  // by the current configuration.
+  const bool nonce_has_cookie =
+      nonce_attr && absl::StartsWith(nonce_attr->string_view(),
+                                     kPasswordAlgorithmsNonceCookie);
+  const bool password_algorithms_enabled =
+      !password_algorithms_.empty() || nonce_has_cookie;
   const StunByteStringAttribute* mi_attr =
       msg->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY);
+  const StunByteStringAttribute* mi_sha256_attr =
+      password_algorithms_enabled
+          ? msg->GetByteString(STUN_ATTR_MESSAGE_INTEGRITY_SHA256)
+          : nullptr;
   const StunByteStringAttribute* username_attr =
       msg->GetByteString(STUN_ATTR_USERNAME);
   const StunByteStringAttribute* realm_attr =
       msg->GetByteString(STUN_ATTR_REALM);
-  const StunByteStringAttribute* nonce_attr =
-      msg->GetByteString(STUN_ATTR_NONCE);
 
   // Fail if no MESSAGE_INTEGRITY.
-  if (!mi_attr) {
+  if (!mi_attr && !mi_sha256_attr) {
     SendErrorResponseWithRealmAndNonce(conn, msg, STUN_ERROR_UNAUTHORIZED,
                                        STUN_ERROR_REASON_UNAUTHORIZED);
     return false;
@@ -305,6 +329,14 @@ bool TurnServer::CheckAuthorization(TurnServerConnection* conn,
     return false;
   }
 
+  // A server offering password algorithms only issues nonces with the cookie;
+  // a nonce without it was modified in transit (bid-down).
+  if (!password_algorithms_.empty() && !nonce_has_cookie) {
+    SendErrorResponse(conn, msg, STUN_ERROR_BAD_REQUEST,
+                      STUN_ERROR_REASON_BAD_REQUEST);
+    return false;
+  }
+
   // Fail if bad nonce.
   if (!ValidateNonce(nonce_attr->string_view())) {
     SendErrorResponseWithRealmAndNonce(conn, msg, STUN_ERROR_STALE_NONCE,
@@ -312,9 +344,58 @@ bool TurnServer::CheckAuthorization(TurnServerConnection* conn,
     return false;
   }
 
+  // RFC 8489 section 9.2.4.
+  std::string algorithm_key;
+  bool use_sha256_response = false;
+  if (nonce_has_cookie) {
+    const StunByteStringAttribute* algorithms_attr =
+        msg->GetByteString(STUN_ATTR_PASSWORD_ALGORITHMS);
+    const StunByteStringAttribute* algorithm_attr =
+        msg->GetByteString(STUN_ATTR_PASSWORD_ALGORITHM);
+    if (algorithms_attr || algorithm_attr) {
+      // Both must be present, PASSWORD-ALGORITHMS must be what we sent with
+      // this nonce and PASSWORD-ALGORITHM must be one of its entries.
+      auto sent = nonce_password_algorithms_.find(
+          std::string(nonce_attr->string_view()));
+      bool ok = algorithms_attr && algorithm_attr &&
+                sent != nonce_password_algorithms_.end() &&
+                sent->second == algorithms_attr->string_view();
+      std::optional<StunPasswordAlgorithm> algorithm;
+      if (ok) {
+        auto offered = ParseStunPasswordAlgorithms(sent->second);
+        auto chosen =
+            ParseStunPasswordAlgorithms(algorithm_attr->string_view());
+        ok = offered && chosen && chosen->size() == 1 &&
+             chosen->front().parameters.empty() &&
+             absl::c_find(*offered, chosen->front()) != offered->end();
+        if (ok) {
+          algorithm =
+              static_cast<StunPasswordAlgorithm>(chosen->front().algorithm);
+        }
+      }
+      if (!ok) {
+        SendErrorResponse(conn, msg, STUN_ERROR_BAD_REQUEST,
+                          STUN_ERROR_REASON_BAD_REQUEST);
+        return false;
+      }
+      if (!auth_hook_ || !auth_hook_->GetKeyForAlgorithm(
+                             *algorithm, username_attr->string_view(), realm_,
+                             &algorithm_key)) {
+        SendErrorResponseWithRealmAndNonce(conn, msg, STUN_ERROR_UNAUTHORIZED,
+                                           STUN_ERROR_REASON_UNAUTHORIZED);
+        return false;
+      }
+      key = algorithm_key;
+      use_sha256_response = true;
+    }
+  }
+
   // Fail if bad MESSAGE_INTEGRITY.
-  if (key.empty() || msg->ValidateMessageIntegrity(std::string(key)) !=
-                         StunMessage::IntegrityStatus::kIntegrityOk) {
+  const StunMessage::IntegrityStatus integrity =
+      mi_sha256_attr ? msg->ValidateMessageIntegritySha256(std::string(key))
+      : key.empty()  ? StunMessage::IntegrityStatus::kIntegrityBad
+                     : msg->ValidateMessageIntegrity(std::string(key));
+  if (key.empty() || integrity != StunMessage::IntegrityStatus::kIntegrityOk) {
     SendErrorResponseWithRealmAndNonce(conn, msg, STUN_ERROR_UNAUTHORIZED,
                                        STUN_ERROR_REASON_UNAUTHORIZED);
     return false;
@@ -329,8 +410,19 @@ bool TurnServer::CheckAuthorization(TurnServerConnection* conn,
     return false;
   }
 
+  if (force_stale_nonce_) {
+    force_stale_nonce_ = false;
+    SendErrorResponseWithRealmAndNonce(conn, msg, STUN_ERROR_STALE_NONCE,
+                                       STUN_ERROR_REASON_STALE_NONCE);
+    return false;
+  }
+
   if (allocation) {
     allocation->set_last_nonce(nonce_attr->string_view());
+  }
+  if (use_sha256_response) {
+    response_sha256_key_ = std::string(key);
+    response_integrity_ = success_response_integrity_;
   }
   // Success.
   return true;
@@ -387,10 +479,25 @@ std::string TurnServer::GenerateNonce(int64_t now) const {
   nonce += ComputeHmac(DIGEST_MD5, nonce_key_, input);
   RTC_DCHECK(nonce.size() == kNonceSize);
 
+  if (!password_algorithms_.empty()) {
+    nonce.insert(0, kPasswordAlgorithmsNonceCookie);
+  }
   return nonce;
 }
 
+std::string TurnServer::EncodePasswordAlgorithms(
+    const std::vector<StunPasswordAlgorithm>& algorithms) {
+  std::string value;
+  for (StunPasswordAlgorithm algorithm : algorithms) {
+    value += EncodeStunPasswordAlgorithm(static_cast<uint16_t>(algorithm));
+  }
+  return value;
+}
+
 bool TurnServer::ValidateNonce(absl::string_view nonce) const {
+  if (absl::StartsWith(nonce, kPasswordAlgorithmsNonceCookie)) {
+    nonce.remove_prefix(kPasswordAlgorithmsNonceCookie.size());
+  }
   // Check the size.
   if (nonce.size() != kNonceSize) {
     return false;
@@ -453,22 +560,43 @@ void TurnServer::SendErrorResponse(TurnServerConnection* conn,
   SendStun(conn, &resp, EcnMarking::kNotEct);
 }
 
+void TurnServer::AddChallengeAttributes(TurnMessage* resp) {
+  int64_t timestamp = env_.clock().TimeInMilliseconds();
+  if (ts_for_next_nonce_) {
+    timestamp = ts_for_next_nonce_;
+    ts_for_next_nonce_ = 0;
+  }
+  const std::string nonce = GenerateNonce(timestamp);
+  std::string sent_nonce = nonce;
+  if (strip_password_algorithms_ &&
+      absl::StartsWith(sent_nonce, kPasswordAlgorithmsNonceCookie)) {
+    sent_nonce.erase(0, kPasswordAlgorithmsNonceCookie.size());
+  }
+  resp->AddAttribute(
+      std::make_unique<StunByteStringAttribute>(STUN_ATTR_NONCE, sent_nonce));
+  resp->AddAttribute(
+      std::make_unique<StunByteStringAttribute>(STUN_ATTR_REALM, realm_));
+  if (!password_algorithms_.empty()) {
+    const std::string recorded = EncodePasswordAlgorithms(password_algorithms_);
+    nonce_password_algorithms_[nonce] = recorded;
+    if (!omit_password_algorithms_attribute_ && !strip_password_algorithms_) {
+      resp->AddAttribute(std::make_unique<StunByteStringAttribute>(
+          STUN_ATTR_PASSWORD_ALGORITHMS,
+          raw_password_algorithms_override_ ? *raw_password_algorithms_override_
+          : tampered_password_algorithms_
+              ? EncodePasswordAlgorithms(*tampered_password_algorithms_)
+              : recorded));
+    }
+  }
+}
+
 void TurnServer::SendErrorResponseWithRealmAndNonce(TurnServerConnection* conn,
                                                     const StunMessage* msg,
                                                     int code,
                                                     absl::string_view reason) {
   TurnMessage resp(GetStunErrorResponseTypeOrZero(*msg), msg->transaction_id());
   InitErrorResponse(code, reason, &resp);
-
-  int64_t timestamp = env_.clock().TimeInMilliseconds();
-  if (ts_for_next_nonce_) {
-    timestamp = ts_for_next_nonce_;
-    ts_for_next_nonce_ = 0;
-  }
-  resp.AddAttribute(std::make_unique<StunByteStringAttribute>(
-      STUN_ATTR_NONCE, GenerateNonce(timestamp)));
-  resp.AddAttribute(
-      std::make_unique<StunByteStringAttribute>(STUN_ATTR_REALM, realm_));
+  AddChallengeAttributes(&resp);
   SendStun(conn, &resp, EcnMarking::kNotEct);
 }
 
@@ -481,6 +609,9 @@ void TurnServer::SendErrorResponseWithAlternateServer(
                     STUN_ERROR_REASON_TRY_ALTERNATE_SERVER, &resp);
   resp.AddAttribute(
       std::make_unique<StunAddressAttribute>(STUN_ATTR_ALTERNATE_SERVER, addr));
+  if (add_challenge_to_try_alternate_) {
+    AddChallengeAttributes(&resp);
+  }
   SendStun(conn, &resp, EcnMarking::kNotEct);
 }
 
@@ -868,8 +999,27 @@ TurnServerAllocation::ChannelList::iterator TurnServerAllocation::FindChannel(
 }
 
 void TurnServerAllocation::SendResponse(TurnMessage* msg) {
-  // Success responses always have M-I.
-  msg->AddMessageIntegrity(key_);
+  // Success responses always have M-I, or M-I-SHA256 if the request used a
+  // password algorithm.
+  if (server_->response_sha256_key_) {
+    using Integrity = TurnServer::SuccessResponseIntegrity;
+    switch (server_->response_integrity_) {
+      case Integrity::kMessageIntegritySha256:
+        msg->AddMessageIntegritySha256(*server_->response_sha256_key_);
+        break;
+      case Integrity::kBoth:
+        msg->AddMessageIntegrity(key_);
+        msg->AddMessageIntegritySha256(*server_->response_sha256_key_);
+        break;
+      case Integrity::kMessageIntegrity:
+        msg->AddMessageIntegrity(key_);
+        break;
+      case Integrity::kNone:
+        break;
+    }
+  } else {
+    msg->AddMessageIntegrity(key_);
+  }
   server_->SendStun(&conn_, msg, EcnMarking::kNotEct);
 }
 
