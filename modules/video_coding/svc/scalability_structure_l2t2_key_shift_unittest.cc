@@ -9,6 +9,7 @@
  */
 #include "modules/video_coding/svc/scalability_structure_l2t2_key_shift.h"
 
+#include <cstddef>
 #include <span>
 #include <vector>
 
@@ -22,7 +23,10 @@ namespace webrtc {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
+using ::testing::Message;
+using ::testing::Not;
 using ::testing::SizeIs;
 using LayerFrameConfig = ScalableVideoController::LayerFrameConfig;
 
@@ -491,6 +495,70 @@ TEST(ScalabilityStructureL2T2KeyShiftTest,
   wrapper.EncodeTemporalUnit(recovery, frames);
   wrapper.GenerateFrames(/*num_temporal_units=*/2, frames);
   EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+}
+
+TEST(ScalabilityStructureL2T2KeyShiftTest,
+     ZeroingAndRestoringT1BitratesEmitsT0AndRestoresShiftedPattern) {
+  for (int jump_tu = 0; jump_tu <= 4; ++jump_tu) {
+    SCOPED_TRACE(Message() << "jump_tu=" << jump_tu);
+    ScalabilityStructureL2T2KeyShift structure;
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/2, /*s1=*/2));
+    ScalabilityStructureWrapper wrapper(structure);
+    std::vector<GenericFrameInfo> frames;
+
+    wrapper.GenerateFrames(jump_tu, frames);
+    ASSERT_THAT(frames, SizeIs(jump_tu * 2));
+
+    // Zero T1 bitrates on both spatial layers. In L2T2_KEY_SHIFT:
+    // - `jump_tu == 0` (`kKey`) emits keyframe S0T0 + S1T0.
+    // - Odd `jump_tu` (`kDelta0`) drops S1T1 and emits S0T0 only.
+    // - Even `jump_tu > 0` (`kDelta1`) drops S0T1 and emits S1T0 only.
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/1, /*s1=*/1));
+    const size_t tl0_start = frames.size();
+    wrapper.GenerateFrames(/*num_temporal_units=*/1, frames);
+    if (jump_tu == 0) {
+      ASSERT_THAT(tl0_start, Eq(0));
+      ASSERT_THAT(frames, SizeIs(2));
+      EXPECT_EQ(frames[0].spatial_id, 0);
+      EXPECT_EQ(frames[0].temporal_id, 0);
+      EXPECT_THAT(frames[0].frame_diffs, IsEmpty());
+      EXPECT_EQ(frames[1].spatial_id, 1);
+      EXPECT_EQ(frames[1].temporal_id, 0);
+      EXPECT_THAT(frames[1].frame_diffs, ElementsAre(1));
+    } else {
+      ASSERT_THAT(frames, SizeIs(tl0_start + 1));
+      const int expected_sid = (jump_tu % 2 == 1) ? 0 : 1;
+      EXPECT_EQ(frames[tl0_start].spatial_id, expected_sid);
+      EXPECT_EQ(frames[tl0_start].temporal_id, 0);
+      EXPECT_THAT(frames[tl0_start].frame_diffs, Not(IsEmpty()));
+    }
+
+    // Restoring T1 bitrates must resume the alternating shifted pattern
+    // with inter-frame dependencies.
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/2, /*s1=*/2));
+    const size_t resumed_start = frames.size();
+    wrapper.GenerateFrames(/*num_temporal_units=*/2, frames);
+    ASSERT_THAT(frames, SizeIs(resumed_start + 4));
+    if (jump_tu == 0 || jump_tu % 2 == 0) {
+      // Previous TU was `kKey` or `kDelta1`, so resumed TUs are `kDelta0`
+      // (S0T0 + S1T1) followed by `kDelta1` (S0T1 + S1T0).
+      EXPECT_EQ(frames[resumed_start].temporal_id, 0);
+      EXPECT_EQ(frames[resumed_start + 1].temporal_id, 1);
+      EXPECT_EQ(frames[resumed_start + 2].temporal_id, 1);
+      EXPECT_EQ(frames[resumed_start + 3].temporal_id, 0);
+    } else {
+      // Previous TU was `kDelta0`, so resumed TUs are `kDelta1` (S0T1 + S1T0)
+      // followed by `kDelta0` (S0T0 + S1T1).
+      EXPECT_EQ(frames[resumed_start].temporal_id, 1);
+      EXPECT_EQ(frames[resumed_start + 1].temporal_id, 0);
+      EXPECT_EQ(frames[resumed_start + 2].temporal_id, 0);
+      EXPECT_EQ(frames[resumed_start + 3].temporal_id, 1);
+    }
+    for (size_t i = resumed_start; i < frames.size(); ++i) {
+      EXPECT_THAT(frames[i].frame_diffs, Not(IsEmpty())) << "i=" << i;
+    }
+    EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+  }
 }
 
 }  // namespace

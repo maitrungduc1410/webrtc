@@ -22,6 +22,7 @@
 
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "api/video/video_bitrate_allocation.h"
+#include "api/video/video_codec_constants.h"
 #include "api/video_codecs/scalability_mode.h"
 #include "common_video/generic_frame_descriptor/generic_frame_info.h"
 #include "modules/video_coding/svc/create_scalability_structure.h"
@@ -45,9 +46,11 @@ using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::Le;
 using ::testing::Lt;
+using ::testing::Message;
 using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::SizeIs;
+using ::testing::TestParamInfo;
 using ::testing::TestWithParam;
 using ::testing::Values;
 using LayerFrameConfig = ScalableVideoController::LayerFrameConfig;
@@ -693,6 +696,208 @@ TEST(ScalabilityStructureSimulcastTest,
                                       frames);
 }
 
+VideoBitrateAllocation EnableAllLayers(
+    const ScalableVideoController::StreamLayersConfig& stream_config) {
+  VideoBitrateAllocation bitrates;
+  for (int sid = 0; sid < stream_config.num_spatial_layers; ++sid) {
+    for (int tid = 0; tid < stream_config.num_temporal_layers; ++tid) {
+      bitrates.SetBitrate(sid, tid, 100'000);
+    }
+  }
+  return bitrates;
+}
+
+VideoBitrateAllocation FilterBaseLayers(
+    const VideoBitrateAllocation& allocation) {
+  VideoBitrateAllocation filtered_allocation;
+  for (size_t si = 0; si < kMaxSpatialLayers; ++si) {
+    for (size_t ti = 0; ti < kMaxTemporalStreams; ++ti) {
+      if (allocation.HasBitrate(si, ti)) {
+        filtered_allocation.SetBitrate(
+            si, ti, ti == 0 ? allocation.GetBitrate(si, ti) : 0u);
+      }
+    }
+  }
+  return filtered_allocation;
+}
+
+void ExpectValidTl0TemporalUnit(std::span<const GenericFrameInfo> tu_frames,
+                                int num_spatial_layers) {
+  EXPECT_THAT(tu_frames, Not(IsEmpty()));
+  EXPECT_LE(tu_frames.size(), static_cast<size_t>(num_spatial_layers));
+  int prev_sid = -1;
+  for (const GenericFrameInfo& frame : tu_frames) {
+    EXPECT_GT(frame.spatial_id, prev_sid);
+    EXPECT_LT(frame.spatial_id, num_spatial_layers);
+    EXPECT_EQ(frame.temporal_id, 0);
+    prev_sid = frame.spatial_id;
+  }
+}
+
+void ExpectPatternRestored(
+    std::span<const GenericFrameInfo> resumed_frames,
+    int num_temporal_units,
+    const ScalableVideoController::StreamLayersConfig& stream_config) {
+  EXPECT_THAT(resumed_frames,
+              SizeIs(num_temporal_units * stream_config.num_spatial_layers));
+  for (int sid = 0; sid < stream_config.num_spatial_layers; ++sid) {
+    for (int tid = 0; tid < stream_config.num_temporal_layers; ++tid) {
+      EXPECT_THAT(resumed_frames,
+                  Contains(AllOf(Field(&GenericFrameInfo::spatial_id, sid),
+                                 Field(&GenericFrameInfo::temporal_id, tid))))
+          << "Pattern not restored for (" << sid << "," << tid << ")";
+    }
+  }
+}
+
+TEST_P(ScalabilityStructureTest,
+       ZeroEnhancementLayerBitratesForTwoTemporalUnitsThenRestore) {
+  // Zero non-base temporal layer bitrates across 2 temporal units, then
+  // restore bitrates after `OnEncodeDone` and verify the full pattern resumes.
+  const ScalabilityMode mode = GetParam().GetScalabilityMode();
+  ScalableVideoController::StreamLayersConfig stream_config =
+      CreateScalabilityStructure(mode)->StreamConfig();
+
+  VideoBitrateAllocation all_bitrates = EnableAllLayers(stream_config);
+  VideoBitrateAllocation tl0_only_bitrates = FilterBaseLayers(all_bitrates);
+
+  for (int jump_tu = 0; jump_tu <= GetParam().num_temporal_units; ++jump_tu) {
+    SCOPED_TRACE(Message() << "jump_tu=" << jump_tu);
+    std::unique_ptr<ScalableVideoController> svc_controller =
+        CreateScalabilityStructure(mode);
+    FrameDependencyStructure dep_structure =
+        svc_controller->DependencyStructure();
+    svc_controller->OnRatesUpdated(all_bitrates);
+    ScalabilityStructureWrapper wrapper(*svc_controller);
+    std::vector<GenericFrameInfo> frames;
+
+    wrapper.GenerateFrames(jump_tu, frames);
+    ASSERT_THAT(frames, SizeIs(jump_tu * stream_config.num_spatial_layers));
+
+    svc_controller->OnRatesUpdated(tl0_only_bitrates);
+    for (int tl0_tu = 0; tl0_tu < 2; ++tl0_tu) {
+      SCOPED_TRACE(Message() << "tl0_tu=" << tl0_tu);
+      const size_t tu_start = frames.size();
+      wrapper.GenerateFrames(/*num_temporal_units=*/1, frames);
+      ExpectValidTl0TemporalUnit(std::span(frames).subspan(tu_start),
+                                 stream_config.num_spatial_layers);
+    }
+
+    // Restore enhancement layer bitrates and verify the full pattern resumes.
+    const size_t resumed_start = frames.size();
+    svc_controller->OnRatesUpdated(all_bitrates);
+    wrapper.GenerateFrames(GetParam().num_temporal_units, frames);
+    ExpectPatternRestored(std::span(frames).subspan(resumed_start),
+                          GetParam().num_temporal_units, stream_config);
+    EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+    CheckDependencyDescriptorInvariants(dep_structure, frames);
+  }
+}
+
+TEST_P(ScalabilityStructureTest,
+       ZeroEnhancementLayerBitratesForOneTemporalUnitThenRestore) {
+  // Zero non-base temporal layer bitrates for a single `NextFrameConfig()`
+  // call and immediately restore bitrates before `OnEncodeDone()`, verifying
+  // that `active_decode_targets` remains all active on the emitted T0 frame(s)
+  // and the pattern resumes cleanly.
+  const ScalabilityMode mode = GetParam().GetScalabilityMode();
+  ScalableVideoController::StreamLayersConfig stream_config =
+      CreateScalabilityStructure(mode)->StreamConfig();
+
+  VideoBitrateAllocation all_bitrates = EnableAllLayers(stream_config);
+  VideoBitrateAllocation tl0_only_bitrates = FilterBaseLayers(all_bitrates);
+
+  for (int jump_tu = 0; jump_tu <= GetParam().num_temporal_units; ++jump_tu) {
+    SCOPED_TRACE(Message() << "jump_tu=" << jump_tu);
+    std::unique_ptr<ScalableVideoController> svc_controller =
+        CreateScalabilityStructure(mode);
+    FrameDependencyStructure dep_structure =
+        svc_controller->DependencyStructure();
+    svc_controller->OnRatesUpdated(all_bitrates);
+    ScalabilityStructureWrapper wrapper(*svc_controller);
+    std::vector<GenericFrameInfo> frames;
+
+    wrapper.GenerateFrames(jump_tu, frames);
+    ASSERT_THAT(frames, SizeIs(jump_tu * stream_config.num_spatial_layers));
+
+    svc_controller->OnRatesUpdated(tl0_only_bitrates);
+    std::vector<LayerFrameConfig> tl0_configs =
+        svc_controller->NextFrameConfig(/*restart=*/false);
+    ASSERT_THAT(tl0_configs, Not(IsEmpty()));
+    svc_controller->OnRatesUpdated(all_bitrates);
+
+    const size_t tl0_start = frames.size();
+    wrapper.EncodeTemporalUnit(tl0_configs, frames);
+    const size_t resumed_start = frames.size();
+
+    std::span<const GenericFrameInfo> tl0_frames =
+        std::span(frames).subspan(tl0_start, resumed_start - tl0_start);
+    ExpectValidTl0TemporalUnit(tl0_frames, stream_config.num_spatial_layers);
+
+    const uint32_t expected_active_dts_mask =
+        (uint32_t{1} << dep_structure.num_decode_targets) - 1;
+    for (const GenericFrameInfo& frame : tl0_frames) {
+      EXPECT_EQ(
+          frame.active_decode_targets.to_ulong() & expected_active_dts_mask,
+          expected_active_dts_mask);
+    }
+
+    wrapper.GenerateFrames(GetParam().num_temporal_units, frames);
+    ExpectPatternRestored(std::span(frames).subspan(resumed_start),
+                          GetParam().num_temporal_units, stream_config);
+    EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+    CheckDependencyDescriptorInvariants(dep_structure, frames);
+  }
+}
+
+TEST_P(ScalabilityStructureTest,
+       ZeroingEnhancementLayerBitratesAfterOnFrameDroppedFastForwardsToT0) {
+  const ScalabilityMode mode = GetParam().GetScalabilityMode();
+  if (!SupportsOnFrameDropped(mode)) {
+    GTEST_SKIP();
+  }
+  ScalableVideoController::StreamLayersConfig stream_config =
+      CreateScalabilityStructure(mode)->StreamConfig();
+
+  VideoBitrateAllocation all_bitrates = EnableAllLayers(stream_config);
+  VideoBitrateAllocation tl0_only_bitrates = FilterBaseLayers(all_bitrates);
+
+  for (int drop_tu = 0; drop_tu <= GetParam().num_temporal_units; ++drop_tu) {
+    SCOPED_TRACE(Message() << "drop_tu=" << drop_tu);
+    std::unique_ptr<ScalableVideoController> svc_controller =
+        CreateScalabilityStructure(mode);
+    FrameDependencyStructure dep_structure =
+        svc_controller->DependencyStructure();
+    svc_controller->OnRatesUpdated(all_bitrates);
+    ScalabilityStructureWrapper wrapper(*svc_controller);
+    std::vector<GenericFrameInfo> frames;
+
+    wrapper.GenerateFrames(drop_tu, frames);
+    ASSERT_THAT(frames, SizeIs(drop_tu * stream_config.num_spatial_layers));
+    std::vector<LayerFrameConfig> dropped_configs =
+        svc_controller->NextFrameConfig(/*restart=*/false);
+    ASSERT_THAT(dropped_configs, Not(IsEmpty()));
+    for (const LayerFrameConfig& config : dropped_configs) {
+      svc_controller->OnFrameDropped(config);
+    }
+
+    svc_controller->OnRatesUpdated(tl0_only_bitrates);
+    const size_t tl0_start = frames.size();
+    wrapper.GenerateFrames(/*num_temporal_units=*/1, frames);
+    const size_t resumed_start = frames.size();
+    ExpectValidTl0TemporalUnit(
+        std::span(frames).subspan(tl0_start, resumed_start - tl0_start),
+        stream_config.num_spatial_layers);
+
+    svc_controller->OnRatesUpdated(all_bitrates);
+    wrapper.GenerateFrames(GetParam().num_temporal_units, frames);
+    ExpectPatternRestored(std::span(frames).subspan(resumed_start),
+                          GetParam().num_temporal_units, stream_config);
+    EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+    CheckDependencyDescriptorInvariants(dep_structure, frames);
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(
     Svc,
     ScalabilityStructureTest,
@@ -718,9 +923,7 @@ INSTANTIATE_TEST_SUITE_P(
            SvcTestParam{"L3T2", /*num_temporal_units=*/4},
            SvcTestParam{"L3T2_KEY", /*num_temporal_units=*/4},
            SvcTestParam{"L3T3_KEY", /*num_temporal_units=*/8}),
-    [](const testing::TestParamInfo<SvcTestParam>& info) {
-      return info.param.name;
-    });
+    [](const TestParamInfo<SvcTestParam>& info) { return info.param.name; });
 
 }  // namespace
 }  // namespace webrtc

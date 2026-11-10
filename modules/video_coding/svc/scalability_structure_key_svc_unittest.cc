@@ -9,9 +9,11 @@
  */
 #include "modules/video_coding/svc/scalability_structure_key_svc.h"
 
+#include <cstddef>
 #include <span>
 #include <vector>
 
+#include "api/transport/rtp/dependency_descriptor.h"
 #include "common_video/generic_frame_descriptor/generic_frame_info.h"
 #include "modules/video_coding/svc/scalability_structure_test_helpers.h"
 #include "modules/video_coding/svc/scalable_video_controller.h"
@@ -23,6 +25,9 @@ namespace {
 
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::IsSubsetOf;
+using ::testing::Message;
+using ::testing::Not;
 using ::testing::SizeIs;
 using LayerFrameConfig = ScalableVideoController::LayerFrameConfig;
 
@@ -355,6 +360,64 @@ TEST(ScalabilityStructureKeySvcTest,
   wrapper.EncodeTemporalUnit(recovery_configs, frames);
   wrapper.GenerateFrames(/*num_temporal_units=*/2, frames);
   EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+}
+
+TEST(ScalabilityStructureKeySvcTest,
+     ZeroingEnhancementLayerBitratesFastForwardsToT0AndRestoresPattern) {
+  // L2T3Key exercises every `FramePattern` state in
+  // `ScalabilityStructureKeySvc`:
+  //   jump_tu = 0: from `kNone` -> emits `kKey` (T0 keyframe)
+  //   jump_tu = 1: after `kKey` -> fast-forwards over T2a to `kDeltaT0`
+  //   jump_tu = 2: after `kDeltaT2A` -> fast-forwards over T1 to `kDeltaT0`
+  //   jump_tu = 3: after `kDeltaT1` -> fast-forwards over T2b to `kDeltaT0`
+  //   jump_tu = 4: after `kDeltaT2B` -> emits `kDeltaT0`
+  //   jump_tu = 5: after `kDeltaT0` -> fast-forwards over T2a to `kDeltaT0`
+  for (int jump_tu = 0; jump_tu <= 5; ++jump_tu) {
+    SCOPED_TRACE(Message() << "jump_tu=" << jump_tu);
+    ScalabilityStructureL2T3Key structure;
+    FrameDependencyStructure dep_structure = structure.DependencyStructure();
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/3, /*s1=*/3));
+    ScalabilityStructureWrapper wrapper(structure);
+    std::vector<GenericFrameInfo> frames;
+
+    wrapper.GenerateFrames(jump_tu, frames);
+    ASSERT_THAT(frames, SizeIs(jump_tu * 2));
+
+    // Zero bitrates for non-base temporal layers to fast-forward to T0.
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/1, /*s1=*/1));
+    const size_t forced_start = frames.size();
+    wrapper.GenerateFrames(/*num_temporal_units=*/1, frames);
+    ASSERT_THAT(frames, SizeIs(forced_start + 2));
+    EXPECT_EQ(frames[forced_start].spatial_id, 0);
+    EXPECT_EQ(frames[forced_start].temporal_id, 0);
+    EXPECT_EQ(frames[forced_start + 1].spatial_id, 1);
+    EXPECT_EQ(frames[forced_start + 1].temporal_id, 0);
+
+    if (jump_tu == 0) {
+      EXPECT_THAT(frames[forced_start].frame_diffs, IsEmpty());
+      EXPECT_THAT(frames[forced_start + 1].frame_diffs, ElementsAre(1));
+    } else {
+      const int expected_t0_diff = jump_tu == 5 ? 2 : jump_tu * 2;
+      EXPECT_THAT(frames[forced_start].frame_diffs,
+                  ElementsAre(expected_t0_diff));
+      EXPECT_THAT(frames[forced_start + 1].frame_diffs,
+                  ElementsAre(expected_t0_diff));
+    }
+
+    // Restoring bitrates must immediately resume the regular 4-TU cycle
+    // (T2a, T1, T2b, T0) without emitting a keyframe.
+    structure.OnRatesUpdated(EnableTemporalLayers(/*s0=*/3, /*s1=*/3));
+    const size_t resumed_start = frames.size();
+    wrapper.GenerateFrames(/*num_temporal_units=*/4, frames);
+    ASSERT_THAT(frames, SizeIs(resumed_start + 8));
+    EXPECT_EQ(frames[resumed_start].temporal_id, 2);
+    EXPECT_EQ(frames[resumed_start + 2].temporal_id, 1);
+    EXPECT_EQ(frames[resumed_start + 4].temporal_id, 2);
+    EXPECT_EQ(frames[resumed_start + 6].temporal_id, 0);
+    EXPECT_THAT(std::span(frames).subspan(resumed_start),
+                IsSubsetOf(dep_structure.templates));
+    EXPECT_TRUE(wrapper.FrameReferencesAreValid(frames));
+  }
 }
 
 }  // namespace

@@ -170,6 +170,7 @@ if (rtc_include_tests) {
       ":scalability_structure_test_helpers",
       ":scalability_structures",
       ":scalable_video_controller",
+      "../../../api/transport/rtp:dependency_descriptor",
       "../../../common_video/generic_frame_descriptor",
       "../../../test:test_support",
     ]
@@ -181,6 +182,7 @@ if (rtc_include_tests) {
       ":scalability_structure_test_helpers",
       ":scalability_structures",
       ":scalable_video_controller",
+      "../../../api/transport/rtp:dependency_descriptor",
       "../../../common_video/generic_frame_descriptor",
       "../../../test:test_support",
     ]
@@ -206,6 +208,7 @@ if (rtc_include_tests) {
       ":scalable_video_controller",
       "../../../api/transport/rtp:dependency_descriptor",
       "../../../api/video:video_bitrate_allocation",
+      "../../../api/video:video_codec_constants",
       "../../../api/video_codecs:scalability_mode",
       "../../../common_video/generic_frame_descriptor",
       "../../../rtc_base:checks",
