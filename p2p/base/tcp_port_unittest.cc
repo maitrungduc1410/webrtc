@@ -17,13 +17,16 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/environment/environment.h"
+#include "api/rtc_error.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "p2p/base/basic_packet_socket_factory.h"
 #include "p2p/base/connection.h"
+#include "p2p/base/ice_transport_internal.h"
 #include "p2p/base/p2p_constants.h"
 #include "p2p/base/port.h"
 #include "p2p/base/transport_description.h"
@@ -448,6 +451,77 @@ TEST_F(TCPPortTest, ReconnectTimeoutAfterShutdownDoesNotDestroy) {
   time_controller_.AdvanceTime(TimeDelta::Zero());
 
   EXPECT_TRUE(observer.connection_destroyed());
+}
+
+TEST_F(TCPPortTest, ActiveCandidateAcceptedOnlyFromThisPort) {
+  webrtc::RTCErrorOr<webrtc::Candidate> parsed =
+      webrtc::Candidate::ParseCandidateString(
+          "candidate:1 1 tcp 2122252543 192.168.1.1 5000 typ prflx "
+          "raddr 0.0.0.0 rport 0 tcptype active generation 0");
+  ASSERT_TRUE(parsed.ok());
+  webrtc::Candidate candidate = parsed.MoveValue();
+  // TCPPort::CreateConnection only accepts active candidates learned from
+  // incoming traffic on this port (ORIGIN_THIS_PORT), even if typed as prflx.
+  std::unique_ptr<TCPPort> port(CreateTCPPort(kLocalAddr));
+  port->SetIceRole(webrtc::ICEROLE_CONTROLLING);
+  port->PrepareAddress();
+  EXPECT_EQ(nullptr, port->CreateConnection(candidate, Port::ORIGIN_MESSAGE));
+  EXPECT_NE(nullptr, port->CreateConnection(candidate, Port::ORIGIN_THIS_PORT));
+  EXPECT_EQ(nullptr,
+            port->CreateConnection(candidate, Port::ORIGIN_OTHER_PORT));
+}
+
+TEST_F(TCPPortTest, VerifyCandidateChecksTcpActiveAndZeroPorts) {
+  auto parse = [](absl::string_view str) {
+    RTCErrorOr<Candidate> parsed = Candidate::ParseCandidateString(str);
+    RTC_CHECK(parsed.ok());
+    return parsed.MoveValue();
+  };
+  // Active TCP candidates with DISCARD_PORT (9) or 0 are allowed.
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 9 typ host "
+                        "tcptype active generation 0")),
+              IsRtcOk());
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 0 typ host "
+                        "tcptype active generation 0")),
+              IsRtcOk());
+  // Active TCP candidates on other privileged ports (<1024, other than 0 or 9)
+  // are rejected.
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 22 typ prflx "
+                        "raddr 0.0.0.0 rport 0 tcptype active generation 0")),
+              IsRtcErrorWithType(RTCErrorType::INVALID_PARAMETER));
+  // Active TCP candidates on private 80/443 are rejected.
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 80 typ host "
+                        "tcptype active generation 0")),
+              IsRtcErrorWithType(RTCErrorType::INVALID_PARAMETER));
+  // Passive TCP candidates on port 0 are rejected.
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 0 typ host "
+                        "tcptype passive generation 0")),
+              IsRtcErrorWithType(RTCErrorType::INVALID_PARAMETER));
+  // TCP candidates on 80/443 with a private IP are rejected, regardless of
+  // tcptype.
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 80 typ host "
+                        "tcptype passive generation 0")),
+              IsRtcErrorWithType(RTCErrorType::INVALID_PARAMETER));
+  EXPECT_THAT(VerifyCandidate(
+                  parse("candidate:1 1 tcp 2122252543 192.168.1.1 443 typ host "
+                        "tcptype passive generation 0")),
+              IsRtcErrorWithType(RTCErrorType::INVALID_PARAMETER));
+  // TCP candidates on 80/443 with a public IP are allowed, regardless of
+  // tcptype.
+  EXPECT_THAT(
+      VerifyCandidate(parse("candidate:1 1 tcp 2122252543 1.2.3.4 80 typ host "
+                            "tcptype passive generation 0")),
+      IsRtcOk());
+  EXPECT_THAT(
+      VerifyCandidate(parse("candidate:1 1 tcp 2122252543 1.2.3.4 443 typ host "
+                            "tcptype active generation 0")),
+      IsRtcOk());
 }
 
 }  // namespace

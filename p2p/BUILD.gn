@@ -420,6 +420,7 @@ rtc_library("ice_transport_internal") {
     "../rtc_base:checks",
     "../rtc_base:net_helper",
     "../rtc_base:network_constants",
+    "../rtc_base:socket_address",
     "../rtc_base/system:rtc_export",
     "//third_party/abseil-cpp/absl/functional:any_invocable",
     "//third_party/abseil-cpp/absl/strings:string_view",
@@ -1436,11 +1437,13 @@ if (rtc_include_tests) {
     deps = [
       ":basic_packet_socket_factory",
       ":connection",
+      ":ice_transport_internal",
       ":p2p_constants",
       ":port",
       ":tcp_port",
       ":transport_description",
       "../api:candidate",
+      "../api:rtc_error",
       "../api:rtc_error_matchers",
       "../api/environment",
       "../api/units:time_delta",
@@ -1459,6 +1462,7 @@ if (rtc_include_tests) {
       "../test:test_support",
       "../test:wait_until",
       "../test/time_controller",
+      "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }
 

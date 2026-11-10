@@ -134,10 +134,11 @@ Connection* TCPPort::CreateConnection(const Candidate& address,
     return nullptr;
   }
 
-  if ((address.tcptype() == TCPTYPE_ACTIVE_STR && !address.is_prflx()) ||
+  if ((address.tcptype() == TCPTYPE_ACTIVE_STR && origin != ORIGIN_THIS_PORT) ||
       (address.tcptype().empty() && address.address().port() == 0)) {
-    // It's active only candidate, we should not try to create connections
-    // for these candidates.
+    // It's an active-only candidate; we should not try to create outgoing
+    // connections for signaled active candidates, and only allow connections
+    // created from an incoming packet on this port.
     return nullptr;
   }
 

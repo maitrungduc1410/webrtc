@@ -25,6 +25,7 @@
 #include "p2p/base/packet_transport_internal.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/net_helper.h"
+#include "rtc_base/socket_address.h"
 
 namespace webrtc {
 namespace {
@@ -71,8 +72,9 @@ RTCError VerifyCandidate(const Candidate& cand) {
 
   // Disallow all ports below 1024, except for 80 and 443 on public addresses.
   int port = cand.address().port();
-  if (cand.protocol() == TCP_PROTOCOL_NAME &&
-      (cand.tcptype() == TCPTYPE_ACTIVE_STR || port == 0)) {
+  if ((cand.protocol() == TCP_PROTOCOL_NAME) &&
+      (cand.tcptype() == TCPTYPE_ACTIVE_STR) &&
+      ((port == DISCARD_PORT) || (port == 0))) {
     // Expected for active-only candidates per
     // http://tools.ietf.org/html/rfc6544#section-4.5 so no error.
     // Libjingle clients emit port 0, in "active" mode.
