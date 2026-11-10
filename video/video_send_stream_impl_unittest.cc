@@ -628,6 +628,34 @@ TEST_F(VideoSendStreamImplTest, SendsEncodedImageWithoutCodecSpecificInfo) {
   time_controller_.AdvanceTime(TimeDelta::Zero());
 }
 
+TEST_F(VideoSendStreamImplTest,
+       AppliesVideoLayersAllocationOnNetworkThreadBeforeLaterFrames) {
+  auto vss_impl = CreateVideoSendStreamImpl(TestVideoEncoderConfig());
+  TaskQueueBase* const network_queue = time_controller_.GetMainThread();
+
+  Sequence s;
+  EXPECT_CALL(rtp_video_sender_,
+              OnVideoLayersAllocationUpdated(Field(
+                  &VideoLayersAllocation::active_spatial_layers, SizeIs(1))))
+      .InSequence(s)
+      .WillOnce([&] { EXPECT_TRUE(network_queue->IsCurrent()); });
+  EXPECT_CALL(rtp_video_sender_, OnEncodedImage)
+      .InSequence(s)
+      .WillOnce(Return(
+          EncodedImageCallback::Result(EncodedImageCallback::Result::OK)));
+
+  encoder_queue_->PostTask([&] {
+    VideoLayersAllocation allocation;
+    allocation.active_spatial_layers.push_back({.rtp_stream_index = 0});
+    static_cast<VideoStreamEncoderInterface::EncoderSink*>(vss_impl.get())
+        ->OnVideoLayersAllocationUpdated(allocation);
+    // A frame encoded after the update is sent after the update is applied.
+    static_cast<EncodedImageCallback*>(vss_impl.get())
+        ->OnEncodedImage(EncodedImage(), /*codec_specific_info=*/nullptr);
+  });
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+}
+
 TEST_F(VideoSendStreamImplTest, UpdatesObserverOnConfigurationChange) {
   const bool kSuspend = false;
   config_.suspend_below_min_bitrate = kSuspend;

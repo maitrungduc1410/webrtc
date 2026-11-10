@@ -740,9 +740,15 @@ void VideoSendStreamImpl::SignalEncoderTimedOut() {
 
 void VideoSendStreamImpl::OnVideoLayersAllocationUpdated(
     VideoLayersAllocation allocation) {
-  // OnVideoLayersAllocationUpdated is handled on the encoder task queue in
-  // order to not race with OnEncodedImage callbacks.
-  rtp_video_sender_->OnVideoLayersAllocationUpdated(allocation);
+  // Called on the encoder queue. Posted to the network thread like encoded
+  // frames, so that frames encoded after the update are sent after it has been
+  // applied.
+  RTC_DCHECK(!network_queue_->IsCurrent());
+  network_queue_->PostTask(SafeTask(
+      network_queue_safety_.flag(), [this, allocation = std::move(allocation)] {
+        RTC_DCHECK_RUN_ON(&thread_checker_);
+        rtp_video_sender_->OnVideoLayersAllocationUpdated(allocation);
+      }));
 }
 
 void VideoSendStreamImpl::SignalEncoderActive() {

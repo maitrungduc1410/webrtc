@@ -989,10 +989,9 @@ TEST(RtpVideoSenderTest,
   EXPECT_THAT(delta_frame_dd.frame_dependencies.frame_diffs, ElementsAre(1));
 }
 
-// The encoder produces a key frame for a re-enabled layer right away, possibly
-// before the layer's RTP module has been activated on the transport queue. The
-// key frame must not be dropped.
-TEST(RtpVideoSenderTest, SendsKeyFrameOfReEnabledLayerBeforeModuleIsActivated) {
+// The encoder produces a key frame for a re-enabled layer right away. The key
+// frame must not be dropped.
+TEST(RtpVideoSenderTest, SendsKeyFrameOfReEnabledLayer) {
   RtpVideoSenderTestFixture test({kSsrc1, kSsrc2}, {kRtxSsrc1, kRtxSsrc2},
                                  kPayloadType, {});
   test.SetSending(true);
@@ -1024,8 +1023,7 @@ TEST(RtpVideoSenderTest, SendsKeyFrameOfReEnabledLayerBeforeModuleIsActivated) {
       {.active_spatial_layers = {{.rtp_stream_index = 0}}});
   test.AdvanceTime(TimeDelta::Zero());
 
-  // Re-enable layer 1 and deliver its key frame before the task that activates
-  // the RTP module has run.
+  // Re-enable layer 1 and deliver its key frame right away.
   test.router()->OnVideoLayersAllocationUpdated(
       {.active_spatial_layers = {{.rtp_stream_index = 0},
                                  {.rtp_stream_index = 1}}});
@@ -1799,7 +1797,7 @@ TEST(RtpVideoSenderTest,
   EXPECT_NE(sent_packets[0].Timestamp(), first_frame_timestamp);
 }
 
-TEST(RtpVideoSenderTest, PostTaskRaceDoesNotLeadToDanglingPointer) {
+TEST(RtpVideoSenderTest, AllocationUpdateWhenInactiveDoesNotReRegisterSender) {
   NiceMock<MockTransport> transport;
   NiceMock<MockRtcpIntraFrameObserver> encoder_feedback;
 
@@ -1837,19 +1835,17 @@ TEST(RtpVideoSenderTest, PostTaskRaceDoesNotLeadToDanglingPointer) {
   EXPECT_TRUE(
       transport_controller.packet_router()->SsrcOfFirstSender().has_value());
 
-  // Trigger race:
-  // 1. OnVideoLayersAllocationUpdated posts a task to re-register modules
-  // because it sees active_ is true.
+  // 1. Set active_ to false.
+  router->SetSending(false);
+
+  // 2. An allocation update arrives afterwards, e.g. one that
+  // VideoSendStreamImpl posted to the transport queue before the sender was
+  // stopped. It must not re-register the module because active_ is now false.
   VideoLayersAllocation allocation;
   allocation.active_spatial_layers.push_back({.rtp_stream_index = 0});
   router->OnVideoLayersAllocationUpdated(allocation);
 
-  // 2. Immediately set active_ to false. This happens BEFORE the posted task
-  // runs.
-  router->SetSending(false);
-
-  // 3. Let the posted task run. With the fix, it should return early and not
-  // re-register the module because active_ is now false.
+  // 3. Let any posted tasks run.
   time_controller.AdvanceTime(TimeDelta::Zero());
 
   // 4. Verify that PacketRouter does NOT have a sender.
