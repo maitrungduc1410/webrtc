@@ -11,6 +11,7 @@
 #include "modules/remote_bitrate_estimator/transport_sequence_number_feedback_generator.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -38,6 +39,11 @@ constexpr TimeDelta kBackWindow = TimeDelta::Millis(500);
 constexpr TimeDelta kMinInterval = TimeDelta::Millis(50);
 constexpr TimeDelta kMaxInterval = TimeDelta::Millis(250);
 constexpr TimeDelta kDefaultInterval = TimeDelta::Millis(100);
+// RTCP packets larger than the maximum packet size of the sending RTP module
+// are dropped. Feedback is therefore split into packets no larger than the
+// smallest maximum packet size in common configurations, that of modules
+// sending video.
+constexpr size_t kMaxFeedbackPacketSizeBytes = 1200;
 
 }  // namespace
 
@@ -178,8 +184,7 @@ void TransportSequenceNumberFeedbackGenenerator::SendPeriodicFeedbacks() {
   while (periodic_window_start_seq_ < packet_arrival_times_end_seq) {
     auto feedback_packet = MaybeBuildFeedbackPacket(
         /*include_timestamps=*/true, *periodic_window_start_seq_,
-        packet_arrival_times_end_seq,
-        /*is_periodic_update=*/true);
+        packet_arrival_times_end_seq);
 
     if (feedback_packet == nullptr) {
       break;
@@ -205,35 +210,41 @@ void TransportSequenceNumberFeedbackGenenerator::SendFeedbackOnRequest(
   int64_t first_sequence_number =
       sequence_number - feedback_request.sequence_count + 1;
 
-  auto feedback_packet = MaybeBuildFeedbackPacket(
-      feedback_request.include_timestamps, first_sequence_number,
-      sequence_number + 1, /*is_periodic_update=*/false);
+  // The requested packets may not fit into one feedback packet.
+  int64_t next_sequence_number = first_sequence_number;
+  while (next_sequence_number <= sequence_number) {
+    auto feedback_packet =
+        MaybeBuildFeedbackPacket(feedback_request.include_timestamps,
+                                 next_sequence_number, sequence_number + 1);
 
-  // Even though this is called when a packet has just been added,
-  // no feedback may be produced when that new packet is too old.
-  if (feedback_packet == nullptr) {
-    return;
+    // Even though this is called when a packet has just been added,
+    // no feedback may be produced when that new packet is too old.
+    if (feedback_packet == nullptr) {
+      return;
+    }
+
+    // Clear up to the first packet that is included in the feedback.
+    packet_arrival_times_.EraseTo(first_sequence_number);
+
+    RTC_DCHECK(feedback_sender_ != nullptr);
+    // Each feedback packet is sent separately. RTCPSender would otherwise
+    // combine them into one compound packet when its max packet size allows,
+    // and receivers of the feedback may handle only one transport feedback per
+    // compound packet.
+    std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
+    packets.push_back(std::move(feedback_packet));
+    feedback_sender_(std::move(packets));
   }
-
-  // Clear up to the first packet that is included in this feedback packet.
-  packet_arrival_times_.EraseTo(first_sequence_number);
-
-  RTC_DCHECK(feedback_sender_ != nullptr);
-  std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
-  packets.push_back(std::move(feedback_packet));
-  feedback_sender_(std::move(packets));
 }
 
 std::unique_ptr<rtcp::TransportFeedback>
 TransportSequenceNumberFeedbackGenenerator::MaybeBuildFeedbackPacket(
     bool include_timestamps,
-    int64_t begin_sequence_number_inclusive,
-    int64_t end_sequence_number_exclusive,
-    bool is_periodic_update) {
-  RTC_DCHECK_LT(begin_sequence_number_inclusive, end_sequence_number_exclusive);
+    int64_t& begin_sequence_number,
+    int64_t end_sequence_number_exclusive) {
+  RTC_DCHECK_LT(begin_sequence_number, end_sequence_number_exclusive);
 
-  int64_t start_seq =
-      packet_arrival_times_.clamp(begin_sequence_number_inclusive);
+  int64_t start_seq = packet_arrival_times_.clamp(begin_sequence_number);
 
   int64_t end_seq = packet_arrival_times_.clamp(end_sequence_number_exclusive);
 
@@ -241,7 +252,7 @@ TransportSequenceNumberFeedbackGenenerator::MaybeBuildFeedbackPacket(
   // in the range that have been received.
   std::unique_ptr<rtcp::TransportFeedback> feedback_packet;
 
-  int64_t next_sequence_number = begin_sequence_number_inclusive;
+  int64_t next_sequence_number = begin_sequence_number;
 
   for (int64_t seq = start_seq; seq < end_seq; ++seq) {
     PacketArrivalTimeMap::PacketArrivalTime packet =
@@ -252,16 +263,16 @@ TransportSequenceNumberFeedbackGenenerator::MaybeBuildFeedbackPacket(
     }
 
     if (feedback_packet == nullptr) {
-      feedback_packet =
-          std::make_unique<rtcp::TransportFeedback>(include_timestamps);
+      feedback_packet = std::make_unique<rtcp::TransportFeedback>(
+          include_timestamps, kMaxFeedbackPacketSizeBytes);
       feedback_packet->SetMediaSsrc(media_ssrc_);
 
       // It should be possible to add `seq` to this new `feedback_packet`,
-      // If difference between `seq` and `begin_sequence_number_inclusive`,
+      // If difference between `seq` and `begin_sequence_number`,
       // is too large, discard reporting too old missing packets.
       static constexpr int kMaxMissingSequenceNumbers = 0x7FFE;
-      int64_t base_sequence_number = std::max(begin_sequence_number_inclusive,
-                                              seq - kMaxMissingSequenceNumbers);
+      int64_t base_sequence_number =
+          std::max(begin_sequence_number, seq - kMaxMissingSequenceNumbers);
 
       // Base sequence number is the expected first sequence number. This is
       // known, but we might not have actually received it, so the base time
@@ -277,7 +288,7 @@ TransportSequenceNumberFeedbackGenenerator::MaybeBuildFeedbackPacket(
             << "Failed to create an RTCP transport feedback with base sequence "
                "number "
             << base_sequence_number << " and 1st received " << seq;
-        periodic_window_start_seq_ = seq;
+        begin_sequence_number = seq;
         return nullptr;
       }
     } else {
@@ -291,9 +302,7 @@ TransportSequenceNumberFeedbackGenenerator::MaybeBuildFeedbackPacket(
 
     next_sequence_number = seq + 1;
   }
-  if (is_periodic_update) {
-    periodic_window_start_seq_ = next_sequence_number;
-  }
+  begin_sequence_number = next_sequence_number;
   return feedback_packet;
 }
 

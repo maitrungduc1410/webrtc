@@ -10,6 +10,7 @@
 
 #include "modules/remote_bitrate_estimator/transport_sequence_number_feedback_generator.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -26,6 +27,7 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "rtc_base/buffer.h"
 #include "system_wrappers/include/clock.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -79,6 +81,18 @@ std::vector<Timestamp> Timestamps(
   return timestamps;
 }
 
+// The maximum packet size of RTP modules sending media, to which the feedback
+// generator limits feedback packets.
+constexpr size_t kMaxRtcpPacketSizeBytes = 1200;
+
+// What the receiver of feedback packets parses from them.
+struct ParsedFeedback {
+  int num_feedback_packets = 0;
+  // Number of RTP packets reported as received or as lost.
+  size_t num_statuses = 0;
+  std::vector<uint16_t> received_sequence_numbers;
+};
+
 class TransportSequenceNumberFeedbackGeneneratorTest : public ::testing::Test {
  public:
   TransportSequenceNumberFeedbackGeneneratorTest()
@@ -115,6 +129,31 @@ class TransportSequenceNumberFeedbackGeneneratorTest : public ::testing::Test {
   void Process() {
     clock_.AdvanceTime(kDefaultSendInterval);
     feedback_generator_.Process(clock_.CurrentTime());
+  }
+
+  // Expects feedback packets of at most kMaxRtcpPacketSizeBytes, one per call
+  // of the feedback sender, and adds what their receiver parses to `feedback`.
+  void ExpectFeedbackInPacketsThatFitIntoOneRtcpPacket(
+      ParsedFeedback& feedback) {
+    EXPECT_CALL(feedback_sender_, Call)
+        .WillRepeatedly(
+            [&feedback](
+                std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) {
+              // Packets passed in one call may be combined into one compound
+              // RTCP packet, which receivers may not handle.
+              ASSERT_THAT(packets, SizeIs(1));
+              Buffer buffer = packets[0]->Build();
+              EXPECT_LE(buffer.size(), kMaxRtcpPacketSizeBytes);
+              std::unique_ptr<rtcp::TransportFeedback> parsed =
+                  rtcp::TransportFeedback::ParseFrom(buffer.data(),
+                                                     buffer.size());
+              ASSERT_NE(parsed, nullptr);
+              ++feedback.num_feedback_packets;
+              feedback.num_statuses += parsed->GetPacketStatusCount();
+              for (uint16_t sequence_number : SequenceNumbers(*parsed)) {
+                feedback.received_sequence_numbers.push_back(sequence_number);
+              }
+            });
   }
 
   SimulatedClock clock_;
@@ -493,6 +532,50 @@ TEST_F(TransportSequenceNumberFeedbackGeneneratorTest,
             TimeDelta::Millis(136));
 }
 
+TEST_F(TransportSequenceNumberFeedbackGeneneratorTest,
+       SplitsFeedbackIntoPacketsThatFitIntoOneRtcpPacket) {
+  // More RTP packets than one feedback packet of at most
+  // kMaxRtcpPacketSizeBytes can report, as received at high packet rates.
+  constexpr int kNumPackets = 3000;
+  std::vector<uint16_t> sequence_numbers;
+  for (int i = 0; i < kNumPackets; ++i) {
+    sequence_numbers.push_back(static_cast<uint16_t>(kBaseSeq + i));
+    IncomingPacket(sequence_numbers.back(),
+                   kBaseTime + i * TimeDelta::Micros(40));
+  }
+
+  ParsedFeedback feedback;
+  ExpectFeedbackInPacketsThatFitIntoOneRtcpPacket(feedback);
+  Process();
+
+  EXPECT_GT(feedback.num_feedback_packets, 1);
+  EXPECT_EQ(feedback.received_sequence_numbers, sequence_numbers);
+  EXPECT_EQ(feedback.num_statuses, sequence_numbers.size());
+}
+
+TEST_F(TransportSequenceNumberFeedbackGeneneratorTest,
+       ReportsLostPacketsOnceWhenSplittingFeedback) {
+  // Every other RTP packet is lost, so that the RTP packet that doesn't fit
+  // into a feedback packet follows a lost RTP packet.
+  constexpr int kNumReceived = 2000;
+  std::vector<uint16_t> sequence_numbers;
+  for (int i = 0; i < kNumReceived; ++i) {
+    sequence_numbers.push_back(static_cast<uint16_t>(kBaseSeq + 2 * i));
+    IncomingPacket(sequence_numbers.back(),
+                   kBaseTime + i * TimeDelta::Micros(80));
+  }
+
+  ParsedFeedback feedback;
+  ExpectFeedbackInPacketsThatFitIntoOneRtcpPacket(feedback);
+  Process();
+
+  EXPECT_GT(feedback.num_feedback_packets, 1);
+  EXPECT_EQ(feedback.received_sequence_numbers, sequence_numbers);
+  // Each RTP packet from the first to the last received one is reported once,
+  // either as received or as lost.
+  EXPECT_EQ(feedback.num_statuses, size_t{2 * kNumReceived - 1});
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Tests for the extended protocol where the feedback is explicitly requested
 // by the sender.
@@ -598,6 +681,30 @@ TEST_F(RemoteEstimatorProxyOnRequestTest,
       .include_timestamps = true, .sequence_count = 5};
   IncomingPacketV2(kBaseSeq + i, kBaseTime + i * kMaxSmallDelta,
                    kFivePacketsFeedbackRequest);
+}
+
+TEST_F(RemoteEstimatorProxyOnRequestTest,
+       SplitsRequestedFeedbackIntoPacketsThatFitIntoOneRtcpPacket) {
+  constexpr int kNumPackets = 3000;
+  std::vector<uint16_t> sequence_numbers;
+  for (int i = 0; i < kNumPackets; ++i) {
+    sequence_numbers.push_back(static_cast<uint16_t>(kBaseSeq + i));
+  }
+  for (int i = 0; i < kNumPackets - 1; ++i) {
+    IncomingPacketV2(sequence_numbers[i],
+                     kBaseTime + i * TimeDelta::Micros(40));
+  }
+
+  ParsedFeedback feedback;
+  ExpectFeedbackInPacketsThatFitIntoOneRtcpPacket(feedback);
+  constexpr FeedbackRequest kAllPacketsFeedbackRequest = {
+      .include_timestamps = true, .sequence_count = kNumPackets};
+  IncomingPacketV2(sequence_numbers.back(),
+                   kBaseTime + (kNumPackets - 1) * TimeDelta::Micros(40),
+                   kAllPacketsFeedbackRequest);
+
+  EXPECT_GT(feedback.num_feedback_packets, 1);
+  EXPECT_EQ(feedback.received_sequence_numbers, sequence_numbers);
 }
 
 }  // namespace

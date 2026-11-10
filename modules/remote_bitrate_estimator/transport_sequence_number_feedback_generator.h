@@ -62,12 +62,11 @@ class TransportSequenceNumberFeedbackGenenerator
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
   // Returns a Transport Feedback packet with information about as many
-  // packets that has been received between [`begin_sequence_number_incl`,
-  // `end_sequence_number_excl`) that can fit in it. If `is_periodic_update`,
-  // this represents sending a periodic feedback message, which will make it
-  // update the `periodic_window_start_seq_` variable with the first packet
-  // that was not included in the feedback packet, so that the next update can
-  // continue from that sequence number.
+  // packets that has been received between [`begin_sequence_number`,
+  // `end_sequence_number_exclusive`) that can fit in it, and advances
+  // `begin_sequence_number` to the first packet that was not included in the
+  // feedback packet, so that the next feedback packet can continue from that
+  // sequence number.
   //
   // If no incoming packets were added, nullptr is returned.
   //
@@ -75,9 +74,9 @@ class TransportSequenceNumberFeedbackGenenerator
   // include timestamps.
   std::unique_ptr<rtcp::TransportFeedback> MaybeBuildFeedbackPacket(
       bool include_timestamps,
-      int64_t begin_sequence_number_inclusive,
-      int64_t end_sequence_number_exclusive,
-      bool is_periodic_update) RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+      int64_t& begin_sequence_number,
+      int64_t end_sequence_number_exclusive)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
   const RtcpSender feedback_sender_;
   Timestamp last_process_time_;

@@ -55,6 +55,9 @@ class TransportFeedback : public Rtpfb {
   // If `include_timestamps` is set to false, the created packet will not
   // contain the receive delta block.
   explicit TransportFeedback(bool include_timestamps);
+  // Limits the size of the packet to `max_size_bytes`, e.g. to what fits into
+  // one RTCP packet. AddReceivedPacket() returns false if a packet doesn't fit.
+  TransportFeedback(bool include_timestamps, size_t max_size_bytes);
   TransportFeedback(const TransportFeedback&);
   TransportFeedback(TransportFeedback&&);
 
@@ -165,6 +168,10 @@ class TransportFeedback : public Rtpfb {
   bool AddDeltaSize(DeltaSize delta_size);
   // Adds `num_missing_packets` deltas of size 0.
   bool AddMissingPackets(size_t num_missing_packets);
+  // Adds `num_missing_packets` deltas of size 0 followed by `delta_size`.
+  // Leaves the packet unchanged if they don't all fit.
+  bool AddMissingPacketsAndDeltaSize(size_t num_missing_packets,
+                                     DeltaSize delta_size);
 
   uint16_t base_seq_no_;
   uint16_t num_seq_no_;
@@ -179,6 +186,8 @@ class TransportFeedback : public Rtpfb {
   std::vector<uint16_t> encoded_chunks_;
   LastChunk last_chunk_;
   size_t size_bytes_;
+  // Upper limit of `size_bytes_`, a multiple of four.
+  const size_t max_size_bytes_;
 };
 
 }  // namespace rtcp

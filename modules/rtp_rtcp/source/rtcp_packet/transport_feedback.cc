@@ -38,8 +38,6 @@ namespace {
 // * 8 bytes FeedbackPacket header
 constexpr size_t kTransportFeedbackHeaderSizeBytes = 4 + 8 + 8;
 constexpr size_t kChunkSizeBytes = 2;
-// TODO(sprang): Add support for dynamic max size for easier fragmentation,
-// eg. set it to what's left in the buffer or IP_PACKET_SIZE.
 // Size constraint imposed by RTCP common header: 16bit size field interpreted
 // as number of four byte words minus the first header word.
 constexpr size_t kMaxSizeBytes = (1 << 16) * 4;
@@ -275,13 +273,24 @@ TransportFeedback::TransportFeedback()
     : TransportFeedback(/*include_timestamps=*/true) {}
 
 TransportFeedback::TransportFeedback(bool include_timestamps)
+    : TransportFeedback(include_timestamps, kMaxSizeBytes) {}
+
+TransportFeedback::TransportFeedback(bool include_timestamps,
+                                     size_t max_size_bytes)
     : base_seq_no_(0),
       num_seq_no_(0),
       base_time_ticks_(0),
       feedback_seq_(0),
       include_timestamps_(include_timestamps),
       last_timestamp_(Timestamp::Zero()),
-      size_bytes_(kTransportFeedbackHeaderSizeBytes) {}
+      size_bytes_(kTransportFeedbackHeaderSizeBytes),
+      // Rounded down to a multiple of four, so that the packet including
+      // padding doesn't exceed `max_size_bytes`.
+      max_size_bytes_(std::min(max_size_bytes, kMaxSizeBytes) & ~size_t{3}) {
+  // Room for the header and one received packet with a two byte delta.
+  RTC_DCHECK_GE(max_size_bytes_,
+                kTransportFeedbackHeaderSizeBytes + kChunkSizeBytes + 2);
+}
 
 TransportFeedback::TransportFeedback(const TransportFeedback&) = default;
 
@@ -296,7 +305,8 @@ TransportFeedback::TransportFeedback(TransportFeedback&& other)
       all_packets_(std::move(other.all_packets_)),
       encoded_chunks_(std::move(other.encoded_chunks_)),
       last_chunk_(other.last_chunk_),
-      size_bytes_(other.size_bytes_) {
+      size_bytes_(other.size_bytes_),
+      max_size_bytes_(other.max_size_bytes_) {
   other.Clear();
 }
 
@@ -344,19 +354,18 @@ bool TransportFeedback::AddReceivedPacket(uint16_t sequence_number,
     }
   }
 
+  DeltaSize delta_size = (delta >= 0 && delta <= 0xff) ? 1 : 2;
   uint16_t next_seq_no = base_seq_no_ + num_seq_no_;
   if (sequence_number != next_seq_no) {
     uint16_t last_seq_no = next_seq_no - 1;
     if (!IsNewerSequenceNumber(sequence_number, last_seq_no))
       return false;
     uint16_t num_missing_packets = sequence_number - next_seq_no;
-    if (!AddMissingPackets(num_missing_packets))
+    if (!AddMissingPacketsAndDeltaSize(num_missing_packets, delta_size))
       return false;
-  }
-
-  DeltaSize delta_size = (delta >= 0 && delta <= 0xff) ? 1 : 2;
-  if (!AddDeltaSize(delta_size))
+  } else if (!AddDeltaSize(delta_size)) {
     return false;
+  }
 
   received_packets_.emplace_back(sequence_number, delta);
   last_timestamp_ += delta * kDeltaTick;
@@ -679,7 +688,7 @@ bool TransportFeedback::AddDeltaSize(DeltaSize delta_size) {
   if (num_seq_no_ == kMaxReportedPackets)
     return false;
   size_t add_chunk_size = last_chunk_.Empty() ? kChunkSizeBytes : 0;
-  if (size_bytes_ + delta_size + add_chunk_size > kMaxSizeBytes)
+  if (size_bytes_ + delta_size + add_chunk_size > max_size_bytes_)
     return false;
 
   if (last_chunk_.CanAdd(delta_size)) {
@@ -688,7 +697,7 @@ bool TransportFeedback::AddDeltaSize(DeltaSize delta_size) {
     ++num_seq_no_;
     return true;
   }
-  if (size_bytes_ + delta_size + kChunkSizeBytes > kMaxSizeBytes)
+  if (size_bytes_ + delta_size + kChunkSizeBytes > max_size_bytes_)
     return false;
 
   encoded_chunks_.push_back(last_chunk_.Emit());
@@ -719,7 +728,7 @@ bool TransportFeedback::AddMissingPackets(size_t num_missing_packets) {
   size_t full_chunks = num_missing_packets / LastChunk::kMaxRunLengthCapacity;
   size_t partial_chunk = num_missing_packets % LastChunk::kMaxRunLengthCapacity;
   size_t num_chunks = full_chunks + (partial_chunk > 0 ? 1 : 0);
-  if (size_bytes_ + kChunkSizeBytes * num_chunks > kMaxSizeBytes) {
+  if (size_bytes_ + kChunkSizeBytes * num_chunks > max_size_bytes_) {
     num_seq_no_ = (new_num_seq_no - num_missing_packets);
     return false;
   }
@@ -730,6 +739,27 @@ bool TransportFeedback::AddMissingPackets(size_t num_missing_packets) {
   last_chunk_.AddMissingPackets(partial_chunk);
   num_seq_no_ = new_num_seq_no;
   return true;
+}
+
+bool TransportFeedback::AddMissingPacketsAndDeltaSize(
+    size_t num_missing_packets,
+    DeltaSize delta_size) {
+  // AddMissingPackets() may change the packet before it fails, and missing
+  // packets must not be reported without the received packet that follows
+  // them, e.g. when that packet doesn't fit and is reported in the next
+  // feedback packet instead. Restore the previous state if either step fails.
+  const uint16_t num_seq_no = num_seq_no_;
+  const size_t num_encoded_chunks = encoded_chunks_.size();
+  const LastChunk last_chunk = last_chunk_;
+  const size_t size_bytes = size_bytes_;
+  if (AddMissingPackets(num_missing_packets) && AddDeltaSize(delta_size)) {
+    return true;
+  }
+  num_seq_no_ = num_seq_no;
+  encoded_chunks_.resize(num_encoded_chunks);
+  last_chunk_ = last_chunk;
+  size_bytes_ = size_bytes;
+  return false;
 }
 }  // namespace rtcp
 }  // namespace webrtc

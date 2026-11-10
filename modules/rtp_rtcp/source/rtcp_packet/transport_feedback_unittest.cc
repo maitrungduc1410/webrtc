@@ -459,9 +459,32 @@ TEST(RtcpPacketTest, TransportFeedbackLimits) {
   EXPECT_FALSE(packet->AddReceivedPacket(
       1, kBaseTime + kMaxNegativeTimeDelta - TransportFeedback::kDeltaTick));
   EXPECT_TRUE(packet->AddReceivedPacket(1, kBaseTime + kMaxNegativeTimeDelta));
+}
 
-  // TODO(sprang): Once we support max length lower than RTCP length limit,
-  // add back test for max size in bytes.
+TEST(RtcpPacketTest, TransportFeedbackRespectsMaxSize) {
+  // Not a multiple of four, so that the padding has to fit as well.
+  constexpr size_t kMaxSizeBytes = 101;
+  TransportFeedback feedback(/*include_timestamps=*/true, kMaxSizeBytes);
+  feedback.SetBase(0, Timestamp::Zero());
+  // Every other packet is missing and the deltas are large, so that both the
+  // status chunks and the deltas add to the size.
+  int num_received = 0;
+  while (feedback.AddReceivedPacket(static_cast<uint16_t>(2 * num_received),
+                                    Timestamp::Millis(100 * num_received))) {
+    ++num_received;
+  }
+  EXPECT_GT(num_received, 10);
+  EXPECT_LE(feedback.BlockLength(), kMaxSizeBytes);
+  // The packet ends with the last received packet. The call that failed
+  // doesn't leave the missing packet before the one that didn't fit.
+  const size_t num_statuses = 2 * num_received - 1;
+  EXPECT_EQ(feedback.GetPacketStatusCount(), num_statuses);
+
+  Buffer packet = feedback.Build();
+  EXPECT_LE(packet.size(), kMaxSizeBytes);
+  const TransportFeedback parsed = Parse(packet);
+  EXPECT_THAT(parsed.GetReceivedPackets(), SizeIs(num_received));
+  EXPECT_EQ(parsed.GetPacketStatusCount(), num_statuses);
 }
 
 TEST(RtcpPacketTest, BaseTimeIsConsistentAcrossMultiplePackets) {
