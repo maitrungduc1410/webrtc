@@ -60,8 +60,10 @@ constexpr uint64_t kTiebreaker2 = 22222;
 
 class ConnectionTest : public ::testing::Test {
  public:
-  ConnectionTest()
-      : ss_(new VirtualSocketServer()),
+  explicit ConnectionTest(absl::string_view field_trials = "")
+      : env_(CreateTestEnvironment(
+            {.field_trials = field_trials, .time = &time_controller_})),
+        ss_(new VirtualSocketServer()),
         socket_factory_(ss_.get()) {
     lport_ = CreateTestPort(kLocalAddr1, "lfrag", "lpass", kTiebreaker1);
     rport_ = CreateTestPort(kLocalAddr2, "rfrag", "rpass", kTiebreaker2);
@@ -150,7 +152,7 @@ class ConnectionTest : public ::testing::Test {
   const Environment& env() const { return env_; }
 
   GlobalSimulatedTimeController time_controller_{Timestamp::Zero()};
-  const Environment env_ = CreateTestEnvironment({.time = &time_controller_});
+  const Environment env_;
   int num_state_changes_ = 0;
   std::unique_ptr<VirtualSocketServer> ss_;
   BasicPacketSocketFactory socket_factory_;
@@ -183,7 +185,7 @@ TEST_F(ConnectionTest, ConnectionForgetLearnedState) {
 
   EXPECT_TRUE(lconn->writable());
   EXPECT_TRUE(lconn->receiving());
-  EXPECT_NEAR(lconn->GetRttEstimate().GetAverage(), 10, 0.5);
+  EXPECT_NEAR(lconn->GetRttEstimate().GetAverage(), 10.5, 0.5);
   EXPECT_LT(lconn->GetRttEstimate().GetVariance(),
             std::numeric_limits<double>::infinity());
 
@@ -466,6 +468,41 @@ TEST_F(DtlsStunPiggybackConnectionTest, SpedAttributesExecuteCallbacks) {
   EXPECT_EQ(lconn_data_size, std::nullopt);
   EXPECT_EQ(lconn_ack_size, std::nullopt);
 }
+
+class ConnectionMovingAverageWeightInversionTest
+    : public ConnectionTest,
+      public ::testing::WithParamInterface<bool> {
+ public:
+  ConnectionMovingAverageWeightInversionTest()
+      : ConnectionTest(GetParam()
+                           ? "WebRTC-MovingAverageWeightInversion/Enabled/"
+                           : "WebRTC-MovingAverageWeightInversion/Disabled/") {}
+};
+
+TEST_P(ConnectionMovingAverageWeightInversionTest,
+       RttEstimateUsesMovingAverageWeightInversionFieldTrial) {
+  Connection* lconn = CreateConnection(ICEROLE_CONTROLLING);
+  Connection* rconn = CreateConnection(ICEROLE_CONTROLLED);
+
+  SendPingAndReceiveResponse(lconn, rconn, 10);
+  time_controller_.AdvanceTime(TimeDelta::Millis(1000));
+  SendPingAndReceiveResponse(lconn, rconn, 100);
+
+  if (GetParam()) {
+    // With the weight inversion fix enabled, the RTT estimate is pulled towards
+    // newer RTT samples more readily than without the fix.
+    EXPECT_GT(lconn->GetRttEstimate().GetAverage(), 80.0);
+  } else {
+    EXPECT_LT(lconn->GetRttEstimate().GetAverage(), 30.0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         ConnectionMovingAverageWeightInversionTest,
+                         ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "Fixed" : "Legacy";
+                         });
 
 }  // namespace
 }  // namespace webrtc

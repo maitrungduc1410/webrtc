@@ -853,6 +853,7 @@ rtc_library("rtc_numerics") {
   deps = [
     ":checks",
     ":mod_ops",
+    "../api:field_trials_view",
     "../api/numerics:sequence_number_unwrapper",
   ]
 }
@@ -2664,6 +2665,8 @@ if (rtc_include_tests) {
           [ "numerics/event_based_exponential_moving_average_unittest.cc" ]
       deps = [
         ":rtc_numerics",
+        "../api:field_trials",
+        "../test:create_test_field_trials",
         "../test:test_support",
       ]
     }

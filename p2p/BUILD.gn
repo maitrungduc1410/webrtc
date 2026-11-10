@@ -186,6 +186,7 @@ rtc_library("connection") {
     ":stun_request",
     ":transport_description",
     "../api:candidate",
+    "../api:field_trials_view",
     "../api:rtc_error",
     "../api:sequence_checker",
     "../api/environment",

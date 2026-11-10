@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "api/field_trials.h"
+#include "test/create_test_field_trials.h"
 #include "test/gtest.h"
 
 namespace webrtc {
@@ -24,6 +26,8 @@ constexpr int kHalfTime = 500;
 constexpr double kError = 0.1;
 
 }  // namespace
+
+// Legacy behavior tests (WebRTC-MovingAverageWeightInversion off).
 
 TEST(EventBasedExponentialMovingAverageTest, NoValue) {
   EventBasedExponentialMovingAverage average(kHalfTime);
@@ -44,18 +48,6 @@ TEST(EventBasedExponentialMovingAverageTest, FirstValue) {
   EXPECT_EQ(std::numeric_limits<double>::infinity(), average.GetVariance());
   EXPECT_EQ(std::numeric_limits<double>::infinity(),
             average.GetConfidenceInterval());
-}
-
-TEST(EventBasedExponentialMovingAverageTest, Half) {
-  EventBasedExponentialMovingAverage average(kHalfTime);
-
-  int64_t time = 23;
-  constexpr int value = 1000;
-  average.AddSample(time, value);
-  average.AddSample(time + kHalfTime, 0);
-  EXPECT_NEAR(666.7, average.GetAverage(), kError);
-  EXPECT_NEAR(1000000, average.GetVariance(), kError);
-  EXPECT_NEAR(1460.9, average.GetConfidenceInterval(), kError);
 }
 
 TEST(EventBasedExponentialMovingAverageTest, Same) {
@@ -111,7 +103,7 @@ TEST(EventBasedExponentialMovingAverageTest, AlmostSameTime) {
   {
     EventBasedExponentialMovingAverage average(kHalfTime);
     average.AddSample(time + 0, 0);
-    average.AddSample(time + 1, 100);
+    average.AddSample(time + 1, value);
     EXPECT_NEAR(50, average.GetAverage(), kError);
     EXPECT_NEAR(10000, average.GetVariance(), kError);
     EXPECT_NEAR(138.6, average.GetConfidenceInterval(),
@@ -225,5 +217,120 @@ TEST(EventBasedExponentialMovingAverageTest, SimultaneousSamples) {
   // TODO(webrtc:11140) : Fix those tests and remove this!
   average.AddSample(time, value);
 }
+
+// Field-trial-enabled behavior tests (WebRTC-MovingAverageWeightInversion on).
+
+class EventBasedExponentialMovingAverageWithInversionTest
+    : public ::testing::Test {
+ protected:
+  EventBasedExponentialMovingAverage CreateAverage(int half_time) const {
+    return EventBasedExponentialMovingAverage(half_time, field_trials_);
+  }
+
+ private:
+  const FieldTrials field_trials_ =
+      CreateTestFieldTrials("WebRTC-MovingAverageWeightInversion/Enabled/");
+};
+
+// Two samples two half-times apart, in both orders. The newer sample must
+// outweigh the older one, so the average leans towards whichever value came
+// last.
+TEST_F(EventBasedExponentialMovingAverageWithInversionTest,
+       NewerSampleOutweighsOlderSample) {
+  constexpr int64_t time = 23;
+  constexpr int value = 100;
+
+  EventBasedExponentialMovingAverage ascending = CreateAverage(kHalfTime);
+  ascending.AddSample(time, 0);
+  ascending.AddSample(time + 2 * kHalfTime, value);
+
+  EventBasedExponentialMovingAverage descending = CreateAverage(kHalfTime);
+  descending.AddSample(time, value);
+  descending.AddSample(time + 2 * kHalfTime, 0);
+
+  EXPECT_GT(ascending.GetAverage(), descending.GetAverage());
+}
+
+// Direct test of weight decay with age: when the initial sample (0) is ten
+// half-times old instead of one half-time old, the average after observing 100
+// must be closer to 100 (less weight on the older 0 sample).
+TEST_F(EventBasedExponentialMovingAverageWithInversionTest,
+       OlderSampleWeightDecreasesWithAge) {
+  constexpr int64_t time = 23;
+  constexpr int value = 100;
+
+  EventBasedExponentialMovingAverage one_half_time_old =
+      CreateAverage(kHalfTime);
+  one_half_time_old.AddSample(time, 0);
+  one_half_time_old.AddSample(time + kHalfTime, value);
+
+  EventBasedExponentialMovingAverage ten_half_times_old =
+      CreateAverage(kHalfTime);
+  ten_half_times_old.AddSample(time, 0);
+  ten_half_times_old.AddSample(time + 10 * kHalfTime, value);
+
+  EXPECT_GT(ten_half_times_old.GetAverage(), one_half_time_old.GetAverage());
+}
+
+// Parameterized comparison tests highlighting legacy vs fixed weight behavior.
+
+class EventBasedExponentialMovingAverageComparisonTest
+    : public ::testing::TestWithParam<bool> {
+ protected:
+  bool IsWeightInversionFixed() const { return GetParam(); }
+
+  EventBasedExponentialMovingAverage CreateAverage(int half_time) const {
+    return EventBasedExponentialMovingAverage(half_time, field_trials_);
+  }
+
+ private:
+  const FieldTrials field_trials_ = CreateTestFieldTrials(
+      IsWeightInversionFixed()
+          ? "WebRTC-MovingAverageWeightInversion/Enabled/"
+          : "WebRTC-MovingAverageWeightInversion/Disabled/");
+};
+
+TEST_P(EventBasedExponentialMovingAverageComparisonTest, Half) {
+  EventBasedExponentialMovingAverage average = CreateAverage(kHalfTime);
+
+  int64_t time = 23;
+  constexpr int value = 1000;
+  average.AddSample(time, value);
+  average.AddSample(time + kHalfTime, 0);
+  // After one half-time, the fixed formula gives the old sample half the
+  // weight of the new one ((0.5 * 1000 + 1 * 0) / 1.5 = 333.3), whereas the
+  // legacy formula inverted the weights (666.7).
+  EXPECT_NEAR(IsWeightInversionFixed() ? 333.3 : 666.7, average.GetAverage(),
+              kError);
+  EXPECT_NEAR(1000000, average.GetVariance(), kError);
+  EXPECT_NEAR(1460.9, average.GetConfidenceInterval(), kError);
+}
+
+// A sample arriving long after the previous one should effectively replace the
+// estimate, e.g. an RTT sample on a connection that is pinged rarely. Without
+// the fix, a 50-half-time-stale initial sample stays stuck at 0, whereas with
+// the fix it is replaced by 100.
+TEST_P(EventBasedExponentialMovingAverageComparisonTest,
+       StaleEstimateIsReplacedByNewSample) {
+  constexpr int64_t time = 23;
+
+  constexpr int old_sample = 0;
+  constexpr int new_sample = 0;
+
+  EventBasedExponentialMovingAverage average = CreateAverage(kHalfTime);
+  average.AddSample(time, old_sample);
+  average.AddSample(time + 50 * kHalfTime, new_sample);
+
+  EXPECT_NEAR(IsWeightInversionFixed() ? new_sample : old_sample,
+              average.GetAverage(), kError);
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventBasedExponentialMovingAverageComparisonTest,
+                         ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "WeightInversionFixed"
+                                             : "Legacy";
+                         });
 
 }  // namespace webrtc

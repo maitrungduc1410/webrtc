@@ -15,6 +15,7 @@
 #include <limits>
 #include <numbers>
 
+#include "api/field_trials_view.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -33,6 +34,14 @@ constexpr double ninetyfive_percent_confidence = 1.96;
 EventBasedExponentialMovingAverage::EventBasedExponentialMovingAverage(
     int half_time) {
   SetHalfTime(half_time);
+}
+
+EventBasedExponentialMovingAverage::EventBasedExponentialMovingAverage(
+    int half_time,
+    const FieldTrialsView& field_trials)
+    : EventBasedExponentialMovingAverage(half_time) {
+  fix_weight_inversion_ =
+      field_trials.IsEnabled("WebRTC-MovingAverageWeightInversion");
 }
 
 void EventBasedExponentialMovingAverage::SetHalfTime(int half_time) {
@@ -58,7 +67,7 @@ void EventBasedExponentialMovingAverage::AddSample(int64_t now, int sample) {
     // Variance gets computed after second sample.
     int64_t age = now - *last_observation_timestamp_;
     double e = exp(-age / tau_);
-    double alpha = e / (1 + e);
+    double alpha = (fix_weight_inversion_ ? 1 : e) / (1 + e);
     double one_minus_alpha = 1 - alpha;
     double sample_diff = sample - value_;
     value_ = one_minus_alpha * value_ + alpha * sample;

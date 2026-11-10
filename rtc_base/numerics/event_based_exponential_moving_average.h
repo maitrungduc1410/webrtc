@@ -16,6 +16,8 @@
 #include <limits>
 #include <optional>
 
+#include "api/field_trials_view.h"
+
 namespace webrtc {
 
 /**
@@ -33,6 +35,8 @@ class EventBasedExponentialMovingAverage {
   // `half_time` specifies how much weight will be given to old samples,
   // see example above.
   explicit EventBasedExponentialMovingAverage(int half_time);
+  EventBasedExponentialMovingAverage(int half_time,
+                                     const FieldTrialsView& field_trials);
 
   void AddSample(int64_t now, int value);
 
@@ -57,6 +61,7 @@ class EventBasedExponentialMovingAverage {
   void SetHalfTime(int half_time);
 
  private:
+  bool fix_weight_inversion_ = false;
   double tau_;
   double value_ = std::nan("uninit");
   double sample_variance_ = std::numeric_limits<double>::infinity();
