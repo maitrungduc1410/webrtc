@@ -178,33 +178,12 @@ class LogLineRef {
 // Virtual sink interface that can receive log messages.
 class LogSink {
  public:
-  LogSink() {}
-  virtual ~LogSink() {}
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(const std::string& msg,
-                            LoggingSeverity severity,
-                            const char* tag);
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(const std::string& message,
-                            LoggingSeverity severity);
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(const std::string& message);
-
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(absl::string_view msg,
-                            LoggingSeverity severity,
-                            const char* tag);
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(absl::string_view message,
-                            LoggingSeverity severity);
-  [[deprecated("Override OnLogMessage(const LogLineRef&) instead.")]]
-  virtual void OnLogMessage(absl::string_view message);
+  LogSink() = default;
+  virtual ~LogSink() = default;
 
   // Called for each log message that is at least as severe as the minimum
-  // severity of the sink. The default implementation formats the message with
-  // LogLineRef::DefaultLogLine() and passes it on to the deprecated overloads
-  // above.
-  virtual void OnLogMessage(const LogLineRef& line);
+  // severity of the sink.
+  virtual void OnLogMessage(const LogLineRef& line) = 0;
 };
 
 class LoggingConfig {
@@ -631,9 +610,6 @@ class LogMessage {
   // These are the available logging channels
   //  Debug: Debug console on Windows, otherwise stderr
   static void LogToDebug(LoggingSeverity min_sev);
-  // Sets whether logs will be directed to stderr in debug mode.
-  [[deprecated("Use LoggingConfig::set_log_to_stderr() instead.")]]
-  static void SetLogToStderr(bool log_to_stderr);
   // Stream: Any non-blocking stream interface.
   // Installs the `stream` to collect logs with severtiy `min_sev` or higher.
   // If `stream` has already been added, its severity is updated.
@@ -691,8 +667,6 @@ class LogMessage {
   [[deprecated("Use LoggingConfig::set_log_timestamp() instead.")]]
   inline static void LogTimestamps(bool on = true) {}
   inline static void LogToDebug(LoggingSeverity min_sev) {}
-  [[deprecated("Use LoggingConfig::set_log_to_stderr() instead.")]]
-  inline static void SetLogToStderr(bool log_to_stderr) {}
   [[deprecated(
       "Use LoggingConfig::AddSink() and InitializeLogging() instead.")]]
   inline static void AddLogToStream(LogSink* stream, LoggingSeverity min_sev) {}
@@ -713,7 +687,7 @@ class LogMessage {
 
 #if RTC_LOG_ENABLED()
   // This writes out the actual log messages.
-  static void OutputToDebug(const LogLineRef& log_line_ref);
+  static void OutputToDebug(const LogLineRef& log_line_ref, bool log_to_stderr);
 
   // Called from the dtor (or from a test) to append optional extra error
   // information to the log stream and a newline character.
@@ -727,9 +701,6 @@ class LogMessage {
 
   // Flags for formatting options and their potential values.
   static bool log_timestamp_;
-
-  // Determines if logs will be directed to stderr in debug mode.
-  static bool log_to_stderr_;
 #else  // RTC_LOG_ENABLED()
   // Next methods do nothing; no one will call these functions.
 #if defined(WEBRTC_ANDROID)
