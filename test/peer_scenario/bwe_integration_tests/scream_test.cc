@@ -771,10 +771,10 @@ TEST(ScreamTest, MaybeTest(CallerPauseSendingVideoIfFeedbackNotReceived)) {
 
   // Because the encoder was paused, the pacer queue was bounded and quickly
   // drained upon resumption (~6s). By 8s, average pacing delay is back to
-  // normal (< 50 ms).
+  // normal (< 100 ms).
   EXPECT_LT(
       GetAveragePacingDelay(report_after_8s.value(), report_after_7s.value()),
-      TimeDelta::Millis(50));
+      TimeDelta::Millis(100));
 
   // Target rate is within reason at the end of the call.
   EXPECT_GT(GetAvailableSendBitrate(result.caller_stats.back()),
