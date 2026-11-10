@@ -300,6 +300,41 @@ TEST_P(PeerConnectionIntegrationTest,
           {.timeout = kMaxWaitForFrames}));
 }
 
+TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
+       RtpReceiverObserverOnFirstPacketReceivedAfterImplicitRollback) {
+  RTCConfiguration config;
+  config.sdp_semantics = SdpSemantics::kUnifiedPlan;
+  config.enable_implicit_rollback = true;
+  ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
+  ConnectFakeSignaling();
+  caller()->AddAudioVideoTracks();
+  callee()->AddAudioVideoTracks();
+
+  SetSignalIceCandidates(false);
+  auto observer = make_ref_counted<MockSetSessionDescriptionObserver>();
+  callee()->pc()->SetLocalDescription(observer.get(),
+                                      callee()->CreateOfferAndWait().release());
+  EXPECT_TRUE(WaitUntil([&] { return observer->called(); }));
+  ASSERT_TRUE(WaitUntil([&] {
+    return callee()->ice_gathering_state() ==
+           PeerConnectionInterface::kIceGatheringComplete;
+  }));
+  SetSignalIceCandidates(true);
+  caller()->CreateAndSetAndSignalOffer();  // Implicit rollback on the callee.
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); }));
+
+  EXPECT_EQ(callee()->rtp_receiver_observers().size(), 2u);
+  EXPECT_TRUE(WaitUntil(
+      [&] {
+        return absl::c_all_of(
+            callee()->rtp_receiver_observers(),
+            [](const std::unique_ptr<MockRtpReceiverObserver>& o) {
+              return o->first_packet_received_after_receptive_change();
+            });
+      },
+      {.timeout = kMaxWaitForFrames}));
+}
+
 TEST_P(PeerConnectionIntegrationTest, RtpSenderObserverOnFirstPacketSent) {
   ASSERT_TRUE(CreatePeerConnectionWrappers());
   ConnectFakeSignaling();
