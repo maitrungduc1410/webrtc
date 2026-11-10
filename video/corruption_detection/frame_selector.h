@@ -22,7 +22,6 @@
 #include "api/video_codecs/scalability_mode.h"
 #include "api/video_codecs/video_codec.h"
 #include "rtc_base/random.h"
-#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
@@ -42,7 +41,7 @@ namespace webrtc {
 // A scalability mode is present so that the selector knows if inter-layer
 // dependency is used and can infer if a delta frame is part of a key
 // superframe.
-class RTC_EXPORT FrameSelector {
+class FrameSelector {
  public:
   struct Timespan {
     TimeDelta lower_bound;

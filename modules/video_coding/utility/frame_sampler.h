@@ -16,6 +16,7 @@
 
 #include "api/units/time_delta.h"
 #include "api/video/video_frame.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
@@ -23,7 +24,7 @@ namespace webrtc {
 // not done for every frame but only some of them. An example strategy
 // would be to require a minimum time elapsed between two frames based
 // on the RTP timestamp difference.
-class FrameSampler {
+class RTC_EXPORT FrameSampler {
  public:
   static constexpr TimeDelta kDefaultPsnrFrameSamplingInterval =
       TimeDelta::Seconds(1);

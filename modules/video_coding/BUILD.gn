@@ -317,6 +317,7 @@ rtc_library("frame_sampler") {
     "..:module_api_public",
     "../../api/units:time_delta",
     "../../api/video:video_frame",
+    "../../rtc_base/system:rtc_export",
   ]
 }
 

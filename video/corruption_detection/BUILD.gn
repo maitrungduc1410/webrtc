@@ -105,7 +105,6 @@ rtc_library("frame_selector") {
     "../../modules/video_coding/svc:scalability_mode_util",
     "../../rtc_base:checks",
     "../../rtc_base:random",
-    "../../rtc_base/system:rtc_export",
   ]
 }
 
