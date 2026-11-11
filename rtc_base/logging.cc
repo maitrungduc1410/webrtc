@@ -201,9 +201,10 @@ class DynamicLogSinks {
 
 void ApplyConfigToLogMessage(const LoggingConfig& config) {
   // TODO: bugs.webrtc.org/42234107 - Store the options without the deprecated
-  // setter once it is removed.
+  // setters once they are removed.
   RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
   LogMessage::LogTimestamps(config.log_timestamp());
+  LogMessage::SetLogToStderr(config.log_to_stderr());
   RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
   DynamicLogSinks::Get().SetDebugSeverity(config.debug_severity());
 }
@@ -293,6 +294,8 @@ const std::string& LogLineRef::DefaultLogLine() const {
 /////////////////////////////////////////////////////////////////////////////
 // LogMessage
 /////////////////////////////////////////////////////////////////////////////
+
+bool LogMessage::log_to_stderr_ = true;
 
 // Boolean options default to false.
 constinit bool LogMessage::log_timestamp_ = false;
@@ -388,7 +391,7 @@ LogMessage::~LogMessage() {
   // Not `config.debug_severity()`, since LogToDebug() can change the debug
   // severity after initialization.
   if (log_line_.severity() >= g_dbg_sev.load(std::memory_order_relaxed)) {
-    OutputToDebug(log_line_, config.log_to_stderr());
+    OutputToDebug(log_line_);
   }
 
   if (log_line_.severity() >= config.min_severity()) {
@@ -445,6 +448,10 @@ void LogMessage::LogToDebug(LoggingSeverity min_sev) {
   DynamicLogSinks::Get().SetDebugSeverity(min_sev);
 }
 
+void LogMessage::SetLogToStderr(bool log_to_stderr) {
+  log_to_stderr_ = log_to_stderr;
+}
+
 void LogMessage::AddLogToStream(LogSink* stream, LoggingSeverity min_sev) {
   DynamicLogSinks::Get().Add(stream, min_sev);
 }
@@ -453,8 +460,9 @@ void LogMessage::RemoveLogToStream(LogSink* stream) {
   DynamicLogSinks::Get().Remove(stream);
 }
 
-void LogMessage::OutputToDebug(const LogLineRef& log_line, bool log_to_stderr) {
+void LogMessage::OutputToDebug(const LogLineRef& log_line) {
   const std::string& msg_str = log_line.DefaultLogLine();
+  bool log_to_stderr = log_to_stderr_;
 #if defined(WEBRTC_MAC) && !defined(WEBRTC_IOS) && defined(NDEBUG)
   // On the Mac, all stderr output goes to the Console log and causes clutter.
   // So in opt builds, don't log to stderr unless the user specifically sets
@@ -768,4 +776,51 @@ LoggingConfig::LoggingConfig() : debug_severity_(kDefaultLoggingSeverity) {}
 LoggingConfig::LoggingConfig(LoggingConfig&&) = default;
 LoggingConfig& LoggingConfig::operator=(LoggingConfig&&) = default;
 LoggingConfig::~LoggingConfig() = default;
+
+// Default implementation, override is recomended.
+void LogSink::OnLogMessage(const LogLineRef& log_line) {
+  // The default implementation still uses the deprecated string overloads, for
+  // sinks that override those.
+  RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
+#if defined(WEBRTC_ANDROID)
+  OnLogMessage(log_line.DefaultLogLine(), log_line.severity(),
+               log_line.tag().data());
+#else
+  OnLogMessage(log_line.DefaultLogLine(), log_line.severity());
+#endif
+  RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
+}
+
+// Inefficient default implementation, override is recommended.
+void LogSink::OnLogMessage(const std::string& msg,
+                           LoggingSeverity severity,
+                           const char* tag) {
+  OnLogMessage(tag + (": " + msg), severity);
+}
+
+void LogSink::OnLogMessage(const std::string& msg,
+                           LoggingSeverity /* severity */) {
+  OnLogMessage(msg);
+}
+
+void LogSink::OnLogMessage(const std::string& msg) {
+  OnLogMessage(absl::string_view(msg));
+}
+
+// Inefficient default implementation, override is recommended.
+void LogSink::OnLogMessage(absl::string_view msg,
+                           LoggingSeverity severity,
+                           const char* tag) {
+  OnLogMessage(tag + (": " + std::string(msg)), severity);
+}
+
+void LogSink::OnLogMessage(absl::string_view msg,
+                           LoggingSeverity /* severity */) {
+  OnLogMessage(msg);
+}
+
+void LogSink::OnLogMessage(absl::string_view msg) {
+  OnLogMessage(std::string(msg));
+}
+
 }  // namespace webrtc

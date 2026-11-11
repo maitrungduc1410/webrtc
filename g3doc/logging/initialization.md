@@ -65,8 +65,9 @@ returning the initial value.
 
 A `webrtc::LogSink` receives log messages, for example to write them to a file.
 Sinks added with `LoggingConfig::AddSink()` receive each message whose severity
-is at least `min_severity()`. A sink implements
-`OnLogMessage(const LogLineRef&)`:
+is at least `min_severity()`. A sink overrides
+`OnLogMessage(const LogLineRef&)`; the overloads that take a string are
+deprecated.
 
 ```cpp
 class MyLogSink : public webrtc::LogSink {

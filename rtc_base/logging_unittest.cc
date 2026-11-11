@@ -88,6 +88,19 @@ class TestLogSink : public LogSink {
   std::string log_data_;
 };
 
+// Overrides only the deprecated OnLogMessage(const std::string&), to test the
+// default implementation of OnLogMessage(const LogLineRef&).
+class DeprecatedTestLogSink : public LogSink {
+ public:
+  absl::string_view data() const { return log_data_; }
+
+ private:
+  void OnLogMessage(const std::string& message) override {
+    log_data_.append(message);
+  }
+  std::string log_data_;
+};
+
 class LogMessageForTesting : public LogMessage {
  public:
   LogMessageForTesting(const char* file,
@@ -476,6 +489,25 @@ TEST_F(LogTest, CheckFilePathParsed) {
 #endif
 }
 
+// Tests that the default implementation of OnLogMessage(const LogLineRef&)
+// passes the default log line on to the deprecated string overloads.
+TEST_F(LogTest, DefaultOnLogMessageForwardsDefaultLogLine) {
+  DeprecatedTestLogSink& sink =
+      InitializeLoggingWithSink<DeprecatedTestLogSink>();
+  {
+    LogMessageForTesting log_msg(kFakeFilePath, 100, LS_INFO);
+    log_msg.stream() << "Hello";
+  }
+
+#if defined(WEBRTC_ANDROID)
+  // Prefixed with the tag, which is the file name by default.
+  EXPECT_THAT(sink.data(), HasSubstr("myfile.cc: "));
+  EXPECT_THAT(sink.data(), HasSubstr("(line 100): Hello"));
+#else
+  EXPECT_THAT(sink.data(), HasSubstr("(myfile.cc:100): Hello"));
+#endif
+}
+
 // The debug output and all sinks get the same LogLineRef, so they share the
 // line that DefaultLogLine() formats on first use.
 TEST_F(LogTest, DefaultLogLineIsFormattedOnce) {
@@ -508,21 +540,13 @@ TEST_F(LogTest, CopiedLogLineRefKeepsDefaultLogLine) {
 }
 
 #if defined(WEBRTC_ANDROID)
-TEST_F(LogTest, LogTagSetsTagAndroid) {
-  class TagSink : public LogSink {
-   public:
-    void OnLogMessage(const LogLineRef& line) override {
-      tag = std::string(line.tag());
-      default_line = line.DefaultLogLine();
-    }
-    std::string tag;
-    std::string default_line;
-  };
-  TagSink& sink = InitializeLoggingWithSink<TagSink>();
+TEST_F(LogTest, CheckTagAddedToStringInDefaultOnLogMessageAndroid) {
+  DeprecatedTestLogSink& sink =
+      InitializeLoggingWithSink<DeprecatedTestLogSink>();
 
   RTC_LOG_TAG(LS_INFO, "my_tag") << "INFO";
-  EXPECT_EQ(sink.tag, "my_tag");
-  EXPECT_THAT(sink.default_line, HasSubstr("INFO"));
+  EXPECT_THAT(sink.data(), HasSubstr("INFO"));
+  EXPECT_THAT(sink.data(), HasSubstr("my_tag"));
 }
 #endif
 
