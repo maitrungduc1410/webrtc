@@ -503,4 +503,22 @@ TEST_P(AudioBufferStereoInputDownmixingTest, StereoCapture) {
   }
 }
 
+TEST(AudioBufferTest, AdaptiveDownmixingSplitAndMergeFrequencyBands) {
+  for (int rate : {32000, 48000}) {
+    for (size_t num_channels : {1, 2}) {
+      const int num_frames = rate / 100;
+      AudioBuffer ab(
+          rate, 2, rate, num_channels, rate,
+          AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive,
+          AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive);
+      std::vector<float> audio_data(2 * num_frames, 0.5f);
+      std::array<float*, 2> audio = {&audio_data[0], &audio_data[num_frames]};
+      StreamConfig stream_config(rate, 2);
+      ab.CopyFrom(audio.data(), stream_config);
+      ab.SplitIntoFrequencyBands();
+      ab.MergeFrequencyBands();
+    }
+  }
+}
+
 }  // namespace webrtc

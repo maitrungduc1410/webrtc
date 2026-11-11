@@ -119,7 +119,7 @@ AudioBuffer::AudioBuffer(
   }
 
   if (output_resampling_needed) {
-    for (size_t i = 0; i < buffer_internal_num_channels_; ++i) {
+    for (size_t i = 0; i < buffer_num_channels_; ++i) {
       output_resamplers_.push_back(std::unique_ptr<PushSincResampler>(
           new PushSincResampler(buffer_num_frames_, output_num_frames_)));
     }
@@ -127,9 +127,9 @@ AudioBuffer::AudioBuffer(
 
   if (num_bands_ > 1) {
     split_data_.reset(new ChannelBuffer<float>(
-        buffer_num_frames_, buffer_internal_num_channels_, num_bands_));
+        buffer_num_frames_, buffer_num_channels_, num_bands_));
     splitting_filter_.reset(new SplittingFilter(
-        buffer_internal_num_channels_, num_bands_, buffer_num_frames_));
+        buffer_num_channels_, num_bands_, buffer_num_frames_));
   }
 }
 
