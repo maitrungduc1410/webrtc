@@ -166,6 +166,10 @@ class MockChannelSend : public voe::ChannelSendInterface {
               (int payload_type, int payload_frequency),
               (override));
   MOCK_METHOD(void,
+              RegisterRedPayloadType,
+              (int payload_type, int payload_frequency),
+              (override));
+  MOCK_METHOD(void,
               SetSendTelephoneEventPayloadType,
               (int payload_type, int payload_frequency),
               (override));

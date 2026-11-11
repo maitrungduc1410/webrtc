@@ -208,6 +208,7 @@ class ChannelSend : public ChannelSendInterface,
   RtpRtcpInterface* GetRtpRtcp() const override;
 
   void RegisterCngPayloadType(int payload_type, int payload_frequency) override;
+  void RegisterRedPayloadType(int payload_type, int payload_frequency) override;
 
   // DTMF.
   bool SendTelephoneEventOutband(int event, int duration_ms) override;
@@ -805,6 +806,11 @@ void ChannelSend::RegisterCngPayloadType(int payload_type,
   rtp_rtcp_->RegisterSendPayloadFrequency(payload_type, payload_frequency);
   rtp_sender_audio_->RegisterAudioPayload("CN", payload_type, payload_frequency,
                                           1, 0);
+}
+
+void ChannelSend::RegisterRedPayloadType(int payload_type,
+                                         int payload_frequency) {
+  rtp_rtcp_->RegisterSendPayloadFrequency(payload_type, payload_frequency);
 }
 
 void ChannelSend::SetSendTelephoneEventPayloadType(int payload_type,

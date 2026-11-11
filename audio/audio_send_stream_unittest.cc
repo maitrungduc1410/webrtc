@@ -626,6 +626,18 @@ TEST(AudioSendStreamTest, SendCodecCanApplyVad) {
   }
 }
 
+TEST(AudioSendStreamTest, SendCodecRegistersRedClockRate) {
+  for (bool use_null_audio_processing : {false, true}) {
+    ConfigHelper helper(false, true, use_null_audio_processing);
+    helper.config().send_codec_spec =
+        AudioSendStream::Config::SendCodecSpec(111, kOpusFormat);
+    helper.config().send_codec_spec->red_payload_type = 63;
+    EXPECT_CALL(*helper.channel_send(), RegisterRedPayloadType(63, 48000));
+
+    auto send_stream = helper.CreateAudioSendStream();
+  }
+}
+
 TEST(AudioSendStreamTest, DoesNotPassHigherBitrateThanMaxBitrate) {
   for (bool use_null_audio_processing : {false, true}) {
     ConfigHelper helper(false, true, use_null_audio_processing);

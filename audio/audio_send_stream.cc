@@ -640,6 +640,8 @@ bool AudioSendStream::SetupSendCodec(const Config& new_config) {
     encoder = std::make_unique<AudioEncoderCopyRed>(std::move(red_config),
                                                     env_.field_trials());
     format.name = kRedCodecName;
+    channel_send_->RegisterRedPayloadType(*spec.red_payload_type,
+                                          encoder->RtpTimestampRateHz());
   }
 
   // Set currently known overhead (used in ANA, opus only).

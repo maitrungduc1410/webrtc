@@ -90,6 +90,8 @@ class ChannelSendInterface {
   virtual ANAStats GetANAStatistics() const = 0;
   virtual void RegisterCngPayloadType(int payload_type,
                                       int payload_frequency) = 0;
+  virtual void RegisterRedPayloadType(int payload_type,
+                                      int payload_frequency) = 0;
   virtual void SetSendTelephoneEventPayloadType(int payload_type,
                                                 int payload_frequency) = 0;
   virtual bool SendTelephoneEventOutband(int event, int duration_ms) = 0;
