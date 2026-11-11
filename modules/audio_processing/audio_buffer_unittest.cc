@@ -352,7 +352,7 @@ TEST_P(AudioBufferStereoInputDownmixingTest, StereoCapture) {
   AudioProcessing::Config::Pipeline::DownmixMethod downmixing_method =
       DownmixingMethod();
   int num_frames_per_channel = Rate1() / 100;
-  AudioBuffer ab(Rate1(), 2, Rate2(), NumChannels(), Rate2(),
+  AudioBuffer ab(Rate1(), 2, Rate2(), NumChannels(), Rate2(), downmixing_method,
                  downmixing_method);
   float energy_ab_ch0 = 0.0f;
   float energy_ab_ch1 = 0.0f;

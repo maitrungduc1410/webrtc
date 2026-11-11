@@ -150,10 +150,12 @@ void AudioBuffer::CopyFrom(const float* const* stacked_data,
   const bool resampling_needed = input_num_frames_ != buffer_num_frames_;
 
   const bool use_adaptive_downmixing =
-      (downmix_method_ ==
-           AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive ||
-       downmix_method_stereo_ ==
-           AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive) &&
+      ((buffer_num_channels_ == 1 &&
+        downmix_method_ ==
+            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive) ||
+       (buffer_num_channels_ == 2 &&
+        downmix_method_stereo_ ==
+            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive)) &&
       buffer_internal_num_channels_ == 2;
   if (use_adaptive_downmixing) {
     if (resampling_needed) {
@@ -299,12 +301,13 @@ void AudioBuffer::CopyFrom(const int16_t* const interleaved_data,
   const int16_t* interleaved = interleaved_data;
 
   const bool use_adaptive_downmixing =
-      ((downmix_method_ ==
-            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive ||
+      ((buffer_num_channels_ == 1 &&
+        downmix_method_ ==
+            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive) ||
+       (buffer_num_channels_ == 2 &&
         downmix_method_stereo_ ==
-            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive) &&
-       input_num_channels_ == 2);
-  RTC_DCHECK(!use_adaptive_downmixing || buffer_internal_num_channels_ == 2);
+            AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive)) &&
+      buffer_internal_num_channels_ == 2;
 
   if (use_adaptive_downmixing) {
     auto deinterleave_channel = [](size_t channel, size_t num_channels,
