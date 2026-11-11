@@ -2313,6 +2313,24 @@ TEST_F(PeerConnectionJsepTest,
   EXPECT_EQ(callee->observer()->remove_track_events_.size(), 1u);
 }
 
+TEST_F(PeerConnectionJsepTest, RollbackRestoringStreamMakesOnTrackFire) {
+  auto caller = CreatePeerConnection();
+  caller->AddAudioTrack("a", {"stream1"});
+  auto callee = CreatePeerConnection();
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+  EXPECT_EQ(callee->observer()->add_track_events_.size(), 1u);
+
+  caller->pc()->GetSenders()[0]->SetStreams({"stream2"});
+  EXPECT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  EXPECT_EQ(callee->observer()->add_track_events_.size(), 2u);
+
+  EXPECT_TRUE(callee->SetRemoteDescription(caller->CreateRollback()));
+  const auto& track_events = callee->observer()->add_track_events_;
+  ASSERT_EQ(track_events.size(), 3u);
+  ASSERT_EQ(track_events[2].streams.size(), 1u);
+  EXPECT_EQ(track_events[2].streams[0]->id(), "stream1");
+}
+
 TEST_F(PeerConnectionJsepTest, RollbackAfterMultipleSLD) {
   auto callee = CreatePeerConnection();
   callee->AddTransceiver(MediaType::AUDIO);

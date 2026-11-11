@@ -367,7 +367,9 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
 
   // Runs the algorithm **set the associated remote streams** specified in
   // https://w3c.github.io/webrtc-pc/#set-associated-remote-streams.
-  void SetAssociatedRemoteStreams(
+  // Returns true if the receiver was added to a stream it was not in before,
+  // i.e. the spec's addList grew.
+  bool SetAssociatedRemoteStreams(
       scoped_refptr<RtpReceiverInternal> receiver,
       const std::vector<std::string>& stream_ids,
       std::vector<scoped_refptr<MediaStreamInterface>>* added_streams,

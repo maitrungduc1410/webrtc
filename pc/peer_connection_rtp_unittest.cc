@@ -626,6 +626,42 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan, ChangeMsidWhileReceiving) {
   ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
   ASSERT_EQ(1u, transceiver->receiver()->streams().size());
   EXPECT_EQ("stream2", transceiver->receiver()->streams()[0]->id());
+
+  ASSERT_EQ(2u, callee->observer()->on_track_transceivers_.size());
+  EXPECT_EQ(transceiver, callee->observer()->on_track_transceivers_[1]);
+}
+
+TEST_F(PeerConnectionRtpTestUnifiedPlan,
+       ReceiverGainingStreamInAnswerCallsOnTrackAgain) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  RtpTransceiverInit init;
+  init.direction = RtpTransceiverDirection::kRecvOnly;
+  caller->AddTransceiver(MediaType::AUDIO, init);
+
+  ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  auto callee_transceiver = callee->pc()->GetTransceivers()[0];
+  ASSERT_TRUE(callee_transceiver
+                  ->SetDirectionWithError(RtpTransceiverDirection::kSendOnly)
+                  .ok());
+  ASSERT_TRUE(
+      caller->SetRemoteDescription(callee->CreateAnswerAndSetAsLocal()));
+
+  const auto& add_track_events = caller->observer()->add_track_events_;
+  ASSERT_EQ(1u, add_track_events.size());
+  EXPECT_EQ(0u, add_track_events[0].streams.size());
+
+  callee_transceiver->sender()->SetStreams({"stream1"});
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+
+  ASSERT_EQ(2u, add_track_events.size());
+  EXPECT_EQ(add_track_events[0].receiver, add_track_events[1].receiver);
+  ASSERT_EQ(1u, add_track_events[1].streams.size());
+  EXPECT_EQ("stream1", add_track_events[1].streams[0]->id());
+
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+  EXPECT_EQ(2u, add_track_events.size());
 }
 
 // These tests examine the state of the peer connection as a result of

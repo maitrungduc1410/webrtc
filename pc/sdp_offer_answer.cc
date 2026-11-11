@@ -2757,14 +2757,16 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
 
       RTC_LOG(LS_INFO) << "Processing the MSIDs for MID=" << content->mid()
                        << " (" << GetStreamIdsString(stream_ids) << ").";
-      SetAssociatedRemoteStreams(transceiver->receiver_internal(), stream_ids,
-                                 &added_streams, &removed_streams);
-      // From the WebRTC specification, steps 2.2.8.5/6 of section 4.4.1.6
-      // "Set the RTCSessionDescription: If direction is sendrecv or recvonly,
-      // and transceiver's current direction is neither sendrecv nor recvonly,
-      // process the addition of a remote track for the media description.
+      bool receiver_gained_stream = SetAssociatedRemoteStreams(
+          transceiver->receiver_internal(), stream_ids, &added_streams,
+          &removed_streams);
+      // If direction is "sendrecv" or "recvonly" and [[FiredDirection]] is
+      // neither, or the previous step increased the length of addList, process
+      // the addition of a remote track.
+      // https://w3c.github.io/webrtc-pc/#process-remote-tracks
       if (!transceiver->fired_direction() ||
-          !RtpTransceiverDirectionHasRecv(*transceiver->fired_direction())) {
+          !RtpTransceiverDirectionHasRecv(*transceiver->fired_direction()) ||
+          receiver_gained_stream) {
         RTC_LOG(LS_INFO) << "Processing the addition of a remote track for MID="
                          << content->mid() << ".";
         // Since the transceiver is passed to the user in an
@@ -3475,7 +3477,7 @@ void SdpOfferAnswerHandler::SetRemoteDescriptionPostProcess(bool was_answer) {
   }
 }
 
-void SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
+bool SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
     scoped_refptr<RtpReceiverInternal> receiver,
     const std::vector<std::string>& stream_ids,
     std::vector<scoped_refptr<MediaStreamInterface>>* added_streams,
@@ -3515,6 +3517,9 @@ void SdpOfferAnswerHandler::SetAssociatedRemoteStreams(
   // instead. https://crbug.com/webrtc/9480
   receiver->SetStreams(media_streams);
   RemoveRemoteStreamsIfEmpty(previous_streams, removed_streams);
+  return absl::c_any_of(media_streams, [&](const auto& stream) {
+    return !absl::c_linear_search(previous_streams, stream);
+  });
 }
 
 bool SdpOfferAnswerHandler::AddIceCandidate(const IceCandidate* ice_candidate) {
@@ -4001,6 +4006,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
     auto transceiver = transceivers_stable_state_pair.first;
     auto stable_state = transceivers_stable_state_pair.second;
 
+    bool fire_track = false;
     if (stable_state.did_set_fired_direction()) {
       // If this rollback triggers going from not receiving to receiving again,
       // we need to fire "ontrack".
@@ -4013,6 +4019,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
               stable_state.fired_direction().value());
       if (!previously_fired_direction_is_recv &&
           currently_fired_direction_is_recv) {
+        fire_track = true;
         now_receiving_transceivers.push_back(transceiver);
       }
 
@@ -4029,9 +4036,14 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
     if (stable_state.remote_stream_ids()) {
       std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
       std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
-      SetAssociatedRemoteStreams(transceiver->internal()->receiver_internal(),
-                                 stable_state.remote_stream_ids().value(),
-                                 &added_streams, &removed_streams);
+      bool receiver_gained_stream = SetAssociatedRemoteStreams(
+          transceiver->internal()->receiver_internal(),
+          stable_state.remote_stream_ids().value(), &added_streams,
+          &removed_streams);
+      if (receiver_gained_stream && !fire_track &&
+          !transceiver->internal()->stopped()) {
+        now_receiving_transceivers.push_back(transceiver);
+      }
       all_added_streams.insert(all_added_streams.end(), added_streams.begin(),
                                added_streams.end());
       all_removed_streams.insert(all_removed_streams.end(),
