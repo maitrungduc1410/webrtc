@@ -24,6 +24,7 @@
 #include <spa/utils/type.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -34,8 +35,10 @@
 #include <vector>
 
 #include "absl/strings/string_view.h"
+#include "api/scoped_refptr.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/portal/pipewire_utils.h"
+#include "modules/portal/portal_guard.h"
 #include "modules/portal/portal_request_response.h"
 #include "modules/video_capture/linux/camera_portal.h"
 #include "modules/video_capture/linux/pipewire_video_sizes.h"
@@ -48,6 +51,11 @@
 
 namespace webrtc {
 namespace videocapturemodule {
+
+// Delay before the next reconnect attempt after a failed one: doubles from
+// the first value up to the second.
+constexpr int kFirstReconnectDelayMs = 1000;
+constexpr int kMaxReconnectDelayMs = 30000;
 
 // Checks that the pod matches the expected type and is large enough to hold it.
 static bool SpaValueIsType(const spa_pod* val, uint32_t type) {
@@ -321,6 +329,11 @@ CameraPortalNotifier::CameraPortalNotifier(PipeWireSession* session)
 void CameraPortalNotifier::OnCameraRequestResult(
     xdg_portal::RequestResponse result,
     int fd) {
+  if (session_->reconnecting_) {
+    session_->OnReconnectResult(result, fd);
+    return;
+  }
+
   if (result == xdg_portal::RequestResponse::kSuccess) {
     session_->InitPipeWire(fd);
   } else if (result == xdg_portal::RequestResponse::kUserCancelled) {
@@ -335,6 +348,8 @@ PipeWireSession::PipeWireSession()
 
 PipeWireSession::~PipeWireSession() {
   Cleanup();
+  if (portal_context_)
+    g_main_context_unref(portal_context_);
 }
 
 void PipeWireSession::Init(VideoCaptureOptions::Callback* callback, int fd) {
@@ -346,6 +361,9 @@ void PipeWireSession::Init(VideoCaptureOptions::Callback* callback, int fd) {
   if (fd != kInvalidPipeWireFd) {
     InitPipeWire(fd);
   } else {
+    portal_context_ = g_main_context_ref_thread_default();
+    reconnect_guard_ = scoped_refptr<PortalGuard>(new PortalGuard());
+    reconnect_guard_->portal = this;
     portal_notifier_ = std::make_unique<CameraPortalNotifier>(this);
     portal_ = std::make_unique<CameraPortal>(portal_notifier_.get());
     portal_->Start();
@@ -375,11 +393,27 @@ bool PipeWireSession::StartPipeWire(int fd) {
     return false;
   }
 
-  pw_core_ = pw_context_connect_fd(pw_context_, fd, nullptr, 0);
-  if (!pw_core_) {
+  if (!ConnectPipeWire(fd))
+    return false;
+
+  if (pw_thread_loop_start(pw_main_loop_) < 0) {
+    RTC_LOG(LS_ERROR) << "Failed to start main PipeWire loop";
+    return false;
+  }
+
+  return true;
+}
+
+RTC_NO_SANITIZE("cfi-icall")
+bool PipeWireSession::ConnectPipeWire(int fd) {
+  pw_core* core = pw_context_connect_fd(pw_context_, fd, nullptr, 0);
+  if (!core) {
     RTC_LOG(LS_ERROR) << "Failed to connect PipeWire context";
     return false;
   }
+  // A lost connection is kept: capture modules may still have streams on it,
+  // and a core destroys its streams. pw_context_destroy() disconnects it.
+  pw_core_ = core;
 
   static const pw_core_events core_events{
       .version = PW_VERSION_CORE_EVENTS,
@@ -400,11 +434,6 @@ bool PipeWireSession::StartPipeWire(int fd) {
                            this);
 
   PipeWireSync();
-
-  if (pw_thread_loop_start(pw_main_loop_) < 0) {
-    RTC_LOG(LS_ERROR) << "Failed to start main PipeWire loop";
-    return false;
-  }
 
   return true;
 }
@@ -440,7 +469,93 @@ void PipeWireSession::OnCoreError(void* data,
                                   int seq,
                                   int res,
                                   const char* message) {
+  PipeWireSession* that = static_cast<PipeWireSession*>(data);
+
   RTC_LOG(LS_ERROR) << "PipeWire remote error: " << message;
+
+  if (id == PW_ID_CORE && res == -EPIPE)
+    that->OnConnectionLost();
+}
+
+void PipeWireSession::OnConnectionLost() {
+  {
+    // When PipeWire comes back, its cameras are new nodes, numbered anew.
+    webrtc::MutexLock lock(&nodes_lock_);
+    nodes_.clear();
+    pending_nodes_.clear();
+    ++lost_connections_;
+  }
+
+  spa_hook_remove(&registry_listener_);
+  pw_proxy_destroy(reinterpret_cast<pw_proxy*>(pw_registry_));
+  pw_registry_ = nullptr;
+  spa_hook_remove(&core_listener_);
+
+  if (!portal_context_) {
+    RTC_LOG(LS_ERROR) << "Lost the connection to PipeWire, cannot reconnect "
+                         "without the camera portal.";
+    // If PipeWire had not answered yet, Init() still waits for its result.
+    Finish(VideoCaptureOptions::Status::ERROR);
+    return;
+  }
+
+  // The delay is 0 if the lost connection had worked: then try again at once.
+  ScheduleReconnect(reconnect_delay_ms_);
+}
+
+void PipeWireSession::ScheduleReconnect(int delay_ms) {
+  GSource* source = g_timeout_source_new(delay_ms);
+  g_source_set_callback(source, &OnReconnect, reconnect_guard_->AddRefAndGet(),
+                        portal_guard_release);
+  g_source_attach(source, portal_context_);
+  g_source_unref(source);
+}
+
+// static
+gboolean PipeWireSession::OnReconnect(gpointer user_data) {
+  PortalGuard* guard = static_cast<PortalGuard*>(user_data);
+  webrtc::MutexLock lock(&guard->mutex);
+  if (auto* that = static_cast<PipeWireSession*>(guard->portal))
+    that->Reconnect();
+  return G_SOURCE_REMOVE;
+}
+
+void PipeWireSession::Reconnect() {
+  // This attempt counts as failed until PipeWire answers and resets the
+  // delay: if the new connection is lost before that, the next attempt waits
+  // longer too.
+  const int last_delay_ms = reconnect_delay_ms_;
+  reconnect_delay_ms_ = last_delay_ms
+                            ? std::min(2 * last_delay_ms, kMaxReconnectDelayMs)
+                            : kFirstReconnectDelayMs;
+
+  // Ask the portal for a new fd, as Init() did. Once camera access was
+  // granted, the portal does not ask the user again.
+  reconnecting_ = true;
+  portal_ = std::make_unique<CameraPortal>(portal_notifier_.get());
+  portal_->Start();
+}
+
+void PipeWireSession::OnReconnectResult(xdg_portal::RequestResponse result,
+                                        int fd) {
+  if (result == xdg_portal::RequestResponse::kSuccess) {
+    PipeWireThreadLoopLock thread_loop_lock(pw_main_loop_);
+    if (ConnectPipeWire(fd)) {
+      RTC_LOG(LS_INFO) << "Reconnected to PipeWire.";
+      return;
+    }
+  } else if (result == xdg_portal::RequestResponse::kUserCancelled) {
+    RTC_LOG(LS_ERROR) << "The camera portal denied access, cannot reconnect "
+                         "to PipeWire.";
+    // If PipeWire had not answered yet, Init() still waits for its result.
+    Finish(VideoCaptureOptions::Status::DENIED);
+    return;
+  }
+
+  const int delay_ms = reconnect_delay_ms_;
+  RTC_LOG(LS_WARNING) << "Failed to reconnect to PipeWire, next attempt in "
+                      << delay_ms << " ms.";
+  ScheduleReconnect(delay_ms);
 }
 
 // static
@@ -450,6 +565,10 @@ void PipeWireSession::OnCoreDone(void* data, uint32_t id, int seq) {
   if (id == PW_ID_CORE) {
     if (seq == that->sync_seq_) {
       RTC_LOG(LS_VERBOSE) << "Enumerating PipeWire camera devices complete.";
+
+      // PipeWire answers, so the next lost connection starts the reconnect
+      // delays from the beginning.
+      that->reconnect_delay_ms_ = 0;
 
       {
         webrtc::MutexLock lock(&that->nodes_lock_);
@@ -528,6 +647,16 @@ void PipeWireSession::Finish(VideoCaptureOptions::Status status) {
 }
 
 void PipeWireSession::Cleanup() {
+  if (reconnect_guard_) {
+    // Waits for a reconnect attempt that is starting; attempts that run later
+    // do nothing.
+    webrtc::MutexLock lock(&reconnect_guard_->mutex);
+    reconnect_guard_->portal = nullptr;
+  }
+  // Waits for a portal result that is being handled, so that a reconnect
+  // does not connect while PipeWire is being stopped.
+  portal_.reset();
+
   webrtc::MutexLock lock(&callback_lock_);
   callback_ = nullptr;
 

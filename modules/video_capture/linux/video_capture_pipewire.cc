@@ -125,6 +125,7 @@ int32_t VideoCaptureModulePipeWire::Init(const char* deviceUniqueId) {
       return -1;
 
     node_id_ = (*node)->id();
+    lost_connections_at_init_ = session_->lost_connections_;
   }
 
   const int len = strlen(deviceUniqueId);
@@ -210,6 +211,16 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
   // not find the checker in use.
   PipeWireThreadLoopLock thread_loop_lock(session_->pw_main_loop_);
   RTC_CHECK_RUNS_SERIALIZED(&capture_checker_);
+
+  {
+    // When PipeWire comes back after a restart, it numbers its nodes anew, so
+    // the id from Init() can belong to another camera now.
+    MutexLock lock(&session_->nodes_lock());
+    if (session_->lost_connections_ != lost_connections_at_init_) {
+      RTC_LOG(LS_ERROR) << "The connection to PipeWire was lost after Init().";
+      return -1;
+    }
+  }
 
   RTC_LOG(LS_VERBOSE) << "Creating new PipeWire stream for node " << node_id_;
 

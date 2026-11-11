@@ -16,6 +16,7 @@
 #include <spa/utils/dict.h>
 #include <spa/utils/hook.h>
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -23,7 +24,9 @@
 #include <vector>
 
 #include "api/ref_counted_base.h"
+#include "api/scoped_refptr.h"
 #include "modules/portal/pipewire_utils.h"
+#include "modules/portal/portal_guard.h"
 #include "modules/portal/portal_request_response.h"
 #include "modules/video_capture/linux/camera_portal.h"
 #include "modules/video_capture/video_capture_defines.h"
@@ -128,6 +131,7 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
  private:
   void InitPipeWire(int fd);
   bool StartPipeWire(int fd);
+  bool ConnectPipeWire(int fd);
   void StopPipeWire();
   void PipeWireSync();
 
@@ -137,6 +141,16 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
                           int res,
                           const char* message);
   static void OnCoreDone(void* data, uint32_t id, int seq);
+
+  // Called on the PipeWire thread when the connection to PipeWire is lost.
+  void OnConnectionLost();
+  // A reconnect asks the camera portal for a new fd, like Init(), on
+  // portal_context_. ScheduleReconnect() can be called on any thread, the
+  // others run on that context.
+  void ScheduleReconnect(int delay_ms);
+  static gboolean OnReconnect(gpointer user_data);
+  void Reconnect();
+  void OnReconnectResult(xdg_portal::RequestResponse result, int fd);
 
   static void OnRegistryGlobal(void* data,
                                uint32_t id,
@@ -166,6 +180,20 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
 
   int sync_seq_ = 0;
 
+  // Only set when the session opened the camera portal itself: only the
+  // portal can give it a new fd for a lost connection. The portal answers on
+  // this context, the thread-default GLib main context of Init().
+  GMainContext* portal_context_ = nullptr;
+  // Tells reconnect attempts scheduled on portal_context_ that the session
+  // is gone.
+  scoped_refptr<PortalGuard> reconnect_guard_;
+  // Used on portal_context_. Set when the session asks the portal again;
+  // from then on, the portal results are for reconnects.
+  bool reconnecting_ = false;
+  // Delay before the next attempt after a failed one. The PipeWire thread
+  // resets it when PipeWire answers.
+  std::atomic<int> reconnect_delay_ms_ = 0;
+
   // The PipeWire thread adds and removes nodes, while DeviceInfoPipeWire and
   // VideoCaptureModulePipeWire read the list on other threads. Hold it while
   // using a node from the list: removing a node deletes it. Do not hold it
@@ -177,6 +205,9 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
   // until OnCoreDone(), as a camera cannot be opened without its capabilities.
   std::deque<PipeWireNode::PipeWireNodePtr> pending_nodes_
       RTC_GUARDED_BY(&nodes_lock_);
+  // Counts the lost connections. When PipeWire comes back, it numbers its
+  // nodes anew, so a node id is only valid while this count stays the same.
+  int lost_connections_ RTC_GUARDED_BY(&nodes_lock_) = 0;
   std::unique_ptr<CameraPortal> portal_;
   std::unique_ptr<CameraPortalNotifier> portal_notifier_;
 };

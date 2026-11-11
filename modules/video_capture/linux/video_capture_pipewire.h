@@ -59,6 +59,8 @@ class VideoCaptureModulePipeWire : public VideoCaptureImpl {
   bool initialized_ RTC_GUARDED_BY(api_checker_);
   bool started_ RTC_GUARDED_BY(api_lock_);
   int node_id_ RTC_GUARDED_BY(capture_checker_);
+  // node_id_ is only valid while the session keeps this count.
+  int lost_connections_at_init_ RTC_GUARDED_BY(capture_checker_) = 0;
   VideoCaptureCapability configured_capability_
       RTC_GUARDED_BY(capture_checker_);
 
