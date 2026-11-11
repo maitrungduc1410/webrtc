@@ -71,7 +71,13 @@ AudioBuffer::AudioBuffer(
     size_t output_rate,
     AudioProcessing::Config::Pipeline::DownmixMethod downmix_method,
     AudioProcessing::Config::Pipeline::DownmixMethod downmix_method_stereo)
-    : downmix_method_(downmix_method),
+    : downmix_method_(input_num_channels != 2 &&
+                              downmix_method ==
+                                  AudioProcessing::Config::Pipeline::
+                                      DownmixMethod::kAdaptive
+                          ? AudioProcessing::Config::Pipeline::DownmixMethod::
+                                kAverageChannels
+                          : downmix_method),
       downmix_method_stereo_(downmix_method_stereo),
       input_num_frames_(static_cast<int>(input_rate) / 100),
       input_num_channels_(input_num_channels),
@@ -89,7 +95,7 @@ AudioBuffer::AudioBuffer(
       data_(new ChannelBuffer<float>(buffer_num_frames_,
                                      buffer_internal_num_channels_)),
       downmix_by_averaging_(
-          downmix_method ==
+          downmix_method_ ==
           AudioProcessing::Config::Pipeline::DownmixMethod::kAverageChannels),
       channel_for_downmixing_(0),
       capture_mixer_(buffer_num_frames_) {
