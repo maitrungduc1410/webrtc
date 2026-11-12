@@ -461,6 +461,7 @@ class FakeSSLStreamAdapter : public SSLStreamAdapter {
   }
 
   void SetWriteError(std::optional<int> error) { write_error_ = error; }
+  void DisableSrtp() { srtp_disabled_ = true; }
 
   // SSLStreamAdapter overrides.
   void SetIdentity(std::unique_ptr<SSLIdentity> identity) override {
@@ -514,6 +515,9 @@ class FakeSSLStreamAdapter : public SSLStreamAdapter {
     return impl_->GetPeerSignatureAlgorithm();
   }
   bool SetDtlsSrtpCryptoSuites(const std::vector<int>& crypto_suites) override {
+    if (srtp_disabled_) {
+      return true;
+    }
     return impl_->SetDtlsSrtpCryptoSuites(crypto_suites);
   }
   bool GetDtlsSrtpCryptoSuite(int* crypto_suite) const override {
@@ -551,6 +555,7 @@ class FakeSSLStreamAdapter : public SSLStreamAdapter {
   std::unique_ptr<StreamInterface> stream_;
   std::unique_ptr<SSLStreamAdapter> impl_;
   std::optional<int> write_error_;
+  bool srtp_disabled_ = false;
 };
 
 // Base class for DtlsTransportInternalImplTest and DtlsEventOrderingTest, which
@@ -919,6 +924,36 @@ TEST_F(DtlsTransportInternalImplTest, TestTransferSrtp) {
 TEST_F(DtlsTransportInternalImplTest, TestTransferDtls) {
   PrepareDtls(KT_DEFAULT);
   ASSERT_TRUE(Connect());
+  TestTransfer(1000, 100, /*srtp=*/false);
+}
+
+// A DTLS server that does not send the use_srtp extension (RFC 5764 Section
+// 4.1.1) still gets a connected DTLS transport for non-SRTP data.
+TEST_F(DtlsTransportInternalImplTest, ConnectsWithoutSrtpExtension) {
+  PrepareDtls(KT_DEFAULT);
+  client1_.set_ssl_stream_factory(
+      [](const Environment& env, std::unique_ptr<StreamInterface> stream,
+         absl::AnyInvocable<void(SSLHandshakeError)> handshake_error_callback) {
+        auto fake =
+            std::make_unique<FakeSSLStreamAdapter>(SSLStreamAdapter::Create(
+                env, std::move(stream), std::move(handshake_error_callback)));
+        fake->Init();
+        fake->DisableSrtp();
+        return fake;
+      });
+  Negotiate(/*client1_server=*/true);
+  ASSERT_TRUE(client1_.Connect(&client2_, false));
+  ASSERT_TRUE(WaitUntil([&] {
+    return client1_.dtls_transport()->writable() &&
+           client2_.dtls_transport()->writable();
+  }));
+
+  EXPECT_EQ(client1_.dtls_transport()->dtls_state(),
+            DtlsTransportState::kConnected);
+  EXPECT_EQ(client2_.dtls_transport()->dtls_state(),
+            DtlsTransportState::kConnected);
+  client1_.CheckSrtp(kSrtpInvalidCryptoSuite);
+  client2_.CheckSrtp(kSrtpInvalidCryptoSuite);
   TestTransfer(1000, 100, /*srtp=*/false);
 }
 
