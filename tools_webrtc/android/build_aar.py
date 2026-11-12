@@ -56,7 +56,8 @@ def _ParseArgs():
         '--build-dir',
         type=os.path.abspath,
         default=DEFAULT_BUILD_DIR,
-        help='Build dir. By default will create and use temporary dir.')
+        help='Build dir. Must be a direct subdirectory of %s. '
+        'Defaults to %%(default)s.' % SRC_DIR)
     parser.add_argument('--output',
                         default='libwebrtc.aar',
                         type=os.path.abspath,
@@ -268,8 +269,9 @@ def main():
     args = _ParseArgs()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
-    if not pathlib.Path(args.build_dir).is_relative_to(SRC_DIR):
-        logging.error('--build-dir must be under %s.', SRC_DIR)
+    if pathlib.Path(args.build_dir).parent != pathlib.Path(SRC_DIR):
+        logging.error('--build-dir must be a direct subdirectory of %s.',
+                      SRC_DIR)
         return 1
 
     return BuildAar(args.build_dir, args.arch, args.output,
