@@ -342,7 +342,7 @@ int LibaomAv1Encoder::InitEncode(const VideoCodec* codec_settings,
   }
   if (encoder_settings_.numberOfSimulcastStreams > 1) {
     RTC_LOG(LS_WARNING) << "Simulcast is not implemented by LibaomAv1Encoder.";
-    return result;
+    return WEBRTC_VIDEO_CODEC_ERR_SIMULCAST_PARAMETERS_NOT_SUPPORTED;
   }
   scalability_mode_ = encoder_settings_.GetScalabilityMode();
   if (!scalability_mode_.has_value()) {

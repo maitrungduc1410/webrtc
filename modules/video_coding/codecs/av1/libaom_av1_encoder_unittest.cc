@@ -139,6 +139,15 @@ TEST_P(LibaomAv1EncoderTest, InitAndRelease) {
   EXPECT_EQ(encoder->Release(), WEBRTC_VIDEO_CODEC_OK);
 }
 
+TEST_P(LibaomAv1EncoderTest, InitEncodeRejectsSimulcast) {
+  std::unique_ptr<VideoEncoder> encoder =
+      CreateLibaomAv1Encoder(CreateTestEnvironment());
+  VideoCodec codec_settings = DefaultCodecSettings();
+  codec_settings.numberOfSimulcastStreams = 2;
+  EXPECT_EQ(encoder->InitEncode(&codec_settings, DefaultEncoderSettings()),
+            WEBRTC_VIDEO_CODEC_ERR_SIMULCAST_PARAMETERS_NOT_SUPPORTED);
+}
+
 TEST_P(LibaomAv1EncoderTest,
        NoBitrateOnTopLayerRefecltedInActiveDecodeTargets) {
   // Configure encoder with 2 temporal layers.
