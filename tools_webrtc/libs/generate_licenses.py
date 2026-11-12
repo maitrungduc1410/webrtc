@@ -52,7 +52,7 @@ LIB_TO_LICENSES_DICT = {
     'fiat': ['third_party/boringssl/src/third_party/fiat/LICENSE'],
     'guava': ['third_party/android_deps/libs/com_google_guava_guava/LICENSE'],
     'ijar': ['third_party/ijar/LICENSE'],
-    'jsoncpp': ['third_party/jsoncpp/LICENSE'],
+    'jsoncpp': ['third_party/jsoncpp/src/LICENSE'],
     'libaom': ['third_party/libaom/source/libaom/LICENSE'],
     'libc++': ['third_party/libc++/src/LICENSE.TXT'],
     'libc++abi': ['third_party/libc++abi/src/LICENSE.TXT'],

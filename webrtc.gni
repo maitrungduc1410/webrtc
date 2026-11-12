@@ -102,7 +102,7 @@ declare_args() {
 
   # Used to specify an external Jsoncpp include path when not compiling the
   # library that comes with WebRTC (i.e. rtc_build_json == 0).
-  rtc_jsoncpp_root = "//third_party/jsoncpp/source/include"
+  rtc_jsoncpp_root = "//third_party/jsoncpp/src/include"
 
   # Used to specify an external OpenSSL include path when not compiling the
   # library that comes with WebRTC (i.e. rtc_build_ssl == 0).
