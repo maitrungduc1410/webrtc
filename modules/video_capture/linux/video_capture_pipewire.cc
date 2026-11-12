@@ -240,6 +240,10 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
       .process = &OnStreamProcess,
   };
 
+  {
+    MutexLock lock(&api_lock_);
+    stream_end_reported_ = false;
+  }
   pw_stream_add_listener(stream_, &stream_listener_, &stream_events, this);
 
   spa_pod_builder builder =
@@ -432,18 +436,34 @@ void VideoCaptureModulePipeWire::OnStreamStateChanged(
   RTC_DCHECK(that);
 
   MutexLock lock(&that->api_lock_);
+  bool ended = false;
   switch (state) {
     case PW_STREAM_STATE_STREAMING:
       that->started_ = true;
       break;
     case PW_STREAM_STATE_ERROR:
       RTC_LOG(LS_ERROR) << "PipeWire stream state error: " << error_message;
-      [[fallthrough]];
-    case PW_STREAM_STATE_PAUSED:
+      that->started_ = false;
+      ended = true;
+      break;
     case PW_STREAM_STATE_UNCONNECTED:
+      // StopCapture() removes this listener before it destroys the stream, so
+      // the stream ended on its own, e.g. because the connection to PipeWire
+      // was lost or the camera went away.
+      that->started_ = false;
+      ended = true;
+      break;
+    case PW_STREAM_STATE_PAUSED:
     case PW_STREAM_STATE_CONNECTING:
       that->started_ = false;
       break;
+  }
+  // When the camera goes away, the stream gets the error "target not found"
+  // and then goes to unconnected; after another error it may stay as it is.
+  // Report the end once, at the first of the two.
+  if (ended && !that->stream_end_reported_) {
+    that->stream_end_reported_ = true;
+    that->ReportCaptureError();
   }
   RTC_LOG(LS_VERBOSE) << "PipeWire stream state change: "
                       << pw_stream_state_as_string(old_state) << " -> "

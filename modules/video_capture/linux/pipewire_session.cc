@@ -494,6 +494,7 @@ void PipeWireSession::OnConnectionLost() {
   if (!portal_context_) {
     RTC_LOG(LS_ERROR) << "Lost the connection to PipeWire, cannot reconnect "
                          "without the camera portal.";
+    connection_lost_ = true;
     // If PipeWire had not answered yet, Init() still waits for its result.
     Finish(VideoCaptureOptions::Status::ERROR);
     return;

@@ -58,6 +58,9 @@ class VideoCaptureModulePipeWire : public VideoCaptureImpl {
       RTC_GUARDED_BY(api_checker_);
   bool initialized_ RTC_GUARDED_BY(api_checker_);
   bool started_ RTC_GUARDED_BY(api_lock_);
+  // Whether the end of the current stream was reported: the stream can get an
+  // error and then go to unconnected.
+  bool stream_end_reported_ RTC_GUARDED_BY(api_lock_) = false;
   int node_id_ RTC_GUARDED_BY(capture_checker_);
   // node_id_ is only valid while the session keeps this count.
   int lost_connections_at_init_ RTC_GUARDED_BY(capture_checker_) = 0;

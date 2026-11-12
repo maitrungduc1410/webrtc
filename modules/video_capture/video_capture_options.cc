@@ -52,6 +52,10 @@ webrtc::scoped_refptr<videocapturemodule::PipeWireSession>
 VideoCaptureOptions::pipewire_session() {
   return pipewire_session_;
 }
+
+bool VideoCaptureOptions::pipewire_connection_lost() const {
+  return pipewire_session_ && pipewire_session_->connection_lost();
+}
 #endif
 
 }  // namespace webrtc

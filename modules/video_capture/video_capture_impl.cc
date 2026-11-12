@@ -151,6 +151,12 @@ void VideoCaptureImpl::DeliverRawFrame(uint8_t* videoFrame,
                                _rotateFrame, captureTime);
 }
 
+void VideoCaptureImpl::ReportCaptureError() {
+  if (_rawDataCallBack) {
+    _rawDataCallBack->OnCaptureError();
+  }
+}
+
 int32_t VideoCaptureImpl::IncomingFrame(uint8_t* videoFrame,
                                         size_t videoFrameLength,
                                         const VideoCaptureCapability& frameInfo,

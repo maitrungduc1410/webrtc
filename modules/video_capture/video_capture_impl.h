@@ -102,6 +102,10 @@ class RTC_EXPORT VideoCaptureImpl : public VideoCaptureModule {
   // Should be set by platform dependent code in StartCapture.
   VideoCaptureCapability _requestedCapability RTC_GUARDED_BY(api_checker_);
 
+  // Tells the raw data sink that capturing stopped without StopCapture(), see
+  // RawVideoSinkInterface::OnCaptureError().
+  void ReportCaptureError() RTC_EXCLUSIVE_LOCKS_REQUIRED(api_lock_);
+
  private:
   void UpdateFrameCount();
   uint32_t CalculateFrameRate(int64_t now_ns);

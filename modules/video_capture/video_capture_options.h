@@ -65,6 +65,11 @@ class RTC_EXPORT VideoCaptureOptions {
   void set_allow_pipewire(bool allow) { allow_pipewire_ = allow; }
   void set_pipewire_fd(int fd) { pipewire_fd_ = fd; }
   scoped_refptr<videocapturemodule::PipeWireSession> pipewire_session();
+  // True when the session from Init() lost its connection to PipeWire, e.g.
+  // because PipeWire restarted, and cannot connect again because its fd came
+  // from set_pipewire_fd(). Its cameras are gone and its capture modules get
+  // no more frames. To use cameras again, call Init() again with a new fd.
+  bool pipewire_connection_lost() const;
 #endif
 
  private:

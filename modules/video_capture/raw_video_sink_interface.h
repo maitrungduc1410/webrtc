@@ -31,6 +31,11 @@ class RawVideoSinkInterface {
                              const VideoCaptureCapability& frameInfo,
                              VideoRotation rotation,
                              int64_t captureTime) = 0;
+
+  // Called when capturing stops without StopCapture(), e.g. because the
+  // connection to PipeWire was lost. No more frames follow. Only the PipeWire
+  // capture module calls this so far.
+  virtual void OnCaptureError() {}
 };
 
 }  // namespace webrtc

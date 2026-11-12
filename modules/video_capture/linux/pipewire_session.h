@@ -124,6 +124,10 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
     return nodes_;
   }
 
+  // True once the connection to PipeWire is lost and the session cannot
+  // connect again, because its fd came from the application.
+  bool connection_lost() const { return connection_lost_; }
+
   friend class CameraPortalNotifier;
   friend class PipeWireNode;
   friend class VideoCaptureModulePipeWire;
@@ -193,6 +197,9 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
   // Delay before the next attempt after a failed one. The PipeWire thread
   // resets it when PipeWire answers.
   std::atomic<int> reconnect_delay_ms_ = 0;
+
+  // Set on the PipeWire thread, read on any thread.
+  std::atomic<bool> connection_lost_ = false;
 
   // The PipeWire thread adds and removes nodes, while DeviceInfoPipeWire and
   // VideoCaptureModulePipeWire read the list on other threads. Hold it while
