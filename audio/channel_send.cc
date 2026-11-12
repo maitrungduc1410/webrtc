@@ -35,11 +35,13 @@
 #include "api/function_view.h"
 #include "api/make_ref_counted.h"
 #include "api/media_types.h"
+#include "api/rtc_error.h"
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/sframe/sframe_types.h"
 #include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
@@ -62,7 +64,9 @@
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
 #include "modules/rtp_rtcp/source/rtp_sender_audio.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
 #include "modules/sframe/sframe_encryption_config.h"
+#include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/event.h"
@@ -122,6 +126,34 @@ class AudioBitrateAccountant {
   DataRate rate_last_frame_ = DataRate::BitsPerSec(0);
   std::optional<DataRate> report_rate_;
 };
+
+// Returns the Sframe RTP payload for `payload`: the Sframe descriptor followed
+// by the Sframe ciphertext, or nullopt if encryption fails. An audio frame is
+// sent in a single RTP packet, so per-frame and per-packet encryption produce
+// the same ciphertext and only the descriptor's T bit tells them apart.
+std::optional<Buffer> EncryptSframeAudioPayload(
+    const SframeEncryptionConfig& config,
+    std::span<const uint8_t> payload) {
+  SframeMediaEncryptorInterface& encryptor = *config.encryptor;
+  Buffer sframe_payload = Buffer::CreateUninitializedWithSize(
+      SframeDescriptor::kSize +
+      encryptor.GetMaxCiphertextByteSize(payload.size()));
+  sframe_payload[0] = BuildSframeDescriptorByte(
+      /*start=*/true, /*end=*/true,
+      config.mode == SframeMode::kPerPacket ? SframeEncryptionLevel::kPacket
+                                            : SframeEncryptionLevel::kFrame);
+
+  RTCErrorOr<size_t> bytes_written = encryptor.Encrypt(
+      payload, /*additional_data=*/{},
+      std::span<uint8_t>(sframe_payload).subspan(SframeDescriptor::kSize));
+  if (!bytes_written.ok()) {
+    RTC_DLOG(LS_ERROR) << "Dropping audio frame: Sframe encryption failed: "
+                       << bytes_written.error().message();
+    return std::nullopt;
+  }
+  sframe_payload.SetSize(SframeDescriptor::kSize + bytes_written.value());
+  return sframe_payload;
+}
 
 class ChannelSend : public ChannelSendInterface,
                     public AudioPacketizationCallback,  // receive encoded
@@ -446,13 +478,19 @@ int32_t ChannelSend::SendRtpAudio(AudioFrameType frameType,
   // current implementation, they are not.
   if (!payload.empty()) {
     if (sframe_required_by_negotiation_) {
-      // TODO(bugs.webrtc.org/479862368): Wire up the Sframe encryptor
-      RTC_DLOG(LS_ERROR) << "Dropping audio frame: Sframe is required but no "
-                            "Sframe encryptor is set up for this stream.";
-      return -1;
-    }
-
-    if (frame_encryptor_ != nullptr) {
+      if (!sframe_encryption_config_.has_value()) {
+        RTC_DLOG(LS_ERROR) << "Dropping audio frame: Sframe is required but no "
+                              "Sframe encryptor is set up for this stream.";
+        return -1;
+      }
+      std::optional<Buffer> sframe_payload =
+          EncryptSframeAudioPayload(*sframe_encryption_config_, payload);
+      if (!sframe_payload.has_value()) {
+        return -1;
+      }
+      encrypted_audio_payload = *std::move(sframe_payload);
+      payload = encrypted_audio_payload;
+    } else if (frame_encryptor_ != nullptr) {
       // TODO(benwright@webrtc.org) - Allocate enough to always encrypt inline.
       // Allocate a buffer to hold the maximum possible encrypted payload.
       size_t max_ciphertext_size = frame_encryptor_->GetMaxCiphertextByteSize(

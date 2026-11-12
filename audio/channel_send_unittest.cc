@@ -10,6 +10,8 @@
 
 #include "audio/channel_send.h"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -32,9 +34,11 @@
 #include "api/field_trials.h"
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
+#include "api/rtc_error.h"
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_types.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/test/mock_frame_transformer.h"
 #include "api/test/mock_transformable_audio_frame.h"
@@ -48,6 +52,9 @@
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
+#include "modules/sframe/mock_sframe_media_encryptor.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
@@ -60,9 +67,13 @@ namespace webrtc {
 namespace voe {
 namespace {
 
+using ::testing::_;
+using ::testing::ElementsAreArray;
 using ::testing::Eq;
+using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::NiceMock;
+using ::testing::Not;
 using ::testing::Return;
 using ::testing::SaveArg;
 
@@ -657,6 +668,193 @@ TEST_F(ChannelSendTest, CallbackOnFrameWithoutRtpOffset) {
   // Frame did not contain the offset. Expected on-the-wire value must include
   // the offset.
   EXPECT_EQ(*sent_timestamp, 1234u + start_timestamp);
+}
+
+struct SentPacket {
+  uint8_t payload_type;
+  std::vector<uint8_t> payload;
+};
+
+// Sframe descriptor bytes with the S and E bits set, without and with the T
+// bit.
+constexpr uint8_t kPerFrameDescriptor = 0b110'00000;
+constexpr uint8_t kPerPacketDescriptor = 0b111'00000;
+
+// Returns an Sframe encryptor that produces `ciphertext` for any frame.
+scoped_refptr<NiceMock<MockSframeMediaEncryptor>> CreateSframeEncryptor(
+    std::vector<uint8_t> ciphertext) {
+  scoped_refptr<NiceMock<MockSframeMediaEncryptor>> encryptor =
+      make_ref_counted<NiceMock<MockSframeMediaEncryptor>>();
+  ON_CALL(*encryptor, GetMaxCiphertextByteSize)
+      .WillByDefault(Return(ciphertext.size()));
+  ON_CALL(*encryptor, Encrypt)
+      .WillByDefault([ciphertext = std::move(ciphertext)](
+                         std::span<const uint8_t> /*frame*/,
+                         std::span<const uint8_t> /*additional_data*/,
+                         std::span<uint8_t> encrypted_frame) {
+        std::ranges::copy(ciphertext, encrypted_frame.begin());
+        return RTCErrorOr<size_t>(ciphertext.size());
+      });
+  return encryptor;
+}
+
+// Returns a Transport::SendRtp action that appends the sent packet to
+// `sent_packets`.
+auto RecordSentPacket(std::vector<SentPacket>& sent_packets) {
+  return [&sent_packets](std::span<const uint8_t> data,
+                         const PacketOptions& /* options */) {
+    RtpPacketReceived packet;
+    packet.Parse(data);
+    sent_packets.push_back(
+        {.payload_type = packet.PayloadType(),
+         .payload = std::vector<uint8_t>(packet.payload().begin(),
+                                         packet.payload().end())});
+    return true;
+  };
+}
+
+TEST_F(ChannelSendTest, SframeEncryptsAudioPayload) {
+  const std::vector<uint8_t> ciphertext = {0xab, 0xcd};
+  scoped_refptr<NiceMock<MockSframeMediaEncryptor>> encryptor =
+      CreateSframeEncryptor(ciphertext);
+  EXPECT_CALL(*encryptor, Encrypt(Not(IsEmpty()), _, _));
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  channel_->SetSframeOptions(
+      {.required = true,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerFrame, .encryptor = encryptor}});
+
+  // The Opus encoder sends 20 ms of audio per packet.
+  ProcessNextFrame();
+  ProcessNextFrame();
+
+  ASSERT_EQ(sent_packets.size(), 1u);
+  EXPECT_EQ(sent_packets[0].payload_type, kPayloadType);
+  EXPECT_THAT(std::span<const uint8_t>(sent_packets[0].payload)
+                  .subspan(SframeDescriptor::kSize),
+              ElementsAreArray(ciphertext));
+}
+
+TEST_F(ChannelSendTest, SframePerFrameModeSendsDescriptorWithoutTypeBit) {
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  channel_->SetSframeOptions(
+      {.required = true,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerFrame,
+           .encryptor = CreateSframeEncryptor({0xab, 0xcd})}});
+
+  // The Opus encoder sends 20 ms of audio per packet.
+  ProcessNextFrame();
+  ProcessNextFrame();
+
+  ASSERT_EQ(sent_packets.size(), 1u);
+  ASSERT_FALSE(sent_packets[0].payload.empty());
+  EXPECT_EQ(sent_packets[0].payload[0], kPerFrameDescriptor);
+}
+
+TEST_F(ChannelSendTest, SframePerPacketModeSendsDescriptorWithTypeBit) {
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  channel_->SetSframeOptions(
+      {.required = true,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerPacket,
+           .encryptor = CreateSframeEncryptor({0xab, 0xcd})}});
+
+  // The Opus encoder sends 20 ms of audio per packet.
+  ProcessNextFrame();
+  ProcessNextFrame();
+
+  ASSERT_EQ(sent_packets.size(), 1u);
+  ASSERT_FALSE(sent_packets[0].payload.empty());
+  EXPECT_EQ(sent_packets[0].payload[0], kPerPacketDescriptor);
+}
+
+TEST_F(ChannelSendTest, SframeDropsAudioWhenEncryptionFails) {
+  scoped_refptr<NiceMock<MockSframeMediaEncryptor>> encryptor =
+      make_ref_counted<NiceMock<MockSframeMediaEncryptor>>();
+  EXPECT_CALL(*encryptor, Encrypt)
+      .WillOnce(Return(RTCError::InternalError("Encryption failed")));
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  channel_->SetSframeOptions(
+      {.required = true,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerFrame, .encryptor = encryptor}});
+
+  // The Opus encoder sends 20 ms of audio per packet.
+  ProcessNextFrame();
+  ProcessNextFrame();
+
+  EXPECT_THAT(sent_packets, IsEmpty());
+}
+
+TEST_F(ChannelSendTest, SendsPlaintextUntilNegotiationRequiresSframe) {
+  scoped_refptr<NiceMock<MockSframeMediaEncryptor>> encryptor =
+      make_ref_counted<NiceMock<MockSframeMediaEncryptor>>();
+  EXPECT_CALL(*encryptor, Encrypt).Times(0);
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  channel_->SetSframeOptions(
+      {.required = false,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerFrame, .encryptor = encryptor}});
+
+  // The Opus encoder sends 20 ms of audio per packet.
+  ProcessNextFrame();
+  ProcessNextFrame();
+
+  ASSERT_EQ(sent_packets.size(), 1u);
+  EXPECT_EQ(sent_packets[0].payload_type, kPayloadType);
+}
+
+TEST_F(ChannelSendTest, SframeEncryptsFramesFromFrameTransformer) {
+  std::vector<SentPacket> sent_packets;
+  ON_CALL(transport_, SendRtp).WillByDefault(RecordSentPacket(sent_packets));
+  channel_->StartSend();
+  auto frame_transformer = make_ref_counted<NiceMock<MockFrameTransformer>>();
+  scoped_refptr<TransformedFrameCallback> transformed_frame_callback;
+  ON_CALL(*frame_transformer, RegisterTransformedFrameCallback)
+      .WillByDefault(SaveArg<0>(&transformed_frame_callback));
+  channel_->SetEncoderToPacketizerFrameTransformer(frame_transformer);
+  ASSERT_TRUE(WaitUntil([&] { return transformed_frame_callback != nullptr; },
+                        {.clock = &time_controller_}));
+  constexpr std::array<uint8_t, 4> kTransformedPayload = {0xde, 0xad, 0xbe,
+                                                          0xef};
+  const std::vector<uint8_t> ciphertext = {0xab, 0xcd};
+  scoped_refptr<NiceMock<MockSframeMediaEncryptor>> encryptor =
+      CreateSframeEncryptor(ciphertext);
+  EXPECT_CALL(*encryptor, Encrypt(ElementsAreArray(kTransformedPayload), _, _));
+  channel_->SetSframeOptions(
+      {.required = true,
+       .encryption_config = SframeEncryptionConfig{
+           .mode = SframeMode::kPerFrame, .encryptor = encryptor}});
+
+  auto frame = std::make_unique<NiceMock<MockTransformableAudioFrame>>();
+  ON_CALL(*frame, Type)
+      .WillByDefault(Return(
+          TransformableAudioFrameInterface::FrameType::kAudioFrameSpeech));
+  ON_CALL(*frame, GetPayloadType).WillByDefault(Return(kPayloadType));
+  ON_CALL(*frame, GetRtpTimestampInfo)
+      .WillByDefault(Return(RtpTimestampInfo{RtpTimestampWithoutOffset{1000}}));
+  ON_CALL(*frame, GetData)
+      .WillByDefault(Return(std::span<const uint8_t>(kTransformedPayload)));
+  transformed_frame_callback->OnTransformedFrame(std::move(frame));
+  time_controller_.AdvanceTime(TimeDelta::Millis(10));
+
+  ASSERT_EQ(sent_packets.size(), 1u);
+  ASSERT_FALSE(sent_packets[0].payload.empty());
+  EXPECT_EQ(sent_packets[0].payload[0], kPerFrameDescriptor);
+  EXPECT_THAT(std::span<const uint8_t>(sent_packets[0].payload)
+                  .subspan(SframeDescriptor::kSize),
+              ElementsAreArray(ciphertext));
 }
 
 TEST_F(ChannelSendTest, ReassignFrameTransformerResetsPriorDelegate) {
