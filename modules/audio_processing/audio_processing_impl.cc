@@ -476,7 +476,8 @@ AudioProcessingImpl::AudioProcessingImpl(
           MinimizeProcessingForUnusedOutput(env.field_trials()),
           env.field_trials().IsEnabled("WebRTC-ApmEnforce48kHzProcessingRate"),
           env.field_trials().IsEnabled(
-              "WebRTC-ApmAdaptiveCaptureMixingForStereoKillSwitch")),
+              "WebRTC-ApmAdaptiveCaptureMixingForStereoKillSwitch"),
+          env.field_trials().IsEnabled("WebRTC-ApmAdaptiveCaptureDownmixing")),
       capture_(),
       capture_nonlocked_(),
       applied_input_volume_stats_reporter_(
@@ -572,8 +573,14 @@ void AudioProcessingImpl::InitializeLocked() {
                                      constants_.multi_channel_capture_support;
   // Enforce adaptive downmixing when the echo canceller is active and
   // multi-channel processing is used.
+  const bool use_adaptive_capture_downmixing =
+      constants_.use_adaptive_capture_downmixing &&
+      formats_.api_format.input_stream().num_channels() == 2 &&
+      formats_.api_format.output_stream().num_channels() == 1;
   AudioProcessing::Config::Pipeline::DownmixMethod downmixing_method =
-      config_.pipeline.capture_downmix_method;
+      use_adaptive_capture_downmixing
+          ? AudioProcessing::Config::Pipeline::DownmixMethod::kAdaptive
+          : config_.pipeline.capture_downmix_method;
   AudioProcessing::Config::Pipeline::DownmixMethod downmixing_method_stereo =
       config_.pipeline.capture_downmix_method_stereo_aec;
   if (constants_.fallback_to_generic_downmixing_with_stereo_aec ||

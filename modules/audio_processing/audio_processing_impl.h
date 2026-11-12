@@ -425,7 +425,8 @@ class AudioProcessingImpl : public AudioProcessing {
                  bool enforce_split_band_hpf,
                  bool minimize_processing_for_unused_output,
                  bool enforce_48_khz_max_internal_processing_rate,
-                 bool fallback_to_generic_downmixing_with_stereo_aec)
+                 bool fallback_to_generic_downmixing_with_stereo_aec,
+                 bool use_adaptive_capture_downmixing)
         : multi_channel_render_support(multi_channel_render_support),
           multi_channel_capture_support(multi_channel_capture_support),
           enforce_split_band_hpf(enforce_split_band_hpf),
@@ -434,13 +435,15 @@ class AudioProcessingImpl : public AudioProcessing {
           enforce_48_khz_max_internal_processing_rate(
               enforce_48_khz_max_internal_processing_rate),
           fallback_to_generic_downmixing_with_stereo_aec(
-              fallback_to_generic_downmixing_with_stereo_aec) {}
+              fallback_to_generic_downmixing_with_stereo_aec),
+          use_adaptive_capture_downmixing(use_adaptive_capture_downmixing) {}
     bool multi_channel_render_support;
     bool multi_channel_capture_support;
     bool enforce_split_band_hpf;
     bool minimize_processing_for_unused_output;
     bool enforce_48_khz_max_internal_processing_rate;
     bool fallback_to_generic_downmixing_with_stereo_aec;
+    bool use_adaptive_capture_downmixing;
   } constants_;
 
   struct ApmCaptureState {

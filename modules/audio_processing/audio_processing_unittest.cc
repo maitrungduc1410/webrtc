@@ -2056,13 +2056,15 @@ std::string ProduceDebugText(int render_input_sample_rate_hz,
 void RunApmRateAndChannelTest(std::span<const int> sample_rates_hz,
                               std::span<const int> render_channel_counts,
                               std::span<const int> capture_channel_counts,
-                              std::span<const bool> mono_capture_output) {
+                              std::span<const bool> mono_capture_output,
+                              absl::string_view field_trials = "") {
   AudioProcessing::Config apm_config;
   apm_config.pipeline.multi_channel_render = true;
   apm_config.pipeline.multi_channel_capture = true;
   apm_config.echo_canceller.enabled = true;
   scoped_refptr<AudioProcessing> apm =
-      BuiltinAudioProcessingBuilder(apm_config).Build(CreateTestEnvironment());
+      BuiltinAudioProcessingBuilder(apm_config)
+          .Build(CreateTestEnvironment({.field_trials = field_trials}));
 
   StreamConfig render_input_stream_config;
   StreamConfig render_output_stream_config;
@@ -2555,6 +2557,16 @@ TEST(ApmConfiguration, HandlingOfChannelCombinations) {
   std::array<bool, 2> mono_capture_output = {true, false};
   RunApmRateAndChannelTest(sample_rates_hz, render_channel_counts,
                            capture_channel_counts, mono_capture_output);
+}
+
+TEST(ApmConfiguration, HandlingOfChannelCombinationsWithAdaptiveDownmixing) {
+  std::array<int, 1> sample_rates_hz = {48000};
+  std::array<int, 8> render_channel_counts = {1, 2, 3, 4, 5, 6, 7, 8};
+  std::array<int, 8> capture_channel_counts = {1, 2, 3, 4, 5, 6, 7, 8};
+  std::array<bool, 2> mono_capture_output = {true, false};
+  RunApmRateAndChannelTest(sample_rates_hz, render_channel_counts,
+                           capture_channel_counts, mono_capture_output,
+                           "WebRTC-ApmAdaptiveCaptureDownmixing/Enabled/");
 }
 
 TEST(ApmConfiguration, HandlingOfRateCombinations) {
