@@ -240,6 +240,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../test:frame_utils",
       "../test:test_support",
       "../test:video_test_common",
+      "//third_party/libyuv",
     ]
   }
 

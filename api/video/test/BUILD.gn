@@ -46,6 +46,7 @@ if (rtc_include_tests) {
       "../..:scoped_refptr",
       "../../../test:frame_utils",
       "../../../test:test_support",
+      "//third_party/libyuv",
     ]
   }
 

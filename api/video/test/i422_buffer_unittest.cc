@@ -19,6 +19,7 @@
 #include "api/video/video_frame_buffer.h"
 #include "test/frame_utils.h"
 #include "test/gtest.h"
+#include "third_party/libyuv/include/libyuv/version.h"
 
 namespace webrtc {
 
@@ -129,18 +130,47 @@ TEST(I422BufferTest, ToI420) {
   EXPECT_TRUE(test::FrameBufsEqual(reference, i420_buffer));
 }
 
-TEST(I422BufferTest, ToI420FailsForOversizedDimensions) {
-  // libyuv::ScalePlane rejects source dimensions > 32768. For I422, chroma
-  // width is (width + 1) / 2 and chroma height is height.
+TEST(I422BufferTest, ToI420HandlesOversizedDimensions) {
+  constexpr int kWideWidth = 65537;
+  constexpr int kShortHeight = 2;
   scoped_refptr<I422Buffer> wide_buffer =
-      I422Buffer::Create(/*width=*/65537, /*height=*/2);
+      I422Buffer::Create(kWideWidth, kShortHeight);
   FillI422Buffer(wide_buffer);
-  EXPECT_EQ(wide_buffer->ToI420(), nullptr);
 
+  constexpr int kNarrowWidth = 2;
+  constexpr int kTallHeight = 32769;
   scoped_refptr<I422Buffer> tall_buffer =
-      I422Buffer::Create(/*width=*/2, /*height=*/32769);
+      I422Buffer::Create(kNarrowWidth, kTallHeight);
   FillI422Buffer(tall_buffer);
+
+#if LIBYUV_VERSION >= 1982
+  // Since libyuv 1982, I422ToI420 uses CopyPlane and HalfRow instead of
+  // ScalePlane and succeeds for dimensions > 32768.
+  constexpr int kWideChromaWidth = (kWideWidth + 1) / 2;
+  scoped_refptr<I420BufferInterface> wide_i420 = wide_buffer->ToI420();
+  ASSERT_NE(wide_i420, nullptr);
+  EXPECT_EQ(wide_i420->width(), kWideWidth);
+  EXPECT_EQ(wide_i420->height(), kShortHeight);
+  EXPECT_EQ(wide_i420->DataY()[kWideWidth - 1], 1);
+  EXPECT_EQ(wide_i420->DataU()[kWideChromaWidth - 1], 2);
+  EXPECT_EQ(wide_i420->DataV()[kWideChromaWidth - 1], 3);
+
+  constexpr int kTallChromaHeight = (kTallHeight + 1) / 2;
+  scoped_refptr<I420BufferInterface> tall_i420 = tall_buffer->ToI420();
+  ASSERT_NE(tall_i420, nullptr);
+  EXPECT_EQ(tall_i420->width(), kNarrowWidth);
+  EXPECT_EQ(tall_i420->height(), kTallHeight);
+  EXPECT_EQ(tall_i420->DataY()[(kTallHeight - 1) * tall_i420->StrideY()], 1);
+  EXPECT_EQ(tall_i420->DataU()[(kTallChromaHeight - 1) * tall_i420->StrideU()],
+            2);
+  EXPECT_EQ(tall_i420->DataV()[(kTallChromaHeight - 1) * tall_i420->StrideV()],
+            3);
+#else
+  // Prior to libyuv 1982, I422ToI420 called ScalePlane, which rejects source
+  // dimensions > 32768.
+  EXPECT_EQ(wide_buffer->ToI420(), nullptr);
   EXPECT_EQ(tall_buffer->ToI420(), nullptr);
+#endif
 }
 
 }  // namespace webrtc
