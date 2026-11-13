@@ -340,8 +340,10 @@ void PipeWireSession::Init(VideoCaptureOptions::Callback* callback, int fd) {
 }
 
 void PipeWireSession::InitPipeWire(int fd) {
-  if (!InitializePipeWire())
+  if (!InitializePipeWire()) {
     Finish(VideoCaptureOptions::Status::UNAVAILABLE);
+    return;
+  }
 
   if (!StartPipeWire(fd))
     Finish(VideoCaptureOptions::Status::ERROR);
