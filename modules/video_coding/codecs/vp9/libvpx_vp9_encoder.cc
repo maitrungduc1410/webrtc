@@ -1859,14 +1859,12 @@ void LibvpxVp9Encoder::GetEncodedLayerFrame(const vpx_codec_cx_pkt* pkt) {
   libvpx_->codec_control(encoder_, VP8E_GET_LAST_QUANTIZER, &qp);
   encoded_image_.qp_ = qp;
   // Pull PSNR which is not pushed for VP9.
-  // TODO: bugs.webrtc.org/388070060 - check SVC behavior.
-  // TODO: bugs.webrtc.org/388070060 - this is broken for simulcast which seems
-  // to be using kSVC.
   vpx_codec_iter_t iter = nullptr;
   const vpx_codec_cx_pkt_t* cx_data = nullptr;
   encoded_image_.set_psnr(std::nullopt);
   while ((cx_data = libvpx_->codec_get_cx_data(encoder_, &iter)) != nullptr) {
-    if (cx_data->kind == VPX_CODEC_PSNR_PKT) {
+    if (cx_data->kind == VPX_CODEC_PSNR_PKT &&
+        cx_data->data.psnr.spatial_layer_id == layer_id.spatial_layer_id) {
       // PSNR index: 0: total, 1: Y, 2: U, 3: V
       encoded_image_.set_psnr(
           EncodedImage::Psnr({.y = cx_data->data.psnr.psnr[1],
