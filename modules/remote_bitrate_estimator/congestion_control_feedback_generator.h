@@ -54,7 +54,8 @@ namespace webrtc {
 // after receiving a complete video frame. If no packet with marker bit is
 // received, feedback can be delayed up to 25ms after the first packet since the
 // last sent feedback. On good networks, this means that a sender may receive
-// feedback for every sent frame.
+// feedback for every sent frame. Feedback is also sent immediately if the
+// accumulated feedback packet size reaches 1200 bytes.
 class CongestionControlFeedbackGenerator
     : public RtpTransportFeedbackGenerator {
  public:
@@ -99,17 +100,22 @@ class CongestionControlFeedbackGenerator
   bool is_bandwidth_limited_ RTC_GUARDED_BY(sequence_checker_) = true;
   std::optional<DataSize> transport_overhead_ RTC_GUARDED_BY(sequence_checker_);
 
-  DataSize packet_overhead_ = DataSize::Zero();
-  DataSize send_rate_debt_ = DataSize::Zero();
+  DataSize packet_overhead_ RTC_GUARDED_BY(sequence_checker_) =
+      DataSize::Zero();
+  DataSize send_rate_debt_ RTC_GUARDED_BY(sequence_checker_) = DataSize::Zero();
+  DataSize remaining_feedback_size_ RTC_GUARDED_BY(sequence_checker_);
 
   std::map</*ssrc=*/uint32_t, CongestionControlFeedbackTracker>
-      feedback_trackers_;
+      feedback_trackers_ RTC_GUARDED_BY(sequence_checker_);
 
-  Timestamp last_feedback_sent_time_ = Timestamp::MinusInfinity();
-  std::optional<Timestamp> first_arrival_time_since_feedback_;
-  bool marker_bit_seen_ = false;
+  Timestamp last_feedback_sent_time_ RTC_GUARDED_BY(sequence_checker_) =
+      Timestamp::MinusInfinity();
+  std::optional<Timestamp> first_arrival_time_since_feedback_
+      RTC_GUARDED_BY(sequence_checker_);
+  bool marker_bit_seen_ RTC_GUARDED_BY(sequence_checker_) = false;
   int sent_feedback_count_ RTC_GUARDED_BY(sequence_checker_) = 0;
-  Timestamp next_possible_feedback_send_time_ = Timestamp::Zero();
+  Timestamp next_possible_feedback_send_time_
+      RTC_GUARDED_BY(sequence_checker_) = Timestamp::Zero();
 };
 
 }  // namespace webrtc

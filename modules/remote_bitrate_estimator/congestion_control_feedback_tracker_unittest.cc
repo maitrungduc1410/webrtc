@@ -11,9 +11,11 @@
 #include "modules/remote_bitrate_estimator/congestion_control_feedback_tracker.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "api/transport/ecn_marking.h"
+#include "api/units/data_size.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
@@ -31,6 +33,7 @@ using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
+using ::testing::Optional;
 using ::testing::Property;
 using ::testing::SizeIs;
 using PacketInfo = ::webrtc::rtcp::CongestionControlFeedback::PacketInfo;
@@ -55,9 +58,10 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 =
       CreatePacket(/*arrival_time=*/Timestamp::Millis(125), /*seq=*/1);
 
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(packet_1);
-  tracker.ReceivedPacket(packet_2);
+  tracker.ReceivedPacket(packet_1, remaining_size);
+  tracker.ReceivedPacket(packet_2, remaining_size);
 
   Timestamp feedback_time = Timestamp::Millis(567);
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
@@ -90,10 +94,11 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_3 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(126), /*seq=*/1, EcnMarking::kEct1);
 
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(packet_1);
-  tracker.ReceivedPacket(packet_2);
-  tracker.ReceivedPacket(packet_3);
+  tracker.ReceivedPacket(packet_1, remaining_size);
+  tracker.ReceivedPacket(packet_2, remaining_size);
+  tracker.ReceivedPacket(packet_3, remaining_size);
 
   Timestamp feedback_time = Timestamp::Millis(567);
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
@@ -112,13 +117,15 @@ TEST(CongestionControlFeedbackTrackerTest,
 TEST(CongestionControlFeedbackTrackerTest,
      ReportsFirstArrivalTimeButEcnFromCeWhenReceivedBetweenFeedback) {
   using enum EcnMarking;
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
 
   RtpPacketReceived packet = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(123), /*seq=*/1, /*ecn=*/kEct1);
-  tracker.ReceivedPacket(packet);
+  tracker.ReceivedPacket(packet, remaining_size);
   tracker.ReceivedPacket(CreatePacket(/*arrival_time=*/Timestamp::Millis(123),
-                                      /*seq=*/2, /*ecn=*/kEct1));
+                                      /*seq=*/2, /*ecn=*/kEct1),
+                         remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   Timestamp feedback_time1 = Timestamp::Millis(567);
@@ -130,8 +137,10 @@ TEST(CongestionControlFeedbackTrackerTest,
                              Field(&PacketInfo::ecn, kEct1))));
 
   // Re-receive packet with sequence number=1, but now with CE marking.
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(600), /*seq=*/1, /*ecn=*/kCe));
+  tracker.ReceivedPacket(
+      CreatePacket(
+          /*arrival_time=*/Timestamp::Millis(600), /*seq=*/1, /*ecn=*/kCe),
+      remaining_size);
 
   // Expect that in the new feedbacj such packet would be re-reported with 'CE'
   // marking.
@@ -153,9 +162,10 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(packet_1);
-  tracker.ReceivedPacket(packet_2);
+  tracker.ReceivedPacket(packet_1, remaining_size);
+  tracker.ReceivedPacket(packet_2, remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   Timestamp feedback_time = Timestamp::Millis(567);
@@ -178,8 +188,9 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_2 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(packet_1);
+  tracker.ReceivedPacket(packet_1, remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   Timestamp feedback_time = Timestamp::Millis(567);
@@ -191,7 +202,7 @@ TEST(CongestionControlFeedbackTrackerTest,
 
   feedback_info.clear();
   feedback_time = Timestamp::Millis(678);
-  tracker.ReceivedPacket(packet_2);
+  tracker.ReceivedPacket(packet_2, remaining_size);
   tracker.AddPacketsToFeedback(feedback_time, feedback_info);
   ASSERT_THAT(feedback_info, SizeIs(2));
   EXPECT_THAT(feedback_info[0].sequence_number, 2);
@@ -210,8 +221,9 @@ TEST(CongestionControlFeedbackTrackerTest,
   RtpPacketReceived packet_3 = CreatePacket(
       /*arrival_time=*/Timestamp::Millis(125), /*seq=*/3);
 
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(packet_1);
+  tracker.ReceivedPacket(packet_1, remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   Timestamp feedback_time = Timestamp::Millis(567);
@@ -223,8 +235,8 @@ TEST(CongestionControlFeedbackTrackerTest,
 
   feedback_info.clear();
   feedback_time = Timestamp::Millis(678);
-  tracker.ReceivedPacket(packet_2);
-  tracker.ReceivedPacket(packet_3);
+  tracker.ReceivedPacket(packet_2, remaining_size);
+  tracker.ReceivedPacket(packet_3, remaining_size);
   tracker.AddPacketsToFeedback(feedback_time, feedback_info);
   ASSERT_THAT(feedback_info, SizeIs(3));
   EXPECT_THAT(feedback_info[0].sequence_number, 1);
@@ -240,13 +252,16 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      IgnoresPacketsReceivedWithTooSmallSequenceNumber) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(125), /*seq=*/1065));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(125), /*seq=*/1065),
+      remaining_size);
   // Packet with backward sequence number jump by more than '64' is ignored
   // as misordered too much.
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/1000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/1000),
+      remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(135), feedback_info);
@@ -257,11 +272,14 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      CreatesFeedbackForPacketsReceivedWithSmallPositiveJumpInSequenceNumber) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(125), /*seq=*/1'000));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'200));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(125), /*seq=*/1'000),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'200),
+      remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(135), feedback_info);
@@ -273,11 +291,14 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      IgnoresPacketsReceivedWithLargePositiveJumpInSequenceNumber) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(125), /*seq=*/1'000));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/20'000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(125), /*seq=*/1'000),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/20'000),
+      remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(135), feedback_info);
@@ -288,12 +309,15 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      ResumeProducingReportsAfterBackwardSequenceNumberJump) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/10'000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/10'000),
+      remaining_size);
 
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(140), /*seq=*/1000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(140), /*seq=*/1000),
+      remaining_size);
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(150), feedback_info);
   // Expect packet with sn=1000 is discarded as received way out of order.
@@ -303,18 +327,22 @@ TEST(CongestionControlFeedbackTrackerTest,
   // Continue receiving packets with smaller sequence numbers and generate
   // feedbacks. eventually feedbacks should be non-empty.
   feedback_info = {};
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(160), /*seq=*/1001));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(170), /*seq=*/1002));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(160), /*seq=*/1001),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(170), /*seq=*/1002),
+      remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(180), feedback_info);
   // Due to large sequence number jump, first feedback after such jump might
   // be empty.
 
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(180), /*seq=*/1003));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(190), /*seq=*/1004));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(180), /*seq=*/1003),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(190), /*seq=*/1004),
+      remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(200), feedback_info);
 
   ASSERT_THAT(feedback_info, Not(IsEmpty()));
@@ -323,12 +351,15 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      ResumeProducingReportsAfterForwardSequenceNumberJump) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'000),
+      remaining_size);
 
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(140), /*seq=*/20'000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(140), /*seq=*/20'000),
+      remaining_size);
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(150), feedback_info);
   // Expect packet with sn=20'000 is discarded as received way out of order.
@@ -338,18 +369,22 @@ TEST(CongestionControlFeedbackTrackerTest,
   // Continue receiving packets with larger sequence numbers and generate
   // feedbacks. eventually feedbacks should be non-empty.
   feedback_info = {};
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(160), /*seq=*/20'001));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(170), /*seq=*/20'002));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(160), /*seq=*/20'001),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(170), /*seq=*/20'002),
+      remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(180), feedback_info);
   // Due to large sequence number jump, first feedback after such jump might
   // be empty.
 
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(180), /*seq=*/20'003));
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(190), /*seq=*/20'004));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(180), /*seq=*/20'003),
+      remaining_size);
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(190), /*seq=*/20'004),
+      remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(200), feedback_info);
 
   ASSERT_THAT(feedback_info, Not(IsEmpty()));
@@ -358,9 +393,11 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      DoesntResetStateOnPeriodsOfInactivity) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'000));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(130), /*seq=*/1'000),
+      remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
@@ -373,8 +410,9 @@ TEST(CongestionControlFeedbackTrackerTest,
   tracker.AddPacketsToFeedback(Timestamp::Millis(160), feedback_info);
   EXPECT_THAT(feedback_info, IsEmpty());
 
-  tracker.ReceivedPacket(CreatePacket(
-      /*arrival_time=*/Timestamp::Millis(170), /*seq=*/998));
+  tracker.ReceivedPacket(
+      CreatePacket(/*arrival_time=*/Timestamp::Millis(170), /*seq=*/998),
+      remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(180), feedback_info);
   ASSERT_THAT(feedback_info, SizeIs(3));
   EXPECT_EQ(feedback_info[0].sequence_number, 998);
@@ -383,9 +421,12 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      AccumulatesTotalNumberOfReportedLostPackets) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                         remaining_size);
 
   // Until reported in a feedback, missed packets are not counted as lost.
   EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 0);
@@ -394,16 +435,20 @@ TEST(CongestionControlFeedbackTrackerTest,
   tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
   EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 3);  // seq = [2,3,4]
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/8));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/8),
+                         remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
   EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 5);  //  [2,3,4,6,7]
 }
 
 TEST(CongestionControlFeedbackTrackerTest,
      RecoveredPacketsDoesntDecreaseNumberOfLostPackets) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                         remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
@@ -411,22 +456,27 @@ TEST(CongestionControlFeedbackTrackerTest,
 
   // Recover packet#4, so that only packets #2 and #3 are lost, but total
   // number of reported loss stays the same.
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4),
+                         remaining_size);
   tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
   EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 3);
   EXPECT_EQ(tracker.GetStats().num_packets_reported_recovered, 1);
 }
 
 TEST(CongestionControlFeedbackTrackerTest, CountsOncePacketReportedLostTwice) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                         remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
   EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 3);  // seq = [2,3,4]
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2),
+                         remaining_size);
   feedback_info = {};
   tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
   // Feedback includes information that packets #3 and #4 are lost.
@@ -442,9 +492,12 @@ TEST(CongestionControlFeedbackTrackerTest, CountsOncePacketReportedLostTwice) {
 
 TEST(CongestionControlFeedbackTrackerTest,
      AccumulatesTotalNumberOfReportedRecoveredPackets) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                         remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
@@ -452,7 +505,8 @@ TEST(CongestionControlFeedbackTrackerTest,
               Contains(AllOf(Field(&PacketInfo::sequence_number, 2),
                              Property(&PacketInfo::received, IsFalse()))));
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/2),
+                         remaining_size);
 
   // Until reported in a feedback, recovered packets are not counted.
   EXPECT_EQ(tracker.GetStats().num_packets_reported_recovered, 0);
@@ -463,8 +517,10 @@ TEST(CongestionControlFeedbackTrackerTest,
                              Property(&PacketInfo::received, IsTrue()))));
   EXPECT_EQ(tracker.GetStats().num_packets_reported_recovered, 1);
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(160), /*seq=*/4));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(160), /*seq=*/4),
+                         remaining_size);
   feedback_info = {};
   tracker.AddPacketsToFeedback(Timestamp::Millis(170), feedback_info);
   ASSERT_THAT(feedback_info,
@@ -478,9 +534,12 @@ TEST(CongestionControlFeedbackTrackerTest,
 
 TEST(CongestionControlFeedbackTrackerTest,
      CountsOncePacketReportedAsRecoveredTwice) {
+  DataSize remaining_size = DataSize::PlusInfinity();
   CongestionControlFeedbackTracker tracker(kSsrc);
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1));
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                         remaining_size);
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                         remaining_size);
 
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
   tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
@@ -488,7 +547,8 @@ TEST(CongestionControlFeedbackTrackerTest,
               Contains(AllOf(Field(&PacketInfo::sequence_number, 4),
                              Property(&PacketInfo::received, IsFalse()))));
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(130), /*seq=*/4),
+                         remaining_size);
 
   feedback_info = {};
   tracker.AddPacketsToFeedback(Timestamp::Millis(140), feedback_info);
@@ -498,7 +558,8 @@ TEST(CongestionControlFeedbackTrackerTest,
   // Expect packet#4 is counted as recovered.
   EXPECT_EQ(tracker.GetStats().num_packets_reported_recovered, 1);
 
-  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3));
+  tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(150), /*seq=*/3),
+                         remaining_size);
   feedback_info = {};
   tracker.AddPacketsToFeedback(Timestamp::Millis(170), feedback_info);
   ASSERT_THAT(feedback_info,
@@ -510,6 +571,108 @@ TEST(CongestionControlFeedbackTrackerTest,
 
   // Expect packet#3 is counted as recovered, but packet#4 is not counted twice.
   EXPECT_EQ(tracker.GetStats().num_packets_reported_recovered, 2);
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     ReceivedPacketRespectsRemainingSize) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  // 16 bytes fits 8-byte header + 4 packets * 2 bytes.
+  DataSize remaining_size = DataSize::Bytes(16);
+  // 1st packet: 8-byte header + 1 packet * 2 bytes + 2 bytes padding = 12
+  // bytes.
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                             remaining_size),
+      Optional(DataSize::Bytes(12)));
+  remaining_size -= DataSize::Bytes(12);
+  // 3 more packets (seq=2..4): total 4 packets = 16 bytes (+4 bytes).
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(105), /*seq=*/4),
+                             remaining_size),
+      Optional(DataSize::Bytes(4)));
+  remaining_size -= DataSize::Bytes(4);
+
+  // Packet seq=5 does not fit in the remaining 0 bytes.
+  EXPECT_EQ(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                             remaining_size),
+      std::nullopt);
+
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(120), feedback_info);
+  ASSERT_THAT(feedback_info, SizeIs(4));
+  EXPECT_EQ(feedback_info[0].sequence_number, 1);
+  EXPECT_EQ(feedback_info[3].sequence_number, 4);
+
+  // Retrying seq=5 with a fresh 16-byte budget succeeds.
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(110), /*seq=*/5),
+                             DataSize::Bytes(16)),
+      Optional(DataSize::Bytes(12)));
+
+  feedback_info.clear();
+  tracker.AddPacketsToFeedback(Timestamp::Millis(125), feedback_info);
+  ASSERT_THAT(feedback_info, SizeIs(1));
+  EXPECT_EQ(feedback_info[0].sequence_number, 5);
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     ReceivedPacketFillsRemainingSizeWithLostPacketsWhenGapIsLarge) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                             DataSize::PlusInfinity()),
+      Optional(DataSize::Bytes(12)));
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(110), feedback_info);
+
+  // Packet seq=8 needs 7 reports (seq=2..8), which exceeds a 16-byte budget
+  // (max 4 reports). ReceivedPacket fills the 16-byte budget with lost packets
+  // seq=2..5 and returns nullopt.
+  EXPECT_EQ(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(120), /*seq=*/8),
+                             DataSize::Bytes(16)),
+      std::nullopt);
+
+  feedback_info.clear();
+  tracker.AddPacketsToFeedback(Timestamp::Millis(125), feedback_info);
+  ASSERT_THAT(feedback_info, SizeIs(4));
+  EXPECT_EQ(feedback_info[0].sequence_number, 2);
+  EXPECT_EQ(feedback_info[3].sequence_number, 5);
+  EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 4);  // seq = [2..5]
+
+  // Retrying seq=8 with a fresh 16-byte budget now succeeds (seq=6..7 lost,
+  // seq=8 received = 16 bytes).
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(120), /*seq=*/8),
+                             DataSize::Bytes(16)),
+      Optional(DataSize::Bytes(16)));
+
+  feedback_info.clear();
+  tracker.AddPacketsToFeedback(Timestamp::Millis(130), feedback_info);
+  ASSERT_THAT(feedback_info, SizeIs(3));
+  EXPECT_EQ(feedback_info[0].sequence_number, 6);
+  EXPECT_EQ(feedback_info[2].sequence_number, 8);
+  EXPECT_TRUE(feedback_info[2].received());
+  EXPECT_EQ(tracker.GetStats().num_packets_reported_lost, 6);  // seq = [2..7]
+}
+
+TEST(CongestionControlFeedbackTrackerTest,
+     DuplicatePacketDoesNotRequireRemainingSize) {
+  CongestionControlFeedbackTracker tracker(kSsrc);
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(100), /*seq=*/1),
+                             DataSize::PlusInfinity()),
+      Optional(DataSize::Bytes(12)));
+  std::vector<rtcp::CongestionControlFeedback::PacketInfo> feedback_info;
+  tracker.AddPacketsToFeedback(Timestamp::Millis(110), feedback_info);
+
+  // Duplicate of already reported packet seq=1 without new ECN-CE mark does not
+  // require feedback space.
+  EXPECT_THAT(
+      tracker.ReceivedPacket(CreatePacket(Timestamp::Millis(120), /*seq=*/1),
+                             DataSize::Zero()),
+      Optional(DataSize::Zero()));
 }
 
 }  // namespace

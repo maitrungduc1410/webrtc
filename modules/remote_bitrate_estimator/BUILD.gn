@@ -213,6 +213,7 @@ if (rtc_include_tests) {
       ":congestion_control_feedback_generator",
       ":remote_bitrate_estimator_unittest_helper",
       "../../api/transport:ecn_marking",
+      "../../api/units:data_size",
       "../../api/units:time_delta",
       "../../api/units:timestamp",
       "../../test:test_support",

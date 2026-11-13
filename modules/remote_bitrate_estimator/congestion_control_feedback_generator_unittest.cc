@@ -14,6 +14,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
+#include <utility>
 #include <vector>
 
 #include "api/transport/ecn_marking.h"
@@ -39,6 +41,10 @@ using ::testing::MockFunction;
 using ::testing::SizeIs;
 using ::testing::WithoutArgs;
 
+// The maximum packet size of RTP modules sending video, to which the generator
+// limits feedback packets.
+constexpr size_t kMaxRtcpPacketSizeBytes = 1200;
+
 RtpPacketReceived CreatePacket(Timestamp arrival_time,
                                bool marker,
                                uint32_t ssrc = 1234,
@@ -50,6 +56,15 @@ RtpPacketReceived CreatePacket(Timestamp arrival_time,
   packet.SetMarker(marker);
   packet.set_arrival_time(arrival_time);
   return packet;
+}
+
+// Parses serialized congestion control feedback, as its receiver does.
+CongestionControlFeedback ParseFeedback(const Buffer& buffer) {
+  rtcp::CommonHeader header;
+  EXPECT_TRUE(header.Parse(buffer.data(), buffer.size()));
+  CongestionControlFeedback feedback;
+  EXPECT_TRUE(feedback.Parse(header));
+  return feedback;
 }
 
 // If possible feedback should  be sent when a packet with marker bit is
@@ -139,14 +154,16 @@ TEST(CongestionControlFeedbackGeneratorTest,
       CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
 
   int number_of_feedback_packets = 0;
-  DataSize total_feedback_size;
+  DataSize total_feedback_size = DataSize::Zero();
   EXPECT_CALL(rtcp_sender, Call)
       .WillRepeatedly(
           [&](std::vector<std::unique_ptr<rtcp::RtcpPacket>> rtcp_packets) {
             ASSERT_THAT(rtcp_packets, SizeIs(1));
+            EXPECT_LE(rtcp_packets[0]->BlockLength(), kMaxRtcpPacketSizeBytes);
             number_of_feedback_packets++;
+            // Including the default transport overhead, as the generator does.
             total_feedback_size +=
-                DataSize::Bytes(rtcp_packets[0]->BlockLength());
+                DataSize::Bytes(rtcp_packets[0]->BlockLength() + 42);
           });
   Timestamp start_time = clock.CurrentTime();
   Timestamp last_process_time = clock.CurrentTime();
@@ -172,7 +189,7 @@ TEST(CongestionControlFeedbackGeneratorTest,
 }
 
 TEST(CongestionControlFeedbackGeneratorTest,
-     FeedbackFor200MbitSendsFeedbackEvery25ms) {
+     FeedbackFor200MbitSendsFeedbackWhenMaxPacketSizeReached) {
   MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
       rtcp_sender;
   SimulatedClock clock(123456);
@@ -186,12 +203,17 @@ TEST(CongestionControlFeedbackGeneratorTest,
       .WillRepeatedly(
           [&](std::vector<std::unique_ptr<rtcp::RtcpPacket>> rtcp_packets) {
             ASSERT_THAT(rtcp_packets, SizeIs(1));
+            EXPECT_LE(rtcp_packets[0]->BlockLength(), kMaxRtcpPacketSizeBytes);
             number_of_feedback_packets++;
             total_feedback_size +=
                 DataSize::Bytes(rtcp_packets[0]->BlockLength() + 42);
             if (last_feedback_time.IsFinite()) {
-              EXPECT_EQ(clock.CurrentTime() - last_feedback_time,
-                        TimeDelta::Millis(25));
+              // 590 packets fit in 1200 bytes. At 25 packets/ms, 590 packets
+              // arrive every 23.6 ms (23 or 24 ms).
+              EXPECT_GE(clock.CurrentTime() - last_feedback_time,
+                        TimeDelta::Millis(23));
+              EXPECT_LE(clock.CurrentTime() - last_feedback_time,
+                        TimeDelta::Millis(24));
             }
             last_feedback_time = clock.CurrentTime();
           });
@@ -217,15 +239,16 @@ TEST(CongestionControlFeedbackGeneratorTest,
     clock.AdvanceTime(TimeDelta::Millis(1));
   }
 
-  // With 25ms intervals, we expect exactly 40 feedback packets in 1 second.
-  EXPECT_EQ(number_of_feedback_packets, 40);
+  // 1 initial feedback at start_time + 42 full feedback packets of 590 reports
+  // each (42 * 590 = 24780 packets).
+  EXPECT_EQ(number_of_feedback_packets, 43);
 
-  // Each feedback packet reports 625 packets:
-  // Size = header(20) + reports(625 * 2) + padding(2) + overhead(42) = 1314
-  // bytes. 40 packets * 1314 bytes = 52560 bytes = 420.48 kbps.
+  // Each full feedback packet reports 590 packets:
+  // Size = header(20) + reports(590 * 2) + overhead(42) = 1242 bytes.
+  // 1 initial packet (54 bytes) + 42 * 1242 bytes = 52218 bytes = 417.7 kbps.
   TimeDelta duration = clock.CurrentTime() - start_time;
   DataRate average_bitrate = total_feedback_size / duration;
-  EXPECT_NEAR(average_bitrate.kbps(), 420, 10);
+  EXPECT_NEAR(average_bitrate.kbps(), 418, 10);
 }
 
 TEST(CongestionControlFeedbackGeneratorTest,
@@ -567,6 +590,105 @@ TEST(CongestionControlFeedbackGeneratorTest,
 
   // 1000ms / 250ms = 4 feedback packets.
   EXPECT_EQ(number_of_feedback_packets, 4);
+}
+
+TEST(CongestionControlFeedbackGeneratorTest,
+     SendsFeedbackImmediatelyWhenMaxPacketSizeReached) {
+  MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
+      rtcp_sender;
+  SimulatedClock clock(123456);
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
+  generator.Process(clock.CurrentTime());
+
+  // 12-byte fixed header + SSRC 1 block (8 + 300 * 2 = 608 bytes) +
+  // SSRC 2 block (8 + 286 * 2 = 580 bytes) = 1200 bytes.
+  EXPECT_CALL(rtcp_sender, Call).Times(0);
+  for (uint16_t seq = 0; seq < 300; ++seq) {
+    generator.OnReceivedPacket(CreatePacket(clock.CurrentTime(),
+                                            /*marker=*/false, /*ssrc=*/1111,
+                                            seq));
+  }
+  for (uint16_t seq = 0; seq < 286; ++seq) {
+    generator.OnReceivedPacket(CreatePacket(clock.CurrentTime(),
+                                            /*marker=*/false, /*ssrc=*/2222,
+                                            seq));
+  }
+
+  // The next packet does not fit in 1200 bytes and triggers immediate feedback
+  // for the 586 already received packets.
+  EXPECT_CALL(rtcp_sender, Call)
+      .WillOnce([](std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) {
+        ASSERT_THAT(packets, SizeIs(1));
+        Buffer buffer = packets[0]->Build();
+        EXPECT_EQ(buffer.size(), kMaxRtcpPacketSizeBytes);
+        EXPECT_THAT(ParseFeedback(buffer).packets(), SizeIs(586));
+      });
+  generator.OnReceivedPacket(CreatePacket(clock.CurrentTime(),
+                                          /*marker=*/false, /*ssrc=*/2222,
+                                          /*seq=*/286));
+
+  // The 587th packet is reported in the next scheduled feedback.
+  EXPECT_CALL(rtcp_sender, Call)
+      .WillOnce([](std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) {
+        ASSERT_THAT(packets, SizeIs(1));
+        Buffer buffer = packets[0]->Build();
+        const CongestionControlFeedback parsed = ParseFeedback(buffer);
+        ASSERT_THAT(parsed.packets(), SizeIs(1));
+        EXPECT_EQ(parsed.packets()[0].ssrc, 2222u);
+        EXPECT_EQ(parsed.packets()[0].sequence_number, 286);
+      });
+  clock.AdvanceTime(generator.Process(clock.CurrentTime()));
+  generator.Process(clock.CurrentTime());
+}
+
+TEST(CongestionControlFeedbackGeneratorTest,
+     SendsMultipleFeedbackPacketsOnLargeLossBurst) {
+  MockFunction<void(std::vector<std::unique_ptr<rtcp::RtcpPacket>>)>
+      rtcp_sender;
+  SimulatedClock clock(123456);
+  CongestionControlFeedbackGenerator generator(
+      CreateTestEnvironment({.time = &clock}), rtcp_sender.AsStdFunction());
+  generator.Process(clock.CurrentTime());
+
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> feedback;
+  EXPECT_CALL(rtcp_sender, Call)
+      .WillRepeatedly(
+          [&](std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) {
+            ASSERT_THAT(packets, SizeIs(1));
+            feedback.push_back(std::move(packets[0]));
+          });
+
+  // Receive only the first and last packet (1999 lost packets in between).
+  constexpr uint16_t kLastSequenceNumber = 2000;
+  generator.OnReceivedPacket(CreatePacket(clock.CurrentTime(),
+                                          /*marker=*/false, /*ssrc=*/1234,
+                                          /*seq=*/0));
+  clock.AdvanceTime(TimeDelta::Millis(1));
+  generator.OnReceivedPacket(CreatePacket(clock.CurrentTime(),
+                                          /*marker=*/false, /*ssrc=*/1234,
+                                          kLastSequenceNumber));
+  // 3 full 1200-byte packets (3 * 590 = 1770 reports) are sent immediately in
+  // OnReceivedPacket.
+  EXPECT_THAT(feedback, SizeIs(3));
+
+  clock.AdvanceTime(generator.Process(clock.CurrentTime()));
+  generator.Process(clock.CurrentTime());
+  ASSERT_THAT(feedback, SizeIs(4));
+
+  std::vector<uint16_t> reported_sequence_numbers;
+  for (const std::unique_ptr<rtcp::RtcpPacket>& packet : feedback) {
+    Buffer buffer = packet->Build();
+    EXPECT_LE(buffer.size(), kMaxRtcpPacketSizeBytes);
+    const CongestionControlFeedback parsed = ParseFeedback(buffer);
+    for (const CongestionControlFeedback::PacketInfo& info : parsed.packets()) {
+      reported_sequence_numbers.push_back(info.sequence_number);
+    }
+  }
+  std::vector<uint16_t> expected_sequence_numbers(kLastSequenceNumber + 1);
+  std::iota(expected_sequence_numbers.begin(), expected_sequence_numbers.end(),
+            0);
+  EXPECT_EQ(reported_sequence_numbers, expected_sequence_numbers);
 }
 
 }  // namespace

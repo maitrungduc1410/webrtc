@@ -33,9 +33,19 @@
 #include "rtc_base/experiments/rfc8888_congestion_control_feedback_experiment.h"
 
 namespace webrtc {
+namespace {
 
 constexpr DataRate kMaxFeedbackRate = DataRate::KilobitsPerSec(500);
 constexpr DataSize kTransportOverhead = DataSize::Bytes(42);
+// RTCP packets larger than the maximum packet size of the sending RTP module
+// are dropped. Feedback packets are therefore limited to the smallest maximum
+// packet size in common configurations, that of modules sending video.
+constexpr DataSize kMaxFeedbackPacketSize = DataSize::Bytes(1200);
+// Size of a feedback packet without report blocks: RTCP header (4), sender
+// SSRC (4) and report timestamp (4).
+constexpr DataSize kFeedbackFixedSize = DataSize::Bytes(12);
+
+}  // namespace
 
 CongestionControlFeedbackGenerator::CongestionControlFeedbackGenerator(
     const Environment& env,
@@ -46,7 +56,8 @@ CongestionControlFeedbackGenerator::CongestionControlFeedbackGenerator(
       max_feedback_fraction_("feedback_fraction", 0.0),
       max_time_to_wait_for_packet_with_marker_("max_wait_for_marker",
                                                TimeDelta::Millis(25)),
-      max_time_between_feedback_("max_send_delta", TimeDelta::Millis(250)) {
+      max_time_between_feedback_("max_send_delta", TimeDelta::Millis(250)),
+      remaining_feedback_size_(kMaxFeedbackPacketSize - kFeedbackFixedSize) {
   ParseFieldTrial(
       {&min_time_between_feedback_, &max_feedback_fraction_,
        &max_time_to_wait_for_packet_with_marker_, &max_time_between_feedback_},
@@ -67,13 +78,25 @@ void CongestionControlFeedbackGenerator::OnReceivedPacket(
     const RtpPacketReceived& packet) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
 
-  marker_bit_seen_ |= packet.Marker();
   Timestamp now = env_.clock().CurrentTime();
+  auto it = feedback_trackers_.try_emplace(packet.Ssrc(), packet.Ssrc()).first;
+  // If `packet` does not fit in the current feedback packet, send the
+  // accumulated feedback and retry. On a large burst of lost packets (> 590),
+  // `ReceivedPacket` fills one feedback packet at a time with lost packets,
+  // requiring multiple feedback packets (at most 16384 / 590 + 2 = 30).
+  constexpr int kMaxFeedbackPackets = 30;
+  std::optional<DataSize> size_increase =
+      it->second.ReceivedPacket(packet, remaining_feedback_size_);
+  for (int i = 0; i < kMaxFeedbackPackets && !size_increase.has_value(); ++i) {
+    SendFeedback(now);
+    size_increase = it->second.ReceivedPacket(packet, remaining_feedback_size_);
+  }
+  RTC_DCHECK(size_increase.has_value());
+  remaining_feedback_size_ -= size_increase.value_or(DataSize::Zero());
+  marker_bit_seen_ |= packet.Marker();
   if (!first_arrival_time_since_feedback_) {
     first_arrival_time_since_feedback_ = now;
   }
-  auto it = feedback_trackers_.try_emplace(packet.Ssrc(), packet.Ssrc()).first;
-  it->second.ReceivedPacket(packet);
   if (NextFeedbackTime() < now) {
     SendFeedback(now);
   }
@@ -102,18 +125,19 @@ TimeDelta CongestionControlFeedbackGenerator::Process(Timestamp now) {
 }
 
 void CongestionControlFeedbackGenerator::SendFeedback(Timestamp now) {
-  RTC_DCHECK_GE(now, next_possible_feedback_send_time_);
   uint32_t compact_ntp =
       CompactNtp(env_.clock().ConvertTimestampToNtpTime(now));
   std::vector<rtcp::CongestionControlFeedback::PacketInfo> rtcp_packet_info;
   for (auto& [unused, tracker] : feedback_trackers_) {
     tracker.AddPacketsToFeedback(now, rtcp_packet_info);
   }
+  remaining_feedback_size_ = kMaxFeedbackPacketSize - kFeedbackFixedSize;
   marker_bit_seen_ = false;
   first_arrival_time_since_feedback_ = std::nullopt;
 
   auto feedback = std::make_unique<rtcp::CongestionControlFeedback>(
       std::move(rtcp_packet_info), compact_ntp);
+  RTC_DCHECK_LE(feedback->BlockLength(), kMaxFeedbackPacketSize.bytes());
   DataSize overhead = transport_overhead_.value_or(kTransportOverhead);
   CalculateNextPossibleSendTime(
       DataSize::Bytes(feedback->BlockLength()) + overhead, now);

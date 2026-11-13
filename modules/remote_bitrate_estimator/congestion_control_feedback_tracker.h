@@ -11,9 +11,11 @@
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_CONGESTION_CONTROL_FEEDBACK_TRACKER_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "api/transport/ecn_marking.h"
+#include "api/units/data_size.h"
 #include "api/units/timestamp.h"
 #include "modules/congestion_controller/rtp/congestion_controller_feedback_stats.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
@@ -29,7 +31,13 @@ class CongestionControlFeedbackTracker {
  public:
   explicit CongestionControlFeedbackTracker(uint32_t ssrc) : ssrc_(ssrc) {}
 
-  void ReceivedPacket(const RtpPacketReceived& packet);
+  // Records `packet` if it fits in `remaining_size` and returns the increase in
+  // this SSRC's RFC 8888 report block size.
+  // If `packet` does not fit, fills `remaining_size` with any preceding lost
+  // packets and returns std::nullopt so the caller can send existing feedback
+  // and call `ReceivedPacket` again.
+  std::optional<DataSize> ReceivedPacket(const RtpPacketReceived& packet,
+                                         DataSize remaining_size);
 
   // Adds received packets to `packet_feedback`
   // RTP sequence numbers are continous from the last created feedback unless
@@ -54,10 +62,14 @@ class CongestionControlFeedbackTracker {
     bool last_reported_as_lost = false;
   };
 
-  // Returns a `PacketInfo` entry for `sequence_number`,
+  DataSize FeedbackBlockSize() const;
+
+  // Returns a `PacketInfo` entry for `sequence_number`.
   // Returns nullptr if an entry can't be allocated due to `sequence_number`
-  // being too much out of order of already stored packet infos.
-  PacketInfo* FindOrCreatePacketInfo(int64_t sequence_number);
+  // being too much out of order of already stored packet infos, or if it does
+  // not fit in `max_reports`.
+  PacketInfo* FindOrCreatePacketInfo(int64_t sequence_number,
+                                     int64_t max_reports);
 
   const uint32_t ssrc_;
   SeqNumUnwrapper<uint16_t> unwrapper_;
