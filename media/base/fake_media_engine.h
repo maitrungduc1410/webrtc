@@ -75,6 +75,7 @@
 #include "media/base/rtp_utils.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/checks.h"
@@ -103,6 +104,14 @@ class RtpReceiveChannelHelper : public Base, public MediaChannelUtil {
         num_network_route_changes_(0) {}
   ~RtpReceiveChannelHelper() override = default;
   void EnableSframe() override {}
+  void SetSframeDecryptionConfig(
+      SframeDecryptionConfig sframe_decryption_config) override {
+    sframe_decryption_config_ = std::move(sframe_decryption_config);
+  }
+  const std::optional<SframeDecryptionConfig>& sframe_decryption_config()
+      const {
+    return sframe_decryption_config_;
+  }
   const std::vector<RtpExtension>& recv_extensions() {
     return recv_extensions_;
   }
@@ -236,6 +245,7 @@ class RtpReceiveChannelHelper : public Base, public MediaChannelUtil {
   NetworkRoute last_network_route_;
   int num_network_route_changes_;
   MediaChannelNetworkInterface* network_interface_ = nullptr;
+  std::optional<SframeDecryptionConfig> sframe_decryption_config_;
 };
 
 // A common helper class that handles sending RTP packets.

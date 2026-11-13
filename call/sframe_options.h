@@ -13,6 +13,7 @@
 
 #include <optional>
 
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 
 namespace webrtc {
@@ -33,8 +34,8 @@ struct SframeSendOptions {
 // Once required, decryption is enforced and cannot be disabled.
 struct SframeReceiveOptions {
   bool required = false;
-  // TODO(bugs.webrtc.org/479862368): Add Sframe decryptor once the type is
-  // defined.
+  // Set once the receiver has created a decryptor.
+  std::optional<SframeDecryptionConfig> decryption_config;
 };
 
 }  // namespace webrtc

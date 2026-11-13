@@ -92,6 +92,7 @@
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
 #include "rtc_base/checks.h"
@@ -3557,6 +3558,13 @@ void WebRtcVideoReceiveChannel::EnableSframe() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   sframe_options_.required = true;
   // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+}
+
+void WebRtcVideoReceiveChannel::SetSframeDecryptionConfig(
+    SframeDecryptionConfig sframe_decryption_config) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  sframe_options_.decryption_config = std::move(sframe_decryption_config);
+  // TODO(bugs.webrtc.org/479862368): Pass the config to the receive streams.
 }
 
 bool WebRtcVideoReceiveChannel::SetBaseMinimumPlayoutDelayMs(uint32_t ssrc,

@@ -64,6 +64,7 @@
 #include "media/base/media_engine.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network/sent_packet.h"
@@ -587,6 +588,8 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
   void EnableSframe() override;
+  void SetSframeDecryptionConfig(
+      SframeDecryptionConfig sframe_decryption_config) override;
 
  private:
   class WebRtcVideoReceiveStream;

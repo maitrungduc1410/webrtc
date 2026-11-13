@@ -103,6 +103,9 @@ void RtpReceiverBase::set_media_channel(
   media_channel_ = media_channel;
   media_channel_ != nullptr ? network_thread_safety_->SetAlive()
                             : network_thread_safety_->SetNotAlive();
+  if (media_channel_ != nullptr && sframe_decryption_config_.has_value()) {
+    media_channel_->SetSframeDecryptionConfig(*sframe_decryption_config_);
+  }
 }
 
 std::optional<uint32_t> RtpReceiverBase::ssrc() const {
@@ -251,8 +254,9 @@ RtpReceiverBase::CreateSframeDecryptorOrError(
       network_thread_safety_, [this, config = std::move(config)]() mutable {
         RTC_DCHECK_RUN_ON(network_thread_);
         sframe_decryption_config_ = std::move(config);
-        // TODO(bugs.webrtc.org/479862368): Pass the config to the media
-        // channel.
+        if (media_channel_ != nullptr) {
+          media_channel_->SetSframeDecryptionConfig(*sframe_decryption_config_);
+        }
       }));
 
   // This runs on the signaling thread, where the key update results are

@@ -69,6 +69,7 @@
 #include "media/base/stream_params.h"
 #include "media/base/test_utils.h"
 #include "media/engine/fake_webrtc_call.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "modules/sframe/sframe_media_encryptor_interface.h"
 #include "p2p/base/p2p_constants.h"
@@ -3322,6 +3323,54 @@ TEST_F(RtpSenderReceiverTest, ReceiverSframeDecryptorCanBeCreatedAgain) {
   run_loop_.Run();
 
   EXPECT_TRUE(add_result.ok());
+}
+
+TEST_F(RtpSenderReceiverTest,
+       ReceiverPushesSframeDecryptionConfigToMediaChannel) {
+  FakeVideoMediaReceiveChannel channel(worker_thread_.get());
+  scoped_refptr<VideoRtpReceiver> receiver = make_ref_counted<VideoRtpReceiver>(
+      worker_thread_.get(), kVideoTrackId, std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/[] { return RTCError::OK(); });
+  SendTask(worker_thread_.get(), [&] { receiver->SetMediaChannel(&channel); });
+
+  ASSERT_TRUE(receiver
+                  ->CreateSframeDecryptorOrError(
+                      SframeCipherSuite::kAes128GcmSha256_128,
+                      /*error_callback=*/[](SframeDecryptError) {})
+                  .ok());
+  FlushWorker();
+
+  ASSERT_TRUE(channel.sframe_decryption_config().has_value());
+  EXPECT_NE(channel.sframe_decryption_config()->decryptor, nullptr);
+  EXPECT_NE(channel.sframe_decryption_config()->error_reporter, nullptr);
+  SendTask(worker_thread_.get(), [&] { receiver->SetMediaChannel(nullptr); });
+}
+
+TEST_F(RtpSenderReceiverTest,
+       ReceiverPushesSframeDecryptionConfigToNewMediaChannel) {
+  FakeVideoMediaReceiveChannel channel(worker_thread_.get());
+  FakeVideoMediaReceiveChannel new_channel(worker_thread_.get());
+  scoped_refptr<VideoRtpReceiver> receiver = make_ref_counted<VideoRtpReceiver>(
+      worker_thread_.get(), kVideoTrackId, std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/[] { return RTCError::OK(); });
+  SendTask(worker_thread_.get(), [&] { receiver->SetMediaChannel(&channel); });
+  ASSERT_TRUE(receiver
+                  ->CreateSframeDecryptorOrError(
+                      SframeCipherSuite::kAes128GcmSha256_128,
+                      /*error_callback=*/[](SframeDecryptError) {})
+                  .ok());
+  FlushWorker();
+  ASSERT_TRUE(channel.sframe_decryption_config().has_value());
+
+  SendTask(worker_thread_.get(),
+           [&] { receiver->SetMediaChannel(&new_channel); });
+
+  ASSERT_TRUE(new_channel.sframe_decryption_config().has_value());
+  EXPECT_EQ(new_channel.sframe_decryption_config()->decryptor,
+            channel.sframe_decryption_config()->decryptor);
+  EXPECT_EQ(new_channel.sframe_decryption_config()->error_reporter,
+            channel.sframe_decryption_config()->error_reporter);
+  SendTask(worker_thread_.get(), [&] { receiver->SetMediaChannel(nullptr); });
 }
 
 }  // namespace webrtc

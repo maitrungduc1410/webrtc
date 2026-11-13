@@ -64,6 +64,7 @@
 #include "media/base/media_engine.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/network/sent_packet.h"
@@ -422,6 +423,8 @@ class WebRtcVoiceReceiveChannel final
       scoped_refptr<FrameDecryptorInterface> frame_decryptor) override;
 
   void EnableSframe() override;
+  void SetSframeDecryptionConfig(
+      SframeDecryptionConfig sframe_decryption_config) override;
 
   bool SetOutputVolume(uint32_t ssrc, double volume) override;
   // Applies the new volume to current and future unsignaled streams.

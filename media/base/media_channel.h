@@ -59,6 +59,7 @@
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/containers/flat_set.h"
@@ -352,6 +353,12 @@ class MediaReceiveChannelInterface {
 
   // Marks the channel as requiring Sframe decryption. Cannot be undone.
   virtual void EnableSframe() = 0;
+
+  // Sets the Sframe decryptor and error reporter used to decrypt incoming
+  // frames. Sframe is Unified Plan only, so this applies to the channel's
+  // single receive stream.
+  virtual void SetSframeDecryptionConfig(
+      SframeDecryptionConfig sframe_decryption_config) = 0;
 };
 
 // The stats information is structured as follows:

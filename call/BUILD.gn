@@ -18,7 +18,10 @@ rtc_library("version") {
 
 rtc_source_set("sframe_options") {
   sources = [ "sframe_options.h" ]
-  deps = [ "../modules/sframe:sframe_encryption_config" ]
+  deps = [
+    "../modules/sframe:sframe_decryption_config",
+    "../modules/sframe:sframe_encryption_config",
+  ]
 }
 
 rtc_library("call_interfaces") {

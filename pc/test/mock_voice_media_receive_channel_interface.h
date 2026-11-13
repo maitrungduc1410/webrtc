@@ -27,6 +27,7 @@
 #include "media/base/media_channel.h"
 #include "media/base/stream_params.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "test/gmock.h"
 
 namespace webrtc {
@@ -53,6 +54,10 @@ class MockVoiceMediaReceiveChannelInterface
               (const, override));
   MOCK_METHOD(void, SetReceive, (bool receive), (override));
   MOCK_METHOD(void, EnableSframe, (), (override));
+  MOCK_METHOD(void,
+              SetSframeDecryptionConfig,
+              (SframeDecryptionConfig sframe_decryption_config),
+              (override));
   MOCK_METHOD(bool,
               SetOutputVolume,
               (uint32_t ssrc, double volume),
