@@ -46,6 +46,7 @@
 #include "call/audio_state.h"
 #include "call/bitrate_allocator.h"
 #include "call/rtp_transport_controller_send_interface.h"
+#include "call/sframe_options.h"
 #include "common_audio/vad/include/vad.h"
 #include "logging/rtc_event_log/events/rtc_event_audio_send_stream_config.h"
 #include "logging/rtc_event_log/rtc_stream_config.h"
@@ -56,6 +57,7 @@
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/experiments/struct_parameters_parser.h"
 #include "rtc_base/logging.h"
@@ -65,6 +67,17 @@
 
 namespace webrtc {
 namespace {
+
+// Returns the bytes that Sframe adds to the payload of each audio RTP packet.
+size_t SframeOverheadPerPacket(const SframeSendOptions& options) {
+  if (!options.required || !options.encryption_config.has_value()) {
+    return 0;
+  }
+  // The Sframe header and tag don't depend on the frame size, so for an empty
+  // frame the maximum ciphertext size is the maximum Sframe overhead.
+  return SframeDescriptor::kSize +
+         options.encryption_config->encryptor->GetMaxCiphertextByteSize(0);
+}
 
 void UpdateEventLogStreamConfig(RtcEventLog& event_log,
                                 const AudioSendStream::Config& config,
@@ -254,6 +267,8 @@ void AudioSendStream::ConfigureStream(
 
   if (first_time || new_config.sframe_options != old_config.sframe_options) {
     channel_send_->SetSframeOptions(new_config.sframe_options);
+    sframe_overhead_per_packet_bytes_ =
+        SframeOverheadPerPacket(new_config.sframe_options);
   }
 
   if (first_time ||
@@ -534,7 +549,8 @@ void AudioSendStream::UpdateOverheadPerPacket() {
   RTC_DCHECK_RUN_ON(&network_thread_checker_);
   size_t overhead_per_packet_bytes =
       transport_overhead_per_packet_bytes_ +
-      rtp_rtcp_module_->ExpectedPerPacketOverhead();
+      rtp_rtcp_module_->ExpectedPerPacketOverhead() +
+      sframe_overhead_per_packet_bytes_;
   if (overhead_per_packet_ == overhead_per_packet_bytes) {
     return;
   }

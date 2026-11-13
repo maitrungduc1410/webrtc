@@ -32,6 +32,7 @@
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_types.h"
 #include "api/test/mock_frame_encryptor.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
@@ -54,6 +55,9 @@
 #include "modules/rtp_rtcp/mocks/mock_network_link_rtcp_observer.h"
 #include "modules/rtp_rtcp/mocks/mock_rtp_rtcp.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
+#include "modules/sframe/mock_sframe_media_encryptor.h"
+#include "modules/sframe/sframe_encryption_config.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -887,6 +891,73 @@ TEST(AudioSendStreamTest, OnTransportOverheadChanged) {
     EXPECT_EQ(transport_overhead_per_packet_bytes,
               send_stream->TestOnlyGetPerPacketOverheadBytes());
   }
+}
+
+constexpr size_t kSframeOverhead = 20;
+
+// Returns options that require Sframe, with an encryptor that adds
+// `kSframeOverhead` bytes to each frame.
+SframeSendOptions RequiredSframeOptions() {
+  auto encryptor = make_ref_counted<NiceMock<MockSframeMediaEncryptor>>();
+  ON_CALL(*encryptor, GetMaxCiphertextByteSize)
+      .WillByDefault(
+          [](size_t frame_size) { return frame_size + kSframeOverhead; });
+  return {.required = true,
+          .encryption_config = SframeEncryptionConfig{
+              .mode = SframeMode::kPerFrame, .encryptor = encryptor}};
+}
+
+TEST(AudioSendStreamTest, IncludesSframeOverheadWhileSframeIsRequired) {
+  ConfigHelper helper(/*audio_bwe_enabled=*/false,
+                      /*expect_set_encoder_call=*/true,
+                      /*use_null_audio_processing=*/false);
+  ON_CALL(*helper.rtp_rtcp(), ExpectedPerPacketOverhead)
+      .WillByDefault(Return(kOverheadPerPacket.bytes<size_t>()));
+  EXPECT_CALL(*helper.channel_send(), RegisterPacketOverhead);
+  helper.config().sframe_options = RequiredSframeOptions();
+
+  std::unique_ptr<internal::AudioSendStream> send_stream =
+      helper.CreateAudioSendStream();
+
+  EXPECT_EQ(send_stream->TestOnlyGetPerPacketOverheadBytes(),
+            kOverheadPerPacket.bytes<size_t>() + SframeDescriptor::kSize +
+                kSframeOverhead);
+}
+
+TEST(AudioSendStreamTest, ExcludesSframeOverheadOnceSframeIsNoLongerRequired) {
+  ConfigHelper helper(/*audio_bwe_enabled=*/false,
+                      /*expect_set_encoder_call=*/true,
+                      /*use_null_audio_processing=*/false);
+  ON_CALL(*helper.rtp_rtcp(), ExpectedPerPacketOverhead)
+      .WillByDefault(Return(kOverheadPerPacket.bytes<size_t>()));
+  EXPECT_CALL(*helper.channel_send(), RegisterPacketOverhead).Times(2);
+  helper.config().sframe_options = RequiredSframeOptions();
+  std::unique_ptr<internal::AudioSendStream> send_stream =
+      helper.CreateAudioSendStream();
+  EXPECT_CALL(*helper.channel_send(), SetSframeOptions);
+  AudioSendStream::Config new_config = helper.config();
+  new_config.sframe_options.required = false;
+
+  send_stream->Reconfigure(new_config, nullptr);
+
+  EXPECT_EQ(send_stream->TestOnlyGetPerPacketOverheadBytes(),
+            kOverheadPerPacket.bytes<size_t>());
+}
+
+TEST(AudioSendStreamTest, ExcludesSframeOverheadWithoutSframeEncryptor) {
+  ConfigHelper helper(/*audio_bwe_enabled=*/false,
+                      /*expect_set_encoder_call=*/true,
+                      /*use_null_audio_processing=*/false);
+  ON_CALL(*helper.rtp_rtcp(), ExpectedPerPacketOverhead)
+      .WillByDefault(Return(kOverheadPerPacket.bytes<size_t>()));
+  EXPECT_CALL(*helper.channel_send(), RegisterPacketOverhead);
+  helper.config().sframe_options = {.required = true};
+
+  std::unique_ptr<internal::AudioSendStream> send_stream =
+      helper.CreateAudioSendStream();
+
+  EXPECT_EQ(send_stream->TestOnlyGetPerPacketOverheadBytes(),
+            kOverheadPerPacket.bytes<size_t>());
 }
 
 TEST(AudioSendStreamTest, DoesntCallEncoderWhenOverheadUnchanged) {

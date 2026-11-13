@@ -210,7 +210,11 @@ class AudioSendStream final : public webrtc::AudioSendStream,
   // Current transport overhead (ICE, TURN, etc.)
   size_t transport_overhead_per_packet_bytes_
       RTC_GUARDED_BY(network_thread_checker_) = 0;
-  // Total overhead, including transport and RTP headers.
+  // Sframe descriptor, header and authentication tag, while Sframe is
+  // required.
+  size_t sframe_overhead_per_packet_bytes_
+      RTC_GUARDED_BY(network_thread_checker_) = 0;
+  // Total overhead, including transport, RTP headers and Sframe.
   size_t overhead_per_packet_ RTC_GUARDED_BY(network_thread_checker_) = 0;
 
   bool registered_with_allocator_ RTC_GUARDED_BY(network_thread_checker_) =
