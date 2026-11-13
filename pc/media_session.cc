@@ -1426,6 +1426,8 @@ RTCError MediaSessionDescriptionFactory::AddRtpContentForAnswer(
       codec_lookup_helper_->GetCodecVendor()->GetNegotiatedCodecsForAnswer(
           media_description_options, session_options, offer_rtd, answer_rtd,
           current_content, offer_content_description->codecs(),
+          NegotiateSframeUsage(offer_content_description,
+                               media_description_options),
           *codec_lookup_helper_->PayloadTypeSuggester());
   if (!error_or_filtered_codecs.ok()) {
     return error_or_filtered_codecs.MoveError();

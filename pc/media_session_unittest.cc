@@ -73,6 +73,7 @@
 namespace webrtc {
 namespace {
 
+using ::testing::AllOf;
 using ::testing::Bool;
 using ::testing::Combine;
 using ::testing::Contains;
@@ -4843,6 +4844,66 @@ TEST_F(MediaSessionDescriptionFactoryTest, AnswerSframeIsPerMediaSection) {
   ASSERT_EQ(answer->contents().size(), 2u);
   EXPECT_TRUE(answer->contents()[0].media_description()->sframe_enabled());
   EXPECT_FALSE(answer->contents()[1].media_description()->sframe_enabled());
+}
+
+TEST_F(MediaSessionDescriptionFactoryTest, AudioOfferWithSframeDoesNotHaveRed) {
+  MediaSessionOptions opts = CreateAudioMediaSession();
+  std::unique_ptr<SessionDescription> offer_without_sframe =
+      f1_.CreateOfferOrError(opts, nullptr).MoveValue();
+  ASSERT_THAT(offer_without_sframe, NotNull());
+  ASSERT_THAT(
+      GetFirstAudioContentDescription(offer_without_sframe.get())->codecs(),
+      Contains(Field(&Codec::name, "red")));
+
+  opts.media_description_options[0].sframe_enabled = true;
+  std::unique_ptr<SessionDescription> offer =
+      f1_.CreateOfferOrError(opts, nullptr).MoveValue();
+
+  ASSERT_THAT(offer, NotNull());
+  EXPECT_THAT(GetFirstAudioContentDescription(offer.get())->codecs(),
+              AllOf(Contains(Field(&Codec::name, "opus")),
+                    Not(Contains(Field(&Codec::name, "red")))));
+}
+
+TEST_F(MediaSessionDescriptionFactoryTest,
+       AudioAnswerWithSframeDoesNotHaveRed) {
+  codec_lookup_helper_2_.SetAudioCodecs(kAudioCodecs1);
+  std::unique_ptr<SessionDescription> offer =
+      f1_.CreateOfferOrError(CreateAudioMediaSession(), nullptr).MoveValue();
+  ASSERT_THAT(offer, NotNull());
+  // An offer from another endpoint may have both Sframe and RED.
+  offer->GetContentDescriptionByName(kAudioMid)->set_sframe_enabled(true);
+  MediaSessionOptions answer_opts = CreateAudioMediaSession();
+  answer_opts.media_description_options[0].sframe_enabled = true;
+
+  std::unique_ptr<SessionDescription> answer =
+      f2_.CreateAnswerOrError(offer.get(), answer_opts, nullptr).MoveValue();
+
+  ASSERT_THAT(answer, NotNull());
+  const MediaContentDescription* acd =
+      GetFirstAudioContentDescription(answer.get());
+  EXPECT_TRUE(acd->sframe_enabled());
+  EXPECT_THAT(acd->codecs(), AllOf(Contains(Field(&Codec::name, "opus")),
+                                   Not(Contains(Field(&Codec::name, "red")))));
+}
+
+TEST_F(MediaSessionDescriptionFactoryTest,
+       AudioAnswerHasRedWhenSframeIsNotNegotiated) {
+  codec_lookup_helper_2_.SetAudioCodecs(kAudioCodecs1);
+  std::unique_ptr<SessionDescription> offer =
+      f1_.CreateOfferOrError(CreateAudioMediaSession(), nullptr).MoveValue();
+  ASSERT_THAT(offer, NotNull());
+  MediaSessionOptions answer_opts = CreateAudioMediaSession();
+  answer_opts.media_description_options[0].sframe_enabled = true;
+
+  std::unique_ptr<SessionDescription> answer =
+      f2_.CreateAnswerOrError(offer.get(), answer_opts, nullptr).MoveValue();
+
+  ASSERT_THAT(answer, NotNull());
+  const MediaContentDescription* acd =
+      GetFirstAudioContentDescription(answer.get());
+  EXPECT_FALSE(acd->sframe_enabled());
+  EXPECT_THAT(acd->codecs(), Contains(Field(&Codec::name, "red")));
 }
 
 #ifdef RTC_ENABLE_H265

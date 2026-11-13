@@ -1610,12 +1610,14 @@ bool WebRtcVoiceSendChannel::SetSendCodecs(
   // with respect to clockrate and number of channels.
   // RED codec needs to be negotiated before the actual codec they
   // reference.
-  for (size_t i = 0; i < send_codec_position; ++i) {
-    const Codec& red_codec = codecs[i];
-    if (IsCodec(red_codec, kRedCodecName) &&
-        CheckRedParameters(red_codec, *send_codec_spec)) {
-      send_codec_spec->red_payload_type = red_codec.id.value();
-      break;
+  if (!sframe_options_.required) {
+    for (size_t i = 0; i < send_codec_position; ++i) {
+      const Codec& red_codec = codecs[i];
+      if (IsCodec(red_codec, kRedCodecName) &&
+          CheckRedParameters(red_codec, *send_codec_spec)) {
+        send_codec_spec->red_payload_type = red_codec.id.value();
+        break;
+      }
     }
   }
 

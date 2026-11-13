@@ -1663,6 +1663,22 @@ TEST_P(WebRtcVoiceEngineTestFake, SetSendCodecsRed) {
   EXPECT_EQ(112, send_codec_spec.red_payload_type);
 }
 
+TEST_P(WebRtcVoiceEngineTestFake, SetSendCodecsDoesNotUseRedWithSframe) {
+  EXPECT_TRUE(SetupSendStream());
+  send_channel_->EnableSframe();
+  AudioSenderParameter parameters;
+  parameters.codecs.push_back(kRed48000Codec);
+  parameters.codecs[0].params[""] = "111/111";
+  parameters.codecs.push_back(kOpusCodec);
+
+  SetSenderParameters(parameters);
+
+  const AudioSendStream::Config::SendCodecSpec& send_codec_spec =
+      *GetSendStreamConfig(kSsrcX).send_codec_spec;
+  EXPECT_EQ(send_codec_spec.payload_type, 111);
+  EXPECT_EQ(send_codec_spec.red_payload_type, std::nullopt);
+}
+
 // Test that we do not use Opus/Red by default when it is
 // listed as the first codec but there is no fmtp line.
 TEST_P(WebRtcVoiceEngineTestFake, SetSendCodecsRedNoFmtp) {

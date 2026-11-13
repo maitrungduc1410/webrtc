@@ -78,6 +78,7 @@ class CodecVendor {
       RtpTransceiverDirection answer_rtd,
       const ContentInfo* current_content,
       std::span<const Codec> codecs_from_offer,
+      bool sframe_negotiated,
       PayloadTypeSuggester& pt_suggester);
 
   // Function exposed for issues.webrtc.org/412904801

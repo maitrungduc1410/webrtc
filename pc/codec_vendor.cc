@@ -95,6 +95,13 @@ void StripCNCodecs(CodecList& audio_codecs) {
                 [](const Codec& codec) { return IsComfortNoiseCodec(codec); });
 }
 
+void StripRedCodecs(CodecList& codecs) {
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  std::erase_if(codecs.writable_codecs(), [](const Codec& codec) {
+    return codec.GetResiliencyType() == Codec::ResiliencyType::kRed;
+  });
+}
+
 bool IsMediaContentOfType(const ContentInfo* content, MediaType media_type) {
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (!content || !content->media_description()) {
@@ -1385,6 +1392,10 @@ RTCErrorOr<std::vector<Codec>> CodecVendor::GetNegotiatedCodecsForOffer(
     RecordCodecIdsAndLinkRed(pt_suggester, mid,
                              filtered_codecs.writable_codecs());
   }
+  if (media_description_options.type == MediaType::AUDIO &&
+      media_description_options.sframe_enabled) {
+    StripRedCodecs(filtered_codecs);
+  }
   // Drop RED codecs left dangling after the primary they wrap (e.g. opus) was
   // filtered out, so the offer never references a non-existent payload type.
   RemoveRedCodecsWithoutPrimary(filtered_codecs.writable_codecs());
@@ -1398,6 +1409,7 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
     RtpTransceiverDirection answer_rtd,
     const ContentInfo* current_content,
     std::span<const Codec> codecs_from_offer,
+    bool sframe_negotiated,
     PayloadTypeSuggester& pt_suggester) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
@@ -1560,6 +1572,9 @@ RTCErrorOr<Codecs> CodecVendor::GetNegotiatedCodecsForAnswer(
   } else {
     RecordCodecIdsAndLinkRed(pt_suggester, mid,
                              negotiated_codecs.writable_codecs());
+  }
+  if (media_description_options.type == MediaType::AUDIO && sframe_negotiated) {
+    StripRedCodecs(negotiated_codecs);
   }
   return std::move(negotiated_codecs).Finalize();
 }

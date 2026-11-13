@@ -539,7 +539,7 @@ TEST_F(CodecVendorRedesignTest, TestCodecsInAnswerStricterDirectionality) {
   auto answer_result = answer_vendor->GetNegotiatedCodecsForAnswer(
       answer_opts, MediaSessionOptions(), RtpTransceiverDirection::kSendOnly,
       RtpTransceiverDirection::kInactive, /*current_content=*/nullptr,
-      offer_result.value(), pt_suggester_);
+      offer_result.value(), /*sframe_negotiated=*/false, pt_suggester_);
 
   ASSERT_TRUE(answer_result.ok());
 

@@ -332,7 +332,7 @@ TEST(CodecVendorTest, GetNegotiatedCodecsForAnswerSimple) {
       codec_vendor.GetNegotiatedCodecsForAnswer(
           options, MediaSessionOptions(), RtpTransceiverDirection::kSendOnly,
           RtpTransceiverDirection::kSendOnly, current_content, video_codecs,
-          pt_suggester);
+          /*sframe_negotiated=*/false, pt_suggester);
   EXPECT_THAT(answered_codecs, IsRtcOkAndHolds(video_codecs));
 }
 
@@ -360,7 +360,7 @@ TEST(CodecVendorTest, GetNegotiatedCodecsForAnswerWithCollision) {
       codec_vendor.GetNegotiatedCodecsForAnswer(
           options, MediaSessionOptions(), RtpTransceiverDirection::kSendOnly,
           RtpTransceiverDirection::kSendOnly, current_content, remote_codecs,
-          pt_suggester);
+          /*sframe_negotiated=*/false, pt_suggester);
   EXPECT_THAT(answered_codecs, IsRtcOkAndHolds(remote_codecs));
 }
 
@@ -878,7 +878,7 @@ TEST_P(CodecVendorPayloadTypeTest,
       codec_vendor.GetNegotiatedCodecsForAnswer(
           options, MediaSessionOptions(), RtpTransceiverDirection::kSendRecv,
           RtpTransceiverDirection::kSendRecv, /*current_content=*/nullptr,
-          codecs_from_offer, pt_suggester);
+          codecs_from_offer, /*sframe_negotiated=*/false, pt_suggester);
   ASSERT_TRUE(answered_codecs.ok()) << answered_codecs.error().message();
   EXPECT_THAT(answered_codecs.value(),
               ElementsAre(Field(&Codec::name, Eq("av1"))));
@@ -911,7 +911,7 @@ TEST(CodecVendorTest, AnswerDoesNotAssignPayloadTypesToComfortNoise) {
                                   RtpTransceiverDirection::kSendRecv, false),
           session_options, RtpTransceiverDirection::kSendRecv,
           RtpTransceiverDirection::kSendRecv, /*current_content=*/nullptr,
-          codecs_from_offer, pt_suggester);
+          codecs_from_offer, /*sframe_negotiated=*/false, pt_suggester);
   ASSERT_TRUE(answered_codecs.ok()) << answered_codecs.error().message();
   EXPECT_THAT(answered_codecs.value(),
               ElementsAre(Field(&Codec::name, Eq("opus"))));
@@ -1008,7 +1008,7 @@ TEST_P(CodecVendorPayloadTypeTest,
       codec_vendor.GetNegotiatedCodecsForAnswer(
           options, MediaSessionOptions(), RtpTransceiverDirection::kSendRecv,
           RtpTransceiverDirection::kSendRecv, /*current_content=*/nullptr,
-          Vp8AndAv1Offer(), pt_suggester);
+          Vp8AndAv1Offer(), /*sframe_negotiated=*/false, pt_suggester);
   ASSERT_TRUE(answered_codecs.ok()) << answered_codecs.error().message();
   EXPECT_THAT(answered_codecs.value(),
               Contains(Field(&Codec::name, StrCaseEq("VP8"))));
