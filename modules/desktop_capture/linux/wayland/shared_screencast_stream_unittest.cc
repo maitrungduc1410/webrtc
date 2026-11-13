@@ -13,8 +13,10 @@
 #include <libdrm/drm_fourcc.h>
 #include <sys/types.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "api/scoped_refptr.h"
 #include "api/units/time_delta.h"
@@ -46,8 +48,11 @@ constexpr int32_t kHeight = 640;
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
     defined(THREAD_SANITIZER) || defined(UNDEFINED_SANITIZER)
 #define MAYBE_PipeWireStreamTest DISABLED_PipeWireStreamTest
+#define MAYBE_PipeWireStreamCustomProviderTest \
+  DISABLED_PipeWireStreamCustomProviderTest
 #else
 #define MAYBE_PipeWireStreamTest PipeWireStreamTest
+#define MAYBE_PipeWireStreamCustomProviderTest PipeWireStreamCustomProviderTest
 #endif
 
 class MAYBE_PipeWireStreamTest : public ::testing::Test,
@@ -78,12 +83,20 @@ class MAYBE_PipeWireStreamTest : public ::testing::Test,
               (uint32_t, uint32_t, uint32_t, uint32_t, uint64_t),
               (override));
 
-  void SetUp() override {
+  void OnFrameRateChanged(uint32_t frame_rate) override {
+    last_max_frame_rate_ = frame_rate;
+  }
+
+  void InitializeSharedStream() {
     auto shared_screencast_egl_dmabuf = TestEglDmaBuf::CreateDefault();
     shared_screencast_egl_dmabuf_ = shared_screencast_egl_dmabuf.get();
     shared_screencast_stream_ = SharedScreenCastStream::CreateWithEglDmaBuf(
         std::move(shared_screencast_egl_dmabuf));
     shared_screencast_stream_->SetObserver(this);
+  }
+
+  void SetUp() override {
+    InitializeSharedStream();
     test_screencast_stream_provider_ =
         std::make_unique<TestScreenCastStreamProvider>(this, kWidth, kHeight);
   }
@@ -99,6 +112,7 @@ class MAYBE_PipeWireStreamTest : public ::testing::Test,
 
  protected:
   uint recorded_frames_ = 0;
+  std::atomic<uint32_t> last_max_frame_rate_{0};
   bool streaming_ = false;
   TestEglDmaBuf* shared_screencast_egl_dmabuf_ = nullptr;
   std::unique_ptr<TestScreenCastStreamProvider>
@@ -569,6 +583,143 @@ TEST_F(MAYBE_PipeWireStreamTest, TestMultipleInstancesAllowed) {
 
   // Clean up.
   shared_screencast_stream2->StopScreenCastStream();
+  shared_screencast_stream_->StopScreenCastStream();
+}
+
+class MAYBE_PipeWireStreamCustomProviderTest : public MAYBE_PipeWireStreamTest {
+ public:
+  void SetUp() override { InitializeSharedStream(); }
+
+ protected:
+  void StartProviderAndWaitForFormat(uint32_t provider_width,
+                                     uint32_t provider_height,
+                                     uint32_t provider_max_frame_rate,
+                                     uint32_t expected_width,
+                                     uint32_t expected_height,
+                                     uint32_t expected_frame_rate) {
+    auto wait_connect = std::make_shared<Event>();
+    auto wait_start_streaming = std::make_shared<Event>();
+    EXPECT_CALL(*this, OnStreamReady(_))
+        .WillOnce([this](uint32_t stream_node_id) {
+          StartScreenCastStream(stream_node_id);
+        });
+    EXPECT_CALL(*this, OnStreamConfigured).WillOnce([wait_connect] {
+      wait_connect->Set();
+    });
+    EXPECT_CALL(*this, OnBufferAdded).Times(AtLeast(1));
+    EXPECT_CALL(*this, OnStartStreaming)
+        .Times(AtLeast(1))
+        .WillRepeatedly([wait_start_streaming] { wait_start_streaming->Set(); });
+    EXPECT_CALL(*this, OnFormatChanged(SPA_VIDEO_FORMAT_BGRA, expected_width,
+                                       expected_height, expected_frame_rate,
+                                       DRM_FORMAT_MOD_LINEAR))
+        .Times(AtLeast(1));
+
+    test_screencast_stream_provider_ =
+        std::make_unique<TestScreenCastStreamProvider>(
+            this, provider_width, provider_height, provider_max_frame_rate,
+            /*fixate_max_frame_rate=*/true);
+
+    ASSERT_TRUE(wait_connect->Wait(kLongWait));
+    ASSERT_TRUE(wait_start_streaming->Wait(kShortWait));
+    EXPECT_EQ(last_max_frame_rate_.load(), expected_frame_rate);
+  }
+
+  void UpdateFrameRateAndWaitForFormat(uint32_t requested_frame_rate,
+                                       uint32_t expected_width,
+                                       uint32_t expected_height,
+                                       uint32_t expected_frame_rate) {
+    auto wait_renegotiation = std::make_shared<Event>();
+    auto wait_start_streaming = std::make_shared<Event>();
+    EXPECT_CALL(*this, OnStopStreaming).Times(AtLeast(1));
+    EXPECT_CALL(*this, OnBufferAdded).Times(AtLeast(1));
+    EXPECT_CALL(*this, OnFormatChanged(SPA_VIDEO_FORMAT_BGRA, expected_width,
+                                       expected_height, expected_frame_rate,
+                                       DRM_FORMAT_MOD_LINEAR))
+        .Times(AtLeast(1))
+        .WillRepeatedly([wait_renegotiation] { wait_renegotiation->Set(); });
+    EXPECT_CALL(*this, OnStartStreaming)
+        .Times(AtLeast(1))
+        .WillRepeatedly([wait_start_streaming] { wait_start_streaming->Set(); });
+
+    shared_screencast_stream_->UpdateScreenCastStreamFrameRate(
+        requested_frame_rate);
+    ASSERT_TRUE(wait_renegotiation->Wait(kShortWait));
+    ASSERT_TRUE(wait_start_streaming->Wait(kShortWait));
+    EXPECT_EQ(last_max_frame_rate_.load(), expected_frame_rate);
+  }
+};
+
+// Verifies that dynamic framerate increases and decreases renegotiate
+// SPA_PARAM_Format even when the producer (such as GNOME Mutter) caps its
+// fixated modifier pod's maxFramerate at the previously negotiated rate without
+// a resolution change.
+TEST_F(MAYBE_PipeWireStreamCustomProviderTest, TestFrameRateRenegotiation) {
+  shared_screencast_stream_->UpdateScreenCastStreamFrameRate(30);
+  ASSERT_NO_FATAL_FAILURE(StartProviderAndWaitForFormat(
+      kWidth, kHeight, /*provider_max_frame_rate=*/120, kWidth, kHeight, 30));
+
+  // Increase 30 -> 60 -> 120 FPS, decrease 120 -> 24 FPS, and increase 24 -> 60
+  // FPS without resizing.
+  ASSERT_NO_FATAL_FAILURE(
+      UpdateFrameRateAndWaitForFormat(60, kWidth, kHeight, 60));
+  ASSERT_NO_FATAL_FAILURE(
+      UpdateFrameRateAndWaitForFormat(120, kWidth, kHeight, 120));
+  ASSERT_NO_FATAL_FAILURE(
+      UpdateFrameRateAndWaitForFormat(24, kWidth, kHeight, 24));
+  ASSERT_NO_FATAL_FAILURE(
+      UpdateFrameRateAndWaitForFormat(60, kWidth, kHeight, 60));
+
+  EXPECT_CALL(*this, OnStopStreaming).Times(AtLeast(1));
+  shared_screencast_stream_->StopScreenCastStream();
+}
+
+// Verifies that resolution and frame rate configured before
+// StartScreenCastStream() take effect on initial negotiation, and that stopping
+// the stream clears cached resolution while keeping frame_rate_ sticky across
+// restarts.
+TEST_F(MAYBE_PipeWireStreamCustomProviderTest,
+       TestStreamParamsAcrossStartAndStop) {
+  constexpr uint32_t kInitialWidth = 1024;
+  constexpr uint32_t kInitialHeight = 768;
+
+  // Configure resolution and frame rate before StartScreenCastStream() is
+  // called; stopping an unstarted stream should not wipe pre-start parameters,
+  // and the 0x0 producer advertises a [1x1 .. max] resolution range.
+  shared_screencast_stream_->UpdateScreenCastStreamResolution(kInitialWidth,
+                                                              kInitialHeight);
+  shared_screencast_stream_->UpdateScreenCastStreamFrameRate(30);
+  shared_screencast_stream_->StopScreenCastStream();
+  ASSERT_NO_FATAL_FAILURE(StartProviderAndWaitForFormat(
+      /*provider_width=*/0, /*provider_height=*/0,
+      /*provider_max_frame_rate=*/120, kInitialWidth, kInitialHeight, 30));
+
+  EXPECT_CALL(*this, OnStopStreaming).Times(AtLeast(1));
+  shared_screencast_stream_->StopScreenCastStream();
+  test_screencast_stream_provider_.reset();
+
+  // Reconnecting with 0x0 on a fixed 800x640 provider should negotiate 800x640
+  // (cached 1024x768 was cleared on stop) while retaining sticky 30 FPS.
+  ASSERT_NO_FATAL_FAILURE(StartProviderAndWaitForFormat(
+      kWidth, kHeight, /*provider_max_frame_rate=*/120, kWidth, kHeight, 30));
+
+  EXPECT_CALL(*this, OnStopStreaming).Times(AtLeast(1));
+  shared_screencast_stream_->StopScreenCastStream();
+}
+
+// Verifies that requesting a higher frame rate than a producer supports falls
+// back to the producer's maximum frame rate while preserving DMA-BUF modifiers.
+TEST_F(MAYBE_PipeWireStreamCustomProviderTest,
+       TestFrameRateFallbackToProducerMax) {
+  // Consumer defaults to 60 FPS, while producer supports at most 50 FPS.
+  ASSERT_NO_FATAL_FAILURE(StartProviderAndWaitForFormat(
+      kWidth, kHeight, /*provider_max_frame_rate=*/50, kWidth, kHeight, 50));
+
+  // Requesting 120 FPS should also negotiate 50 FPS with DMA-BUF preserved.
+  ASSERT_NO_FATAL_FAILURE(
+      UpdateFrameRateAndWaitForFormat(120, kWidth, kHeight, 50));
+
+  EXPECT_CALL(*this, OnStopStreaming).Times(AtLeast(1));
   shared_screencast_stream_->StopScreenCastStream();
 }
 

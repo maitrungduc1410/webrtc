@@ -115,6 +115,11 @@ class SharedScreenCastStreamPrivate {
  private:
   // Stops the streams and cleans up any in-use elements.
   void StopAndCleanupStream();
+  bool HasDmaBufSupport() const {
+    return egl_dmabuf_ && pw_client_version_ >= kDmaBufModifierMinVersion &&
+           pw_server_version_ >= kDmaBufModifierMinVersion;
+  }
+  std::vector<const spa_pod*> BuildFormatParams(SpaPodDynamicBuilder& builder);
 
   SharedScreenCastStream::Observer* observer_ = nullptr;
 
@@ -243,11 +248,12 @@ class SharedScreenCastStreamPrivate {
   // Version of the library used to run our code
   PipeWireVersion pw_client_version_;
 
+  Mutex params_lock_;
   // Resolution parameters.
-  uint32_t width_ = 0;
-  uint32_t height_ = 0;
+  uint32_t width_ RTC_GUARDED_BY(&params_lock_) = 0;
+  uint32_t height_ RTC_GUARDED_BY(&params_lock_) = 0;
   // Frame rate.
-  uint32_t frame_rate_ = 60;
+  uint32_t frame_rate_ RTC_GUARDED_BY(&params_lock_) = 60;
 
   bool use_damage_region_ = true;
 
@@ -517,6 +523,32 @@ void SharedScreenCastStreamPrivate::OnStreamProcess(void* data) {
   pw_stream_queue_buffer(that->pw_->stream, buffer);
 }
 
+std::vector<const spa_pod*> SharedScreenCastStreamPrivate::BuildFormatParams(
+    SpaPodDynamicBuilder& builder) {
+  uint32_t width = 0;
+  uint32_t height = 0;
+  uint32_t frame_rate_fps = 0;
+  {
+    MutexLock params_lock(&params_lock_);
+    width = width_;
+    height = height_;
+    frame_rate_fps = frame_rate_;
+  }
+
+  std::vector<const spa_pod*> params;
+  struct spa_rectangle resolution = SPA_RECTANGLE(width, height);
+  struct spa_fraction frame_rate = SPA_FRACTION(frame_rate_fps, 1);
+  if (HasDmaBufSupport()) {
+    BuildFullFormat(builder.get(), egl_dmabuf_->GetRenderDevice(),
+                    width && height ? &resolution : nullptr, &frame_rate,
+                    params);
+  } else {
+    BuildBaseFormat(builder.get(), width && height ? &resolution : nullptr,
+                    &frame_rate, params);
+  }
+  return params;
+}
+
 void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
   SharedScreenCastStreamPrivate* that =
       static_cast<SharedScreenCastStreamPrivate*>(data);
@@ -525,18 +557,8 @@ void SharedScreenCastStreamPrivate::OnRenegotiateFormat(void* data, uint64_t) {
   {
     PipeWireThreadLoopLock thread_loop_lock(that->pw_->main_loop);
 
-    uint8_t buffer[4096] = {};
-    spa_pod_builder builder =
-        spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
-
-    std::vector<const spa_pod*> params;
-    struct spa_rectangle resolution =
-        SPA_RECTANGLE(that->width_, that->height_);
-    struct spa_fraction frame_rate = SPA_FRACTION(that->frame_rate_, 1);
-    BuildFullFormat(&builder, that->egl_dmabuf_->GetRenderDevice(),
-                    that->width_ && that->height_ ? &resolution : nullptr,
-                    &frame_rate, params);
-
+    SpaPodDynamicBuilder builder;
+    std::vector<const spa_pod*> params = that->BuildFormatParams(builder);
     pw_stream_update_params(that->pw_->stream, params.data(), params.size());
   }
 }
@@ -559,8 +581,11 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
     uint32_t height,
     bool is_cursor_embedded,
     DesktopCapturer::Callback* callback) {
-  width_ = width;
-  height_ = height;
+  if (width && height) {
+    MutexLock params_lock(&params_lock_);
+    width_ = width;
+    height_ = height;
+  }
   callback_ = callback;
   is_cursor_embedded_ = is_cursor_embedded;
   if (!InitializePipeWire()) {
@@ -639,34 +664,11 @@ bool SharedScreenCastStreamPrivate::StartScreenCastStream(
                            &pw_stream_events_, this);
 
     // Modifiers can be used with PipeWire >= 0.3.33
-    const bool has_dmabuf_support =
-        egl_dmabuf_ && pw_client_version_ >= kDmaBufModifierMinVersion &&
-        pw_server_version_ >= kDmaBufModifierMinVersion;
-
-    struct spa_fraction default_frame_rate = SPA_FRACTION(frame_rate_, 1);
-    struct spa_rectangle resolution;
-    bool set_resolution = false;
-    if (width && height) {
-      resolution = SPA_RECTANGLE(width, height);
-      set_resolution = true;
-    }
-
-    uint8_t buffer[4096] = {};
-    spa_pod_builder builder =
-        spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
-
     RTC_LOG(LS_INFO) << "DMABufs are "
-                     << (has_dmabuf_support ? "supported" : "not supported");
+                     << (HasDmaBufSupport() ? "supported" : "not supported");
 
-    std::vector<const spa_pod*> params;
-    if (has_dmabuf_support) {
-      BuildFullFormat(&builder, egl_dmabuf_->GetRenderDevice(),
-                      set_resolution ? &resolution : nullptr,
-                      &default_frame_rate, params);
-    } else {
-      BuildBaseFormat(&builder, set_resolution ? &resolution : nullptr,
-                      &default_frame_rate, params);
-    }
+    SpaPodDynamicBuilder builder;
+    std::vector<const spa_pod*> params = BuildFormatParams(builder);
 
     if (pw_stream_connect(pw_->stream, PW_DIRECTION_INPUT, pw_stream_node_id_,
                           PW_STREAM_FLAG_AUTOCONNECT, params.data(),
@@ -687,8 +689,16 @@ void SharedScreenCastStreamPrivate::UpdateScreenCastStreamResolution(
                         << height;
     return;
   }
+  {
+    MutexLock params_lock(&params_lock_);
+    if (width_ == width && height_ == height) {
+      return;
+    }
+    width_ = width;
+    height_ = height;
+  }
   if (!pw_) {
-    RTC_LOG(LS_WARNING) << "No main pipewire loop, ignoring resolution change";
+    RTC_LOG(LS_INFO) << "No main pipewire loop, caching resolution change";
     return;
   }
   if (!pw_->renegotiate) {
@@ -696,19 +706,22 @@ void SharedScreenCastStreamPrivate::UpdateScreenCastStreamResolution(
                         << "resolution change";
     return;
   }
-  if (width_ != width || height_ != height) {
-    width_ = width;
-    height_ = height;
-    pw_loop_signal_event(pw_thread_loop_get_loop(pw_->main_loop),
-                         pw_->renegotiate);
-  }
+  pw_loop_signal_event(pw_thread_loop_get_loop(pw_->main_loop),
+                       pw_->renegotiate);
 }
 
 RTC_NO_SANITIZE("cfi-icall")
 void SharedScreenCastStreamPrivate::UpdateScreenCastStreamFrameRate(
     uint32_t frame_rate) {
+  {
+    MutexLock params_lock(&params_lock_);
+    if (frame_rate_ == frame_rate) {
+      return;
+    }
+    frame_rate_ = frame_rate;
+  }
   if (!pw_) {
-    RTC_LOG(LS_WARNING) << "No main pipewire loop, ignoring frame rate change";
+    RTC_LOG(LS_INFO) << "No main pipewire loop, caching frame rate change";
     return;
   }
   if (!pw_->renegotiate) {
@@ -716,11 +729,8 @@ void SharedScreenCastStreamPrivate::UpdateScreenCastStreamFrameRate(
                         << "frame rate change";
     return;
   }
-  if (frame_rate_ != frame_rate) {
-    frame_rate_ = frame_rate;
-    pw_loop_signal_event(pw_thread_loop_get_loop(pw_->main_loop),
-                         pw_->renegotiate);
-  }
+  pw_loop_signal_event(pw_thread_loop_get_loop(pw_->main_loop),
+                       pw_->renegotiate);
 }
 
 void SharedScreenCastStreamPrivate::StopScreenCastStream() {
@@ -770,6 +780,16 @@ void SharedScreenCastStreamPrivate::StopAndCleanupStream() {
   }
 
   pw_.reset();
+
+  // Reset any session-specific resolution after tearing down the active session
+  // so a reused stream starting a new session with 0x0 falls back to
+  // negotiating the [1x1 .. max] range, while keeping `frame_rate_` sticky
+  // across restarts.
+  {
+    MutexLock params_lock(&params_lock_);
+    width_ = 0;
+    height_ = 0;
+  }
 }
 
 std::unique_ptr<SharedDesktopFrame>

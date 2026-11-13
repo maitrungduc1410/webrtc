@@ -60,7 +60,7 @@ PipeWireVersion PipeWireVersion::Parse(const std::string_view& version) {
           .full_version = std::string(version)};
 }
 
-bool PipeWireVersion::operator>=(const PipeWireVersion& other) {
+bool PipeWireVersion::operator>=(const PipeWireVersion& other) const {
   if (!major && !minor && !micro) {
     return false;
   }

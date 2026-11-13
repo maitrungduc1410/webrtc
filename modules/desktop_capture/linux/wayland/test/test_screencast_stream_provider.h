@@ -51,7 +51,9 @@ class TestScreenCastStreamProvider {
 
   explicit TestScreenCastStreamProvider(Observer* observer,
                                         uint32_t width,
-                                        uint32_t height);
+                                        uint32_t height,
+                                        uint32_t max_frame_rate = 60,
+                                        bool fixate_max_frame_rate = false);
   ~TestScreenCastStreamProvider();
 
   uint32_t PipeWireNodeId();
@@ -62,11 +64,15 @@ class TestScreenCastStreamProvider {
   void StopStreaming();
 
  private:
+  spa_rectangle NegotiatedSize() const;
+
   Observer* observer_;
 
-  // Resolution parameters.
+  // Resolution and framerate parameters.
   uint32_t width_ = 0;
   uint32_t height_ = 0;
+  uint32_t max_frame_rate_ = 60;
+  bool fixate_max_frame_rate_ = false;
 
   bool is_streaming_ = false;
   uint32_t pw_node_id_ = 0;

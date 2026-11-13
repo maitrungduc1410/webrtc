@@ -20,6 +20,7 @@
 #include <spa/param/format.h>
 #include <spa/param/param.h>
 #include <spa/param/video/format-utils.h>
+#include <spa/param/video/format.h>
 #include <spa/param/video/raw.h>
 #include <spa/pod/builder.h>
 #include <spa/pod/vararg.h>
@@ -43,10 +44,17 @@ namespace webrtc {
 
 constexpr int kBytesPerPixel = 4;
 
-TestScreenCastStreamProvider::TestScreenCastStreamProvider(Observer* observer,
-                                                           uint32_t width,
-                                                           uint32_t height)
-    : observer_(observer), width_(width), height_(height) {
+TestScreenCastStreamProvider::TestScreenCastStreamProvider(
+    Observer* observer,
+    uint32_t width,
+    uint32_t height,
+    uint32_t max_frame_rate,
+    bool fixate_max_frame_rate)
+    : observer_(observer),
+      width_(width),
+      height_(height),
+      max_frame_rate_(max_frame_rate),
+      fixate_max_frame_rate_(fixate_max_frame_rate) {
   if (!InitializePipeWire()) {
     RTC_LOG(LS_ERROR) << "Unable to open PipeWire library";
     return;
@@ -100,16 +108,16 @@ TestScreenCastStreamProvider::TestScreenCastStreamProvider(Observer* observer,
 
     pw_stream_add_listener(pw_stream_, &spa_stream_listener_,
                            &pw_stream_events_, this);
-    uint8_t buffer[4096] = {};
-    spa_pod_builder builder =
-        spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
+    SpaPodDynamicBuilder builder;
 
     std::vector<const spa_pod*> params;
     spa_rectangle resolution =
         SPA_RECTANGLE(uint32_t(width_), uint32_t(height_));
-    struct spa_fraction default_frame_rate = SPA_FRACTION(60, 1);
-    BuildFullFormat(&builder, egl_dmabuf_->GetRenderDevice(), &resolution,
-                    &default_frame_rate, params);
+    struct spa_fraction default_frame_rate = SPA_FRACTION(max_frame_rate_, 1);
+    BuildFullFormat(builder.get(), egl_dmabuf_->GetRenderDevice(),
+                    width_ && height_ ? &resolution : nullptr,
+                    &default_frame_rate, params,
+                    /*include_exact_max_frame_rate=*/false);
 
     auto flags =
         pw_stream_flags(PW_STREAM_FLAG_DRIVER | PW_STREAM_FLAG_ALLOC_BUFFERS);
@@ -155,15 +163,15 @@ void TestScreenCastStreamProvider::MarkModifierFailed(uint64_t modifier) {
   }
 
   // Start stream negotiation again
-  uint8_t buffer[4096] = {};
-  spa_pod_builder builder =
-      spa_pod_builder{.data = buffer, .size = sizeof(buffer)};
+  SpaPodDynamicBuilder builder;
 
   std::vector<const spa_pod*> params;
   spa_rectangle resolution = SPA_RECTANGLE(uint32_t(width_), uint32_t(height_));
-  struct spa_fraction default_frame_rate = SPA_FRACTION(60, 1);
-  BuildFullFormat(&builder, egl_dmabuf_->GetRenderDevice(), &resolution,
-                  &default_frame_rate, params);
+  struct spa_fraction default_frame_rate = SPA_FRACTION(max_frame_rate_, 1);
+  BuildFullFormat(builder.get(), egl_dmabuf_->GetRenderDevice(),
+                  width_ && height_ ? &resolution : nullptr,
+                  &default_frame_rate, params,
+                  /*include_exact_max_frame_rate=*/false);
 
   PipeWireThreadLoopLock thread_loop_lock(pw_main_loop_);
   pw_stream_update_params(pw_stream_, params.data(), params.size());
@@ -188,8 +196,9 @@ void TestScreenCastStreamProvider::RecordFrame(RgbaColor rgba_color,
   struct spa_buffer* spa_buffer = buffer->buffer;
   struct spa_data* spa_data = spa_buffer->datas;
 
-  const int stride = SPA_ROUND_UP_N(width_ * kBytesPerPixel, 4);
-  const size_t buffer_size = height_ * stride;
+  const spa_rectangle size = NegotiatedSize();
+  const int stride = SPA_ROUND_UP_N(size.width * kBytesPerPixel, 4);
+  const size_t buffer_size = static_cast<size_t>(size.height) * stride;
 
   uint8_t* data = nullptr;
   ScopedBuf scoped_buf;
@@ -223,9 +232,9 @@ void TestScreenCastStreamProvider::RecordFrame(RgbaColor rgba_color,
 
   if (frame_defect == None) {
     uint32_t color = rgba_color.ToUInt32();
-    for (uint32_t i = 0; i < height_; i++) {
+    for (uint32_t i = 0; i < size.height; i++) {
       uint32_t* column = reinterpret_cast<uint32_t*>(data);
-      for (uint32_t j = 0; j < width_; j++) {
+      for (uint32_t j = 0; j < size.width; j++) {
         column[j] = color;
       }
       data += stride;
@@ -350,31 +359,50 @@ void TestScreenCastStreamProvider::OnStreamParamChanged(
 
       RTC_LOG(LS_INFO) << "Fixating on modifier: " << chosen_modifier;
 
-      uint8_t buffer[4096] = {};
-      struct spa_pod_builder builder =
-          SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+      uint8_t fixated_buffer[512] = {};
+      struct spa_pod_builder fixated_builder =
+          SPA_POD_BUILDER_INIT(fixated_buffer, sizeof(fixated_buffer));
       struct spa_pod_frame frame;
       std::vector<const spa_pod*> params;
 
-      spa_pod_builder_push_object(&builder, &frame, SPA_TYPE_OBJECT_Format,
-                                  SPA_PARAM_EnumFormat);
+      spa_pod_builder_push_object(&fixated_builder, &frame,
+                                  SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(
-          &builder, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
-          SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
-          SPA_FORMAT_VIDEO_format, SPA_POD_Id(that->spa_video_format_.format),
-          SPA_FORMAT_VIDEO_size,
+          &fixated_builder, SPA_FORMAT_mediaType,
+          SPA_POD_Id(SPA_MEDIA_TYPE_video), SPA_FORMAT_mediaSubtype,
+          SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), SPA_FORMAT_VIDEO_format,
+          SPA_POD_Id(that->spa_video_format_.format), SPA_FORMAT_VIDEO_size,
           SPA_POD_Rectangle(&that->spa_video_format_.size), 0);
-      spa_pod_builder_prop(&builder, SPA_FORMAT_VIDEO_modifier,
+      if (that->fixate_max_frame_rate_ &&
+          that->spa_video_format_.max_framerate.denom != 0) {
+        static const spa_fraction pw_min_frame_rate =
+            spa_fraction{.num = 0, .denom = 1};
+        spa_pod_builder_add(
+            &fixated_builder, SPA_FORMAT_VIDEO_framerate,
+            SPA_POD_CHOICE_RANGE_Fraction(
+                &that->spa_video_format_.framerate, &pw_min_frame_rate,
+                &that->spa_video_format_.max_framerate),
+            SPA_FORMAT_VIDEO_maxFramerate,
+            SPA_POD_CHOICE_RANGE_Fraction(
+                &that->spa_video_format_.max_framerate, &pw_min_frame_rate,
+                &that->spa_video_format_.max_framerate),
+            0);
+      }
+      spa_pod_builder_prop(&fixated_builder, SPA_FORMAT_VIDEO_modifier,
                            SPA_POD_PROP_FLAG_MANDATORY);
-      spa_pod_builder_long(&builder, chosen_modifier);
+      spa_pod_builder_long(&fixated_builder, chosen_modifier);
 
-      params.push_back(
-          reinterpret_cast<spa_pod*>(spa_pod_builder_pop(&builder, &frame)));
+      params.push_back(reinterpret_cast<spa_pod*>(
+          spa_pod_builder_pop(&fixated_builder, &frame)));
 
+      SpaPodDynamicBuilder builder;
       spa_rectangle resolution = SPA_RECTANGLE(that->width_, that->height_);
-      struct spa_fraction default_frame_rate = SPA_FRACTION(60, 1);
-      BuildFullFormat(&builder, that->egl_dmabuf_->GetRenderDevice(),
-                      &resolution, &default_frame_rate, params);
+      struct spa_fraction default_frame_rate =
+          SPA_FRACTION(that->max_frame_rate_, 1);
+      BuildFullFormat(builder.get(), that->egl_dmabuf_->GetRenderDevice(),
+                      that->width_ && that->height_ ? &resolution : nullptr,
+                      &default_frame_rate, params,
+                      /*include_exact_max_frame_rate=*/false);
 
       pw_stream_update_params(that->pw_stream_, params.data(), params.size());
       return;
@@ -500,8 +528,9 @@ void TestScreenCastStreamProvider::OnStreamAddBuffer(void* data,
 
   struct spa_buffer* spa_buffer = buffer->buffer;
   struct spa_data* spa_data = spa_buffer->datas;
-  const int stride = SPA_ROUND_UP_N(that->width_ * kBytesPerPixel, 4);
-  const size_t buffer_size = stride * that->height_;
+  const spa_rectangle size = that->NegotiatedSize();
+  const int stride = SPA_ROUND_UP_N(size.width * kBytesPerPixel, 4);
+  const size_t buffer_size = static_cast<size_t>(size.height) * stride;
 
   if (spa_data[0].type & (1 << SPA_DATA_DmaBuf)) {
     if (CreateDmaBufBuffer(spa_data, buffer_size, stride)) {
@@ -545,6 +574,13 @@ void TestScreenCastStreamProvider::OnStreamRemoveBuffer(void* data,
 
 uint32_t TestScreenCastStreamProvider::PipeWireNodeId() {
   return pw_node_id_;
+}
+
+spa_rectangle TestScreenCastStreamProvider::NegotiatedSize() const {
+  return spa_rectangle{
+      .width = width_ ? width_ : spa_video_format_.size.width,
+      .height = height_ ? height_ : spa_video_format_.size.height,
+  };
 }
 
 }  // namespace webrtc

@@ -42,7 +42,7 @@ struct PipeWireVersion {
   static PipeWireVersion Parse(const std::string_view& version);
 
   // Returns whether current version is newer or same as required version
-  bool operator>=(const PipeWireVersion& other);
+  bool operator>=(const PipeWireVersion& other) const;
 
   std::string_view ToStringView() const;
 
