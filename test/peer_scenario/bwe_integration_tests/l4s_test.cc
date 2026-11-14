@@ -936,9 +936,6 @@ TEST(L4STest, RtcpSentAsNotEctIfRtpEcnBleached) {
   EXPECT_GT(rtcp_not_ect_count, 0);
 }
 
-#if !defined(WEBRTC_IOS)
-// TODO(bugs.webrtc.org/42225697): investigate why CcFbSendRateAdaptation fails
-// on iOS bots.
 enum class TestVariant { kCcfbWithGoogCc, kCcfbWithScreamV2 };
 
 // These tests that the bitrate used by Congestion Control feedback is reduced
@@ -990,10 +987,19 @@ class CcFbSendRateAdaptation : public TestWithParam<TestVariant> {
     EmulatedNetworkNode* callee_to_caller =
         s.net()->NodeBuilder().delay_ms(50).capacity_kbps(100000).Build().node;
 
+    // Disable audio processing options explicitly so that all platforms run
+    // with identical settings (WebRtcVoiceEngine disables software AEC, AGC,
+    // and NS on iOS while enabling them by default on other platforms).
+    AudioOptions audio_options;
+    audio_options.echo_cancellation = false;
+    audio_options.auto_gain_control = false;
+    audio_options.noise_suppression = false;
+    audio_options.highpass_filter = false;
+
     std::optional<PeerScenarioClient::AudioSendTrack> caller_audio;
     // Caller maybe sends AUDIO only, but wants to receive VIDEO from callee.
     if (caller_sends_audio) {
-      caller_audio = caller->CreateAudio("AUDIO", AudioOptions());
+      caller_audio = caller->CreateAudio("AUDIO", audio_options);
       RtpParameters caller_audio_params = caller_audio->sender->GetParameters();
       for (auto& encoding : caller_audio_params.encodings) {
         // Adaptive frame length allow audio to adapt to BWE.
@@ -1020,7 +1026,7 @@ class CcFbSendRateAdaptation : public TestWithParam<TestVariant> {
     video_conf.generator.squares_video->height = 180;
     callee->CreateVideo("VIDEO", video_conf);
     PeerScenarioClient::AudioSendTrack callee_audio =
-        callee->CreateAudio("AUDIO", AudioOptions());
+        callee->CreateAudio("AUDIO", audio_options);
     RtpParameters callee_audio_params = callee_audio.sender->GetParameters();
     for (auto& encoding : callee_audio_params.encodings) {
       encoding.adaptive_ptime = true;
@@ -1147,7 +1153,6 @@ INSTANTIATE_TEST_SUITE_P(L4STest,
                            }
                            RTC_CHECK_NOTREACHED();
                          });
-#endif  // !defined(WEBRTC_IOS)
 
 }  // namespace
 }  // namespace webrtc

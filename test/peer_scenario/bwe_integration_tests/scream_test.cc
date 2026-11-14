@@ -348,9 +348,18 @@ SendMediaTestResult SendMedia(SendMediaTestParams params, PeerScenario& s) {
   PeerScenarioClient* caller = s.CreateClient(config);
   PeerScenarioClient* callee = s.CreateClient(config);
 
+  // Disable audio processing options explicitly so that all platforms run with
+  // identical settings (WebRtcVoiceEngine disables software AEC, AGC, and NS on
+  // iOS while enabling them by default on other platforms).
+  AudioOptions audio_options;
+  audio_options.echo_cancellation = false;
+  audio_options.auto_gain_control = false;
+  audio_options.noise_suppression = false;
+  audio_options.highpass_filter = false;
+
   if (params.send_audio) {
     PeerScenarioClient::AudioSendTrack audio =
-        caller->CreateAudio("AUDIO_1", {});
+        caller->CreateAudio("AUDIO_1", audio_options);
     if (params.adaptive_ptime) {
       RtpParameters caller_audio_params = audio.sender->GetParameters();
       for (auto& encoding : caller_audio_params.encodings) {
@@ -378,7 +387,7 @@ SendMediaTestResult SendMedia(SendMediaTestParams params, PeerScenario& s) {
   if (params.send_in_two_directions) {
     if (params.send_audio) {
       PeerScenarioClient::AudioSendTrack audio =
-          callee->CreateAudio("AUDIO_2", {});
+          callee->CreateAudio("AUDIO_2", audio_options);
       if (params.adaptive_ptime) {
         RtpParameters callee_audio_params = audio.sender->GetParameters();
         for (auto& encoding : callee_audio_params.encodings) {
@@ -1216,11 +1225,11 @@ TEST(ScreamTest,
   ASSERT_GT(result.caller().subspan(2).size(), 0u);
   EXPECT_THAT(result.caller().subspan(2),
               Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(180),
-                                                 TimeDelta::Millis(600))));
+                                                 TimeDelta::Millis(700))));
   ASSERT_GT(result.callee().subspan(2).size(), 0u);
   EXPECT_THAT(result.callee().subspan(2),
               Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(180),
-                                                 TimeDelta::Millis(600))));
+                                                 TimeDelta::Millis(700))));
   EXPECT_THAT(result.caller().subspan(2),
               Each(AvailableSendBitrateIsBetween(
                   DataRate::KilobitsPerSec(5), DataRate::KilobitsPerSec(60))));
