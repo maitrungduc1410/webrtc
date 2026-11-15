@@ -112,6 +112,10 @@ int DtmfBuffer::InsertEvent(const DtmfEvent& event) {
     }
     ++it;
   }
+  if (buffer_.size() >= kMaxDtmfBufferSize) {
+    RTC_LOG(LS_WARNING) << "DTMF buffer flushed.";
+    Flush();
+  }
   buffer_.push_back(event);
   // Sort the buffer using CompareEvents to rank the events.
   buffer_.sort(CompareEvents);

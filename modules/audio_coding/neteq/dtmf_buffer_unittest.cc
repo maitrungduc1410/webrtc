@@ -10,6 +10,7 @@
 
 #include "modules/audio_coding/neteq/dtmf_buffer.h"
 
+#include <cstddef>
 #include <cstdint>
 
 #ifdef WIN32
@@ -293,5 +294,37 @@ TEST(DtmfBuffer, InvalidEvents) {
 
   // Finish with a valid event, just to verify that all is ok.
   EXPECT_EQ(DtmfBuffer::kOK, buffer.InsertEvent(event));
+}
+
+TEST(DtmfBuffer, FlushesWhenFullAndPreservesContinuationMerge) {
+  DtmfBuffer buffer(sample_rate_hz);
+  for (size_t i = 0; i < DtmfBuffer::kMaxDtmfBufferSize; ++i) {
+    bool end_bit = (i + 1 < DtmfBuffer::kMaxDtmfBufferSize);
+    DtmfEvent event(static_cast<uint32_t>(i * 160), /*ev=*/5, /*vol=*/10,
+                    /*dur=*/80, end_bit);
+    EXPECT_EQ(DtmfBuffer::kOK, buffer.InsertEvent(event));
+  }
+  EXPECT_EQ(DtmfBuffer::kMaxDtmfBufferSize, buffer.Length());
+
+  // A continuation packet for an already-buffered tone merges without flushing.
+  uint32_t last_ts =
+      static_cast<uint32_t>((DtmfBuffer::kMaxDtmfBufferSize - 1) * 160);
+  DtmfEvent continuation(last_ts, /*ev=*/5, /*vol=*/10, /*dur=*/160,
+                         /*end=*/true);
+  EXPECT_EQ(DtmfBuffer::kOK, buffer.InsertEvent(continuation));
+  EXPECT_EQ(DtmfBuffer::kMaxDtmfBufferSize, buffer.Length());
+
+  // Inserting one more distinct event flushes the buffer and retains the new
+  // event.
+  uint32_t new_ts = static_cast<uint32_t>(DtmfBuffer::kMaxDtmfBufferSize * 160);
+  DtmfEvent overflow_event(new_ts, /*ev=*/9, /*vol=*/10, /*dur=*/80,
+                           /*end=*/true);
+  EXPECT_EQ(DtmfBuffer::kOK, buffer.InsertEvent(overflow_event));
+  EXPECT_EQ(1u, buffer.Length());
+
+  DtmfEvent out_event;
+  EXPECT_FALSE(buffer.GetEvent(0, &out_event));
+  EXPECT_TRUE(buffer.GetEvent(new_ts, &out_event));
+  EXPECT_TRUE(EqualEvents(overflow_event, out_event));
 }
 }  // namespace webrtc

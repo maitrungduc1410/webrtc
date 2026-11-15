@@ -35,6 +35,14 @@ struct DtmfEvent {
 // This is the buffer holding DTMF events while waiting for them to be played.
 class DtmfBuffer {
  public:
+  // Maximum distinct RFC 4733 telephone-event tones buffered concurrently
+  // (continuation packets for the same tone merge via MergeEvents). ITU-T Q.24
+  // requires >= 40 ms tone plus >= 40 ms pause (~12.5 digits/s max), and
+  // NetEq::Config::max_packets_in_buffer defaults to 200 packets (~4 s at
+  // 20 ms), so 100 entries (~4 KiB) covers ~8 s of back-to-back digits while
+  // bounding per-packet sort and scan cost.
+  static constexpr size_t kMaxDtmfBufferSize = 100;
+
   enum BufferReturnCodes {
     kOK = 0,
     kInvalidPointer,
