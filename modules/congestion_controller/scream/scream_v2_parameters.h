@@ -227,6 +227,9 @@ struct ScreamV2Parameters {
   // bursts.
   FieldTrialParameter<TimeDelta>
       allow_large_pacing_bursts_after_congestion_time;
+  // Pacing burst size (time window) used when congestion has occurred within
+  // `allow_large_pacing_bursts_after_congestion_time`.
+  FieldTrialParameter<TimeDelta> burst_size;
 
   // Enable application-limited (ALR) state tracking.
   // In ALR, reference window can not increase, and RTT is updated slower.

@@ -96,6 +96,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
       allow_large_pacing_bursts_after_congestion_time(
           "AllowLargePacingBurstsAfterCongestionTime",
           TimeDelta::Seconds(15)),
+      burst_size("BurstSize", TimeDelta::Millis(2)),
       enable_alr("EnableAlr", true),
       alr_threshold("AlrThreshold", 0.9),
       received_rate_window("ReceivedRateWindow", TimeDelta::Millis(100)),
@@ -162,6 +163,7 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
        &backoff_scale_low_target_rate,
        &inhibit_backoff_if_data_in_flight_decreases,
        &allow_large_pacing_bursts_after_congestion_time,
+       &burst_size,
        &enable_alr,
        &alr_threshold,
        &received_rate_window,

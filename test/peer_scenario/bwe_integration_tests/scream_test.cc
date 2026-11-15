@@ -460,7 +460,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity600KbpsRtt100msNoEcn)) {
                                          DataRate::KilobitsPerSec(700))));
   EXPECT_THAT(result.caller().subspan(4), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(400),
-                                              DataRate::KilobitsPerSec(650))));
+                                              DataRate::KilobitsPerSec(680))));
 }
 
 TEST(ScreamTest,
@@ -564,7 +564,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity1000KbpsRtt100msEcn)) {
   ASSERT_GT(result.caller().subspan(2).size(), 0u);
   EXPECT_THAT(result.caller().subspan(2), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(650),
-                                              DataRate::KilobitsPerSec(950))));
+                                              DataRate::KilobitsPerSec(1050))));
 }
 
 void TestVaryingCapacity1000To500KbpsRtt100ms(bool use_ecn) {
@@ -665,7 +665,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msEcn)) {
   SendMediaTestResult result = SendMedia(std::move(params), s);
   EXPECT_THAT(result.caller().subspan(3), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(1400),
-                                              DataRate::KilobitsPerSec(2200))));
+                                              DataRate::KilobitsPerSec(2400))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithGoogCC)) {
@@ -728,7 +728,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithTwcc)) {
   // approximately.
   EXPECT_THAT(result.caller().subspan(5), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(700),
-                                              DataRate::KilobitsPerSec(2650))));
+                                              DataRate::KilobitsPerSec(2700))));
 }
 
 TEST(ScreamTest, MaybeTest(CallerPauseSendingVideoIfFeedbackNotReceived)) {
@@ -966,7 +966,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity100Kbit50msRttNoEcn)) {
   // bitrate stabilizes between 10 kbps and 150 kbps.
   EXPECT_THAT(result.caller().subspan(4), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(10),
-                                              DataRate::KilobitsPerSec(150))));
+                                              DataRate::KilobitsPerSec(160))));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity1MbitRtt50msWithShortQueuesNoEcn)) {

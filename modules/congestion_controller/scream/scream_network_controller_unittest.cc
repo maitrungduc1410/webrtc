@@ -369,9 +369,8 @@ TEST(ScreamControllerTest, PacingWindowReducedIfCeCongestedStreamsConfigured) {
       send_rate = update.target_rate->target_rate;
     }
   }
-  EXPECT_THAT(update.pacer_config,
-              Optional(Field(&PacerConfig::time_window,
-                             Lt(PacerConfig::kDefaultTimeInterval))));
+  EXPECT_THAT(update.pacer_config, Optional(Field(&PacerConfig::time_window,
+                                                  Eq(TimeDelta::Millis(2)))));
 }
 
 TEST(ScreamControllerTest,
@@ -402,9 +401,8 @@ TEST(ScreamControllerTest,
       send_rate = update.target_rate->target_rate;
     }
   }
-  EXPECT_THAT(update.pacer_config,
-              Optional(Field(&PacerConfig::time_window,
-                             Lt(PacerConfig::kDefaultTimeInterval))));
+  EXPECT_THAT(update.pacer_config, Optional(Field(&PacerConfig::time_window,
+                                                  Eq(TimeDelta::Millis(2)))));
 }
 
 TEST(ScreamControllerTest, PacingWindowNotReducedIfNotCongested) {

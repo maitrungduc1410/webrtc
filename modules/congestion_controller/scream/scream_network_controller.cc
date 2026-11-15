@@ -286,7 +286,7 @@ std::optional<PacerConfig> ScreamNetworkController::MaybeCreatePacerConfig(
            scream_->last_reaction_to_congestion_time() >
        params_.allow_large_pacing_bursts_after_congestion_time.Get())
           ? default_pacing_window_
-          : TimeDelta::Millis(10);
+          : params_.burst_size.Get();
 
   bool allow_padding = false;
   if (params_.time_between_periodic_padding.Get().IsFinite() &&
