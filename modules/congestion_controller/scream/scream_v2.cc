@@ -35,7 +35,8 @@ ScreamV2::ScreamV2(const Environment& env)
       loss_estimator_(params_),
       allow_initial_ref_window_clamping_(
           params_.allow_initial_ref_window_clamping.Get()),
-      delay_based_congestion_control_(params_) {}
+      delay_based_congestion_control_(params_),
+      is_application_limited_(params_.enable_alr.Get()) {}
 
 void ScreamV2::SetTargetBitrateConstraints(DataRate min,
                                            DataRate max,
@@ -68,7 +69,7 @@ void ScreamV2::OnTransportPacketsFeedback(const TransportPacketsFeedback& msg) {
 
   if (params_.enable_alr.Get()) {
     is_application_limited_ =
-        max_allowed_ref_window() < ref_window_ &&
+        max_allowed_ref_window() <= ref_window_ &&
         received_rate_ < params_.alr_threshold.Get() * target_rate_;
   }
 

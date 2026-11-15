@@ -741,19 +741,20 @@ TEST(ScreamControllerTest, ReportsIsBandwidthLimited) {
   config.constraints.max_data_rate = DataRate::KilobitsPerSec(5000);
   ScreamNetworkController scream_controller(config);
 
-  // Initially, is_bandwidth_limited should be true because
-  // is_application_limited starts as false.
+  // Initially, before any packets are sent, is_bandwidth_limited is false
+  // because the sender is application-limited (in ALR).
   NetworkControlUpdate update = scream_controller.OnNetworkAvailability(
       {.at_time = clock.CurrentTime(), .network_available = true});
   ASSERT_TRUE(update.target_rate.has_value());
-  EXPECT_TRUE(update.target_rate->is_bandwidth_limited);
+  EXPECT_FALSE(update.target_rate->is_bandwidth_limited);
 
   CcFeedbackGenerator feedback_generator(
       {.network_config = {.queue_delay_ms = 10,
                           .link_capacity = DataRate::KilobitsPerSec(2000)}});
 
   DataRate target_rate = DataRate::KilobitsPerSec(100);
-  // Send at full BWE rate so we are not application limited.
+  // Send at full BWE rate so we exit ALR and become bandwidth-limited.
+  bool exited_alr = false;
   for (int i = 0; i < 20; ++i) {
     TransportPacketsFeedback feedback =
         feedback_generator.ProcessUntilNextFeedback(
@@ -762,9 +763,12 @@ TEST(ScreamControllerTest, ReportsIsBandwidthLimited) {
     update = scream_controller.OnTransportPacketsFeedback(feedback);
     if (update.target_rate.has_value()) {
       target_rate = update.target_rate->target_rate;
-      EXPECT_TRUE(update.target_rate->is_bandwidth_limited);
+      if (update.target_rate->is_bandwidth_limited) {
+        exited_alr = true;
+      }
     }
   }
+  EXPECT_TRUE(exited_alr);
 
   // Now send at a very low rate (e.g. 50kbps) while BWE remains high.
   // This should trigger application limited state.
@@ -797,7 +801,7 @@ TEST(ScreamControllerTest, ReportsIsBandwidthLimitedEvenIfTargetRateClamped) {
   NetworkControlUpdate update = scream_controller.OnNetworkAvailability(
       {.at_time = clock.CurrentTime(), .network_available = true});
   ASSERT_TRUE(update.target_rate.has_value());
-  EXPECT_TRUE(update.target_rate->is_bandwidth_limited);
+  EXPECT_FALSE(update.target_rate->is_bandwidth_limited);
   EXPECT_EQ(update.target_rate->target_rate, DataRate::KilobitsPerSec(500));
 
   CcFeedbackGenerator feedback_generator(
