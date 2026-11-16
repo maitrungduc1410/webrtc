@@ -3,11 +3,13 @@ reproduced. Following are instructions for gathering logs on various platforms.
 
 To enable native logs for a native application, you can either:
 
-  * Use a debug build of WebRTC (a build where `NDEBUG` is not defined),
-    which will enable `INFO` logging by default.
+- Use a debug build of WebRTC (a build where `NDEBUG` is not defined), which
+  will enable `INFO` logging by default.
 
-  * Call `webrtc::LogMessage::LogToDebug(webrtc::LS_INFO)` within your application.
-    Or use `LS_VERBOSE` to enable `VERBOSE` logging.
+- Call `webrtc::InitializeLogging()` within your application, with a
+  `webrtc::LoggingConfig` whose debug severity is `webrtc::LS_INFO`. Or use
+  `LS_VERBOSE` to enable `VERBOSE` logging. See
+  [logging initialization][logging-initialization].
 
 For the location of the log output on different platforms, see below.
 
@@ -15,16 +17,19 @@ For the location of the log output on different platforms, see below.
 
 Logged to Android system log. Can be obtained using:
 
-~~~~ bash
+```bash
 adb logcat -s "libjingle"
-~~~~
+```
 
-To enable the logging in a non-debug build from Java code, use
-`Logging.enableLogToDebugOutput(Logging.Severity.LS_INFO)`.
+To enable the logging in a non-debug build from Java code, call
+`Logging.initialize()` with a `LoggingConfig` whose debug severity is
+`Logging.Severity.LS_INFO`, before `PeerConnectionFactory.initialize()`.
 
 #### iOS
 
-Only logged to `stderr` by default. To log to a file, use `RTCFileLogger`.
+Only logged to `stderr` by default. To enable the logging in a non-debug build,
+call `RTCInitializeLogging()` with an `RTCLoggingConfig` whose `debugSeverity`
+is `RTCLoggingSeverityInfo`. To log to a file, use `RTCFileLogger`.
 
 #### Mac
 
@@ -40,3 +45,5 @@ Logs to the debugger and `stderr`.
 #### Linux/Other Platforms
 
 Logs to `stderr`.
+
+[logging-initialization]: https://webrtc.googlesource.com/src/+/main/g3doc/logging/initialization.md

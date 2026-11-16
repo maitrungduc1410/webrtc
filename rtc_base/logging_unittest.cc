@@ -660,6 +660,11 @@ TEST_F(LogTest, MinSeverityWithoutSinksDoesNotEnableLogging) {
   EXPECT_FALSE(LogMessage::IsNoop(LS_WARNING));
 }
 
+// The tests below until RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS() test the
+// deprecated LogMessage::LogToDebug() method.
+// TODO: bugs.webrtc.org/42234107 - Remove them together with the method.
+RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
+
 TEST_F(LogTest, LogToDebugChangesDebugSeverityAfterInitialization) {
   LoggingConfig config;
   config.set_debug_severity(LS_WARNING);
@@ -695,6 +700,8 @@ TEST_F(LogTest, LogToDebugControlsDebugOutputAfterInitialization) {
   EXPECT_THAT(output, Not(HasSubstr("debug-output-3")));
 }
 #endif
+
+RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
 
 TEST_F(LogTest, LogQueueNameFromThread) {
   LoggingConfig config;

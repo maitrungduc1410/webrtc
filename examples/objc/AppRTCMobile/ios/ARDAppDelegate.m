@@ -10,6 +10,7 @@
 
 #import "ARDAppDelegate.h"
 
+#import "sdk/objc/api/logging/RTCLoggingConfig.h"
 #import "sdk/objc/api/peerconnection/RTCSSLAdapter.h"
 #import "sdk/objc/api/peerconnection/RTCTracing.h"
 #import "sdk/objc/base/RTCLogging.h"
@@ -24,6 +25,18 @@
 
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+#if defined(NDEBUG)
+  // In debug builds the default level is LS_INFO and in non-debug builds it is
+  // disabled. Continue to log to console in non-debug builds, but only
+  // warnings and errors.
+  // Logging can only be configured before it is used, so this is done before
+  // any other call into WebRTC.
+  RTC_OBJC_TYPE(RTCLoggingConfig) *loggingConfig =
+      [[RTC_OBJC_TYPE(RTCLoggingConfig) alloc] init];
+  loggingConfig.debugSeverity = RTCLoggingSeverityWarning;
+  RTCInitializeLogging(loggingConfig);
+#endif
+
   RTCInitializeSSL();
   RTCSetupInternalTracer();
   _window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
@@ -34,13 +47,6 @@
       initWithRootViewController:viewController];
   root.navigationBar.translucent = NO;
   _window.rootViewController = root;
-
-#if defined(NDEBUG)
-  // In debug builds the default level is LS_INFO and in non-debug builds it is
-  // disabled. Continue to log to console in non-debug builds, but only
-  // warnings and errors.
-  RTCSetMinDebugLogLevel(RTCLoggingSeverityWarning);
-#endif
 
   return YES;
 }

@@ -15,12 +15,11 @@
 #import "ARDExternalSampleCapturer.h"
 #import "ARDSettingsModel.h"
 
-#import "sdk/objc/api/logging/RTCCallbackLogger.h"
+#import "sdk/objc/api/logging/RTCLoggingConfig.h"
 #import "sdk/objc/base/RTCLogging.h"
 
 @implementation ARDBroadcastSampleHandler {
   ARDAppClient *_client;
-  RTC_OBJC_TYPE(RTCCallbackLogger) * _callbackLogger;
 }
 
 @synthesize capturer = _capturer;
@@ -28,13 +27,18 @@
 - (instancetype)init {
   self = [super init];
   if (self) {
-    _callbackLogger = [[RTC_OBJC_TYPE(RTCCallbackLogger) alloc] init];
     os_log_t rtc_os_log = os_log_create("com.google.AppRTCMobile", "RTCLog");
-    [_callbackLogger start:^(NSString *logMessage) {
+    RTC_OBJC_TYPE(RTCLoggingConfig) *loggingConfig =
+        [[RTC_OBJC_TYPE(RTCLoggingConfig) alloc] init];
+    [loggingConfig addSinkWithHandler:^(NSString *logMessage,
+                                        RTCLoggingSeverity severity) {
       os_log(rtc_os_log,
              "%{public}s",
              [logMessage cStringUsingEncoding:NSUTF8StringEncoding]);
     }];
+    // Logging is configured once per process, so this only has an effect for
+    // the first handler.
+    RTCInitializeLogging(loggingConfig);
   }
   return self;
 }

@@ -12,6 +12,11 @@
 
 #import <XCTest/XCTest.h>
 
+// The tests below test the deprecated RTCCallbackLogger class.
+// TODO: bugs.webrtc.org/42234107 - Remove them together with the class.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 @interface RTCCallbackLoggerTests : XCTestCase
 
 @property(nonatomic, strong) RTC_OBJC_TYPE(RTCCallbackLogger) * logger;
@@ -259,3 +264,5 @@
 }
 
 @end
+
+#pragma clang diagnostic pop

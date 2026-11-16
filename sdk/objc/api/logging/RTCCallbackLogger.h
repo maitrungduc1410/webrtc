@@ -21,6 +21,10 @@ typedef void (^RTCCallbackLoggerMessageAndSeverityHandler)(
 
 // This class intercepts WebRTC logs and forwards them to a registered block.
 // This class is not threadsafe.
+// Deprecated. The start methods are marked deprecated instead of the class,
+// since implementing a deprecated class triggers -Wdeprecated-implementations.
+// TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have
+// migrated.
 RTC_OBJC_EXPORT
 @interface RTC_OBJC_TYPE (RTCCallbackLogger) : NSObject
 
@@ -30,9 +34,13 @@ RTC_OBJC_EXPORT
 // The callback handler will be called on the same thread that does the
 // logging, so if the logging callback can be slow it may be a good idea
 // to implement dispatching to some other queue.
-- (void)start:(nullable RTCCallbackLoggerMessageHandler)handler;
+- (void)start:(nullable RTCCallbackLoggerMessageHandler)handler
+    RTC_OBJC_DEPRECATED("Use RTCInitializeLogging() with "
+                        "-[RTCLoggingConfig addSinkWithHandler:] instead.");
 - (void)startWithMessageAndSeverityHandler:
-    (nullable RTCCallbackLoggerMessageAndSeverityHandler)handler;
+    (nullable RTCCallbackLoggerMessageAndSeverityHandler)handler
+    RTC_OBJC_DEPRECATED("Use RTCInitializeLogging() with "
+                        "-[RTCLoggingConfig addSinkWithHandler:] instead.");
 
 - (void)stop;
 

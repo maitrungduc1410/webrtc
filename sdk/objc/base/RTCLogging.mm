@@ -36,7 +36,10 @@ void RTCLogEx(RTCLoggingSeverity severity, NSString* log_string) {
 }
 
 void RTCSetMinDebugLogLevel(RTCLoggingSeverity severity) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   webrtc::LogMessage::LogToDebug(RTCGetNativeLoggingSeverity(severity));
+#pragma clang diagnostic pop
 }
 
 NSString* RTCFileName(const char* file_path) {

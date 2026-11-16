@@ -57,8 +57,8 @@ builds, so release builds don't write to the debug output unless configured to.
 Depending on the platform, the debug output also goes to logcat (Android) or to
 the debugger (Windows debug builds).
 
-The legacy `LogMessage::LogToDebug()` changes the minimum severity for the debug
-output at runtime, also after initialization. `GetLoggingConfig()` keeps
+The deprecated `LogMessage::LogToDebug()` changes the minimum severity for the
+debug output at runtime, also after initialization. `GetLoggingConfig()` keeps
 returning the initial value.
 
 ## Log Sinks
@@ -107,6 +107,48 @@ initialized (implicitly or explicitly):
 
 To avoid this, ensure `InitializeLogging` is called as early as possible in the
 application's startup sequence.
+
+## Android and Objective-C SDKs
+
+The SDKs wrap `InitializeLogging` with the same rules: logging is initialized
+once, later calls return false, and sinks can't be removed.
+
+On Android, call `Logging.initialize()` before
+`PeerConnectionFactory.initialize()`. The configuration is applied when the
+native library has been loaded, before other native code runs. This also holds
+for applications that load their own native library and call
+`webrtc::InitAndroid()`. From then on, messages logged from Java with `Logging`
+are passed to native logging, also if the application initializes logging in
+native code with `webrtc::InitializeLogging()` instead. Like native messages,
+they are written to logcat according to the debug severity. Before the native
+library is loaded, they go to `java.util.logging`.
+
+```java
+Logging.initialize(
+    LoggingConfig.builder()
+        .setDebugSeverity(Logging.Severity.LS_INFO)
+        .addSink(myLoggable)
+        .build());
+```
+
+A sink behaves differently from a `Loggable` that was set with the deprecated
+`setInjectableLogger()`. It doesn't turn off logging to logcat; set the debug
+severity to `LS_NONE` for that. Messages from Java reach the sink as formatted
+log lines instead of the raw message: with the elapsed time and the thread ID if
+those are enabled, and a trailing newline. In both cases, the tag is passed
+separately.
+
+On iOS and macOS, call `RTCInitializeLogging()` before any other call into
+WebRTC.
+
+```objc
+RTCLoggingConfig *config = [[RTCLoggingConfig alloc] init];
+config.debugSeverity = RTCLoggingSeverityInfo;
+[config addSinkWithHandler:^(NSString *message, RTCLoggingSeverity severity) {
+  // Called on the thread that logs.
+}];
+RTCInitializeLogging(config);
+```
 
 ## Tests
 

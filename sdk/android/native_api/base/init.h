@@ -15,7 +15,9 @@
 
 namespace webrtc {
 
-// Initializes global state needed by WebRTC Android NDK.
+// Initializes global state needed by WebRTC Android NDK. Calls
+// org.webrtc.Logging.onNativeLibraryLoaded(), which applies a LoggingConfig
+// that was passed to Logging.initialize() before the library was loaded.
 void InitAndroid(JavaVM* jvm);
 
 }  // namespace webrtc

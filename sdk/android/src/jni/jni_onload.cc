@@ -14,6 +14,7 @@
 #include "rtc_base/ssl_adapter.h"
 #include "sdk/android/native_api/jni/class_loader.h"
 #include "sdk/android/src/jni/jvm.h"
+#include "sdk/android/src/jni/pc/logging.h"
 
 #undef JNIEXPORT
 #define JNIEXPORT __attribute__((visibility("default")))
@@ -29,6 +30,9 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM* jvm, void* reserved) {
 
   RTC_CHECK(InitializeSSL()) << "Failed to InitializeSSL()";
   InitClassLoader(GetEnv());
+  // Applies the config that was passed to Logging.initialize(), if any. This
+  // must happen before native code logs.
+  NotifyLoggingNativeLibraryLoaded(GetEnv());
 
   return ret;
 }

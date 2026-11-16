@@ -223,6 +223,28 @@ if (is_ios || is_mac) {
       ]
     }
 
+    rtc_library("logging_config_objc") {
+      visibility = [ "*" ]
+      sources = [
+        "objc/api/logging/RTCLoggingConfig.h",
+        "objc/api/logging/RTCLoggingConfig.mm",
+      ]
+
+      deps = [
+        ":base_objc",
+        ":helpers_objc",
+        "../rtc_base:checks",
+        "../rtc_base:logging",
+      ]
+
+      configs += [
+        "..:common_objc",
+        ":used_from_extension",
+      ]
+
+      public_configs = [ ":common_config_objc" ]
+    }
+
     rtc_library("file_logger_objc") {
       sources = [
         "objc/api/peerconnection/RTCFileLogger.h",
@@ -1202,6 +1224,7 @@ if (is_ios || is_mac) {
             "objc/unittests/RTCH264ProfileLevelId_xctest.m",
             "objc/unittests/RTCIceCandidateTest.mm",
             "objc/unittests/RTCIceServerTest.mm",
+            "objc/unittests/RTCLoggingConfigTest.mm",
             "objc/unittests/RTCMTLVideoView_xctest.m",
             "objc/unittests/RTCMediaConstraintsTest.mm",
             "objc/unittests/RTCNV12TextureCache_xctest.m",
@@ -1231,6 +1254,7 @@ if (is_ios || is_mac) {
             ":default_codec_factory_objc",
             ":framework_objc",
             ":helpers_objc",
+            ":logging_config_objc",
             ":mediaconstraints_objc",
             ":metal_objc",
             ":native_api",
@@ -1260,6 +1284,7 @@ if (is_ios || is_mac) {
             "../media:fake_video_renderer",
             "../media:rtc_media_tests_utils",
             "../modules/video_coding:video_codec_interface",
+            "../rtc_base:logging",
             "../rtc_base:refcount",
             "../rtc_base:rtc_event",
             "../rtc_base:threading",
@@ -1424,6 +1449,7 @@ if (is_ios || is_mac) {
         if (!build_with_chromium) {
           common_objc_headers += [
             "objc/api/logging/RTCCallbackLogger.h",
+            "objc/api/logging/RTCLoggingConfig.h",
             "objc/api/peerconnection/RTCFileLogger.h",
           ]
         }
@@ -1453,6 +1479,7 @@ if (is_ios || is_mac) {
           deps += [
             ":callback_logger_objc",
             ":file_logger_objc",
+            ":logging_config_objc",
           ]
         }
 
@@ -1572,6 +1599,7 @@ if (is_ios || is_mac) {
         if (!build_with_chromium) {
           sources += [
             "objc/api/logging/RTCCallbackLogger.h",
+            "objc/api/logging/RTCLoggingConfig.h",
             "objc/api/peerconnection/RTCFileLogger.h",
           ]
         }
@@ -1591,6 +1619,7 @@ if (is_ios || is_mac) {
           deps += [
             ":callback_logger_objc",
             ":file_logger_objc",
+            ":logging_config_objc",
           ]
         }
 

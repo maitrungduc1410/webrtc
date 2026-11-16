@@ -48,6 +48,7 @@ import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.IceCandidateErrorEvent;
 import org.webrtc.Logging;
+import org.webrtc.LoggingConfig;
 import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.MediaStreamTrack;
@@ -335,6 +336,10 @@ public class PeerConnectionClient {
 
     executor.execute(() -> {
       Log.d(TAG, "Initialize WebRTC.");
+      // Enable INFO logging to logcat. Logging is configured once per process, so this only has an
+      // effect for the first PeerConnectionClient.
+      Logging.initialize(
+          LoggingConfig.builder().setDebugSeverity(Logging.Severity.LS_INFO).build());
       PeerConnectionFactory.initialize(
           PeerConnectionFactory.InitializationOptions.builder(appContext)
               .setEnableInternalTracer(true)
@@ -619,10 +624,6 @@ public class PeerConnectionClient {
       dataChannel = peerConnection.createDataChannel("ApprtcDemo data", init);
     }
     isInitiator = false;
-
-    // Set INFO libjingle logging.
-    // NOTE: this _must_ happen while `factory` is alive!
-    Logging.enableLogToDebugOutput(Logging.Severity.LS_INFO);
 
     List<String> mediaStreamLabels = Collections.singletonList("ARDAMS");
     if (isVideoCallEnabled()) {

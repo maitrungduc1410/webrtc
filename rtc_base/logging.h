@@ -609,6 +609,7 @@ class LogMessage {
   static void LogTimestamps(bool on = true);
   // These are the available logging channels
   //  Debug: Debug console on Windows, otherwise stderr
+  [[deprecated("Use LoggingConfig::set_debug_severity() instead.")]]
   static void LogToDebug(LoggingSeverity min_sev);
   // Stream: Any non-blocking stream interface.
   // Installs the `stream` to collect logs with severtiy `min_sev` or higher.
@@ -666,6 +667,7 @@ class LogMessage {
 
   [[deprecated("Use LoggingConfig::set_log_timestamp() instead.")]]
   inline static void LogTimestamps(bool on = true) {}
+  [[deprecated("Use LoggingConfig::set_debug_severity() instead.")]]
   inline static void LogToDebug(LoggingSeverity min_sev) {}
   [[deprecated(
       "Use LoggingConfig::AddSink() and InitializeLogging() instead.")]]

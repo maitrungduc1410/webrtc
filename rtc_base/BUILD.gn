@@ -3159,6 +3159,7 @@ if (is_android) {
       "java/src/org/webrtc/ContextUtils.java",
       "java/src/org/webrtc/Loggable.java",
       "java/src/org/webrtc/Logging.java",
+      "java/src/org/webrtc/LoggingConfig.java",
       "java/src/org/webrtc/Size.java",
       "java/src/org/webrtc/ThreadUtils.java",
     ]

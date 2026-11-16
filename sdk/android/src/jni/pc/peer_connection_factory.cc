@@ -569,8 +569,8 @@ static void JNI_PeerConnectionFactory_InjectLoggable(
   jni_log_sink = std::make_unique<JNILogSink>(jni, j_logging);
   LogMessage::AddLogToStream(jni_log_sink.get(),
                              static_cast<LoggingSeverity>(nativeSeverity));
-#pragma clang diagnostic pop
   LogMessage::LogToDebug(LS_NONE);
+#pragma clang diagnostic pop
 }
 
 static void JNI_PeerConnectionFactory_DeleteLoggable(JNIEnv* jni) {

@@ -118,6 +118,13 @@ public class PeerConnectionFactory {
         return this;
       }
 
+      // Deprecated, use Logging.initialize() with LoggingConfig.Builder.addSink() instead.
+      // A sink differs from an injected Loggable in two ways:
+      // - It doesn't turn off logging to logcat. Use
+      //   LoggingConfig.Builder.setDebugSeverity(Severity.LS_NONE) for that.
+      // - Messages from Java reach the sink as formatted log lines, see addSink().
+      // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
+      @Deprecated
       public Builder setInjectableLogger(Loggable loggable, Severity severity) {
         this.loggable = loggable;
         this.loggableSeverity = severity;

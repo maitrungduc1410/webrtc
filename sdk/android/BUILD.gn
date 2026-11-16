@@ -116,6 +116,7 @@ if (is_android) {
     ]
 
     deps = [
+      ":base_jni",
       ":dav1d_av1_jni",
       ":internal_jni",
       ":libjingle_peerconnection_jni",
@@ -604,6 +605,7 @@ if (current_os == "linux" || is_android) {
       "src/jni/jni_helpers.cc",
       "src/jni/jni_helpers.h",
       "src/jni/pc/logging.cc",
+      "src/jni/pc/logging.h",
       "src/jni/pc/video.h",
       "src/jni/scoped_java_ref_counted.cc",
       "src/jni/scoped_java_ref_counted.h",
@@ -1751,6 +1753,7 @@ if (is_android) {
       configs += [ "//build/config/android:hide_all_but_jni" ]
 
       deps = [
+        ":base_jni",
         ":instrumentationtests_jni",
         ":internal_jni",
         ":libjingle_peerconnection_jni",
@@ -1989,6 +1992,7 @@ if (is_android) {
       "tests/src/org/webrtc/GlGenericDrawerTest.java",
       "tests/src/org/webrtc/HardwareVideoEncoderTest.java",
       "tests/src/org/webrtc/IceCandidateTest.java",
+      "tests/src/org/webrtc/LoggingTest.java",
       "tests/src/org/webrtc/NativeLifecycleLockTest.java",
       "tests/src/org/webrtc/RefCountDelegateTest.java",
       "tests/src/org/webrtc/RenderSynchronizerTest.java",
@@ -2008,6 +2012,7 @@ if (is_android) {
       ":video_api_java",
       ":video_java",
       "../../rtc_base:base_java",
+      "../../rtc_base:base_java_jni_java",
       "//third_party/android_deps:guava_android_java",
       "//third_party/androidx:androidx_annotation_annotation_java",
       "//third_party/androidx:androidx_test_runner_java",

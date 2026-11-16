@@ -334,6 +334,7 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         "../sdk:audio_session_objc",
         "../sdk:base_objc",
         "../sdk:helpers_objc",
+        "../sdk:logging_config_objc",
         "../sdk:mediaconstraints_objc",
         "../sdk:metal_objc",
         "../sdk:peerconnectionfactory_base_objc",

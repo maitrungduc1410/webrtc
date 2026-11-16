@@ -15,12 +15,16 @@
 #include "rtc_base/checks.h"
 #include "sdk/android/native_api/jni/class_loader.h"
 #include "sdk/android/src/jni/jvm.h"
+#include "sdk/android/src/jni/pc/logging.h"
 
 namespace webrtc {
 
 void InitAndroid(JavaVM* jvm) {
   RTC_CHECK_GE(jni::InitGlobalJniVariables(jvm), 0);
   InitClassLoader(jni::GetEnv());
+  // Applies the config that was passed to Logging.initialize(), if any. This
+  // must happen before native code logs.
+  jni::NotifyLoggingNativeLibraryLoaded(jni::GetEnv());
 }
 
 }  // namespace webrtc

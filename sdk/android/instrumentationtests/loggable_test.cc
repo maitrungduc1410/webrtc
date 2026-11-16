@@ -28,6 +28,10 @@ static void JNI_LoggableTest_LogInfoTestMessage(
   RTC_LOG(LS_INFO) << message;
 }
 
+static void JNI_LoggableTest_ResetLoggingForTesting(JNIEnv* jni) {
+  ResetLoggingForTesting();
+}
+
 }  // namespace jni
 }  // namespace webrtc
 

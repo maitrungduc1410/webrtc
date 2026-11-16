@@ -39,6 +39,13 @@ class NativeLibrary {
       }
       Logging.d(TAG, "Loading native library: " + libraryName);
       libraryLoaded = loader.load(libraryName);
+      if (libraryLoaded) {
+        // Applies the config passed to Logging.initialize(), if any. This must happen before
+        // other native code runs, since logging can only be configured before it is used.
+        // JNI_OnLoad and InitAndroid() have normally done this already. This call covers
+        // libraries that initialize JNI in another way.
+        Logging.onNativeLibraryLoaded();
+      }
     }
   }
 

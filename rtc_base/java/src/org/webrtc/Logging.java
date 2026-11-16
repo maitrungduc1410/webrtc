@@ -10,26 +10,33 @@
 
 package org.webrtc;
 
+import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.EnumSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 import org.webrtc.Loggable;
 
 /**
- * Java wrapper for WebRTC logging. Logging defaults to java.util.logging.Logger, but a custom
- * logger implementing the Loggable interface can be injected along with a Severity. All subsequent
- * log messages will then be redirected to the injected Loggable, except those with a severity lower
- * than the specified severity, which will be discarded.
+ * Java wrapper for WebRTC logging.
  *
- * It is also possible to switch to native logging (webrtc::LogMessage) if one
- * of the following static functions are called from the app:
- * - Logging.enableLogThreads
- * - Logging.enableLogTimeStamps
- * - Logging.enableLogToDebugOutput
+ * Logging is configured once per process with Logging.initialize, which should be called before
+ * PeerConnectionFactory.initialize. Once the native library is loaded, log messages from Java are
+ * passed to native logging (webrtc::LogMessage), which writes them to logcat and to the sinks of
+ * the LoggingConfig, together with the native log messages. This also applies when logging is
+ * initialized in native code with webrtc::InitializeLogging. By default, release builds of WebRTC
+ * don't write log messages to logcat, see LoggingConfig.Builder.setDebugSeverity.
+ *
+ * Before the native library is loaded, log messages from Java go to java.util.logging.Logger.
+ *
+ * A custom logger implementing the Loggable interface can be injected along with a Severity. All
+ * subsequent log messages will then be redirected to the injected Loggable, except those with a
+ * severity lower than the specified severity, which will be discarded.
  *
  * The priority goes:
  * 1. Injected loggable
@@ -38,13 +45,29 @@ import org.webrtc.Loggable;
  * Only one method will be used at a time.
  *
  * Injecting a Loggable or using any of the enable... methods requires that the native library is
- * loaded, using PeerConnectionFactory.initialize.
+ * loaded, using PeerConnectionFactory.initialize. These methods are deprecated in favor of
+ * Logging.initialize.
  */
 public class Logging {
+  private static final String TAG = "Logging";
   private static final Logger fallbackLogger = createFallbackLogger();
+  private static final Severity[] severities = Severity.values();
   private static volatile boolean loggingEnabled;
   @Nullable private static Loggable loggable;
   private static Severity loggableSeverity;
+
+  private static final Object initializationLock = new Object();
+
+  // The config passed to initialize(), while it waits for the native library to be loaded.
+  @GuardedBy("initializationLock")
+  @Nullable
+  private static LoggingConfig pendingConfig;
+
+  @GuardedBy("initializationLock")
+  private static boolean initializeCalled;
+
+  @GuardedBy("initializationLock")
+  private static boolean nativeLibraryLoaded;
 
   private static Logger createFallbackLogger() {
     final Logger fallbackLogger = Logger.getLogger("org.webrtc.Logging");
@@ -66,10 +89,101 @@ public class Logging {
   // Keep in sync with webrtc/rtc_base/logging.h:LoggingSeverity.
   public enum Severity { LS_VERBOSE, LS_INFO, LS_WARNING, LS_ERROR, LS_NONE }
 
+  /**
+   * Initializes logging with `config`. Corresponds to webrtc::InitializeLogging.
+   *
+   * <p>Only the first call has an effect. Returns false if logging has already been initialized,
+   * either by an earlier call or because native code has already logged.
+   *
+   * <p>Call this before PeerConnectionFactory.initialize, or before loading the native library in
+   * an application that loads it itself. The config is then stored, which returns true, and
+   * applied when the native library has been loaded, before other native code runs. If native
+   * code has nevertheless logged by then, the config is ignored and a warning is logged.
+   *
+   * <p>If the native library is already loaded, the config is applied immediately.
+   */
+  public static boolean initialize(LoggingConfig config) {
+    if (config == null) {
+      throw new IllegalArgumentException("config may not be null.");
+    }
+    synchronized (initializationLock) {
+      if (initializeCalled) {
+        return false;
+      }
+      initializeCalled = true;
+      if (!nativeLibraryLoaded) {
+        pendingConfig = config;
+        return true;
+      }
+      return applyConfig(config);
+    }
+  }
+
+  /**
+   * Applies the config that was passed to initialize() before the native library was loaded, and
+   * passes log messages from Java to native logging from then on.
+   *
+   * <p>Called by native code when the library has been loaded, from JNI_OnLoad or InitAndroid(),
+   * and by NativeLibrary. Only the first call has an effect.
+   */
+  @CalledByNative
+  static void onNativeLibraryLoaded() {
+    synchronized (initializationLock) {
+      nativeLibraryLoaded = true;
+      if (pendingConfig != null) {
+        final LoggingConfig config = pendingConfig;
+        pendingConfig = null;
+        if (!applyConfig(config)) {
+          // Logged before Java messages are passed to native logging, so that the warning reaches
+          // logcat even if native logging doesn't write to it.
+          w(TAG, "Native logging was already initialized. The LoggingConfig is ignored.");
+        }
+      }
+      // Also when logging was initialized in native code with webrtc::InitializeLogging().
+      loggingEnabled = true;
+    }
+  }
+
+  /**
+   * Lets initialize() be called again, as if the native library was not loaded. Doesn't reset
+   * native logging.
+   */
+  @VisibleForTesting
+  static void resetForTesting() {
+    synchronized (initializationLock) {
+      pendingConfig = null;
+      initializeCalled = false;
+      nativeLibraryLoaded = false;
+      loggingEnabled = false;
+    }
+  }
+
+  @SuppressWarnings("EnumOrdinal")
+  private static boolean applyConfig(LoggingConfig config) {
+    return LoggingJni.get().initialize(
+        config.debugSeverity == null ? null : config.debugSeverity.ordinal(),
+        config.minSeverity == null ? null : config.minSeverity.ordinal(),
+        config.logThreads,
+        config.logTimestamps,
+        config.sinks);
+  }
+
+  // Passes a native log message to a sink that was added with LoggingConfig.Builder.addSink().
+  @CalledByNative
+  static void onNativeLogMessage(Loggable sink, String message, int severity, String tag) {
+    sink.onLogMessage(message, severities[severity], tag);
+  }
+
+  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setLogThreads() instead.
+  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
+  @Deprecated
   public static void enableLogThreads() {
     LoggingJni.get().enableLogThreads();
   }
 
+  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setLogTimestamps() instead.
+  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
+  @Deprecated
   public static void enableLogTimeStamps() {
     LoggingJni.get().enableLogTimeStamps();
   }
@@ -77,7 +191,10 @@ public class Logging {
   // Enable diagnostic logging for messages of `severity` to the platform debug
   // output. On Android, the output will be directed to Logcat.
   // Note: this function starts collecting the output of the RTC_LOG() macros.
+  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setDebugSeverity() instead.
+  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
   // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
+  @Deprecated
   @SuppressWarnings({"EnumOrdinal", "NoSynchronizedMethodCheck"})
   public static synchronized void enableLogToDebugOutput(Severity severity) {
     if (loggable != null) {
@@ -169,6 +286,10 @@ public class Logging {
 
   @NativeMethods
   interface Natives {
+    // The severities are ordinals of Severity, or null to use the native default.
+    boolean initialize(Integer debugSeverity, Integer minSeverity, boolean logThreads,
+        boolean logTimestamps, Loggable[] sinks);
+
     void enableLogToDebugOutput(int nativeSeverity);
 
     void enableLogThreads();
