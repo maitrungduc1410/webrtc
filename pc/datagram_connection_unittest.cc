@@ -25,6 +25,7 @@
 #include "api/test/mock_datagram_connection_observer.h"
 #include "api/transport/ecn_marking.h"
 #include "api/transport/enums.h"
+#include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
@@ -36,6 +37,7 @@
 #include "pc/dtls_packet_processor.h"
 #include "pc/test/fake_rtc_certificate_generator.h"
 #include "rtc_base/copy_on_write_buffer.h"
+#include "rtc_base/fake_clock.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/socket_address.h"
@@ -214,7 +216,7 @@ TEST_F(DatagramConnectionTest, DtlsWithFeedbackPacketReportsEcnMarking) {
   CreateConnections(WireProtocol::kDtlsWithFeedback);
 
   const std::vector<uint8_t> payload = {1, 2, 3, 4, 5};
-  DtlsPacketProcessor sender;
+  DtlsPacketProcessor sender(env_, [](CopyOnWriteBuffer) {});
   CopyOnWriteBuffer wire =
       sender.ProcessOutgoingPacket(payload, Timestamp::Millis(1));
 
@@ -621,6 +623,48 @@ TEST_F(DatagramConnectionTest, DtlsWithFeedbackPacketsAreReceived) {
   loop_.Run();
   EXPECT_TRUE(callbacks.packet_received);
   EXPECT_TRUE(callbacks.send_outcome);
+}
+
+TEST_F(DatagramConnectionTest, DtlsWithFeedbackSendFailsWhenNotWritable) {
+  CreateConnections(WireProtocol::kDtlsWithFeedback);
+  Connect();
+  ASSERT_TRUE(
+      WaitUntil([&]() { return conn1_->Writable() && conn2_->Writable(); }));
+  // DTLS stays connected, so the transport could still send.
+  ice1_->SetWritable(false);
+  ASSERT_FALSE(conn1_->Writable());
+
+  EXPECT_CALL(*observer1_ptr_, OnSendOutcome(_))
+      .WillOnce([&](const SendOutcome& outcome) {
+        EXPECT_EQ(outcome.id, 1u);
+        EXPECT_EQ(outcome.status, SendOutcome::Status::kNotSent);
+      });
+  std::vector<uint8_t> data = {1, 2, 3, 4, 5};
+  std::vector<PacketSendParameters> packets = {
+      PacketSendParameters{.id = 1, .payload = data}};
+  conn1_->SendPackets(packets);
+}
+
+TEST_F(DatagramConnectionTest, DtlsWithFeedbackStopsFeedbackOnConnectionError) {
+  ScopedFakeClock clock;
+  CreateConnections(WireProtocol::kDtlsWithFeedback);
+  Connect();
+  ASSERT_TRUE(
+      WaitUntil([&]() { return conn1_->Writable() && conn2_->Writable(); },
+                {.clock = &clock}));
+  CopyOnWriteBuffer last_sent_packet = ice1_->last_sent_packet();
+  auto packet_sent = [&] {
+    return ice1_->last_sent_packet() != last_sent_packet;
+  };
+  // Feedback is sent periodically while writable.
+  ASSERT_TRUE(WaitUntil(packet_sent, {.clock = &clock}));
+
+  // The fake ICE transport stays writable.
+  ice1_->SetTransportState(IceTransportState::kFailed,
+                           IceTransportStateInternal::STATE_FAILED);
+  last_sent_packet = ice1_->last_sent_packet();
+  EXPECT_FALSE(WaitUntil(packet_sent,
+                         {.timeout = TimeDelta::Seconds(1), .clock = &clock}));
 }
 
 TEST_F(DatagramConnectionTest, InternalSentPacketsAreIgnored) {

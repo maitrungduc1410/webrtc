@@ -14,7 +14,9 @@
 #include <optional>
 #include <span>
 
+#include "absl/functional/any_invocable.h"
 #include "api/transport/ecn_marking.h"
+#include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "rtc_base/copy_on_write_buffer.h"
 
@@ -26,15 +28,15 @@ namespace webrtc {
 // stays protocol-agnostic and simply forwards packets through the two transform
 // methods below.
 //
-// This is currently a minimal stub: it only frames the application payload with
-// a transport header. Congestion-control feedback carried inside that framing
-// is intentionally left out until its wire format has been agreed upon, at
-// which point parsed feedback will be surfaced out-of-band (not through a
-// return value) so the caller never has to reason about it.
+// It frames the application payload with a transport header, and generates
+// congestion control feedback for the packets it receives.
 //
 // All methods run on the network thread.
 class PacketProcessor {
  public:
+  // Sends congestion control feedback with no application packet to ride on.
+  using TransportPacketSender = absl::AnyInvocable<void(CopyOnWriteBuffer)>;
+
   virtual ~PacketProcessor() = default;
 
   // Sender side. Returns the wire bytes to send for the application `payload`.
@@ -55,6 +57,10 @@ class PacketProcessor {
       CopyOnWriteBuffer packet,
       Timestamp receive_time,
       EcnMarking ecn) = 0;
+
+  // Drives the congestion control feedback cadence. Returns how long to wait
+  // before calling this again.
+  virtual TimeDelta ProcessTimers(Timestamp now) = 0;
 };
 
 }  // namespace webrtc

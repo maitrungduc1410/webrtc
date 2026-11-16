@@ -39,6 +39,7 @@
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/system/rtc_export.h"
+#include "rtc_base/task_utils/repeating_task.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -125,6 +126,7 @@ class RTC_EXPORT DatagramConnectionInternal : public DatagramConnection,
   const std::string ice_password_;
 
   std::unique_ptr<PacketProcessor> packet_processor_;
+  RepeatingTaskHandle packet_processor_task_;
 };
 
 }  // namespace webrtc

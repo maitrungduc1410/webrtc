@@ -28,6 +28,7 @@
 #include "api/make_ref_counted.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/ecn_marking.h"
 #include "api/transport/enums.h"
 #include "api/units/timestamp.h"
@@ -52,6 +53,7 @@
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/rtc_certificate.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/task_utils/repeating_task.h"
 
 namespace webrtc {
 namespace {
@@ -206,13 +208,21 @@ DatagramConnectionInternal::DatagramConnectionInternal(
   }
 
   if (wire_protocol_ == WireProtocol::kDtlsWithFeedback) {
-    packet_processor_ = std::make_unique<DtlsPacketProcessor>();
+    packet_processor_ = std::make_unique<DtlsPacketProcessor>(
+        env_, [this](CopyOnWriteBuffer packet) {
+          // Default options, as a batchable packet is held until the app ends
+          // a batch, which a receive-only app may never do.
+          internal_transport_->SendPacket(
+              reinterpret_cast<const char*>(packet.cdata()), packet.size(),
+              AsyncSocketPacketOptions());
+        });
   }
 
   RTC_CHECK(internal_transport_->SetLocalCertificate(certificate));
 }
 
 DatagramConnectionInternal::~DatagramConnectionInternal() {
+  packet_processor_task_.Stop();
   dtls_transport_->Clear(internal_transport_.get());
 }
 
@@ -297,6 +307,11 @@ void DatagramConnectionInternal::SendSinglePacket(
   }
 
   if (wire_protocol_ == WireProtocol::kDtlsWithFeedback) {
+    if (!Writable()) {
+      // Dropped before framing takes a sequence number and any due feedback.
+      DispatchSendOutcome(packet.id, Observer::SendOutcome::Status::kNotSent);
+      return;
+    }
     // Frame the payload with a transport header (and possibly piggybacked
     // feedback) before sending it inside a DTLS packet. The provider records
     // the packet internally for later correlation with incoming feedback.
@@ -357,6 +372,7 @@ void DatagramConnectionInternal::Terminate(
   if (wire_protocol_ == WireProtocol::kDtlsSrtp) {
     dtls_srtp_transport_->UnregisterRtpDemuxerSink(this);
   }
+  packet_processor_task_.Stop();
   // TODO(crbug.com/443019066): Once we need asynchronous termination, set state
   // to TerminationInProgress here and Terminated later once done.
   current_state_ = State::kTerminated;
@@ -383,6 +399,19 @@ void DatagramConnectionInternal::OnWritableStatePossiblyChanged() {
   }
   bool writable = Writable();
   if (last_writable_state_ != writable) {
+    // Feedback timers run only while writable. Set before notifying the
+    // observer, which may terminate the connection.
+    if (packet_processor_ && writable) {
+      RTC_CHECK(TaskQueueBase::Current() != nullptr);
+      packet_processor_task_ = RepeatingTaskHandle::Start(
+          TaskQueueBase::Current(),
+          [this] {
+            return packet_processor_->ProcessTimers(env_.clock().CurrentTime());
+          },
+          TaskQueueBase::DelayPrecision::kLow, &env_.clock());
+    } else {
+      packet_processor_task_.Stop();
+    }
     observer_->OnWritableChange();
     last_writable_state_ = writable;
   }
@@ -392,6 +421,8 @@ void DatagramConnectionInternal::OnConnectionError() {
   if (current_state_ != State::kActive) {
     return;
   }
+  // Restarts if the connection becomes writable again.
+  packet_processor_task_.Stop();
   observer_->OnConnectionError();
 }
 

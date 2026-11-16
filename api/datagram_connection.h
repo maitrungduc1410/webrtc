@@ -38,10 +38,9 @@ class RTC_EXPORT DatagramConnection : public RefCountInterface {
     kDtls,
     kDtlsSrtp,
     // DTLS-only transport that additionally frames every payload with a small
-    // transport header (packet type + transport sequence number). This is the
-    // wire-format foundation for carrying congestion-control feedback inside
-    // the DTLS records; the feedback codec itself is not part of this mode yet.
-    // See DtlsPacketProcessor.
+    // transport header (packet type + transport sequence number), and sends
+    // congestion control feedback on the packets it receives inside the DTLS
+    // records. See DtlsPacketProcessor.
     kDtlsWithFeedback,
   };
 
