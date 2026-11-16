@@ -15,8 +15,8 @@
 #include "api/field_trials_view.h"
 
 // RFC 8888 congestion control feedback is enabled by default in Chromium
-// builds, except on Android.
-#if defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_ANDROID)
+// builds.
+#if defined(WEBRTC_CHROMIUM_BUILD)
 #define RTC_RFC8888_ENABLED_BY_DEFAULT 1
 #else
 #define RTC_RFC8888_ENABLED_BY_DEFAULT 0

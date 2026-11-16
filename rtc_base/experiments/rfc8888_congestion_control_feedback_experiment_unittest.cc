@@ -19,7 +19,7 @@ namespace {
 
 // Must match the condition in
 // rfc8888_congestion_control_feedback_experiment.cc.
-#if defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_ANDROID)
+#if defined(WEBRTC_CHROMIUM_BUILD)
 constexpr bool kEnabledByDefault = true;
 #else
 constexpr bool kEnabledByDefault = false;
