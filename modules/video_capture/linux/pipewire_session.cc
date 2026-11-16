@@ -439,8 +439,14 @@ void PipeWireSession::OnCoreDone(void* data, uint32_t id, int seq) {
       RTC_LOG(LS_VERBOSE) << "Enumerating PipeWire camera devices complete.";
 
       {
-        // Remove camera devices with no capabilities
         webrtc::MutexLock lock(&that->nodes_lock_);
+        // PipeWireNode syncs after it asks for the capabilities, so the
+        // pending cameras have them by now, if they have any. List them.
+        for (PipeWireNode::PipeWireNodePtr& node : that->pending_nodes_)
+          that->nodes_.push_back(std::move(node));
+        that->pending_nodes_.clear();
+
+        // Remove camera devices with no capabilities
         std::erase_if(that->nodes_,
                       [](const PipeWireNode::PipeWireNodePtr& node) {
                         return node->capabilities().empty();
@@ -464,10 +470,11 @@ void PipeWireSession::OnRegistryGlobal(void* data,
   webrtc::MutexLock lock(&that->nodes_lock_);
 
   // Skip already added nodes to avoid duplicate camera entries
-  if (std::find_if(that->nodes_.begin(), that->nodes_.end(),
-                   [id](const PipeWireNode::PipeWireNodePtr& node) {
-                     return node->id() == id;
-                   }) != that->nodes_.end())
+  auto has_id = [id](const PipeWireNode::PipeWireNodePtr& node) {
+    return node->id() == id;
+  };
+  if (std::ranges::any_of(that->nodes_, has_id) ||
+      std::ranges::any_of(that->pending_nodes_, has_id))
     return;
 
   if (type != absl::string_view(PW_TYPE_INTERFACE_Node))
@@ -480,7 +487,7 @@ void PipeWireSession::OnRegistryGlobal(void* data,
   if (!node_role || strcmp(node_role, "Camera"))
     return;
 
-  that->nodes_.push_back(PipeWireNode::Create(that, id, props));
+  that->pending_nodes_.push_back(PipeWireNode::Create(that, id, props));
   that->PipeWireSync();
 }
 
@@ -489,9 +496,11 @@ void PipeWireSession::OnRegistryGlobalRemove(void* data, uint32_t id) {
   PipeWireSession* that = static_cast<PipeWireSession*>(data);
   webrtc::MutexLock lock(&that->nodes_lock_);
 
-  std::erase_if(that->nodes_, [id](const PipeWireNode::PipeWireNodePtr& node) {
+  auto has_id = [id](const PipeWireNode::PipeWireNodePtr& node) {
     return node->id() == id;
-  });
+  };
+  std::erase_if(that->nodes_, has_id);
+  std::erase_if(that->pending_nodes_, has_id);
 }
 
 void PipeWireSession::Finish(VideoCaptureOptions::Status status) {

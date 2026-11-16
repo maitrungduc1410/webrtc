@@ -173,6 +173,10 @@ class PipeWireSession : public webrtc::RefCountedNonVirtual<PipeWireSession> {
   // the cameras.
   webrtc::Mutex nodes_lock_;
   std::deque<PipeWireNode::PipeWireNodePtr> nodes_ RTC_GUARDED_BY(&nodes_lock_);
+  // Cameras found whose capabilities may not be known yet. They are not listed
+  // until OnCoreDone(), as a camera cannot be opened without its capabilities.
+  std::deque<PipeWireNode::PipeWireNodePtr> pending_nodes_
+      RTC_GUARDED_BY(&nodes_lock_);
   std::unique_ptr<CameraPortal> portal_;
   std::unique_ptr<CameraPortalNotifier> portal_notifier_;
 };
