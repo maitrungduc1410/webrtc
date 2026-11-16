@@ -10,10 +10,8 @@
 
 #include "test/test_main_lib.h"
 
-#include <stdlib.h>
-
 #include <cstddef>
-#include <cstdlib>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <optional>
@@ -168,15 +166,15 @@ ABSL_FLAG(std::string,
           "",
           "Path to collect trace events. If not set, events aren't captured.");
 
-ABSL_FLAG(std::string,
+ABSL_FLAG(int32_t,
           test_launcher_shard_index,
-          "",
+          -1,
           "Index of the test shard to run, from 0 to "
           "the value specified with --test_launcher_total_shards.");
 
-ABSL_FLAG(std::string,
+ABSL_FLAG(int32_t,
           test_launcher_total_shards,
-          "",
+          -1,
           "Total number of shards.");
 
 namespace webrtc {
@@ -247,15 +245,12 @@ class TestMainImpl : public TestMain {
     }
     // The sharding arguments take precedence over the sharding environment
     // variables.
-    if (!absl::GetFlag(FLAGS_test_launcher_shard_index).empty() &&
-        !absl::GetFlag(FLAGS_test_launcher_total_shards).empty()) {
-      std::string shard_index =
-          "GTEST_SHARD_INDEX=" + absl::GetFlag(FLAGS_test_launcher_shard_index);
-      std::string total_shards =
-          "GTEST_TOTAL_SHARDS=" +
-          absl::GetFlag(FLAGS_test_launcher_total_shards);
-      putenv(total_shards.data());
-      putenv(shard_index.data());
+    if (absl::GetFlag(FLAGS_test_launcher_shard_index) != -1 &&
+        absl::GetFlag(FLAGS_test_launcher_total_shards) != -1) {
+      GTEST_FLAG_SET(shard_index,
+                     absl::GetFlag(FLAGS_test_launcher_shard_index));
+      GTEST_FLAG_SET(total_shards,
+                     absl::GetFlag(FLAGS_test_launcher_total_shards));
     }
 
 #if defined(WEBRTC_IOS)
