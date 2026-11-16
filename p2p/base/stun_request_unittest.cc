@@ -14,9 +14,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
@@ -36,13 +38,21 @@ namespace webrtc {
 namespace {
 
 using ::testing::Ne;
+using StunOrTurnMessageType = std::variant<StunMessageType, TurnMessageType>;
 
 std::unique_ptr<StunMessage> CreateStunMessage(
-    StunMessageType type,
+    StunOrTurnMessageType type,
+    absl::string_view transaction_id) {
+  uint16_t msg_type =
+      std::visit([](auto t) { return static_cast<uint16_t>(t); }, type);
+  return std::make_unique<StunMessage>(msg_type, transaction_id);
+}
+
+std::unique_ptr<StunMessage> CreateStunMessage(
+    StunOrTurnMessageType type,
     const StunMessage* req = nullptr) {
-  std::unique_ptr<StunMessage> msg = std::make_unique<StunMessage>(
+  return CreateStunMessage(
       type, req ? req->transaction_id() : StunMessage::GenerateTransactionId());
-  return msg;
 }
 
 class StunRequestThunker;
@@ -95,8 +105,12 @@ class StunRequestThunker : public StunRequest {
   StunRequestThunker(const Environment& env,
                      StunRequestManager& manager,
                      StunRequestTest* test)
-      : StunRequest(env, manager, CreateStunMessage(STUN_BINDING_REQUEST)),
-        test_(test) {
+      : StunRequestThunker(env, STUN_BINDING_REQUEST, manager, test) {}
+  StunRequestThunker(const Environment& env,
+                     StunOrTurnMessageType type,
+                     StunRequestManager& manager,
+                     StunRequestTest* test)
+      : StunRequest(env, manager, CreateStunMessage(type)), test_(test) {
     SetAuthenticationRequired(false);
   }
 
@@ -120,13 +134,25 @@ class AuthenticatedStunRequestThunker : public StunRequest {
                                   StunRequestManager& manager,
                                   StunRequestTest* test,
                                   absl::string_view password)
-      : StunRequest(env, manager, CreateRequestMessage(password)), test_(test) {
+      : AuthenticatedStunRequestThunker(env,
+                                        STUN_BINDING_REQUEST,
+                                        manager,
+                                        test,
+                                        password) {}
+  AuthenticatedStunRequestThunker(const Environment& env,
+                                  StunOrTurnMessageType type,
+                                  StunRequestManager& manager,
+                                  StunRequestTest* test,
+                                  absl::string_view password)
+      : StunRequest(env, manager, CreateRequestMessage(type, password)),
+        test_(test) {
     SetAuthenticationRequired(true);
   }
 
   static std::unique_ptr<StunMessage> CreateRequestMessage(
+      StunOrTurnMessageType type,
       absl::string_view password) {
-    auto req = CreateStunMessage(STUN_BINDING_REQUEST);
+    auto req = CreateStunMessage(type);
     req->AddMessageIntegrity(password);
     return req;
   }
@@ -142,13 +168,34 @@ class AuthenticatedStunRequestThunker : public StunRequest {
 };
 
 std::unique_ptr<StunMessage> CreateParsedStunMessage(
-    StunMessageType type,
-    const std::string& transaction_id,
+    StunOrTurnMessageType type,
+    absl::string_view transaction_id,
     absl::string_view password) {
-  StunMessage msg(type, transaction_id);
-  msg.AddMessageIntegrity(password);
+  std::unique_ptr<StunMessage> msg = CreateStunMessage(type, transaction_id);
+  msg->AddMessageIntegrity(password);
   ByteBufferWriter writer;
-  msg.Write(&writer);
+  msg->Write(&writer);
+  ByteBufferReader reader(writer);
+  auto parsed_msg = std::make_unique<StunMessage>();
+  parsed_msg->Read(&reader);
+  return parsed_msg;
+}
+
+// Creates an error response of `type` with `error_code`, optionally signed with
+// `password` if there is one.
+std::unique_ptr<StunMessage> CreateParsedErrorResponse(
+    StunOrTurnMessageType type,
+    absl::string_view transaction_id,
+    int error_code,
+    std::optional<absl::string_view> password) {
+  std::unique_ptr<StunMessage> msg = CreateStunMessage(type, transaction_id);
+  msg->AddAttribute(std::make_unique<StunErrorCodeAttribute>(
+      STUN_ATTR_ERROR_CODE, error_code, "reason"));
+  if (password.has_value()) {
+    msg->AddMessageIntegrity(*password);
+  }
+  ByteBufferWriter writer;
+  msg->Write(&writer);
   ByteBufferReader reader(writer);
   auto parsed_msg = std::make_unique<StunMessage>();
   parsed_msg->Read(&reader);
@@ -354,6 +401,105 @@ TEST_F(StunRequestTest, ResponseValidatedWithMatchingPassword) {
   EXPECT_TRUE(manager_.CheckResponse(res.get()));
   EXPECT_EQ(response_, res.get());
   EXPECT_TRUE(success_);
+}
+
+// A 300 (Try Alternate) response redirects the request, so only an
+// authenticated response to an authenticated request is accepted.
+TEST_F(StunRequestTest, UnauthenticatedTryAlternateToAuthenticatedRequest) {
+  constexpr absl::string_view kPassword = "password";
+
+  auto request = std::make_unique<AuthenticatedStunRequestThunker>(
+      env_, STUN_ALLOCATE_REQUEST, manager_, this, kPassword);
+  std::string transaction_id = request->id();
+  manager_.Send(std::move(request));
+
+  std::unique_ptr<StunMessage> unsigned_res =
+      CreateParsedErrorResponse(STUN_ALLOCATE_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_TRY_ALTERNATE, std::nullopt);
+  EXPECT_FALSE(manager_.CheckResponse(unsigned_res.get()));
+  EXPECT_EQ(response_, nullptr);
+  EXPECT_FALSE(failure_);
+
+  std::unique_ptr<StunMessage> badly_signed_res =
+      CreateParsedErrorResponse(STUN_ALLOCATE_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_TRY_ALTERNATE, "wrong_password");
+  EXPECT_FALSE(manager_.CheckResponse(badly_signed_res.get()));
+  EXPECT_EQ(response_, nullptr);
+  EXPECT_FALSE(failure_);
+
+  // The request is still pending, so the genuine response is processed.
+  std::unique_ptr<StunMessage> res = CreateParsedStunMessage(
+      STUN_ALLOCATE_RESPONSE, transaction_id, kPassword);
+  EXPECT_TRUE(manager_.CheckResponse(res.get()));
+  EXPECT_EQ(response_, res.get());
+  EXPECT_TRUE(success_);
+}
+
+TEST_F(StunRequestTest, AuthenticatedTryAlternateToAuthenticatedRequest) {
+  constexpr absl::string_view kPassword = "password";
+
+  auto request = std::make_unique<AuthenticatedStunRequestThunker>(
+      env_, STUN_ALLOCATE_REQUEST, manager_, this, kPassword);
+  std::string transaction_id = request->id();
+  manager_.Send(std::move(request));
+
+  std::unique_ptr<StunMessage> res =
+      CreateParsedErrorResponse(STUN_ALLOCATE_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_TRY_ALTERNATE, kPassword);
+  EXPECT_TRUE(manager_.CheckResponse(res.get()));
+  EXPECT_EQ(response_, res.get());
+  EXPECT_TRUE(failure_);
+}
+
+// An error response of another method than the request is not a response to
+// it, even if it is authenticated and has the transaction id of the request.
+TEST_F(StunRequestTest,
+       AuthenticatedBindingTryAlternateToAuthenticatedAllocateRequest) {
+  constexpr absl::string_view kPassword = "password";
+
+  auto request = std::make_unique<AuthenticatedStunRequestThunker>(
+      env_, STUN_ALLOCATE_REQUEST, manager_, this, kPassword);
+  std::string transaction_id = request->id();
+  manager_.Send(std::move(request));
+
+  std::unique_ptr<StunMessage> res =
+      CreateParsedErrorResponse(STUN_BINDING_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_TRY_ALTERNATE, kPassword);
+  EXPECT_FALSE(manager_.CheckResponse(res.get()));
+  EXPECT_EQ(response_, nullptr);
+  EXPECT_FALSE(failure_);
+}
+
+TEST_F(StunRequestTest, UnauthenticatedTryAlternateToUnauthenticatedRequest) {
+  auto request = std::make_unique<StunRequestThunker>(
+      env_, STUN_ALLOCATE_REQUEST, manager_, this);
+  std::string transaction_id = request->id();
+  manager_.Send(std::move(request));
+
+  std::unique_ptr<StunMessage> res =
+      CreateParsedErrorResponse(STUN_ALLOCATE_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_TRY_ALTERNATE, std::nullopt);
+  EXPECT_TRUE(manager_.CheckResponse(res.get()));
+  EXPECT_EQ(response_, res.get());
+  EXPECT_TRUE(failure_);
+}
+
+// Servers can't always authenticate an error response, e.g. 438 (Stale Nonce),
+// so other error responses than 300 don't have to be authenticated.
+TEST_F(StunRequestTest, UnauthenticatedStaleNonceToAuthenticatedRequest) {
+  constexpr absl::string_view kPassword = "password";
+
+  auto request = std::make_unique<AuthenticatedStunRequestThunker>(
+      env_, STUN_ALLOCATE_REQUEST, manager_, this, kPassword);
+  std::string transaction_id = request->id();
+  manager_.Send(std::move(request));
+
+  std::unique_ptr<StunMessage> res =
+      CreateParsedErrorResponse(STUN_ALLOCATE_ERROR_RESPONSE, transaction_id,
+                                STUN_ERROR_STALE_NONCE, std::nullopt);
+  EXPECT_TRUE(manager_.CheckResponse(res.get()));
+  EXPECT_EQ(response_, res.get());
+  EXPECT_TRUE(failure_);
 }
 
 class StunRequestReentranceTest : public StunRequestTest {

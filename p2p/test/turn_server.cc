@@ -231,12 +231,9 @@ void TurnServer::HandleStunMessage(TurnServerConnection* conn,
     return;
   }
 
-  if (redirect_hook_ != nullptr && msg.type() == STUN_ALLOCATE_REQUEST) {
-    SocketAddress address;
-    if (redirect_hook_->ShouldRedirect(conn->src(), &address)) {
-      SendErrorResponseWithAlternateServer(conn, &msg, address);
-      return;
-    }
+  if (!redirect_after_authentication_ &&
+      MaybeRedirect(*conn, msg, /*key=*/"")) {
+    return;
   }
 
   // Look up the key that we'll use to validate the M-I. If we have an
@@ -254,6 +251,10 @@ void TurnServer::HandleStunMessage(TurnServerConnection* conn,
     if (!CheckAuthorization(conn, &msg, key)) {
       return;
     }
+  }
+
+  if (redirect_after_authentication_ && MaybeRedirect(*conn, msg, key)) {
+    return;
   }
 
   if (!allocation && msg.type() == STUN_ALLOCATE_REQUEST) {
@@ -600,10 +601,24 @@ void TurnServer::SendErrorResponseWithRealmAndNonce(TurnServerConnection* conn,
   SendStun(conn, &resp, EcnMarking::kNotEct);
 }
 
+bool TurnServer::MaybeRedirect(TurnServerConnection& conn,
+                               const StunMessage& req,
+                               absl::string_view key) {
+  if (redirect_hook_ != nullptr && req.type() == STUN_ALLOCATE_REQUEST) {
+    SocketAddress address;
+    if (redirect_hook_->ShouldRedirect(conn.src(), &address)) {
+      SendErrorResponseWithAlternateServer(&conn, &req, address, key);
+      return true;
+    }
+  }
+  return false;
+}
+
 void TurnServer::SendErrorResponseWithAlternateServer(
     TurnServerConnection* conn,
     const StunMessage* msg,
-    const SocketAddress& addr) {
+    const SocketAddress& addr,
+    absl::string_view key) {
   TurnMessage resp(GetStunErrorResponseTypeOrZero(*msg), msg->transaction_id());
   InitErrorResponse(STUN_ERROR_TRY_ALTERNATE,
                     STUN_ERROR_REASON_TRY_ALTERNATE_SERVER, &resp);
@@ -611,6 +626,14 @@ void TurnServer::SendErrorResponseWithAlternateServer(
       std::make_unique<StunAddressAttribute>(STUN_ATTR_ALTERNATE_SERVER, addr));
   if (add_challenge_to_try_alternate_) {
     AddChallengeAttributes(&resp);
+  }
+  if (sign_try_alternate_ && !key.empty()) {
+    // The same integrity attribute as in a success response.
+    if (response_sha256_key_) {
+      resp.AddMessageIntegritySha256(*response_sha256_key_);
+    } else {
+      resp.AddMessageIntegrity(key);
+    }
   }
   SendStun(conn, &resp, EcnMarking::kNotEct);
 }

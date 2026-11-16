@@ -303,6 +303,23 @@ class TurnServer {
     add_challenge_to_try_alternate_ = add;
   }
 
+  // By default, the redirect hook is consulted for every Allocate request
+  // before the request is authenticated. If true, redirect happens only after
+  // Allocate requests have been authenticated.
+  void set_redirect_after_authentication(bool after_authentication) {
+    RTC_DCHECK_RUN_ON(thread_);
+    redirect_after_authentication_ = after_authentication;
+  }
+
+  // If true, 300 (try alternate) responses to authenticated requests carry
+  // message integrity, as required by RFC 8489 section 14.8. Requires
+  // set_redirect_after_authentication(true), since the key is not known before
+  // the request has been authenticated.
+  void set_sign_try_alternate(bool sign) {
+    RTC_DCHECK_RUN_ON(thread_);
+    sign_try_alternate_ = sign;
+  }
+
   // For testing only. If true, the 401/438 challenges are sent as an
   // on-path attacker forcing a downgrade would modify them: the nonce loses
   // the password algorithms cookie and PASSWORD-ALGORITHMS is removed.
@@ -408,9 +425,17 @@ class TurnServer {
                                           absl::string_view reason)
       RTC_RUN_ON(thread_);
 
+  // Sends a 300 (try alternate) response if `req` is an Allocate request that
+  // the redirect hook wants to redirect. Returns true if it did. `key` is the
+  // key that the request was authenticated with, and empty if the request has
+  // not been authenticated.
+  bool MaybeRedirect(TurnServerConnection& conn,
+                     const StunMessage& req,
+                     absl::string_view key) RTC_RUN_ON(thread_);
   void SendErrorResponseWithAlternateServer(TurnServerConnection* conn,
                                             const StunMessage* req,
-                                            const SocketAddress& addr)
+                                            const SocketAddress& addr,
+                                            absl::string_view key)
       RTC_RUN_ON(thread_);
 
   void SendStun(TurnServerConnection* conn, StunMessage* msg, EcnMarking ecn);
@@ -450,6 +475,8 @@ class TurnServer {
   bool omit_password_algorithms_attribute_ RTC_GUARDED_BY(thread_) = false;
   bool strip_password_algorithms_ RTC_GUARDED_BY(thread_) = false;
   bool add_challenge_to_try_alternate_ RTC_GUARDED_BY(thread_) = false;
+  bool redirect_after_authentication_ RTC_GUARDED_BY(thread_) = false;
+  bool sign_try_alternate_ RTC_GUARDED_BY(thread_) = false;
   std::optional<std::string> raw_password_algorithms_override_
       RTC_GUARDED_BY(thread_);
   SuccessResponseIntegrity success_response_integrity_ RTC_GUARDED_BY(thread_) =

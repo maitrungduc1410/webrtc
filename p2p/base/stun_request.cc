@@ -179,6 +179,18 @@ bool StunRequestManager::CheckResponse(StunMessage* msg) {
         msg->RevalidateMessageIntegrity(request->msg()->password());
       }
     }
+    // A 300 (Try Alternate) response to an authenticated request is only
+    // acceptable if the response is also authenticated (RFC 8489 section 14.8).
+    if (!msg->IntegrityOk() &&
+        msg->type() == GetStunErrorResponseType(request->type()) &&
+        msg->GetErrorCodeValue() == STUN_ERROR_TRY_ALTERNATE) {
+      RTC_LOG(LS_WARNING)
+          << "Discarding unauthenticated 300 (Try Alternate) response to "
+             "authenticated request of type 0x"
+          << ToHex(request->type())
+          << ", id=" << hex_encode(msg->transaction_id());
+      return false;
+    }
   }
 
   if (!msg->GetNonComprehendedAttributes().empty()) {

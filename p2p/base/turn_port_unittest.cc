@@ -83,6 +83,7 @@ using ::testing::Ne;
 using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::ReturnPointee;
+using ::testing::SizeIs;
 
 const SocketAddress kLocalAddr1("11.11.11.11", 0);
 const SocketAddress kLocalAddr2("22.22.22.22", 0);
@@ -3152,6 +3153,77 @@ TEST_F(TurnPortPasswordAlgorithmsTest,
   EXPECT_FALSE(turn_ready_);
   // The redirect was not followed.
   EXPECT_EQ(turn_port_->server_address().address, old_addr);
+}
+
+// An unauthenticated 300 (Try Alternate) response to the authenticated Allocate
+// request must be ignored. Following it would send the username, and a
+// MESSAGE-INTEGRITY computed from the password, to a server chosen by whoever
+// sent the response.
+// This is a regression test for b/565380009.
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       UnauthenticatedTryAlternateToAuthenticatedAllocateIgnored) {
+  // No TURN server listens on the alternate address. A plain socket is bound
+  // to it, to see whether anything is sent there.
+  std::unique_ptr<Socket> alternate_socket = ss_->Create(AF_INET, SOCK_DGRAM);
+  ASSERT_EQ(alternate_socket->Bind(kTurnAlternateIntAddr), 0);
+
+  std::vector<SocketAddress> redirect_addresses = {kTurnAlternateIntAddr};
+  TestTurnRedirector redirector(redirect_addresses);
+  turn_server_.set_redirect_hook(&redirector);
+  // The server redirects an authenticated Allocate request, but it does not
+  // sign the 300 response.
+  turn_server_.server()->set_redirect_after_authentication(true);
+  CreateTurnPort(kTurnUsername, kTurnPassword, kTurnUdpProtoAddr);
+
+  const SocketAddress old_addr = turn_port_->server_address().address;
+
+  turn_port_->PrepareAddress();
+  // The server answers the authenticated Allocate request with the 300
+  // response. The client ignores it, so the request is still pending, and the
+  // client retransmits it. The redirector has no addresses left, so the server
+  // answers the retransmission with a success response.
+  EXPECT_TRUE(
+      WaitUntil([&] { return turn_ready_; },
+                {.timeout = kSimulatedRtt * 10, .clock = &time_controller_}));
+
+  // Retrieve the address again, the turn port's address should be unchanged.
+  const SocketAddress new_addr = turn_port_->server_address().address;
+  EXPECT_EQ(old_addr, new_addr);
+
+  // Nothing should be sent to the alternate address.
+  char buf[1];
+  EXPECT_EQ(alternate_socket->Recv(&buf, 1, nullptr), -1);
+
+  // The server sent the 300 response once: the redirector's only address has
+  // been used.
+  SocketAddress address;
+  EXPECT_FALSE(redirector.ShouldRedirect(address, &address));
+  // The server received the authenticated Allocate request twice: the original
+  // and its retransmission.
+  EXPECT_THAT(Authenticated(STUN_ALLOCATE_REQUEST), SizeIs(2));
+}
+
+// The server redirects the authenticated Allocate request, with a 300 (Try
+// Alternate) response that is authenticated too. That redirect is followed.
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       AuthenticatedTryAlternateToAuthenticatedAllocateFollowed) {
+  turn_server_.server()->set_redirect_after_authentication(true);
+  turn_server_.server()->set_sign_try_alternate(true);
+  TestTurnAlternateServer(PROTO_UDP);
+  // Both the redirected request and the request to the alternate server were
+  // authenticated.
+  EXPECT_THAT(Authenticated(STUN_ALLOCATE_REQUEST), SizeIs(2));
+}
+
+TEST_F(TurnPortPasswordAlgorithmsTest,
+       AuthenticatedTryAlternateWithSha256ToAuthenticatedAllocateFollowed) {
+  turn_server_.set_password_algorithms({StunPasswordAlgorithm::kSha256});
+  turn_server_.server()->set_redirect_after_authentication(true);
+  turn_server_.server()->set_sign_try_alternate(true);
+  TestTurnAlternateServer(PROTO_UDP);
+  // Both the redirected request and the request to the alternate server were
+  // authenticated.
+  EXPECT_THAT(Authenticated(STUN_ALLOCATE_REQUEST), SizeIs(2));
 }
 
 }  // namespace webrtc

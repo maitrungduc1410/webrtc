@@ -1651,9 +1651,11 @@ void TurnAllocateRequest::OnAuthChallenge(StunMessage* response, int code) {
 }
 
 void TurnAllocateRequest::OnTryAlternate(StunMessage* response, int code) {
-  // According to RFC 5389 section 11, there are use cases where
+  // According to RFC 8489 section 10, there are use cases where
   // authentication of response is not possible, we're not validating
-  // message integrity.
+  // message integrity. However, this only concerns responses to unauthenticated
+  // requests. As per RFC 8489 section 14.8, an unauthenticated 300 response to
+  // an authenticated request is still discarded by CheckResponse.
   // Get the alternate server address attribute value.
   const StunAddressAttribute* alternate_server_attr =
       response->GetAddress(STUN_ATTR_ALTERNATE_SERVER);
