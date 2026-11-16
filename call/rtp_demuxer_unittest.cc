@@ -1527,5 +1527,44 @@ TEST_F(RtpDemuxerTest, RsidMustNotExceedMaximumLength) {
   EXPECT_FALSE(AddSinkOnlyRsid(rsid, &sink));
 }
 
+TEST_F(RtpDemuxerTest, CapsLatchedMidMappings) {
+  MockRtpPacketSink sink_mid_unused;
+  MockRtpPacketSink sink_mid_late;
+  MockRtpPacketSink sink_mid_other;
+  ASSERT_TRUE(AddSinkBothMidRsid("v", "r1", &sink_mid_unused));
+  ASSERT_TRUE(AddSinkOnlyMid("a", &sink_mid_other));
+  for (int i = 0; i < RtpDemuxer::kMaxSsrcBindings + 10; ++i) {
+    auto pkt = CreatePacketWithSsrcMid(1000 + i, "v");
+    EXPECT_EQ(demuxer_.ResolveSink(*pkt), nullptr);
+  }
+  EXPECT_TRUE(RemoveSink(&sink_mid_unused));
+  ASSERT_TRUE(AddSinkOnlyMid("v", &sink_mid_late));
+  EXPECT_EQ(demuxer_.ResolveSink(*CreatePacketWithSsrc(1000)), &sink_mid_late);
+  EXPECT_EQ(demuxer_.ResolveSink(
+                *CreatePacketWithSsrc(1000 + RtpDemuxer::kMaxSsrcBindings)),
+            nullptr);
+  // Existing latched SSRCs can still update their MID when at cap, and
+  // unlatched SSRCs still route when carrying an explicit MID extension.
+  EXPECT_EQ(demuxer_.ResolveSink(*CreatePacketWithSsrcMid(1000, "a")),
+            &sink_mid_other);
+  EXPECT_EQ(demuxer_.ResolveSink(*CreatePacketWithSsrc(1000)), &sink_mid_other);
+  EXPECT_EQ(demuxer_.ResolveSink(*CreatePacketWithSsrcMid(
+                1000 + RtpDemuxer::kMaxSsrcBindings, "a")),
+            &sink_mid_other);
+}
+
+TEST_F(RtpDemuxerTest, CapsLatchedRsidMappings) {
+  MockRtpPacketSink sink_rsid_late;
+  for (int i = 0; i < RtpDemuxer::kMaxSsrcBindings + 10; ++i) {
+    auto pkt = CreatePacketWithSsrcRsid(5000 + i, "unmatched");
+    EXPECT_EQ(demuxer_.ResolveSink(*pkt), nullptr);
+  }
+  ASSERT_TRUE(AddSinkOnlyRsid("unmatched", &sink_rsid_late));
+  EXPECT_EQ(demuxer_.ResolveSink(*CreatePacketWithSsrc(5000)), &sink_rsid_late);
+  EXPECT_EQ(demuxer_.ResolveSink(
+                *CreatePacketWithSsrc(5000 + RtpDemuxer::kMaxSsrcBindings)),
+            nullptr);
+}
+
 }  // namespace
 }  // namespace webrtc

@@ -103,7 +103,6 @@
 #include "rtc_base/socket.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/mutex.h"
-#include "rtc_base/time_utils.h"
 #include "rtc_base/trace_event.h"
 #include "video/config/video_encoder_config.h"
 
@@ -111,7 +110,14 @@ namespace webrtc {
 
 namespace {
 
-constexpr int64_t kUnsignaledSsrcCooldownMs = kNumMillisecsPerSec / 2;
+// Limits unsignaled stream recreation and RTX SSRC rebinding churn to at most
+// 2 updates/s while allowing legitimate SSRC switches to recover within 500 ms.
+constexpr TimeDelta kUnsignaledSsrcCooldown = TimeDelta::Millis(500);
+
+bool IsWithinUnsignaledSsrcCooldown(std::optional<Timestamp> last_time,
+                                    Timestamp now) {
+  return last_time.has_value() && now - *last_time < kUnsignaledSsrcCooldown;
+}
 
 // This constant is really an on/off, lower-level configurable NACK history
 // duration hasn't been implemented.
@@ -3269,7 +3275,8 @@ void WebRtcVideoReceiveChannel::ResetUnsignaledRecvStream() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   RTC_LOG(LS_INFO) << "ResetUnsignaledRecvStream.";
   unsignaled_stream_params_ = StreamParams();
-  last_unsignalled_ssrc_creation_time_ms_ = std::nullopt;
+  last_unsignalled_ssrc_creation_time_ = std::nullopt;
+  last_unsignalled_rtx_ssrc_update_time_ = std::nullopt;
 
   // Delete any created default streams. This is needed to avoid SSRC collisions
   // in Call's RtpDemuxer, in the case that `this` has created a default video
@@ -3466,12 +3473,21 @@ bool WebRtcVideoReceiveChannel::MaybeCreateDefaultReceiveStream(
     }
   }
 
+  const Timestamp now = env_.clock().CurrentTime();
   if (is_rtx_payload) {
     // As we don't support receiving simulcast there can only be one RTX
     // stream, which will be associated with unsignaled media stream.
     std::optional<uint32_t> current_default_ssrc = GetUnsignaledSsrc();
     if (current_default_ssrc) {
+      if (IsWithinUnsignaledSsrcCooldown(last_unsignalled_rtx_ssrc_update_time_,
+                                         now)) {
+        RTC_LOG(LS_WARNING)
+            << "Another unsignalled RTX ssrc packet arrived shortly after "
+            << "updating the unsignalled RTX ssrc. Dropping packet.";
+        return false;
+      }
       FindReceiveStream(*current_default_ssrc)->UpdateRtxSsrc(packet.Ssrc());
+      last_unsignalled_rtx_ssrc_update_time_ = now;
       return true;
     }
     // Default media SSRC not known yet. Drop the packet.
@@ -3482,22 +3498,18 @@ bool WebRtcVideoReceiveChannel::MaybeCreateDefaultReceiveStream(
   // stream since this shouldn't happen frequently. Getting into a state
   // of creating decoders on every packet eats up processing time (e.g.
   // https://crbug.com/1069603) and this cooldown prevents that.
-  if (last_unsignalled_ssrc_creation_time_ms_.has_value()) {
-    int64_t now_ms = env_.clock().TimeInMilliseconds();
-    if (now_ms - last_unsignalled_ssrc_creation_time_ms_.value() <
-        kUnsignaledSsrcCooldownMs) {
-      // We've already created an unsignalled ssrc stream within the last
-      // 0.5 s, ignore with a warning.
-      RTC_LOG(LS_WARNING)
-          << "Another unsignalled ssrc packet arrived shortly after the "
-          << "creation of an unsignalled ssrc stream. Dropping packet.";
-      return false;
-    }
+  if (IsWithinUnsignaledSsrcCooldown(last_unsignalled_ssrc_creation_time_,
+                                     now)) {
+    RTC_LOG(LS_WARNING)
+        << "Another unsignalled ssrc packet arrived shortly after the "
+        << "creation of an unsignalled ssrc stream. Dropping packet.";
+    return false;
   }
 
   // RTX SSRC not yet known.
   ReCreateDefaultReceiveStream(packet.Ssrc(), std::nullopt);
-  last_unsignalled_ssrc_creation_time_ms_ = env_.clock().TimeInMilliseconds();
+  last_unsignalled_ssrc_creation_time_ = now;
+  last_unsignalled_rtx_ssrc_update_time_ = std::nullopt;
   return true;
 }
 

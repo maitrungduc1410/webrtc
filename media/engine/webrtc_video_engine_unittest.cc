@@ -7941,6 +7941,43 @@ TEST_F(WebRtcVideoChannelTest, RtxAfterMediaPacketUpdatesUnsignalledRtxSsrc) {
   EXPECT_EQ(fake_call_->GetDeliveredPacketsForSsrc(rtx_ssrc), 1u);
 }
 
+TEST_F(WebRtcVideoChannelTest,
+       CooldownThrottlesRotatingUnsignalledRtxSsrcUpdates) {
+  AssignDefaultAptRtxTypes();
+  const Codec vp8 = GetEngineCodec("VP8");
+  const int rtx_vp8_payload_type = default_apt_rtx_types_[vp8.id];
+  const uint32_t initial_rtx_ssrc = kIncomingUnsignalledSsrc + 1;
+  auto deliver = [&](int pt, uint32_t pkt_ssrc) {
+    RtpPacketReceived pkt;
+    pkt.SetPayloadType(pt);
+    pkt.SetSsrc(pkt_ssrc);
+    receive_channel_->OnPacketReceived(pkt);
+  };
+
+  deliver(vp8.id, kIncomingUnsignalledSsrc);
+  deliver(rtx_vp8_payload_type, initial_rtx_ssrc);
+  ASSERT_THAT(fake_call_->GetVideoReceiveStreams(), SizeIs(1));
+  EXPECT_EQ(
+      fake_call_->GetVideoReceiveStreams().front()->GetConfig().rtp.rtx_ssrc,
+      initial_rtx_ssrc);
+
+  for (uint32_t rotated = initial_rtx_ssrc + 1; rotated < initial_rtx_ssrc + 10;
+       ++rotated) {
+    deliver(rtx_vp8_payload_type, rotated);
+  }
+  EXPECT_EQ(
+      fake_call_->GetVideoReceiveStreams().front()->GetConfig().rtp.rtx_ssrc,
+      initial_rtx_ssrc);
+
+  time_controller_.AdvanceTime(
+      TimeDelta::Millis(kUnsignalledReceiveStreamCooldownMs));
+  const uint32_t next_rtx_ssrc = initial_rtx_ssrc + 100;
+  deliver(rtx_vp8_payload_type, next_rtx_ssrc);
+  EXPECT_EQ(
+      fake_call_->GetVideoReceiveStreams().front()->GetConfig().rtp.rtx_ssrc,
+      next_rtx_ssrc);
+}
+
 TEST_F(WebRtcVideoChannelTest, UnsignaledStreamCreatedAfterMediaPacket) {
   AssignDefaultAptRtxTypes();
   const Codec vp8 = GetEngineCodec("VP8");

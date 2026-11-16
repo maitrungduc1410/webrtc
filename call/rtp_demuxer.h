@@ -130,9 +130,11 @@ class RtpDemuxerCriteria {
 // payload types only if all else fails.
 class RtpDemuxer {
  public:
-  // Maximum number of unique SSRC bindings allowed. This limit is to prevent
-  // memory overuse attacks due to a malicious peer sending many packets with
-  // different SSRCs.
+  // Maximum unique SSRC entries retained in each of `sink_by_ssrc_`,
+  // `mid_by_ssrc_`, and `rsid_by_ssrc_`. 1000 accommodates large SFU BUNDLE
+  // sessions with dozens of tracks, simulcast layers, RTX/FEC streams, and
+  // SSRC turnover across renegotiations while capping each map to a few tens
+  // of KiB against rotating-SSRC floods.
   static constexpr int kMaxSsrcBindings = 1000;
 
   // Returns a string that contains all the attributes of the given packet

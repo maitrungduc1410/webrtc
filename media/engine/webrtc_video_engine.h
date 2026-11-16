@@ -770,7 +770,9 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   //   is a risk of receiving ssrcs for other, recently added m= sections.
   uint32_t demuxer_criteria_id_ RTC_GUARDED_BY(thread_checker_) = 0;
   uint32_t demuxer_criteria_completed_id_ RTC_GUARDED_BY(thread_checker_) = 0;
-  std::optional<int64_t> last_unsignalled_ssrc_creation_time_ms_
+  std::optional<Timestamp> last_unsignalled_ssrc_creation_time_
+      RTC_GUARDED_BY(thread_checker_);
+  std::optional<Timestamp> last_unsignalled_rtx_ssrc_update_time_
       RTC_GUARDED_BY(thread_checker_);
   std::set<uint32_t> receive_ssrcs_ RTC_GUARDED_BY(thread_checker_);
 

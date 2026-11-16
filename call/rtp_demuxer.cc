@@ -23,6 +23,7 @@
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/containers/flat_set.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
@@ -370,31 +371,24 @@ RtpPacketSinkInterface* absl_nullable RtpDemuxer::ResolveSink(
   // there isn't a rule/sink yet because we might add an MID/RSID rule after
   // learning an MID/RSID<->SSRC association.
 
-  std::string* mid = nullptr;
-  if (has_mid) {
-    mid_by_ssrc_[ssrc] = packet_mid;
-    mid = &packet_mid;
-  } else {
-    // If the packet does not include a MID header extension, check if there is
-    // a latched MID for the SSRC.
-    const auto it = mid_by_ssrc_.find(ssrc);
-    if (it != mid_by_ssrc_.end()) {
-      mid = &it->second;
+  auto latch_ssrc_id = [ssrc](flat_map<uint32_t, std::string>& id_by_ssrc,
+                              const std::string* absl_nullable packet_id)
+      -> const std::string* absl_nullable {
+    if (packet_id != nullptr && id_by_ssrc.size() < kMaxSsrcBindings) {
+      id_by_ssrc[ssrc] = *packet_id;
+    } else if (auto it = id_by_ssrc.find(ssrc); it != id_by_ssrc.end()) {
+      if (packet_id != nullptr) {
+        it->second = *packet_id;
+      } else {
+        packet_id = &it->second;
+      }
     }
-  }
-
-  std::string* rsid = nullptr;
-  if (has_rsid) {
-    rsid_by_ssrc_[ssrc] = packet_rsid;
-    rsid = &packet_rsid;
-  } else {
-    // If the packet does not include an RRID/RSID header extension, check if
-    // there is a latched RSID for the SSRC.
-    const auto it = rsid_by_ssrc_.find(ssrc);
-    if (it != rsid_by_ssrc_.end()) {
-      rsid = &it->second;
-    }
-  }
+    return packet_id;
+  };
+  const std::string* mid =
+      latch_ssrc_id(mid_by_ssrc_, has_mid ? &packet_mid : nullptr);
+  const std::string* rsid =
+      latch_ssrc_id(rsid_by_ssrc_, has_rsid ? &packet_rsid : nullptr);
 
   // If MID and/or RSID is specified, prioritize that for demuxing the packet.
   // The motivation behind the BUNDLE algorithm is that we trust these are used
