@@ -3196,6 +3196,7 @@ bool WebRtcVideoReceiveChannel::AddRecvStream(const StreamParams& sp,
   ConfigureReceiverRtp(&config, &flexfec_config, sp);
 
   config.crypto_options = crypto_options_;
+  config.rtp.sframe_options = sframe_options_;
   config.enable_prerenderer_smoothing =
       video_config_.enable_prerenderer_smoothing;
   if (!sp.stream_ids().empty()) {
@@ -3556,15 +3557,25 @@ void WebRtcVideoReceiveChannel::SetFrameDecryptor(
 
 void WebRtcVideoReceiveChannel::EnableSframe() {
   RTC_DCHECK_RUN_ON(&thread_checker_);
+
+  if (sframe_options_.required) {
+    return;
+  }
+
   sframe_options_.required = true;
-  // TODO(bugs.webrtc.org/479862368): Propagate Sframe options to the streams.
+
+  for (auto& [ssrc, stream] : receive_streams_) {
+    stream->UpdateSframeOptions(sframe_options_);
+  }
 }
 
 void WebRtcVideoReceiveChannel::SetSframeDecryptionConfig(
     SframeDecryptionConfig sframe_decryption_config) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
   sframe_options_.decryption_config = std::move(sframe_decryption_config);
-  // TODO(bugs.webrtc.org/479862368): Pass the config to the receive streams.
+  for (auto& [ssrc, stream] : receive_streams_) {
+    stream->UpdateSframeOptions(sframe_options_);
+  }
 }
 
 bool WebRtcVideoReceiveChannel::SetBaseMinimumPlayoutDelayMs(uint32_t ssrc,
@@ -3881,6 +3892,15 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::SetFrameDecryptor(
            "remote_ssrc="
         << config_.rtp.remote_ssrc;
     stream_->SetFrameDecryptor(std::move(frame_decryptor));
+  }
+}
+
+void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::UpdateSframeOptions(
+    const SframeReceiveOptions& options) {
+  RTC_DCHECK_RUN_ON(&thread_checker_);
+  config_.rtp.sframe_options = options;
+  if (stream_ != nullptr) {
+    stream_->UpdateSframeOptions(options);
   }
 }
 

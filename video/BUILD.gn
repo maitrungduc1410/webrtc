@@ -126,6 +126,7 @@ rtc_library("video") {
     "../call:rtp_interfaces",
     "../call:rtp_receiver",
     "../call:rtp_sender",
+    "../call:sframe_options",
     "../call:video_receive_stream_api",
     "../call:video_send_stream_api",
     "../common_video",

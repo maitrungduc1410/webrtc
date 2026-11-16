@@ -50,6 +50,7 @@
 #include "api/video/video_timing.h"
 #include "call/rtp_config.h"
 #include "call/rtp_packet_sink_interface.h"
+#include "call/sframe_options.h"
 #include "call/syncable.h"
 #include "call/video_receive_stream.h"
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_incoming.h"
@@ -349,6 +350,8 @@ RtpVideoStreamReceiver2::RtpVideoStreamReceiver2(
             config_.rtp.remote_ssrc);
     frame_transformer_delegate_->Init();
   }
+
+  sframe_required_by_negotiation_ = config_.rtp.sframe_options.required;
 }
 
 RtpVideoStreamReceiver2::~RtpVideoStreamReceiver2() {
@@ -1134,6 +1137,12 @@ void RtpVideoStreamReceiver2::SetFrameDecryptor(
   buffered_frame_decryptor_->SetFrameDecryptor(std::move(frame_decryptor));
 }
 
+void RtpVideoStreamReceiver2::UpdateSframeOptions(
+    const SframeReceiveOptions& options) {
+  RTC_DCHECK_RUN_ON(network_queue_);
+  sframe_required_by_negotiation_ = options.required;
+}
+
 void RtpVideoStreamReceiver2::SetDepacketizerToDecoderFrameTransformer(
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
   RTC_DCHECK_RUN_ON(network_queue_);
@@ -1306,6 +1315,11 @@ void RtpVideoStreamReceiver2::ReceivePacket(
 
   const auto type_it = payload_type_map_.find(rtp_packet.PayloadType());
   if (type_it == payload_type_map_.end()) {
+    return;
+  }
+
+  if (sframe_required_by_negotiation_) {
+    // TODO(bugs.webrtc.org/479862368): Wire up the Sframe decryptor.
     return;
   }
 

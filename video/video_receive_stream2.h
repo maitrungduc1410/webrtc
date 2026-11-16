@@ -44,6 +44,7 @@
 #include "api/video/video_sink_interface.h"
 #include "call/call.h"
 #include "call/rtp_packet_sink_interface.h"
+#include "call/sframe_options.h"
 #include "call/syncable.h"
 #include "call/video_receive_stream.h"
 #include "common_video/include/corruption_score_calculator.h"
@@ -179,6 +180,7 @@ class VideoReceiveStream2
 
   void SetFrameDecryptor(
       scoped_refptr<FrameDecryptorInterface> frame_decryptor) override;
+  void UpdateSframeOptions(const SframeReceiveOptions& options) override;
   void SetDepacketizerToDecoderFrameTransformer(
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 

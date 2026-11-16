@@ -34,7 +34,8 @@ struct SframeSendOptions {
 // Once required, decryption is enforced and cannot be disabled.
 struct SframeReceiveOptions {
   bool required = false;
-  // Set once the receiver has created a decryptor.
+  // Set once the receiver has created a decryptor. Until then media on a
+  // stream with `required` set is dropped rather than decoded as unencrypted.
   std::optional<SframeDecryptionConfig> decryption_config;
 };
 

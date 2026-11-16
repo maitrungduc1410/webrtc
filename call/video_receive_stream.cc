@@ -181,6 +181,7 @@ std::string VideoReceiveStreamInterface::Config::Rtp::ToString() const {
     ss << pt << ", ";
   }
   ss << "}";
+  ss << ", sframe_required: " << (sframe_options.required ? "true" : "false");
   ss << "}";
   return ss.Release();
 }

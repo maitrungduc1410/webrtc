@@ -39,6 +39,7 @@
 #include "api/video_codecs/sdp_video_format.h"
 #include "call/receive_stream.h"
 #include "call/rtp_config.h"
+#include "call/sframe_options.h"
 #include "common_video/frame_counts.h"
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -270,6 +271,9 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
       // meta data is expected to be present in generic frame descriptor
       // RTP header extension).
       std::set<int> raw_payload_types;
+
+      // Sframe end-to-end decryption settings for this receive stream.
+      SframeReceiveOptions sframe_options;
     } rtp;
 
     // Transport for outgoing packets (RTCP).
@@ -363,6 +367,8 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
   virtual void SetRawPayloadTypes(std::set<int> raw_payload_types) = 0;
 
   virtual void UpdateRtxSsrc(uint32_t ssrc) = 0;
+
+  virtual void UpdateSframeOptions(const SframeReceiveOptions& options) = 0;
 
  protected:
   ~VideoReceiveStreamInterface() override {}

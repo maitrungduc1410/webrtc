@@ -62,6 +62,7 @@
 #include "call/packet_receiver.h"
 #include "call/payload_type.h"
 #include "call/rtp_transport_controller_send_interface.h"
+#include "call/sframe_options.h"
 #include "call/test/mock_rtp_transport_controller_send.h"
 #include "call/video_receive_stream.h"
 #include "call/video_send_stream.h"
@@ -285,6 +286,10 @@ class FakeVideoReceiveStream final : public VideoReceiveStreamInterface {
 
   void SetFrameDecryptor(scoped_refptr<FrameDecryptorInterface>
                          /* frame_decryptor */) override {}
+
+  void UpdateSframeOptions(const SframeReceiveOptions& options) override {
+    config_.rtp.sframe_options = options;
+  }
 
   void SetDepacketizerToDecoderFrameTransformer(
       scoped_refptr<FrameTransformerInterface> /* frame_transformer */)

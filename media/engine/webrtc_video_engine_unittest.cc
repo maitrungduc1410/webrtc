@@ -43,6 +43,7 @@
 #include "api/rtp_packet_infos.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_decryptor_interface.h"
 #include "api/sframe/sframe_types.h"
 #include "api/test/mock_encoder_selector.h"
 #include "api/test/mock_video_bitrate_allocator.h"
@@ -112,6 +113,9 @@
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/source_tracker.h"
+#include "modules/sframe/sframe_decrypt_error_reporter.h"
+#include "modules/sframe/sframe_decryption_config.h"
+#include "modules/sframe/sframe_decryptor.h"
 #include "modules/sframe/sframe_encryption_config.h"
 #include "modules/sframe/sframe_encryptor.h"
 #include "modules/video_coding/svc/scalability_mode_util.h"
@@ -3339,6 +3343,56 @@ TEST_F(WebRtcVideoChannelTest, SframeEncryptorModeUpdatesExistingSendStream) {
     EXPECT_EQ(options.encryption_config->mode, mode);
     EXPECT_TRUE(options.required);
   }
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       SframeDecryptionConfigPropagatesToExistingReceiveStream) {
+  FakeVideoReceiveStream* stream = AddRecvStream();
+  SframeDecryptionConfig config{
+      .decryptor =
+          SframeDecryptor::Create(SframeCipherSuite::kAes128GcmSha256_128),
+      .error_reporter = SframeDecryptErrorReporter::Create(
+          /*error_callback=*/[](SframeDecryptError) {})};
+
+  receive_channel_->SetSframeDecryptionConfig(config);
+
+  const SframeReceiveOptions& options = stream->GetConfig().rtp.sframe_options;
+  ASSERT_TRUE(options.decryption_config.has_value());
+  EXPECT_EQ(options.decryption_config->decryptor, config.decryptor);
+  EXPECT_EQ(options.decryption_config->error_reporter, config.error_reporter);
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       SframeDecryptionConfigPropagatesToNewReceiveStream) {
+  SframeDecryptionConfig config{
+      .decryptor =
+          SframeDecryptor::Create(SframeCipherSuite::kAes128GcmSha256_128),
+      .error_reporter = SframeDecryptErrorReporter::Create(
+          /*error_callback=*/[](SframeDecryptError) {})};
+  receive_channel_->SetSframeDecryptionConfig(config);
+
+  FakeVideoReceiveStream* stream = AddRecvStream();
+
+  const SframeReceiveOptions& options = stream->GetConfig().rtp.sframe_options;
+  ASSERT_TRUE(options.decryption_config.has_value());
+  EXPECT_EQ(options.decryption_config->decryptor, config.decryptor);
+  EXPECT_EQ(options.decryption_config->error_reporter, config.error_reporter);
+}
+
+TEST_F(WebRtcVideoChannelTest, EnableSframePropagatesToExistingReceiveStream) {
+  FakeVideoReceiveStream* stream = AddRecvStream();
+
+  receive_channel_->EnableSframe();
+
+  EXPECT_TRUE(stream->GetConfig().rtp.sframe_options.required);
+}
+
+TEST_F(WebRtcVideoChannelTest, EnableSframePropagatesToNewReceiveStream) {
+  receive_channel_->EnableSframe();
+
+  FakeVideoReceiveStream* stream = AddRecvStream();
+
+  EXPECT_TRUE(stream->GetConfig().rtp.sframe_options.required);
 }
 
 TEST_F(WebRtcVideoChannelTest, RecvStreamWithSimAndRtx) {

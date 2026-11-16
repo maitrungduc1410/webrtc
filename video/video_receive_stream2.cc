@@ -64,6 +64,7 @@
 #include "call/rtp_stream_receiver_controller_interface.h"
 #include "call/rtp_transport_controller_send_interface.h"
 #include "call/rtx_receive_stream.h"
+#include "call/sframe_options.h"
 #include "call/syncable.h"
 #include "call/video_receive_stream.h"
 #include "modules/rtp_rtcp/include/receive_statistics.h"
@@ -889,6 +890,11 @@ void VideoReceiveStream2::OnFrame(const VideoFrame& video_frame) {
 void VideoReceiveStream2::SetFrameDecryptor(
     scoped_refptr<FrameDecryptorInterface> frame_decryptor) {
   rtp_video_stream_receiver_.SetFrameDecryptor(std::move(frame_decryptor));
+}
+
+void VideoReceiveStream2::UpdateSframeOptions(
+    const SframeReceiveOptions& options) {
+  rtp_video_stream_receiver_.UpdateSframeOptions(options);
 }
 
 void VideoReceiveStream2::SetDepacketizerToDecoderFrameTransformer(

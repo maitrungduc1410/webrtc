@@ -181,6 +181,23 @@ MATCHER_P(SamePacketAs, other, "") {
          arg.SequenceNumber() == other.SequenceNumber();
 }
 
+constexpr uint8_t kKeyFrameBitstream[] = {1, 2, 3};
+
+// Creates a key frame that fits in a single packet and carries `bitstream`.
+RtpPacketReceived CreateGenericKeyFramePacket(
+    std::span<const uint8_t> bitstream = kKeyFrameBitstream) {
+  // The first payload byte is the generic payload header: a key frame that
+  // starts in this packet.
+  std::vector<uint8_t> payload = {0x03};
+  payload.insert(payload.end(), bitstream.begin(), bitstream.end());
+  RtpPacketReceived rtp_packet;
+  rtp_packet.SetPayloadType(kPayloadType);
+  rtp_packet.SetSequenceNumber(1);
+  rtp_packet.SetMarker(true);
+  rtp_packet.SetPayload(payload);
+  return rtp_packet;
+}
+
 }  // namespace
 
 class RtpVideoStreamReceiver2Test : public ::testing::Test,
@@ -694,6 +711,42 @@ TEST_F(RtpVideoStreamReceiver2Test, GenericKeyFrame) {
   EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame(_));
   rtp_video_stream_receiver_->OnReceivedPayloadDataForTesting(data, rtp_packet,
                                                               video_header);
+}
+
+TEST_F(RtpVideoStreamReceiver2Test, DeliversMediaWhileSframeIsNotRequired) {
+  rtp_video_stream_receiver_->StartReceive();
+
+  const uint8_t kBitstream[] = {4, 5, 6};
+  mock_on_complete_frame_callback_.AppendExpectedBitstream(kBitstream);
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame);
+  rtp_video_stream_receiver_->OnRtpPacket(
+      CreateGenericKeyFramePacket(kBitstream));
+}
+
+TEST_F(RtpVideoStreamReceiver2Test, DropsMediaWhenSframeIsRequiredAtCreation) {
+  config_.rtp.sframe_options.required = true;
+  rtp_video_stream_receiver_.reset();
+  rtp_video_stream_receiver_ = std::make_unique<RtpVideoStreamReceiver2>(
+      env_, TaskQueueBase::Current(), &mock_transport_, nullptr, nullptr,
+      &config_, kMaxWaitForKeyframe, rtp_receive_statistics_.get(), nullptr,
+      nullptr, &nack_periodic_processor_, &mock_on_complete_frame_callback_,
+      nullptr, nullptr, nullptr);
+  rtp_video_stream_receiver_->AddReceiveCodec(kPayloadType, kVideoCodecGeneric,
+                                              {}, /*raw_payload=*/false);
+  rtp_video_stream_receiver_->StartReceive();
+
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
+  rtp_video_stream_receiver_->OnRtpPacket(CreateGenericKeyFramePacket());
+}
+
+TEST_F(RtpVideoStreamReceiver2Test,
+       DropsMediaOnceSframeOptionsUpdateRequiresSframe) {
+  rtp_video_stream_receiver_->StartReceive();
+
+  rtp_video_stream_receiver_->UpdateSframeOptions({.required = true});
+
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
+  rtp_video_stream_receiver_->OnRtpPacket(CreateGenericKeyFramePacket());
 }
 
 TEST_F(RtpVideoStreamReceiver2Test, SetProtectionPayloadTypes) {

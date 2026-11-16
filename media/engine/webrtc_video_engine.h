@@ -657,6 +657,7 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
 
     void SetFrameDecryptor(
         scoped_refptr<FrameDecryptorInterface> frame_decryptor);
+    void UpdateSframeOptions(const SframeReceiveOptions& options);
 
     bool SetBaseMinimumPlayoutDelayMs(int delay_ms);
 

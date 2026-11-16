@@ -40,6 +40,7 @@
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "call/rtp_packet_sink_interface.h"
+#include "call/sframe_options.h"
 #include "call/syncable.h"
 #include "call/video_receive_stream.h"
 #include "modules/include/module_common_types.h"
@@ -201,6 +202,9 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   // reset the decoder state.
   void SetFrameDecryptor(
       scoped_refptr<FrameDecryptorInterface> frame_decryptor);
+
+  // Updates the Sframe options after a stream has started.
+  void UpdateSframeOptions(const SframeReceiveOptions& options);
 
   // Sets or clears the frame transformer after a stream has started. Does not
   // reset the decoder state.
@@ -382,6 +386,7 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   std::unique_ptr<NackRequester> nack_module_ RTC_GUARDED_BY(network_queue_);
 
   video_coding::PacketBuffer packet_buffer_ RTC_GUARDED_BY(network_queue_);
+  bool sframe_required_by_negotiation_ RTC_GUARDED_BY(network_queue_) = false;
   // h26x_packet_buffer_ is applicable to H.264 and H.265. For H.265 it is
   // always used but for H.264 it is only used if WebRTC-Video-H26xPacketBuffer
   // is enabled, see condition inside UseH26xPacketBuffer().
