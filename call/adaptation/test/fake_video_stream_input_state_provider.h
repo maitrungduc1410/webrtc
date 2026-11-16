@@ -11,6 +11,8 @@
 #ifndef CALL_ADAPTATION_TEST_FAKE_VIDEO_STREAM_INPUT_STATE_PROVIDER_H_
 #define CALL_ADAPTATION_TEST_FAKE_VIDEO_STREAM_INPUT_STATE_PROVIDER_H_
 
+#include <optional>
+
 #include "call/adaptation/video_stream_input_state.h"
 #include "call/adaptation/video_stream_input_state_provider.h"
 
@@ -21,7 +23,12 @@ class FakeVideoStreamInputStateProvider : public VideoStreamInputStateProvider {
   FakeVideoStreamInputStateProvider();
   ~FakeVideoStreamInputStateProvider() override;
 
-  void SetInputState(int input_pixels, int input_fps, int min_pixels_per_frame);
+  void SetInputState(
+      int input_pixels,
+      int input_fps,
+      int min_pixels_per_frame,
+      std::optional<int> max_active_stream_pixels = std::nullopt,
+      std::optional<int> single_active_stream_pixels = std::nullopt);
   VideoStreamInputState InputState() override;
 
  private:

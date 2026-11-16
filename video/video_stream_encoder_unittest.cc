@@ -3267,6 +3267,142 @@ TEST_F(VideoStreamEncoderTest, RequestInWrongAspectRatioWithAdapter) {
   video_stream_encoder_->Stop();
 }
 
+TEST_F(VideoStreamEncoderTest, SimulcastScaleResolutionDownToWithCpuOveruse) {
+  video_source_.set_adaptation_enabled(true);
+  video_stream_encoder_->SetSource(&video_source_,
+                                   DegradationPreference::MAINTAIN_FRAMERATE);
+
+  VideoEncoderConfig config;
+  test::FillEncoderConfiguration(kVideoCodecVP8, /*num_streams=*/3, &config);
+  config.video_stream_factory = nullptr;
+  config.simulcast_layers[0].scale_resolution_down_to = {.width = 320,
+                                                         .height = 180};
+  config.simulcast_layers[1].scale_resolution_down_to = {.width = 640,
+                                                         .height = 360};
+  config.simulcast_layers[2].scale_resolution_down_to = {.width = 1280,
+                                                         .height = 720};
+  video_stream_encoder_->ConfigureEncoder(config.Copy(), kMaxPayloadLength);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kSimulcastTargetBitrate, kSimulcastTargetBitrate, 0, 0, 0);
+
+  int64_t timestamp_ms = 1;
+  auto encode_frame = [&]() {
+    video_source_.IncomingCapturedFrame(CreateFrame(timestamp_ms, 1280, 720));
+    WaitForEncodedFrame(timestamp_ms);
+    timestamp_ms += kFrameIntervalMs;
+  };
+
+  // Initial: all streams (320, 640, 1280) configured.
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 3);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[1].width, 640);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[2].width, 1280);
+
+  // Down step 1: 1280 dropped -> 320, 640.
+  video_stream_encoder_->TriggerCpuOveruse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 2);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[1].width, 640);
+
+  // Down step 2: 640 dropped -> 320 only.
+  video_stream_encoder_->TriggerCpuOveruse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 1);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(stats_proxy_->GetStats().number_of_cpu_adapt_changes, 2);
+
+  // Additional overuse should have no effect (min pixel limit reached).
+  video_stream_encoder_->TriggerCpuOveruse();
+  encode_frame();
+  EXPECT_EQ(stats_proxy_->GetStats().number_of_cpu_adapt_changes, 2);
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 1);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].height, 180);
+
+  // Up step 1: 640 restored -> 320, 640.
+  video_stream_encoder_->TriggerCpuUnderuse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 2);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[1].width, 640);
+
+  // Up step 2: 1280 restored -> 320, 640, 1280.
+  video_stream_encoder_->TriggerCpuUnderuse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 3);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[2].width, 1280);
+  EXPECT_FALSE(stats_proxy_->GetStats().cpu_limited_resolution);
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       SimulcastScaleResolutionDownToWithCpuOveruseAndTopLayerInactive) {
+  video_source_.set_adaptation_enabled(true);
+  video_stream_encoder_->SetSource(&video_source_,
+                                   DegradationPreference::MAINTAIN_FRAMERATE);
+
+  VideoEncoderConfig config;
+  test::FillEncoderConfiguration(kVideoCodecVP8, /*num_streams=*/3, &config);
+  config.video_stream_factory = nullptr;
+  config.simulcast_layers[0].scale_resolution_down_to = {.width = 320,
+                                                         .height = 180};
+  config.simulcast_layers[1].scale_resolution_down_to = {.width = 640,
+                                                         .height = 360};
+  config.simulcast_layers[2].scale_resolution_down_to = {.width = 1280,
+                                                         .height = 720};
+  config.simulcast_layers[2].active = false;
+  video_stream_encoder_->ConfigureEncoder(config.Copy(), kMaxPayloadLength);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kSimulcastTargetBitrate, kSimulcastTargetBitrate, 0, 0, 0);
+
+  int64_t timestamp_ms = 1;
+  auto encode_frame = [&]() {
+    video_source_.IncomingCapturedFrame(CreateFrame(timestamp_ms, 1280, 720));
+    WaitForEncodedFrame(timestamp_ms);
+    timestamp_ms += kFrameIntervalMs;
+  };
+
+  // Initial: 320 and 640 active, 1280 inactive.
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 3);
+  EXPECT_TRUE(fake_encoder_.config().simulcastStream[0].active);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_TRUE(fake_encoder_.config().simulcastStream[1].active);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[1].width, 640);
+  EXPECT_FALSE(fake_encoder_.config().simulcastStream[2].active);
+
+  // Down step 1: scales down from 640 (max active) -> 320 only.
+  video_stream_encoder_->TriggerCpuOveruse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 1);
+  EXPECT_TRUE(fake_encoder_.config().simulcastStream[0].active);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(stats_proxy_->GetStats().number_of_cpu_adapt_changes, 1);
+
+  // Additional overuse should have no effect (min pixel limit reached).
+  video_stream_encoder_->TriggerCpuOveruse();
+  encode_frame();
+  EXPECT_EQ(stats_proxy_->GetStats().number_of_cpu_adapt_changes, 1);
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 1);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].height, 180);
+
+  // Up step 1: 640 restored, 1280 still inactive.
+  video_stream_encoder_->TriggerCpuUnderuse();
+  encode_frame();
+  EXPECT_EQ(fake_encoder_.config().numberOfSimulcastStreams, 3);
+  EXPECT_TRUE(fake_encoder_.config().simulcastStream[0].active);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[0].width, 320);
+  EXPECT_TRUE(fake_encoder_.config().simulcastStream[1].active);
+  EXPECT_EQ(fake_encoder_.config().simulcastStream[1].width, 640);
+  EXPECT_FALSE(fake_encoder_.config().simulcastStream[2].active);
+  EXPECT_FALSE(stats_proxy_->GetStats().cpu_limited_resolution);
+
+  video_stream_encoder_->Stop();
+}
+
 TEST_F(VideoStreamEncoderTest,
        EncodingActiveFlagPropagatedToSinkWantsBeforeFirstFrame) {
   ASSERT_THAT(video_encoder_config_.simulcast_layers, SizeIs(1));

@@ -10,6 +10,8 @@
 
 #include "call/adaptation/test/fake_video_stream_input_state_provider.h"
 
+#include <optional>
+
 #include "call/adaptation/video_stream_input_state.h"
 #include "call/adaptation/video_stream_input_state_provider.h"
 
@@ -24,11 +26,16 @@ FakeVideoStreamInputStateProvider::~FakeVideoStreamInputStateProvider() =
 void FakeVideoStreamInputStateProvider::SetInputState(
     int input_pixels,
     int input_fps,
-    int min_pixels_per_frame) {
+    int min_pixels_per_frame,
+    std::optional<int> max_active_stream_pixels,
+    std::optional<int> single_active_stream_pixels) {
   fake_input_state_.set_has_input(true);
   fake_input_state_.set_frame_size_pixels(input_pixels);
   fake_input_state_.set_frames_per_second(input_fps);
   fake_input_state_.set_min_pixels_per_frame(min_pixels_per_frame);
+  fake_input_state_.set_max_active_stream_pixels(max_active_stream_pixels);
+  fake_input_state_.set_single_active_stream_pixels(
+      single_active_stream_pixels);
 }
 
 VideoStreamInputState FakeVideoStreamInputStateProvider::InputState() {

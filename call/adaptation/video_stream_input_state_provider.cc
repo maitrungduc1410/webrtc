@@ -10,6 +10,8 @@
 
 #include "call/adaptation/video_stream_input_state_provider.h"
 
+#include <optional>
+
 #include "call/adaptation/encoder_settings.h"
 #include "call/adaptation/video_stream_adapter.h"
 #include "call/adaptation/video_stream_input_state.h"
@@ -46,6 +48,11 @@ void VideoStreamInputStateProvider::OnEncoderSettingsChanged(
   input_state_.set_single_active_stream_pixels(
       VideoStreamAdapter::GetSingleActiveLayerPixels(
           encoder_settings.video_codec()));
+  input_state_.set_max_active_stream_pixels(
+      encoder_settings.encoder_config().HasScaleResolutionDownTo()
+          ? VideoStreamAdapter::GetMaxActiveLayerPixels(
+                encoder_settings.video_codec())
+          : std::nullopt);
 }
 
 VideoStreamInputState VideoStreamInputStateProvider::InputState() {

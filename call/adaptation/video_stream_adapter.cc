@@ -485,12 +485,12 @@ VideoStreamAdapter::GetAdaptationDownStep(
 VideoStreamAdapter::RestrictionsOrState VideoStreamAdapter::DecreaseResolution(
     const VideoStreamInputState& input_state,
     const RestrictionsWithCounters& current_restrictions) {
-  int target_pixels =
-      GetLowerResolutionThan(input_state.frame_size_pixels().value());
+  int current_pixels = input_state.max_active_stream_pixels().value_or(
+      input_state.frame_size_pixels().value());
+  int target_pixels = GetLowerResolutionThan(current_pixels);
   // Use single active stream if set, this stream could be lower than the input.
-  int target_pixels_min =
-      GetLowerResolutionThan(input_state.single_active_stream_pixels().value_or(
-          input_state.frame_size_pixels().value()));
+  int target_pixels_min = GetLowerResolutionThan(
+      input_state.single_active_stream_pixels().value_or(current_pixels));
   if (!CanDecreaseResolutionTo(target_pixels, target_pixels_min, input_state,
                                current_restrictions.restrictions)) {
     return Adaptation::Status::kLimitReached;
@@ -747,6 +747,30 @@ std::optional<uint32_t> VideoStreamAdapter::GetSingleActiveLayerPixels(
     }
   }
   return (num_active > 1) ? std::nullopt : pixels;
+}
+
+std::optional<uint32_t> VideoStreamAdapter::GetMaxActiveLayerPixels(
+    const VideoCodec& codec) {
+  std::optional<uint32_t> pixels;
+  if (codec.numberOfSimulcastStreams > 1 ||
+      !(codec.codecType == VideoCodecType::kVideoCodecAV1 ||
+        codec.codecType == VideoCodecType::kVideoCodecVP9)) {
+    // Simulcast or non-SVC codec.
+    for (const auto& stream : codec.simulcastStream) {
+      if (stream.active) {
+        pixels = std::max(pixels.value_or(0),
+                          static_cast<uint32_t>(stream.width * stream.height));
+      }
+    }
+  } else {
+    for (const auto& stream : codec.spatialLayers) {
+      if (stream.active) {
+        pixels = std::max(pixels.value_or(0),
+                          static_cast<uint32_t>(stream.width * stream.height));
+      }
+    }
+  }
+  return pixels;
 }
 
 }  // namespace webrtc

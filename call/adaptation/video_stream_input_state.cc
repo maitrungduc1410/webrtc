@@ -23,7 +23,8 @@ VideoStreamInputState::VideoStreamInputState()
       frames_per_second_(0),
       video_codec_type_(VideoCodecType::kVideoCodecGeneric),
       min_pixels_per_frame_(kDefaultMinPixelsPerFrame),
-      single_active_stream_pixels_(std::nullopt) {}
+      single_active_stream_pixels_(std::nullopt),
+      max_active_stream_pixels_(std::nullopt) {}
 
 void VideoStreamInputState::set_has_input(bool has_input) {
   has_input_ = has_input;
@@ -52,6 +53,11 @@ void VideoStreamInputState::set_single_active_stream_pixels(
   single_active_stream_pixels_ = single_active_stream_pixels;
 }
 
+void VideoStreamInputState::set_max_active_stream_pixels(
+    std::optional<int> max_active_stream_pixels) {
+  max_active_stream_pixels_ = max_active_stream_pixels;
+}
+
 bool VideoStreamInputState::has_input() const {
   return has_input_;
 }
@@ -74,6 +80,10 @@ int VideoStreamInputState::min_pixels_per_frame() const {
 
 std::optional<int> VideoStreamInputState::single_active_stream_pixels() const {
   return single_active_stream_pixels_;
+}
+
+std::optional<int> VideoStreamInputState::max_active_stream_pixels() const {
+  return max_active_stream_pixels_;
 }
 
 bool VideoStreamInputState::HasInputFrameSizeAndFramesPerSecond() const {

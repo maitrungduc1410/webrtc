@@ -235,6 +235,48 @@ TEST_F(VideoStreamAdapterTest, MaintainFramerate_IncreasePixelsToUnrestricted) {
   EXPECT_EQ(0, adapter_.adaptation_counters().Total());
 }
 
+TEST_F(VideoStreamAdapterTest,
+       MaintainFramerate_DecreasesMaxActiveStreamPixelsToThreeFifths) {
+  const int kMaxActiveStreamPixels = 640 * 360;
+  adapter_.SetDegradationPreference(DegradationPreference::MAINTAIN_FRAMERATE);
+  input_state_provider_.SetInputState(
+      /*input_pixels=*/1280 * 720, 30, kDefaultMinPixelsPerFrame,
+      kMaxActiveStreamPixels);
+  Adaptation adaptation = adapter_.GetAdaptationDown();
+  EXPECT_EQ(adaptation.status(), Adaptation::Status::kValid);
+  adapter_.ApplyAdaptation(adaptation, nullptr);
+  EXPECT_EQ(adapter_.source_restrictions().max_pixels_per_frame(),
+            static_cast<size_t>((kMaxActiveStreamPixels * 3) / 5));
+  EXPECT_EQ(adapter_.source_restrictions().target_pixels_per_frame(),
+            std::nullopt);
+  EXPECT_EQ(adapter_.source_restrictions().max_frame_rate(), std::nullopt);
+  EXPECT_EQ(adapter_.adaptation_counters().resolution_adaptations, 1);
+}
+
+TEST_F(VideoStreamAdapterTest,
+       MaintainFramerate_DecreasesMaxActiveStreamPixelsToLimitReached) {
+  const int kMinPixelsPerFrame = 640 * 480;
+  adapter_.SetDegradationPreference(DegradationPreference::MAINTAIN_FRAMERATE);
+  input_state_provider_.SetInputState(
+      /*input_pixels=*/1280 * 720, 30, kMinPixelsPerFrame,
+      /*max_active_stream_pixels=*/kMinPixelsPerFrame + 1);
+  EXPECT_EQ(adapter_.GetAdaptationDown().status(),
+            Adaptation::Status::kLimitReached);
+}
+
+TEST_F(VideoStreamAdapterTest,
+       MaintainFramerate_DecreasesSingleActiveStreamPixelsToLimitReached) {
+  const int kMinPixelsPerFrame = 640 * 480;
+  adapter_.SetDegradationPreference(DegradationPreference::MAINTAIN_FRAMERATE);
+  input_state_provider_.SetInputState(
+      /*input_pixels=*/1280 * 720, 30, kMinPixelsPerFrame,
+      /*max_active_stream_pixels=*/std::nullopt,
+      /*single_active_stream_pixels=*/kMinPixelsPerFrame + 1);
+  EXPECT_CALL(encoder_stats_observer_, OnMinPixelLimitReached());
+  EXPECT_EQ(adapter_.GetAdaptationDown().status(),
+            Adaptation::Status::kLimitReached);
+}
+
 TEST_F(VideoStreamAdapterTest, MaintainResolution_DecreasesFpsToTwoThirds) {
   const int kInputFps = 30;
 
@@ -933,6 +975,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), std::nullopt);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
@@ -951,6 +994,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
   codec.simulcastStream[2].height = 720;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec), 640 * 360u);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
@@ -959,17 +1003,18 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
   codec.codecType = GetParam();
   codec.numberOfSimulcastStreams = 3;
   codec.simulcastStream[0].active = true;
-  codec.simulcastStream[0].width = 320;
-  codec.simulcastStream[0].height = 180;
+  codec.simulcastStream[0].width = 640;
+  codec.simulcastStream[0].height = 360;
   codec.simulcastStream[1].active = true;
-  codec.simulcastStream[1].width = 640;
-  codec.simulcastStream[1].height = 360;
+  codec.simulcastStream[1].width = 320;
+  codec.simulcastStream[1].height = 180;
   codec.simulcastStream[2].active = false;
   codec.simulcastStream[2].width = 1280;
   codec.simulcastStream[2].height = 720;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
@@ -985,6 +1030,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
   codec.spatialLayers[1].height = 360;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec), 640 * 360u);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
@@ -1001,6 +1047,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsSvcTest,
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 INSTANTIATE_TEST_SUITE_P(VideoStreamAdapterGetSingleActiveLayerPixelsTest,
@@ -1028,6 +1075,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), std::nullopt);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
@@ -1046,6 +1094,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
   codec.simulcastStream[2].height = 720;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec), 640 * 360u);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
@@ -1054,17 +1103,18 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
   codec.codecType = GetParam();
   codec.numberOfSimulcastStreams = 3;
   codec.simulcastStream[0].active = true;
-  codec.simulcastStream[0].width = 320;
-  codec.simulcastStream[0].height = 180;
+  codec.simulcastStream[0].width = 640;
+  codec.simulcastStream[0].height = 360;
   codec.simulcastStream[1].active = true;
-  codec.simulcastStream[1].width = 640;
-  codec.simulcastStream[1].height = 360;
+  codec.simulcastStream[1].width = 320;
+  codec.simulcastStream[1].height = 180;
   codec.simulcastStream[2].active = false;
   codec.simulcastStream[2].width = 1280;
   codec.simulcastStream[2].height = 720;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
@@ -1077,6 +1127,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
   codec.simulcastStream[0].height = 360;
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec), 640 * 360u);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), 640 * 360u);
 }
 
 TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
@@ -1090,6 +1141,7 @@ TEST_P(VideoStreamAdapterGetSingleActiveLayerPixelsNonSvcTest,
 
   EXPECT_EQ(VideoStreamAdapter::GetSingleActiveLayerPixels(codec),
             std::nullopt);
+  EXPECT_EQ(VideoStreamAdapter::GetMaxActiveLayerPixels(codec), std::nullopt);
 }
 
 INSTANTIATE_TEST_SUITE_P(VideoStreamAdapterGetSingleActiveLayerPixelsTest,

@@ -167,6 +167,8 @@ class VideoStreamAdapter {
 
   static std::optional<uint32_t> GetSingleActiveLayerPixels(
       const VideoCodec& codec);
+  static std::optional<uint32_t> GetMaxActiveLayerPixels(
+      const VideoCodec& codec);
 
  private:
   void BroadcastVideoRestrictionsUpdate(
