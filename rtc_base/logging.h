@@ -700,9 +700,6 @@ class LogMessage {
   // String data generated in the constructor, that should be appended to
   // the message before output.
   std::string extra_;
-
-  // Flags for formatting options and their potential values.
-  static bool log_timestamp_;
 #else  // RTC_LOG_ENABLED()
   // Next methods do nothing; no one will call these functions.
 #if defined(WEBRTC_ANDROID)

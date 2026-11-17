@@ -546,10 +546,7 @@ rtc_library("logging") {
       "logging.cc",
       "logging.h",
     ]
-    deps += [
-      "system:ignore_warnings",
-      "system:inline",
-    ]
+    deps += [ "system:inline" ]
 
     if (is_mac) {
       frameworks = [ "Foundation.framework" ]

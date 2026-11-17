@@ -34,7 +34,6 @@
 #include "rtc_base/string_utils.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/mutex.h"
-#include "rtc_base/system/ignore_warnings.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/time_utils.h"
 
@@ -75,6 +74,12 @@ namespace {
 // Note: `g_min_sev` and `g_dbg_sev` can be changed while running.
 constinit std::atomic<LoggingSeverity> g_min_sev = kDefaultLoggingSeverity;
 constinit std::atomic<LoggingSeverity> g_dbg_sev = kDefaultLoggingSeverity;
+
+// Whether log lines include the elapsed time. Set when a configuration is
+// applied, and by the deprecated LogMessage::LogTimestamps().
+// TODO: bugs.webrtc.org/42234107 - Read GetLoggingConfig().log_timestamp()
+// instead once LogTimestamps() is removed.
+constinit bool g_log_timestamp = false;
 
 // Return the filename portion of the string (that following the last slash).
 const char* FilenameFromPath(const char* file) {
@@ -200,11 +205,7 @@ class DynamicLogSinks {
 };
 
 void ApplyConfigToLogMessage(const LoggingConfig& config) {
-  // TODO: bugs.webrtc.org/42234107 - Store the options without the deprecated
-  // setter once it is removed.
-  RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
-  LogMessage::LogTimestamps(config.log_timestamp());
-  RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
+  g_log_timestamp = config.log_timestamp();
   DynamicLogSinks::Get().SetDebugSeverity(config.debug_severity());
 }
 
@@ -294,9 +295,6 @@ const std::string& LogLineRef::DefaultLogLine() const {
 // LogMessage
 /////////////////////////////////////////////////////////////////////////////
 
-// Boolean options default to false.
-constinit bool LogMessage::log_timestamp_ = false;
-
 LogMessage::LogMessage(const char* file, int line, LoggingSeverity sev)
     : LogMessage(file, line, sev, ERRCTX_NONE, 0) {}
 
@@ -307,7 +305,7 @@ LogMessage::LogMessage(const char* file,
                        int err) {
   log_line_.set_severity(sev);
   const LoggingConfig& config = GetLoggingConfig();
-  if (log_timestamp_) {
+  if (g_log_timestamp) {
     int64_t log_start_time = LogStartTime();
     // Use SystemTimeMillis so that even if tests use fake clocks, the timestamp
     // in log messages represents the real system time.
@@ -438,7 +436,7 @@ bool LogMessage::LogThreads(bool enabled) {
 }
 
 void LogMessage::LogTimestamps(bool on) {
-  log_timestamp_ = on;
+  g_log_timestamp = on;
 }
 
 void LogMessage::LogToDebug(LoggingSeverity min_sev) {

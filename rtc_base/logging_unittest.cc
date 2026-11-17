@@ -660,6 +660,40 @@ TEST_F(LogTest, MinSeverityWithoutSinksDoesNotEnableLogging) {
   EXPECT_FALSE(LogMessage::IsNoop(LS_WARNING));
 }
 
+// Records the timestamp of the last message that it receives.
+class TimestampSink : public LogSink {
+ public:
+  void OnLogMessage(const LogLineRef& line) override {
+    timestamp = line.timestamp();
+  }
+  std::optional<Timestamp> timestamp;
+};
+
+TEST_F(LogTest, LogTimestampAddsElapsedTime) {
+  LoggingConfig config;
+  config.set_log_timestamp(true);
+  TimestampSink& sink =
+      InitializeLoggingWithSink<TimestampSink>(std::move(config));
+
+  RTC_LOG(LS_INFO) << "With timestamp";
+  ASSERT_TRUE(sink.timestamp.has_value());
+  EXPECT_TRUE(sink.timestamp->IsFinite());
+}
+
+TEST_F(LogTest, ResetLoggingForTestingTurnsOffLogTimestamp) {
+  LoggingConfig config;
+  config.set_log_timestamp(true);
+  InitializeLoggingWithSink<TimestampSink>(std::move(config));
+
+  // The default configuration doesn't add the elapsed time.
+  ResetLoggingForTesting();
+  TimestampSink& sink = InitializeLoggingWithSink<TimestampSink>();
+
+  RTC_LOG(LS_INFO) << "Without timestamp";
+  ASSERT_TRUE(sink.timestamp.has_value());
+  EXPECT_TRUE(sink.timestamp->IsMinusInfinity());
+}
+
 // The tests below until RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS() test the
 // deprecated LogMessage::LogToDebug() method.
 // TODO: bugs.webrtc.org/42234107 - Remove them together with the method.
