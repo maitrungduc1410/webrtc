@@ -15,12 +15,44 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <vector>
 
 #include "modules/rtp_rtcp/source/rtp_util.h"
 #include "test/gtest.h"
 #include "test/testsupport/file_utils.h"
 
 namespace webrtc {
+
+namespace {
+
+std::vector<uint8_t> CreateVlanPcap(std::span<const uint16_t> tags) {
+  // Little-endian PCAP global header: version 2.4, Ethernet link type.
+  std::vector<uint8_t> data = {0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0,
+                               0,    0,    0,    0,    0, 0, 0, 0,
+                               0xff, 0xff, 0,    0,    1, 0, 0, 0};
+  // Packet header: timestamp 1s, captured and original lengths.
+  const uint8_t packet_length = 14 + 4 * tags.size() + 20 + 8 + 12;
+  data.insert(data.end(), {1, 0, 0, 0, 0, 0, 0, 0, packet_length, 0, 0, 0,
+                           packet_length, 0, 0, 0});
+  data.insert(data.end(), 12, 0);  // Destination and source MAC addresses.
+  for (uint16_t tpid : tags) {
+    // VLAN ID and priority are zero (priority-tagged frame).
+    data.insert(data.end(), {static_cast<uint8_t>(tpid >> 8),
+                             static_cast<uint8_t>(tpid), 0, 0});
+  }
+  data.insert(data.end(), {0x08, 0x00});  // Encapsulated EtherType: IPv4.
+  // IPv4: 20-byte header, 40-byte packet, UDP, no fragmentation.
+  data.insert(data.end(), {0x45, 0, 0,  40, 0, 0, 0x40, 0, 64, 17,
+                           0,    0, 10, 0,  0, 1, 10,   0, 0,  2});
+  // UDP: ports 10000/10001, 20-byte datagram.
+  data.insert(data.end(), {0x27, 0x10, 0x27, 0x11, 0, 20, 0, 0});
+  // RTP: PT 96, sequence 1, timestamp 960, SSRC 0x12345678.
+  data.insert(data.end(),
+              {0x80, 96, 0, 1, 0, 0, 3, 0xc0, 0x12, 0x34, 0x56, 0x78});
+  return data;
+}
+
+}  // namespace
 
 class TestRtpFileReader : public ::testing::Test {
  public:
@@ -107,6 +139,44 @@ TEST_F(TestPcapFileReader, TestEthernetIIFrame) {
 TEST_F(TestPcapFileReader, TestLoopbackFrame) {
   Init("frame-loopback");
   EXPECT_EQ(491, CountRtpPackets());
+}
+
+TEST(TestPcapVlanFileReader, ReadsPriorityTaggedFrame) {
+  // VLAN ID zero denotes a priority-tagged frame.
+  const uint16_t tags[] = {0x8100};
+  const std::vector<uint8_t> pcap = CreateVlanPcap(tags);
+  std::unique_ptr<test::RtpFileReader> reader(test::RtpFileReader::Create(
+      test::RtpFileReader::kPcap, pcap.data(), pcap.size(), {}));
+  ASSERT_NE(reader, nullptr);
+  test::RtpPacket packet;
+  ASSERT_TRUE(reader->NextPacket(&packet));
+  ASSERT_EQ(packet.length(), 12u);
+  EXPECT_EQ(ParseRtpSsrc(packet.buffer), 0x12345678u);
+  EXPECT_FALSE(reader->NextPacket(&packet));
+}
+
+TEST(TestPcapVlanFileReader, ReadsQinQFrame) {
+  // An outer service tag encapsulates an inner customer tag.
+  const uint16_t tags[] = {0x88a8, 0x8100};
+  const std::vector<uint8_t> pcap = CreateVlanPcap(tags);
+  std::unique_ptr<test::RtpFileReader> reader(test::RtpFileReader::Create(
+      test::RtpFileReader::kPcap, pcap.data(), pcap.size(), {}));
+  ASSERT_NE(reader, nullptr);
+  test::RtpPacket packet;
+  ASSERT_TRUE(reader->NextPacket(&packet));
+  ASSERT_EQ(packet.length(), 12u);
+  EXPECT_EQ(ParseRtpSsrc(packet.buffer), 0x12345678u);
+  EXPECT_FALSE(reader->NextPacket(&packet));
+}
+
+TEST(TestPcapVlanFileReader, SkipsFrameWithMoreThanTwoTags) {
+  const uint16_t tags[] = {0x88a8, 0x8100, 0x8100};
+  const std::vector<uint8_t> pcap = CreateVlanPcap(tags);
+  std::unique_ptr<test::RtpFileReader> reader(test::RtpFileReader::Create(
+      test::RtpFileReader::kPcap, pcap.data(), pcap.size(), {}));
+  ASSERT_NE(reader, nullptr);
+  test::RtpPacket packet;
+  EXPECT_FALSE(reader->NextPacket(&packet));
 }
 
 TEST_F(TestPcapFileReader, TestTwoSsrc) {

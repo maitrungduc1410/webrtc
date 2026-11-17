@@ -49,6 +49,10 @@ enum {
   kBsdNullLoopback2 = 0x02000000,
   kEthernetIIHeaderMacSkip = 12,
   kEthertypeIp = 0x0800,
+  kEthertypeVlan = 0x8100,
+  kEthertypeProviderBridging = 0x88a8,
+  kVlanTagControlInformationSize = 2,
+  kMaxVlanTags = 2,
   kIpVersion4 = 4,
   kMinIpHeaderLength = 20,
   kFragmentOffsetClear = 0x0000,
@@ -592,6 +596,15 @@ class PcapReader : public RtpFileReaderImpl {
     uint16_t type;
     TRY_PCAP(Skip(kEthernetIIHeaderMacSkip));  // Source+destination MAC.
     TRY_PCAP(Read(&type, true));
+    // Skip up to two IEEE 802.1Q customer tags (0x8100) or IEEE 802.1ad
+    // service tags (0x88a8) to locate the encapsulated EtherType.
+    int vlan_tags = 0;
+    while ((type == kEthertypeVlan || type == kEthertypeProviderBridging) &&
+           vlan_tags < kMaxVlanTags) {
+      TRY_PCAP(Skip(kVlanTagControlInformationSize));
+      TRY_PCAP(Read(&type, true));
+      ++vlan_tags;
+    }
     if (type == kEthertypeIp) {
       int result = ReadXxpIpHeader(marker);
       if (result != kResultSkip) {
