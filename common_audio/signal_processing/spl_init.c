@@ -16,30 +16,13 @@
 // things so that we simply have a bunch of regular functions with different
 // implementations for different platforms.
 
-#if defined(WEBRTC_HAS_NEON)
+#if defined(MIPS32_LE) && defined(MIPS_DSP_R1_LE)
 
-const CrossCorrelation WebRtcSpl_CrossCorrelation =
-    WebRtcSpl_CrossCorrelationNeon;
-const DownsampleFast WebRtcSpl_DownsampleFast = WebRtcSpl_DownsampleFastNeon;
 const ScaleAndAddVectorsWithRound WebRtcSpl_ScaleAndAddVectorsWithRound =
-    WebRtcSpl_ScaleAndAddVectorsWithRoundC;
-
-#elif defined(MIPS32_LE)
-
-const CrossCorrelation WebRtcSpl_CrossCorrelation =
-    WebRtcSpl_CrossCorrelation_mips;
-const DownsampleFast WebRtcSpl_DownsampleFast = WebRtcSpl_DownsampleFast_mips;
-const ScaleAndAddVectorsWithRound WebRtcSpl_ScaleAndAddVectorsWithRound =
-#ifdef MIPS_DSP_R1_LE
     WebRtcSpl_ScaleAndAddVectorsWithRound_mips;
-#else
-    WebRtcSpl_ScaleAndAddVectorsWithRoundC;
-#endif
 
 #else
 
-const CrossCorrelation WebRtcSpl_CrossCorrelation = WebRtcSpl_CrossCorrelationC;
-const DownsampleFast WebRtcSpl_DownsampleFast = WebRtcSpl_DownsampleFastC;
 const ScaleAndAddVectorsWithRound WebRtcSpl_ScaleAndAddVectorsWithRound =
     WebRtcSpl_ScaleAndAddVectorsWithRoundC;
 

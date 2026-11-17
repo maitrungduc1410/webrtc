@@ -508,11 +508,10 @@ rtc_library("neteq") {
     "../../api/neteq:tick_timer",
     "../../api/units:time_delta",
     "../../api/units:timestamp",
-
-    # TODO: bugs.webrtc.org/496700738 - fix dependency.
-    "../../common_audio",  # keep
     "../../common_audio:common_audio_c",
     "../../common_audio:common_audio_cc",
+    "../../common_audio:cross_correlation",
+    "../../common_audio:downsample_fast",
     "../../common_audio:min_max_operations",
     "../../rtc_base:buffer",
     "../../rtc_base:checks",

@@ -8,7 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/cross_correlation.h"
+
+#include <stddef.h>
+#include <stdint.h>
 
 void WebRtcSpl_CrossCorrelation_mips(int32_t* cross_correlation,
                                      const int16_t* seq1,

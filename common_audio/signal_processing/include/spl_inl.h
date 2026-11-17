@@ -18,6 +18,10 @@
 
 #include "rtc_base/compile_assert_c.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const int8_t kWebRtcSpl_CountLeadingZeros32_Table[64];
 
 // Don't call this directly except in tests!
@@ -151,5 +155,9 @@ static __inline int32_t WebRtc_MulAccumW16(int16_t a, int16_t b, int32_t c) {
 #endif  // #if !defined(MIPS32_LE)
 
 #endif  // WEBRTC_ARCH_ARM_V7
+
+#ifdef __cplusplus
+}
+#endif  // __cplusplus
 
 #endif  // COMMON_AUDIO_SIGNAL_PROCESSING_INCLUDE_SPL_INL_H_

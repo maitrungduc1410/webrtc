@@ -8,7 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/downsample_fast.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "common_audio/signal_processing/include/spl_inl.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/sanitizer.h"
 
@@ -61,4 +66,27 @@ int WebRtcSpl_DownsampleFastC(const int16_t* data_in,
                            data_out_length);
 
   return 0;
+}
+
+int WebRtcSpl_DownsampleFast(const int16_t* data_in,
+                             size_t data_in_length,
+                             int16_t* data_out,
+                             size_t data_out_length,
+                             const int16_t* __restrict coefficients,
+                             size_t coefficients_length,
+                             int factor,
+                             size_t delay) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_DownsampleFastNeon(data_in, data_in_length, data_out,
+                                      data_out_length, coefficients,
+                                      coefficients_length, factor, delay);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_DownsampleFast_mips(data_in, data_in_length, data_out,
+                                       data_out_length, coefficients,
+                                       coefficients_length, factor, delay);
+#else
+  return WebRtcSpl_DownsampleFastC(data_in, data_in_length, data_out,
+                                   data_out_length, coefficients,
+                                   coefficients_length, factor, delay);
+#endif
 }

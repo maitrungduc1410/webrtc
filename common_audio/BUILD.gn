@@ -100,6 +100,49 @@ rtc_source_set("common_audio_c_arm_asm") {
   }
 }
 
+rtc_library("cross_correlation") {
+  visibility += webrtc_default_visibility
+  sources = [
+    "signal_processing/cross_correlation.c",
+    "signal_processing/cross_correlation.h",
+  ]
+  if (rtc_build_with_neon) {
+    sources += [ "signal_processing/cross_correlation_neon.c" ]
+    if (current_cpu != "arm64") {
+      # Enable compilation for the NEON instruction set.
+      suppressed_configs += [ "//build/config/compiler:compiler_arm_fpu" ]
+      cflags = [ "-mfpu=neon" ]
+    }
+  }
+  if (current_cpu == "mipsel") {
+    sources += [ "signal_processing/cross_correlation_mips.c" ]
+  }
+}
+
+rtc_library("downsample_fast") {
+  visibility += webrtc_default_visibility
+  sources = [
+    "signal_processing/downsample_fast.c",
+    "signal_processing/downsample_fast.h",
+  ]
+  if (rtc_build_with_neon) {
+    sources += [ "signal_processing/downsample_fast_neon.c" ]
+    if (current_cpu != "arm64") {
+      # Enable compilation for the NEON instruction set.
+      suppressed_configs += [ "//build/config/compiler:compiler_arm_fpu" ]
+      cflags = [ "-mfpu=neon" ]
+    }
+  }
+  if (current_cpu == "mipsel") {
+    sources += [ "signal_processing/downsample_fast_mips.c" ]
+  }
+  deps = [
+    ":common_audio_c",
+    "../rtc_base:checks",
+    "../rtc_base:sanitizer",
+  ]
+}
+
 rtc_library("min_max_operations") {
   visibility += webrtc_default_visibility
   sources = [
@@ -127,9 +170,7 @@ rtc_library("common_audio_c") {
     "ring_buffer.h",
     "signal_processing/auto_corr_to_refl_coef.c",
     "signal_processing/copy_set_operations.c",
-    "signal_processing/cross_correlation.c",
     "signal_processing/division_operations.c",
-    "signal_processing/downsample_fast.c",
     "signal_processing/energy.c",
     "signal_processing/filter_ar.c",
     "signal_processing/filter_ma_fast_q12.c",
@@ -168,8 +209,6 @@ rtc_library("common_audio_c") {
 
   if (current_cpu == "mipsel") {
     sources += [
-      "signal_processing/cross_correlation_mips.c",
-      "signal_processing/downsample_fast_mips.c",
       "signal_processing/filter_ar_fast_q12_mips.c",
       "signal_processing/include/spl_inl_mips.h",
       "signal_processing/resample_by_2_mips.c",
@@ -308,31 +347,10 @@ if (rtc_build_with_neon) {
     }
 
     deps = [
-      ":common_audio_neon_c",
       ":fir_filter",
       ":sinc_resampler",
       "../rtc_base:checks",
       "../rtc_base/memory:aligned_malloc",
-    ]
-  }
-
-  rtc_library("common_audio_neon_c") {
-    visibility += webrtc_default_visibility
-    sources = [
-      "signal_processing/cross_correlation_neon.c",
-      "signal_processing/downsample_fast_neon.c",
-    ]
-
-    if (current_cpu != "arm64") {
-      # Enable compilation for the NEON instruction set.
-      suppressed_configs += [ "//build/config/compiler:compiler_arm_fpu" ]
-      cflags = [ "-mfpu=neon" ]
-    }
-
-    deps = [
-      ":common_audio_c",
-      "../rtc_base:checks",
-      "../rtc_base/system:arch",
     ]
   }
 }
@@ -450,6 +468,7 @@ if (rtc_include_tests && !build_with_chromium) {
       ":common_audio",
       ":common_audio_c",
       ":common_audio_cc",
+      ":cross_correlation",
       ":min_max_operations",
       "../rtc_base:stringutils",
       "../test:test_support",

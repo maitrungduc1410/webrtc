@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/cross_correlation.h"
 #include "common_audio/signal_processing/include/spl_inl.h"
 #include "common_audio/signal_processing/min_max_operations.h"
 

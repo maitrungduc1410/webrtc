@@ -404,63 +404,6 @@ void WebRtcSpl_AutoCorrToReflCoef(const int32_t* auto_corr,
                                   int use_order,
                                   int16_t* refl_coef);
 
-// The functions (with related pointer) calculate the cross-correlation between
-// two sequences `seq1` and `seq2`.
-// `seq1` is fixed and `seq2` slides as the pointer is increased with the
-// amount `step_seq2`. Note the arguments should obey the relationship:
-// `dim_seq` - 1 + `step_seq2` * (`dim_cross_correlation` - 1) <
-//      buffer size of `seq2`
-//
-// Input:
-//      - seq1           : First sequence (fixed throughout the correlation)
-//      - seq2           : Second sequence (slides `step_vector2` for each
-//                            new correlation)
-//      - dim_seq        : Number of samples to use in the cross-correlation
-//      - dim_cross_correlation : Number of cross-correlations to calculate (the
-//                            start position for `vector2` is updated for each
-//                            new one)
-//      - right_shifts   : Number of right bit shifts to use. This will
-//                            become the output Q-domain.
-//      - step_seq2      : How many (positive or negative) steps the
-//                            `vector2` pointer should be updated for each new
-//                            cross-correlation value.
-//
-// Output:
-//      - cross_correlation : The cross-correlation in Q(-right_shifts)
-typedef void (*CrossCorrelation)(int32_t* cross_correlation,
-                                 const int16_t* seq1,
-                                 const int16_t* seq2,
-                                 size_t dim_seq,
-                                 size_t dim_cross_correlation,
-                                 int right_shifts,
-                                 int step_seq2);
-extern const CrossCorrelation WebRtcSpl_CrossCorrelation;
-void WebRtcSpl_CrossCorrelationC(int32_t* cross_correlation,
-                                 const int16_t* seq1,
-                                 const int16_t* seq2,
-                                 size_t dim_seq,
-                                 size_t dim_cross_correlation,
-                                 int right_shifts,
-                                 int step_seq2);
-#if defined(WEBRTC_HAS_NEON)
-void WebRtcSpl_CrossCorrelationNeon(int32_t* cross_correlation,
-                                    const int16_t* seq1,
-                                    const int16_t* seq2,
-                                    size_t dim_seq,
-                                    size_t dim_cross_correlation,
-                                    int right_shifts,
-                                    int step_seq2);
-#endif
-#if defined(MIPS32_LE)
-void WebRtcSpl_CrossCorrelation_mips(int32_t* cross_correlation,
-                                     const int16_t* seq1,
-                                     const int16_t* seq2,
-                                     size_t dim_seq,
-                                     size_t dim_cross_correlation,
-                                     int right_shifts,
-                                     int step_seq2);
-#endif
-
 // Creates (the first half of) a Hanning window. Size must be at least 1 and
 // at most 512.
 //
@@ -544,60 +487,6 @@ void WebRtcSpl_FilterARFastQ12(const int16_t* data_in,
                                const int16_t* __restrict coefficients,
                                size_t coefficients_length,
                                size_t data_length);
-
-// The functions (with related pointer) perform a MA down sampling filter
-// on a vector.
-// Input:
-//      - data_in            : Input samples (state in positions
-//                               data_in[-order] .. data_in[-1])
-//      - data_in_length     : Number of samples in `data_in` to be filtered.
-//                               This must be at least
-//                               `delay` + `factor`*(`out_vector_length`-1) + 1)
-//      - data_out_length    : Number of down sampled samples desired
-//      - coefficients       : Filter coefficients (in Q12)
-//      - coefficients_length: Number of coefficients (order+1)
-//      - factor             : Decimation factor
-//      - delay              : Delay of filter (compensated for in out_vector)
-// Output:
-//      - data_out           : Filtered samples
-// Return value              : 0 if OK, -1 if `in_vector` is too short
-typedef int (*DownsampleFast)(const int16_t* data_in,
-                              size_t data_in_length,
-                              int16_t* data_out,
-                              size_t data_out_length,
-                              const int16_t* __restrict coefficients,
-                              size_t coefficients_length,
-                              int factor,
-                              size_t delay);
-extern const DownsampleFast WebRtcSpl_DownsampleFast;
-int WebRtcSpl_DownsampleFastC(const int16_t* data_in,
-                              size_t data_in_length,
-                              int16_t* data_out,
-                              size_t data_out_length,
-                              const int16_t* __restrict coefficients,
-                              size_t coefficients_length,
-                              int factor,
-                              size_t delay);
-#if defined(WEBRTC_HAS_NEON)
-int WebRtcSpl_DownsampleFastNeon(const int16_t* data_in,
-                                 size_t data_in_length,
-                                 int16_t* data_out,
-                                 size_t data_out_length,
-                                 const int16_t* __restrict coefficients,
-                                 size_t coefficients_length,
-                                 int factor,
-                                 size_t delay);
-#endif
-#if defined(MIPS32_LE)
-int WebRtcSpl_DownsampleFast_mips(const int16_t* data_in,
-                                  size_t data_in_length,
-                                  int16_t* data_out,
-                                  size_t data_out_length,
-                                  const int16_t* __restrict coefficients,
-                                  size_t coefficients_length,
-                                  int factor,
-                                  size_t delay);
-#endif
 
 // End: Filter operations.
 

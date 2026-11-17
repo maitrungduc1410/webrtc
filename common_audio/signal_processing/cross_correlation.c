@@ -8,7 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/cross_correlation.h"
+
+#include <stddef.h>
+#include <stdint.h>
 
 /* C version of WebRtcSpl_CrossCorrelation() for generic platforms. */
 void WebRtcSpl_CrossCorrelationC(int32_t* cross_correlation,
@@ -27,4 +30,25 @@ void WebRtcSpl_CrossCorrelationC(int32_t* cross_correlation,
     seq2 += step_seq2;
     *cross_correlation++ = corr;
   }
+}
+
+void WebRtcSpl_CrossCorrelation(int32_t* cross_correlation,
+                                const int16_t* seq1,
+                                const int16_t* seq2,
+                                size_t dim_seq,
+                                size_t dim_cross_correlation,
+                                int right_shifts,
+                                int step_seq2) {
+#if defined(WEBRTC_HAS_NEON)
+  WebRtcSpl_CrossCorrelationNeon(cross_correlation, seq1, seq2, dim_seq,
+                                 dim_cross_correlation, right_shifts,
+                                 step_seq2);
+#elif defined(MIPS32_LE)
+  WebRtcSpl_CrossCorrelation_mips(cross_correlation, seq1, seq2, dim_seq,
+                                  dim_cross_correlation, right_shifts,
+                                  step_seq2);
+#else
+  WebRtcSpl_CrossCorrelationC(cross_correlation, seq1, seq2, dim_seq,
+                              dim_cross_correlation, right_shifts, step_seq2);
+#endif
 }

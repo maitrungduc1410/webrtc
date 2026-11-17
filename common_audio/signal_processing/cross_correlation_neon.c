@@ -8,10 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <arm_neon.h>
+#include "common_audio/signal_processing/cross_correlation.h"
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "rtc_base/system/arch.h"
+#include <arm_neon.h>
+#include <stddef.h>
+#include <stdint.h>
 
 static inline void DotProductWithScaleNeon(int32_t* cross_correlation,
                                            const int16_t* vector1,
@@ -46,7 +47,7 @@ static inline void DotProductWithScaleNeon(int32_t* cross_correlation,
   // Calculate the rest of the samples.
   int64_t sum_res = 0;
   for (i = len2; i > 0; i -= 1) {
-    sum_res += WEBRTC_SPL_MUL_16_16(*vector1, *vector2);
+    sum_res += *vector1 * *vector2;
     vector1++;
     vector2++;
   }

@@ -8,9 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <arm_neon.h>
+#include "common_audio/signal_processing/downsample_fast.h"
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include <arm_neon.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "common_audio/signal_processing/include/spl_inl.h"
 #include "rtc_base/checks.h"
 
 // NEON intrinsics version of WebRtcSpl_DownsampleFast()

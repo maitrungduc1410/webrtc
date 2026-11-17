@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <iterator>
 
+#include "common_audio/signal_processing/cross_correlation.h"
 #include "common_audio/signal_processing/dot_product_with_scale.h"
 #include "common_audio/signal_processing/include/signal_processing_library.h"
 #include "common_audio/signal_processing/include/spl_inl.h"
@@ -604,18 +605,15 @@ TEST(SplTest, CrossCorrelationTest) {
 
   // WebRtcSpl_CrossCorrelationC() and WebRtcSpl_CrossCorrelationNeon()
   // are not bit-exact.
+#if defined(WEBRTC_HAS_NEON)
+  const int32_t kExpected[kCrossCorrelationDimension] = {-266947901, -15579553,
+                                                         -171281999};
+#else
   const int32_t kExpected[kCrossCorrelationDimension] = {-266947903, -15579555,
                                                          -171282001};
-  const int32_t* expected = kExpected;
-#if !defined(MIPS32_LE)
-  const int32_t kExpectedNeon[kCrossCorrelationDimension] = {
-      -266947901, -15579553, -171281999};
-  if (WebRtcSpl_CrossCorrelation != WebRtcSpl_CrossCorrelationC) {
-    expected = kExpectedNeon;
-  }
 #endif
   for (size_t i = 0; i < kCrossCorrelationDimension; ++i) {
-    EXPECT_EQ(expected[i], vector32[i]);
+    EXPECT_EQ(kExpected[i], vector32[i]);
   }
 }
 
