@@ -372,8 +372,13 @@ void DataChannelController::OnDataChannelOpenMessage(
   if (auto* tracer = pc_->tracer()) {
     tracer->OnDataChannel(*proxy, id);
   }
-  pc_->RunWithObserver([&](auto observer) { observer->OnDataChannel(proxy); });
+  // Noted before the callback, which may close the PeerConnection and thereby
+  // report the usage pattern.
   pc_->NoteDataAddedEvent();
+  if (!pc_->RunWithObserver(
+          [&](auto observer) { observer->OnDataChannel(proxy); })) {
+    return;
+  }
 
   if (ready_to_send) {
     channel->PostOnTransportReady();

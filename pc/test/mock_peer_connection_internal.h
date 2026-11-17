@@ -71,7 +71,12 @@ namespace webrtc {
 
 class MockPeerConnectionInternal : public PeerConnectionInternal {
  public:
-  MockPeerConnectionInternal() {}
+  MockPeerConnectionInternal() {
+    // By default, observer callbacks don't close or release the PeerConnection.
+    ON_CALL(*this, RunWithObserver).WillByDefault(::testing::Return(true));
+    ON_CALL(*this, SetIceConnectionState)
+        .WillByDefault(::testing::Return(true));
+  }
   ~MockPeerConnectionInternal() override = default;
   // PeerConnectionInterface
   MOCK_METHOD(scoped_refptr<StreamCollectionInterface>,
@@ -297,7 +302,7 @@ class MockPeerConnectionInternal : public PeerConnectionInternal {
               tracer,
               (),
               (const, override));
-  MOCK_METHOD(void,
+  MOCK_METHOD(bool,
               RunWithObserver,
               (absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&>),
               (override));
@@ -305,7 +310,7 @@ class MockPeerConnectionInternal : public PeerConnectionInternal {
               ice_connection_state_internal,
               (),
               (override));
-  MOCK_METHOD(void,
+  MOCK_METHOD(bool,
               SetIceConnectionState,
               (PeerConnectionInterface::IceConnectionState),
               (override));

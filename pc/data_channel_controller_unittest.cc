@@ -730,6 +730,7 @@ TEST_F(DataChannelControllerTest, ReopenChannelWhileClosing) {
             };
             FakeObserver observer(new_channel);
             std::move(callback)(&observer);
+            return true;
           });
 
   // 4. Construct a valid OPEN message for SID 4.

@@ -100,13 +100,17 @@ class PeerConnectionSdpMethods {
   virtual LegacyStatsCollector* legacy_stats() = 0;
   virtual PeerConnectionTracerInterface* tracer() = 0;
   virtual const PeerConnectionTracerInterface* tracer() const = 0;
-  // Run lambda on the PeerConnectionObserver. Will crash on CHECK if the
-  // observer is removed.
-  virtual void RunWithObserver(
+  // Runs `task` with the PeerConnectionObserver, unless the observer has been
+  // detached by Close() or destruction. Returns false if `task` closed or
+  // released the PeerConnection, in which case the caller must stop processing
+  // since the PeerConnection may have been deleted.
+  virtual bool RunWithObserver(
       absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&>) = 0;
   virtual PeerConnectionInterface::IceConnectionState
   ice_connection_state_internal() = 0;
-  virtual void SetIceConnectionState(
+  // Returns false if the observer closed or released the PeerConnection, see
+  // RunWithObserver().
+  virtual bool SetIceConnectionState(
       PeerConnectionInterface::IceConnectionState new_state) = 0;
   virtual void NoteUsageEvent(UsageEvent event) = 0;
   virtual bool IsClosed() const = 0;

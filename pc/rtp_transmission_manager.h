@@ -79,13 +79,19 @@ struct RtpSenderInfo {
 // RtpTransceiver.
 class RtpTransmissionManager : public RtpSenderBase::SetStreamsObserver {
  public:
+  // Runs a task with the PeerConnectionObserver and returns false if the task
+  // closed or released the PeerConnection, see
+  // PeerConnectionSdpMethods::RunWithObserver().
+  using RunWithObserverFunction = absl::AnyInvocable<bool(
+      absl::AnyInvocable<void(PeerConnectionObserver*) &&>)>;  // NOLINT
+
   RtpTransmissionManager(const Environment& env,
                          Call* call,
                          bool is_unified_plan,
                          ConnectionContext* context,
                          CodecLookupHelper* codec_lookup_helper,
                          UsagePattern* usage_pattern,
-                         PeerConnectionObserver* observer,
+                         RunWithObserverFunction run_with_observer,
                          LegacyStatsCollectorInterface* legacy_stats,
                          absl::AnyInvocable<void()> on_negotiation_needed);
 
@@ -93,7 +99,7 @@ class RtpTransmissionManager : public RtpSenderBase::SetStreamsObserver {
   RtpTransmissionManager(const RtpTransmissionManager&) = delete;
   RtpTransmissionManager& operator=(const RtpTransmissionManager&) = delete;
 
-  // Stop activity. In particular, don't call observer_ any more.
+  // Stop activity.
   void Close();
 
   // RtpSenderBase::SetStreamsObserver override.
@@ -144,14 +150,14 @@ class RtpTransmissionManager : public RtpSenderBase::SetStreamsObserver {
   // session description. It creates a remote MediaStreamTrackInterface
   // implementation and triggers CreateAudioReceiverPlanB or
   // CreateVideoReceiverPlanB.
-  PLAN_B_ONLY void OnRemoteSenderAddedPlanB(const RtpSenderInfo& sender_info,
+  PLAN_B_ONLY bool OnRemoteSenderAddedPlanB(const RtpSenderInfo& sender_info,
                                             MediaStreamInterface* stream,
                                             MediaType media_type);
 
   // Triggered when a remote sender has been removed from a remote session
   // description. It removes the remote sender with id `sender_id` from a remote
   // MediaStream and triggers DestroyAudioReceiver or DestroyVideoReceiver.
-  PLAN_B_ONLY void OnRemoteSenderRemovedPlanB(const RtpSenderInfo& sender_info,
+  PLAN_B_ONLY bool OnRemoteSenderRemovedPlanB(const RtpSenderInfo& sender_info,
                                               MediaStreamInterface* stream,
                                               MediaType media_type);
 
@@ -232,18 +238,18 @@ class RtpTransmissionManager : public RtpSenderBase::SetStreamsObserver {
       const std::vector<RtpEncodingParameters>* init_send_encodings);
 
   // Create an RtpReceiver that sources an audio track.
-  PLAN_B_ONLY void CreateAudioReceiverPlanB(
+  PLAN_B_ONLY bool CreateAudioReceiverPlanB(
       MediaStreamInterface* stream,
       const RtpSenderInfo& remote_sender_info) RTC_RUN_ON(signaling_thread());
 
   // Create an RtpReceiver that sources a video track.
-  PLAN_B_ONLY void CreateVideoReceiverPlanB(
+  PLAN_B_ONLY bool CreateVideoReceiverPlanB(
       MediaStreamInterface* stream,
       const RtpSenderInfo& remote_sender_info) RTC_RUN_ON(signaling_thread());
   PLAN_B_ONLY scoped_refptr<RtpReceiverInterface> RemoveAndStopReceiver(
       const RtpSenderInfo& remote_sender_info) RTC_RUN_ON(signaling_thread());
 
-  void RunWithObserver(
+  bool RunWithObserver(
       absl::AnyInvocable<void(PeerConnectionObserver*) &&>);  // NOLINT
   void OnNegotiationNeeded();
 
@@ -272,7 +278,7 @@ class RtpTransmissionManager : public RtpSenderBase::SetStreamsObserver {
   ConnectionContext* context_;
   CodecLookupHelper* codec_lookup_helper_;
   UsagePattern* usage_pattern_;
-  PeerConnectionObserver* observer_;
+  RunWithObserverFunction run_with_observer_;
   LegacyStatsCollectorInterface* const legacy_stats_;
   absl::AnyInvocable<void()> on_negotiation_needed_;
   WeakPtrFactory<RtpTransmissionManager> weak_ptr_factory_

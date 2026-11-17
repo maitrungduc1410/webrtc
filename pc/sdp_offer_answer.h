@@ -81,6 +81,11 @@ class ScopedOperationsBatcher;
 // - Parsing and interpreting SDP.
 // - Generating offers and answers based on the current state.
 // This class lives on the signaling thread.
+//
+// PeerConnectionObserver callbacks may close the PeerConnection or release the
+// last reference to it, which deletes `this`. Methods that invoke callbacks
+// report this by returning false (or an error), in which case the caller must
+// stop processing and return without accessing `this`.
 class SdpOfferAnswerHandler : public SdpStateProvider {
  public:
   ~SdpOfferAnswerHandler() override;
@@ -113,7 +118,8 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   const VideoOptions& video_options() const { return video_options_; }
 
   // Change signaling state to Closed, and perform appropriate actions.
-  void Close();
+  // Returns false if the observer released the owning PeerConnection.
+  bool Close();
 
   // Called as part of destroying the owning PeerConnection.
   void PrepareForShutdown();
@@ -187,7 +193,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // event if needed. Also increments the internal state version counter, which
   // is used to invalidate cached/unapplied offers or answers when state
   // changes.
-  void UpdateNegotiationNeeded();
+  bool UpdateNegotiationNeeded();
   void AllocateSctpSids();
   // Based on the negotiation state, guess what the SSLRole might be without
   // directly getting the information from the transport.
@@ -288,14 +294,14 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
       RTC_RUN_ON(signaling_thread());
 
   // Part of ApplyRemoteDescription steps specific to Unified Plan.
-  void ApplyRemoteDescriptionUpdateTransceiverState(SdpType sdp_type);
+  bool ApplyRemoteDescriptionUpdateTransceiverState(SdpType sdp_type);
 
   // Updates sender SSRCs and init send encodings from transceivers.
   // Part of ApplyLocalDescription steps specific to Unified Plan.
   void UpdateSenderSsrcsFromLocalDescription() RTC_RUN_ON(signaling_thread());
 
   // Part of ApplyRemoteDescription steps specific to plan b.
-  PLAN_B_ONLY void PlanBUpdateSendersAndReceivers(
+  PLAN_B_ONLY bool PlanBUpdateSendersAndReceivers(
       const ContentInfo* audio_content,
       const AudioContentDescription* audio_desc,
       const ContentInfo* video_content,
@@ -336,7 +342,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
                               std::vector<IceParameters> credentials);
 
   // Update the state, signaling if necessary.
-  void ChangeSignalingState(
+  bool ChangeSignalingState(
       PeerConnectionInterface::SignalingState signaling_state);
 
   RTCError UpdateSessionState(
@@ -376,7 +382,10 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
       std::vector<scoped_refptr<MediaStreamInterface>>* removed_streams);
 
   bool CheckIfNegotiationIsNeeded();
-  void GenerateNegotiationNeededEvent();
+  // Fires the legacy OnRenegotiationNeeded() and the spec-compliant
+  // OnNegotiationNeededEvent() callbacks.
+  bool FireNegotiationNeeded();
+  bool GenerateNegotiationNeededEvent();
   // Helper method which verifies SDP.
   RTCError ValidateSessionDescription(
       const SessionDescriptionInterface* sdesc,
@@ -513,7 +522,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
 
   // Remove all local and remote senders of type `media_type`.
   // Called when a media type is rejected (m-line set to port 0).
-  PLAN_B_ONLY void RemoveSenders(webrtc::MediaType media_type);
+  PLAN_B_ONLY bool RemoveSenders(webrtc::MediaType media_type);
 
   // Loops through the vector of `streams` and finds added and removed
   // StreamParams since last time this method was called.
@@ -529,7 +538,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // is created if it doesn't exist; if false, it's removed if it exists.
   // `media_type` is the type of the `streams` and can be either audio or video.
   // If a new MediaStream is created it is added to `new_streams`.
-  PLAN_B_ONLY void UpdateRemoteSendersListPlanB(
+  PLAN_B_ONLY bool UpdateRemoteSendersListPlanB(
       const std::vector<StreamParams>& streams,
       bool default_track_needed,
       webrtc::MediaType media_type,
@@ -555,7 +564,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // Finds remote MediaStreams without any tracks and removes them from
   // `remote_streams_` and notifies the observer that the MediaStreams no longer
   // exist.
-  void UpdateEndedRemoteMediaStreams();
+  bool UpdateEndedRemoteMediaStreams();
 
   // Uses all remote candidates in the currently set remote_description().
   // If no remote description is currently set (nullptr), the return value will

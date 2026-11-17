@@ -26,7 +26,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
-#include "absl/cleanup/cleanup.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
@@ -137,8 +136,10 @@ void MaybeHandleLocallyRejectedTransceiver(
     // transceiver stopping. But if the rejection was caused by SDP
     // munging then we need to ensure the transceiver is stopping here.
     if (!transceiver->internal()->stopping()) {
-      worker_tasks.AddWithFinalizer(
-          transceiver->internal()->StopStandardAsync());
+      // Unlike stop(), don't update the negotiation-needed flag: that could
+      // run an observer callback while the description is being applied.
+      // DoSetLocalDescription() updates the flag once it has been applied.
+      worker_tasks.Add(transceiver->internal()->GetStopSendingAndReceiving());
     }
     RTC_DCHECK(transceiver->internal()->stopping());
   } else {
@@ -188,6 +189,9 @@ const char kSframeNotInOffer[] =
 
 const char kSessionError[] = "Session error code: ";
 const char kSessionErrorDesc[] = "Session error description: ";
+// Reported when an observer callback closed or released the PeerConnection
+// while a session description was being applied.
+const char kSessionShutDown[] = "Session was shut down";
 
 // The length of RTCP CNAMEs.
 const int kRtcpCnameLength = 16;
@@ -199,6 +203,39 @@ const char kDefaultStreamId[] = "default";
 // NOTE: Duplicated in peer_connection.cc:
 const char kDefaultAudioSenderId[] = "defaulta0";
 const char kDefaultVideoSenderId[] = "defaultv0";
+
+// Invokes `callback` with the PeerConnectionObserver for each of `items`.
+// Returns false, without invoking the remaining callbacks, if a callback closed
+// or released the PeerConnection.
+template <typename Items, typename Callback>
+bool RunWithObserverForEach(PeerConnectionSdpMethods& pc,
+                            const Items& items,
+                            const Callback& callback) {
+  for (const auto& item : items) {
+    if (!pc.RunWithObserver([&](PeerConnectionObserver* observer) {
+          callback(observer, item);
+        })) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Fires OnTrack() and OnAddTrack() for a transceiver that started receiving.
+// Returns false if a callback closed or released the PeerConnection.
+bool RunOnTrackCallbacks(
+    PeerConnectionSdpMethods& pc,
+    const scoped_refptr<RtpTransceiverInterface>& transceiver) {
+  if (!pc.RunWithObserver([&](PeerConnectionObserver* observer) {
+        observer->OnTrack(transceiver);
+      })) {
+    return false;
+  }
+  return pc.RunWithObserver([&](PeerConnectionObserver* observer) {
+    observer->OnAddTrack(transceiver->receiver(),
+                         transceiver->receiver()->streams());
+  });
+}
 
 flat_map<std::string, const ContentGroup*> GetBundleGroupsByMid(
     const SessionDescription* desc) {
@@ -1299,12 +1336,12 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
       std::unique_ptr<SessionDescriptionInterface> desc,
       scoped_refptr<SetRemoteDescriptionObserverInterface> observer,
       std::function<void()> operations_chain_callback)
-      : handler_(handler),
+      : handler_(handler->weak_ptr_factory_.GetWeakPtr()),
         desc_(std::move(desc)),
         observer_(std::move(observer)),
         operations_chain_callback_(std::move(operations_chain_callback)),
         type_(desc_->GetType()),
-        unified_plan_(handler_->IsUnifiedPlan()) {}
+        unified_plan_(handler->IsUnifiedPlan()) {}
 
   ~RemoteDescriptionOperation() {
     // If the observer has already been notified, it may have released the last
@@ -1357,7 +1394,9 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
           handler_->pc_->configuration()->enable_implicit_rollback &&
           handler_->signaling_state() ==
               PeerConnectionInterface::kHaveLocalOffer) {
-        handler_->Rollback(type_);
+        // Fails if an observer callback closed or released the PeerConnection.
+        error_ = handler_->Rollback(type_);
+        return !ok();
       }
       return false;
     }
@@ -1370,6 +1409,10 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
 
     return true;
   }
+
+  // Fails the operation since an observer callback closed or released the
+  // PeerConnection.
+  void AbortForShutdown() { InternalError(kSessionShutDown); }
 
   // Report to UMA the format of the received offer or answer.
   void ReportOfferAnswerUma() {
@@ -1515,10 +1558,13 @@ class SdpOfferAnswerHandler::RemoteDescriptionOperation {
   // SetLocalDescription/SetRemoteDescription fail.
   void SetAsSessionError() {
     RTC_DCHECK(!ok());
-    handler_->SetSessionError(SessionError::kContent, error_.message());
+    if (handler_) {
+      handler_->SetSessionError(SessionError::kContent, error_.message());
+    }
   }
 
-  SdpOfferAnswerHandler* const handler_;
+  // Null once an observer callback has released the PeerConnection.
+  const WeakPtr<SdpOfferAnswerHandler> handler_;
   std::unique_ptr<SessionDescriptionInterface> desc_;
   // Keeps the replaced session description object alive while the operation
   // is taking place since methods that depend on `old_remote_description()`
@@ -1971,9 +2017,9 @@ void SdpOfferAnswerHandler::OnPooledIceCredentials(
   }
 }
 
-void SdpOfferAnswerHandler::Close() {
+bool SdpOfferAnswerHandler::Close() {
   RTC_LOG_THREAD_BLOCK_COUNT();
-  ChangeSignalingState(PeerConnectionInterface::kClosed);
+  return ChangeSignalingState(PeerConnectionInterface::kClosed);
 }
 
 void SdpOfferAnswerHandler::RestartIce() {
@@ -2329,14 +2375,17 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
             RtpTransceiverDirectionHasRecv(media_desc->direction()));
         transceiver->ApplySframeEnabled(media_desc->sframe_enabled());
       }
-      pc_->RunWithObserver([&](auto observer) {
-        for (const auto& transceiver : remove_list) {
-          observer->OnRemoveTrack(transceiver->receiver());
-        }
-        for (const auto& stream : removed_streams) {
-          observer->OnRemoveStream(stream);
-        }
-      });
+      if (!RunWithObserverForEach(*pc_, remove_list,
+                                  [](auto observer, const auto& transceiver) {
+                                    observer->OnRemoveTrack(
+                                        transceiver->receiver());
+                                  }) ||
+          !RunWithObserverForEach(*pc_, removed_streams,
+                                  [](auto observer, const auto& stream) {
+                                    observer->OnRemoveStream(stream);
+                                  })) {
+        return RTCError::InternalError(kSessionShutDown);
+      }
     }
   } else {
     // Media channels will be created only when offer is set. These may use new
@@ -2414,7 +2463,9 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     if (audio_content) {
       RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
       if (audio_content->rejected) {
-        RemoveSenders(MediaType::AUDIO);
+        if (!RemoveSenders(MediaType::AUDIO)) {
+          return RTCError::InternalError(kSessionShutDown);
+        }
       } else {
         const MediaContentDescription* audio_desc =
             audio_content->media_description();
@@ -2428,7 +2479,9 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
     if (video_content) {
       RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
       if (video_content->rejected) {
-        RemoveSenders(MediaType::VIDEO);
+        if (!RemoveSenders(MediaType::VIDEO)) {
+          return RTCError::InternalError(kSessionShutDown);
+        }
       } else {
         const MediaContentDescription* video_desc =
             video_content->media_description();
@@ -2651,11 +2704,18 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
       remote_description()->number_of_mediasections() > 0u &&
       pc_->ice_connection_state_internal() ==
           PeerConnectionInterface::kIceConnectionNew) {
-    pc_->SetIceConnectionState(PeerConnectionInterface::kIceConnectionChecking);
+    if (!pc_->SetIceConnectionState(
+            PeerConnectionInterface::kIceConnectionChecking)) {
+      operation->AbortForShutdown();
+      return;
+    }
   }
 
   if (operation->unified_plan()) {
-    ApplyRemoteDescriptionUpdateTransceiverState(operation->type());
+    if (!ApplyRemoteDescriptionUpdateTransceiverState(operation->type())) {
+      operation->AbortForShutdown();
+      return;
+    }
   }
   remote_peer_supports_msid_ =
       remote_description()->description()->msid_signaling() !=
@@ -2663,12 +2723,16 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
 
   if (!operation->unified_plan()) {
     RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
-    PlanBUpdateSendersAndReceivers(
+    bool ok = PlanBUpdateSendersAndReceivers(
         GetFirstAudioContent(remote_description()->description()),
         GetFirstAudioContentDescription(remote_description()->description()),
         GetFirstVideoContent(remote_description()->description()),
         GetFirstVideoContentDescription(remote_description()->description()));
     RTC_ALLOW_PLAN_B_DEPRECATION_END();
+    if (!ok) {
+      operation->AbortForShutdown();
+      return;
+    }
 
     // Plan B transport synchronization.
     flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
@@ -2710,12 +2774,12 @@ void SdpOfferAnswerHandler::ApplyRemoteDescription(
   SetRemoteDescriptionPostProcess(operation->type() == SdpType::kAnswer);
 }
 
-void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
+bool SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     SdpType sdp_type) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(IsUnifiedPlan());
   if (!ConfiguredForMedia()) {
-    return;
+    return true;
   }
   std::vector<scoped_refptr<RtpTransceiverInterface>>
       now_receiving_transceivers;
@@ -2860,26 +2924,28 @@ void SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   }
 
   // Once all processing has finished, fire off callbacks.
-  pc_->RunWithObserver([&](auto observer) {
-    for (const auto& transceiver : now_receiving_transceivers) {
-      pc_->legacy_stats()->AddTrack(transceiver->receiver()->track().get());
-      observer->OnTrack(transceiver);
-      observer->OnAddTrack(transceiver->receiver(),
-                           transceiver->receiver()->streams());
+  for (const auto& transceiver : now_receiving_transceivers) {
+    pc_->legacy_stats()->AddTrack(transceiver->receiver()->track().get());
+    if (!RunOnTrackCallbacks(*pc_, transceiver)) {
+      return false;
     }
-    for (const auto& stream : added_streams) {
-      observer->OnAddStream(stream);
-    }
-    for (const auto& transceiver : remove_list) {
-      observer->OnRemoveTrack(transceiver->receiver());
-    }
-    for (const auto& stream : removed_streams) {
-      observer->OnRemoveStream(stream);
-    }
-  });
+  }
+  return RunWithObserverForEach(*pc_, added_streams,
+                                [](auto observer, const auto& stream) {
+                                  observer->OnAddStream(stream);
+                                }) &&
+         RunWithObserverForEach(
+             *pc_, remove_list,
+             [](auto observer, const auto& transceiver) {
+               observer->OnRemoveTrack(transceiver->receiver());
+             }) &&
+         RunWithObserverForEach(*pc_, removed_streams,
+                                [](auto observer, const auto& stream) {
+                                  observer->OnRemoveStream(stream);
+                                });
 }
 
-void SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
+bool SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
     const ContentInfo* audio_content,
     const AudioContentDescription* audio_desc,
     const ContentInfo* video_content,
@@ -2903,14 +2969,18 @@ void SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
   // and MediaStreams.
   if (audio_content) {
     if (audio_content->rejected) {
-      RemoveSenders(MediaType::AUDIO);
+      if (!RemoveSenders(MediaType::AUDIO)) {
+        return false;
+      }
     } else {
       bool default_audio_track_needed =
           !remote_peer_supports_msid_ &&
           RtpTransceiverDirectionHasSend(audio_desc->direction());
-      UpdateRemoteSendersListPlanB(GetActiveStreams(audio_desc),
-                                   default_audio_track_needed,
-                                   audio_desc->type(), new_streams.get());
+      if (!UpdateRemoteSendersListPlanB(
+              GetActiveStreams(audio_desc), default_audio_track_needed,
+              audio_desc->type(), new_streams.get())) {
+        return false;
+      }
     }
   }
 
@@ -2918,27 +2988,34 @@ void SdpOfferAnswerHandler::PlanBUpdateSendersAndReceivers(
   // and MediaStreams.
   if (video_content) {
     if (video_content->rejected) {
-      RemoveSenders(MediaType::VIDEO);
+      if (!RemoveSenders(MediaType::VIDEO)) {
+        return false;
+      }
     } else {
       bool default_video_track_needed =
           !remote_peer_supports_msid_ &&
           RtpTransceiverDirectionHasSend(video_desc->direction());
-      UpdateRemoteSendersListPlanB(GetActiveStreams(video_desc),
-                                   default_video_track_needed,
-                                   video_desc->type(), new_streams.get());
+      if (!UpdateRemoteSendersListPlanB(
+              GetActiveStreams(video_desc), default_video_track_needed,
+              video_desc->type(), new_streams.get())) {
+        return false;
+      }
     }
   }
 
   // Iterate new_streams and notify the observer about new MediaStreams.
-  pc_->RunWithObserver([&](auto observer) {
-    for (size_t i = 0; i < new_streams->count(); ++i) {
-      MediaStreamInterface* new_stream = new_streams->at(i);
-      pc_->legacy_stats()->AddStream(new_stream);
-      observer->OnAddStream(scoped_refptr<MediaStreamInterface>(new_stream));
+  for (size_t i = 0; i < new_streams->count(); ++i) {
+    MediaStreamInterface* new_stream = new_streams->at(i);
+    pc_->legacy_stats()->AddStream(new_stream);
+    if (!pc_->RunWithObserver([&](auto observer) {
+          observer->OnAddStream(
+              scoped_refptr<MediaStreamInterface>(new_stream));
+        })) {
+      return false;
     }
-  });
+  }
 
-  UpdateEndedRemoteMediaStreams();
+  return UpdateEndedRemoteMediaStreams();
 }
 
 void SdpOfferAnswerHandler::ReportInitialSdpMunging(bool had_local_description,
@@ -3034,11 +3111,15 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
     return;
   }
 
+  WeakPtr<SdpOfferAnswerHandler> this_weak_ptr = weak_ptr_factory_.GetWeakPtr();
+
   // For SLD we support only explicit rollback.
   if (desc->GetType() == SdpType::kRollback) {
     if (IsUnifiedPlan()) {
       RTCError error = Rollback(desc->GetType());
-      TraceSetLocalDescriptionComplete(error);
+      if (this_weak_ptr) {
+        TraceSetLocalDescriptionComplete(error);
+      }
       observer->OnSetLocalDescriptionComplete(std::move(error));
     } else {
       RTCError error(RTCErrorType::UNSUPPORTED_OPERATION,
@@ -3154,12 +3235,16 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
     // If ApplyLocalDescription fails, the PeerConnection could be in an
     // inconsistent state, so act conservatively here and set the session error
     // so that future calls to SetLocalDescription/SetRemoteDescription fail.
-    SetSessionError(SessionError::kContent, error.message());
+    if (this_weak_ptr) {
+      SetSessionError(SessionError::kContent, error.message());
+    }
     std::string error_message =
         GetSetDescriptionErrorMessage(CS_LOCAL, type, error);
     RTC_LOG(LS_ERROR) << error_message;
     error = RTCError(RTCErrorType::INTERNAL_ERROR, std::move(error_message));
-    TraceSetLocalDescriptionComplete(error);
+    if (this_weak_ptr) {
+      TraceSetLocalDescriptionComplete(error);
+    }
     observer->OnSetLocalDescriptionComplete(std::move(error));
     return;
   }
@@ -3197,7 +3282,6 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
   TraceSetLocalDescriptionComplete(RTCError::OK());
   // The observer may release the last reference to the PeerConnection, which
   // deletes `this`.
-  WeakPtr<SdpOfferAnswerHandler> this_weak_ptr = weak_ptr_factory_.GetWeakPtr();
   observer->OnSetLocalDescriptionComplete(RTCError::OK());
   // The observer may have closed or released the PeerConnection. If so, the
   // transport controller is gone and there is nothing left to do.
@@ -3211,14 +3295,13 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
   // is not needed prior to the promise resolving.
   if (IsUnifiedPlan()) {
     bool was_negotiation_needed = is_negotiation_needed_;
-    UpdateNegotiationNeeded();
+    if (!UpdateNegotiationNeeded()) {
+      return;
+    }
     if (signaling_state() == PeerConnectionInterface::kStable &&
-        was_negotiation_needed && is_negotiation_needed_) {
-      // Legacy version.
-      pc_->RunWithObserver(
-          [&](auto observer) { observer->OnRenegotiationNeeded(); });
-      // Spec-compliant version; the event may get invalidated before firing.
-      GenerateNegotiationNeededEvent();
+        was_negotiation_needed && is_negotiation_needed_ &&
+        !FireNegotiationNeeded()) {
+      return;
     }
   }
 
@@ -3465,14 +3548,10 @@ void SdpOfferAnswerHandler::SetRemoteDescriptionPostProcess(bool was_answer) {
   // is not needed prior to the promise resolving.
   if (IsUnifiedPlan()) {
     bool was_negotiation_needed = is_negotiation_needed_;
-    UpdateNegotiationNeeded();
-    if (signaling_state() == PeerConnectionInterface::kStable &&
+    if (UpdateNegotiationNeeded() &&
+        signaling_state() == PeerConnectionInterface::kStable &&
         was_negotiation_needed && is_negotiation_needed_) {
-      // Legacy version.
-      pc_->RunWithObserver(
-          [&](auto observer) { observer->OnRenegotiationNeeded(); });
-      // Spec-compliant version; the event may get invalidated before firing.
-      GenerateNegotiationNeededEvent();
+      FireNegotiationNeeded();
     }
   }
 }
@@ -3717,12 +3796,12 @@ PeerConnectionInterface::SignalingState SdpOfferAnswerHandler::signaling_state()
   return signaling_state_;
 }
 
-void SdpOfferAnswerHandler::ChangeSignalingState(
+bool SdpOfferAnswerHandler::ChangeSignalingState(
     PeerConnectionInterface::SignalingState signaling_state) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::ChangeSignalingState");
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (signaling_state_ == signaling_state) {
-    return;
+    return true;
   }
   RTC_LOG(LS_INFO) << "Session: " << pc_->session_id() << " Old state: "
                    << PeerConnectionInterface::AsString(signaling_state_)
@@ -3732,7 +3811,7 @@ void SdpOfferAnswerHandler::ChangeSignalingState(
   if (auto* tracer = pc_->tracer()) {
     tracer->OnSignalingStateChanged(signaling_state);
   }
-  pc_->RunWithObserver([&](auto observer) {
+  return pc_->RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnSignalingChange(signaling_state_);
   });
@@ -3792,7 +3871,9 @@ RTCError SdpOfferAnswerHandler::UpdateSessionState(
   // "signalingstatechange" is fired after the description has been applied.
   // Note that the state is changed even if applying the media descriptions
   // failed, in which case the operation results in a session error.
-  ChangeSignalingState(new_signaling_state);
+  if (!ChangeSignalingState(new_signaling_state) && error.ok()) {
+    return RTCError::InternalError(kSessionShutDown);
+  }
   return error;
 }
 
@@ -3990,11 +4071,6 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   // Keep to-be-removed transceivers alive until after tasks for them have been
   // run.
   std::vector<RtpTransceiverProxyRefPtr> transceivers_to_remove;
-  absl::Cleanup cleanup_remove = [&] {
-    for (const auto& transceiver : transceivers_to_remove) {
-      transceivers()->Remove(transceiver);
-    }
-  };
   // TODO(bugs.webrtc.org/558821261): Consider combining batchers targeting
   // the network thread. Note: Combining them is currently not safe because
   // worker tasks (such as channel deletion) depend on network tasks (clearing
@@ -4109,6 +4185,13 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   RTCError e = worker_tasks.Run();
   RTC_DCHECK(e.ok());  // only void tasks queued.
 
+  // Remove rolled-back transceivers now that the network and worker tasks have
+  // completed, before invoking observer callbacks that may destroy `this`
+  // (`transceivers_to_remove` keeps the objects alive until Rollback returns).
+  for (const auto& transceiver : transceivers_to_remove) {
+    transceivers()->Remove(transceiver);
+  }
+
   for (const auto& [sender, encodings] : senders_to_restore) {
     sender->set_init_send_encodings(encodings);
   }
@@ -4118,7 +4201,9 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   transceivers()->DiscardStableStates();
   pending_local_description_.reset();
   pending_remote_description_.reset();
-  ChangeSignalingState(PeerConnectionInterface::kStable);
+  if (!ChangeSignalingState(PeerConnectionInterface::kStable)) {
+    return RTCError::InternalError(kSessionShutDown);
+  }
 
   if (auto* tracer = pc_->tracer()) {
     for (const auto& transceiver : now_receiving_transceivers) {
@@ -4127,33 +4212,31 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   }
 
   // Once all processing has finished, fire off callbacks.
-  pc_->RunWithObserver([&](auto observer) {
-    for (const auto& transceiver : now_receiving_transceivers) {
-      observer->OnTrack(transceiver);
-      observer->OnAddTrack(transceiver->receiver(),
-                           transceiver->receiver()->streams());
+  for (const auto& transceiver : now_receiving_transceivers) {
+    if (!RunOnTrackCallbacks(*pc_, transceiver)) {
+      return RTCError::InternalError(kSessionShutDown);
     }
-    for (const auto& receiver : removed_receivers) {
-      observer->OnRemoveTrack(receiver);
-    }
-    for (const auto& stream : all_added_streams) {
-      observer->OnAddStream(stream);
-    }
-    for (const auto& stream : all_removed_streams) {
-      observer->OnRemoveStream(stream);
-    }
-  });
+  }
+  if (!RunWithObserverForEach(*pc_, removed_receivers,
+                              [](auto observer, const auto& receiver) {
+                                observer->OnRemoveTrack(receiver);
+                              }) ||
+      !RunWithObserverForEach(*pc_, all_added_streams,
+                              [](auto observer, const auto& stream) {
+                                observer->OnAddStream(stream);
+                              }) ||
+      !RunWithObserverForEach(*pc_, all_removed_streams,
+                              [](auto observer, const auto& stream) {
+                                observer->OnRemoveStream(stream);
+                              })) {
+    return RTCError::InternalError(kSessionShutDown);
+  }
 
   // The assumption is that in case of implicit rollback
   // UpdateNegotiationNeeded gets called in SetRemoteDescription.
   if (desc_type == SdpType::kRollback) {
-    UpdateNegotiationNeeded();
-    if (is_negotiation_needed_) {
-      // Legacy version.
-      pc_->RunWithObserver(
-          [&](auto observer) { observer->OnRenegotiationNeeded(); });
-      // Spec-compliant version; the event may get invalidated before firing.
-      GenerateNegotiationNeededEvent();
+    if (UpdateNegotiationNeeded() && is_negotiation_needed_) {
+      FireNegotiationNeeded();
     }
   }
   return RTCError::OK();
@@ -4232,14 +4315,11 @@ void SdpOfferAnswerHandler::VerifyCachedAnswer(
 }
 #endif
 
-void SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
+bool SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
   RTC_DCHECK_RUN_ON(signaling_thread());
   ++state_version_;
   if (!IsUnifiedPlan()) {
-    pc_->RunWithObserver(
-        [&](auto observer) { observer->OnRenegotiationNeeded(); });
-    GenerateNegotiationNeededEvent();
-    return;
+    return FireNegotiationNeeded();
   }
 
   // In the spec, a task is queued here to run the following steps - this is
@@ -4256,11 +4336,11 @@ void SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
 
   // If connection's [[IsClosed]] slot is true, abort these steps.
   if (pc_->IsClosed())
-    return;
+    return true;
 
   // If connection's signaling state is not "stable", abort these steps.
   if (signaling_state() != PeerConnectionInterface::kStable)
-    return;
+    return true;
 
   // NOTE
   // The negotiation-needed flag will be updated once the state transitions to
@@ -4275,13 +4355,13 @@ void SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
     // Invalidate any negotiation needed event that may previosuly have been
     // generated.
     ++negotiation_needed_event_id_;
-    return;
+    return true;
   }
 
   // If connection's [[NegotiationNeeded]] slot is already true, abort these
   // steps.
   if (is_negotiation_needed_)
-    return;
+    return true;
 
   // Set connection's [[NegotiationNeeded]] slot to true.
   is_negotiation_needed_ = true;
@@ -4290,12 +4370,21 @@ void SdpOfferAnswerHandler::UpdateNegotiationNeeded() {
   // If connection's [[IsClosed]] slot is true, abort these steps.
   // If connection's [[NegotiationNeeded]] slot is false, abort these steps.
   // Fire an event named negotiationneeded at connection.
-  pc_->RunWithObserver(
-      [&](auto observer) { observer->OnRenegotiationNeeded(); });
-  // Fire the spec-compliant version; when ShouldFireNegotiationNeededEvent()
-  // is used in the task queued by the observer, this event will only fire
-  // when the chain is empty.
-  GenerateNegotiationNeededEvent();
+  // The spec-compliant version of the event is fired as well; when
+  // ShouldFireNegotiationNeededEvent() is used in the task queued by the
+  // observer, this event will only fire when the chain is empty.
+  return FireNegotiationNeeded();
+}
+
+bool SdpOfferAnswerHandler::FireNegotiationNeeded() {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  // Legacy version.
+  if (!pc_->RunWithObserver(
+          [&](auto observer) { observer->OnRenegotiationNeeded(); })) {
+    return false;
+  }
+  // Spec-compliant version; the event may get invalidated before firing.
+  return GenerateNegotiationNeededEvent();
 }
 
 std::optional<SSLRole> SdpOfferAnswerHandler::GuessSslRole() const {
@@ -4502,10 +4591,10 @@ bool SdpOfferAnswerHandler::CheckIfNegotiationIsNeeded() {
   return false;
 }
 
-void SdpOfferAnswerHandler::GenerateNegotiationNeededEvent() {
+bool SdpOfferAnswerHandler::GenerateNegotiationNeededEvent() {
   RTC_DCHECK_RUN_ON(signaling_thread());
   ++negotiation_needed_event_id_;
-  pc_->RunWithObserver([&](auto observer) {
+  return pc_->RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnNegotiationNeededEvent(negotiation_needed_event_id_);
   });
@@ -5690,12 +5779,12 @@ void SdpOfferAnswerHandler::RemoveRemoteStreamsIfEmpty(
   }
 }
 
-void SdpOfferAnswerHandler::RemoveSenders(MediaType media_type) {
+bool SdpOfferAnswerHandler::RemoveSenders(MediaType media_type) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!IsUnifiedPlan());
   UpdateLocalSendersPlanB(std::vector<StreamParams>(), media_type);
-  UpdateRemoteSendersListPlanB(std::vector<StreamParams>(), false, media_type,
-                               nullptr);
+  return UpdateRemoteSendersListPlanB(std::vector<StreamParams>(), false,
+                                      media_type, nullptr);
 }
 
 void SdpOfferAnswerHandler::UpdateLocalSendersPlanB(
@@ -5739,7 +5828,7 @@ void SdpOfferAnswerHandler::UpdateLocalSendersPlanB(
   }
 }
 
-void SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
+bool SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
     const StreamParamsVec& streams,
     bool default_sender_needed,
     MediaType media_type,
@@ -5771,9 +5860,15 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
         sender_exists) {
       ++sender_it;
     } else {
-      rtp_manager()->OnRemoteSenderRemovedPlanB(
-          info, remote_streams_->find(info.stream_id), media_type);
+      // Erase from `current_senders` before invoking the observer callback in
+      // case the callback closes or destroys `PeerConnection`.
+      RtpSenderInfo removed_info = info;
       sender_it = current_senders->erase(sender_it);
+      if (!rtp_manager()->OnRemoteSenderRemovedPlanB(
+              removed_info, remote_streams_->find(removed_info.stream_id),
+              media_type)) {
+        return false;
+      }
     }
   }
 
@@ -5812,8 +5907,10 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
     });
     if (!found) {
       current_senders->push_back(RtpSenderInfo(stream_id, sender_id, ssrc));
-      rtp_manager()->OnRemoteSenderAddedPlanB(current_senders->back(),
-                                              stream.get(), media_type);
+      if (!rtp_manager()->OnRemoteSenderAddedPlanB(current_senders->back(),
+                                                   stream.get(), media_type)) {
+        return false;
+      }
     }
   }
 
@@ -5839,10 +5936,13 @@ void SdpOfferAnswerHandler::UpdateRemoteSendersListPlanB(
     if (!found) {
       current_senders->push_back(
           RtpSenderInfo(kDefaultStreamId, default_sender_id, /*ssrc=*/0));
-      rtp_manager()->OnRemoteSenderAddedPlanB(current_senders->back(),
-                                              default_stream.get(), media_type);
+      if (!rtp_manager()->OnRemoteSenderAddedPlanB(
+              current_senders->back(), default_stream.get(), media_type)) {
+        return false;
+      }
     }
   }
+  return true;
 }
 
 void SdpOfferAnswerHandler::EnableSending() {
@@ -6153,7 +6253,7 @@ void SdpOfferAnswerHandler::RemoveUnusedChannels(
   }
 }
 
-void SdpOfferAnswerHandler::UpdateEndedRemoteMediaStreams() {
+bool SdpOfferAnswerHandler::UpdateEndedRemoteMediaStreams() {
   RTC_DCHECK_RUN_ON(signaling_thread());
   std::vector<scoped_refptr<MediaStreamInterface>> streams_to_remove;
   for (size_t i = 0; i < remote_streams_->count(); ++i) {
@@ -6163,13 +6263,15 @@ void SdpOfferAnswerHandler::UpdateEndedRemoteMediaStreams() {
     }
   }
 
-  pc_->RunWithObserver([&](auto observer) {
-    RTC_DCHECK_RUN_ON(signaling_thread());
-    for (auto& stream : streams_to_remove) {
-      remote_streams_->RemoveStream(stream.get());
-      observer->OnRemoveStream(std::move(stream));
+  for (auto& stream : streams_to_remove) {
+    remote_streams_->RemoveStream(stream.get());
+    if (!pc_->RunWithObserver([&](auto observer) {
+          observer->OnRemoveStream(std::move(stream));
+        })) {
+      return false;
     }
-  });
+  }
+  return true;
 }
 
 bool SdpOfferAnswerHandler::UseCandidatesInRemoteDescription() {

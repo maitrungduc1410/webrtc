@@ -12,8 +12,10 @@
 // machine, as well as tests that check basic, media-agnostic aspects of SDP.
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <set>
@@ -22,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_cat.h"
@@ -31,9 +34,11 @@
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
 #include "api/create_peerconnection_factory.h"
+#include "api/data_channel_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/jsep.h"
 #include "api/make_ref_counted.h"
+#include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/peer_connection_interface.h"
 #include "api/ref_count.h"
@@ -56,6 +61,8 @@
 #include "api/video_codecs/video_encoder_factory_template_libvpx_vp9_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_open_h264_adapter.h"
 #include "media/base/codec.h"
+#include "p2p/base/port.h"
+#include "p2p/test/fake_port_allocator.h"
 #include "pc/peer_connection.h"
 #include "pc/peer_connection_wrapper.h"
 #include "pc/sdp_utils.h"
@@ -65,9 +72,12 @@
 #include "pc/test/fake_video_track_source.h"
 #include "pc/test/mock_peer_connection_observers.h"
 #include "rtc_base/checks.h"
+#include "rtc_base/containers/flat_map.h"
 #include "rtc_base/string_encode.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
+#include "test/create_test_environment.h"
 #include "test/create_test_field_trials.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -85,6 +95,7 @@ using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::StartsWith;
 using ::testing::Values;
+using ::testing::ValuesIn;
 
 namespace {
 constexpr int64_t kWaitTimeout = 10000;
@@ -247,10 +258,13 @@ class PeerConnectionSignalingBaseTest : public ::testing::Test {
  protected:
   typedef std::unique_ptr<PeerConnectionWrapperForSignalingTest> WrapperPtr;
 
-  explicit PeerConnectionSignalingBaseTest(SdpSemantics sdp_semantics)
+  // See CreatePeerConnectionDependencies() for `use_fake_port_allocator`.
+  explicit PeerConnectionSignalingBaseTest(SdpSemantics sdp_semantics,
+                                           bool use_fake_port_allocator = false)
       : vss_(new VirtualSocketServer()),
         main_(vss_.get()),
-        sdp_semantics_(sdp_semantics) {
+        sdp_semantics_(sdp_semantics),
+        use_fake_port_allocator_(use_fake_port_allocator) {
     pc_factory_ = CreatePeerConnectionFactory(
         Thread::Current(), Thread::Current(),
         scoped_refptr<AudioDeviceModule>(FakeAudioCaptureModule::Create()),
@@ -282,7 +296,8 @@ class PeerConnectionSignalingBaseTest : public ::testing::Test {
     auto observer = std::make_unique<MockPeerConnectionObserver>();
     RTCConfiguration modified_config = config;
     modified_config.sdp_semantics = sdp_semantics_;
-    PeerConnectionDependencies pc_deps(observer.get());
+    PeerConnectionDependencies pc_deps =
+        CreatePeerConnectionDependencies(observer.get());
     if (!field_trials.empty()) {
       pc_deps.trials = CreateTestFieldTrialsPtr(field_trials);
     }
@@ -310,19 +325,25 @@ class PeerConnectionSignalingBaseTest : public ::testing::Test {
     return wrapper;
   }
 
-  // Creates a PeerConnection with audio and video tracks that, unlike the
-  // helpers above, isn't owned by a PeerConnectionWrapper. This allows a test
-  // to hold the only reference to it. `observer` must outlive the
-  // PeerConnection.
+  // Creates a PeerConnection that, unlike the helpers above, isn't owned by a
+  // PeerConnectionWrapper. This allows a test to hold the only reference to
+  // it. `observer` must outlive the PeerConnection.
   absl_nonnull scoped_refptr<PeerConnectionInterface>
-  CreateUnwrappedPeerConnectionWithAudioVideo(
-      PeerConnectionObserver* absl_nonnull observer) {
+  CreateUnwrappedPeerConnection(PeerConnectionObserver* absl_nonnull observer) {
     RTCConfiguration config;
     config.sdp_semantics = sdp_semantics_;
     auto result = pc_factory_->CreatePeerConnectionOrError(
-        config, PeerConnectionDependencies(observer));
+        config, CreatePeerConnectionDependencies(observer));
     RTC_CHECK(result.ok());
-    scoped_refptr<PeerConnectionInterface> pc = result.MoveValue();
+    return result.MoveValue();
+  }
+
+  // Same as CreateUnwrappedPeerConnection(), with audio and video tracks.
+  absl_nonnull scoped_refptr<PeerConnectionInterface>
+  CreateUnwrappedPeerConnectionWithAudioVideo(
+      PeerConnectionObserver* absl_nonnull observer) {
+    scoped_refptr<PeerConnectionInterface> pc =
+        CreateUnwrappedPeerConnection(observer);
     EXPECT_TRUE(
         pc->AddTrack(pc_factory_->CreateAudioTrack("a", nullptr), {}).ok());
     EXPECT_TRUE(pc->AddTrack(pc_factory_->CreateVideoTrack(
@@ -330,6 +351,20 @@ class PeerConnectionSignalingBaseTest : public ::testing::Test {
                              {})
                     .ok());
     return pc;
+  }
+
+  // With `use_fake_port_allocator_`, uses a port allocator that gathers a
+  // loopback candidate on the virtual socket server, so that ICE doesn't depend
+  // on the host's network interfaces. That allocator ignores the candidate
+  // filter (e.g. RTCConfiguration::type), so it isn't used by default.
+  PeerConnectionDependencies CreatePeerConnectionDependencies(
+      PeerConnectionObserver* absl_nonnull observer) {
+    PeerConnectionDependencies dependencies(observer);
+    if (use_fake_port_allocator_) {
+      dependencies.allocator = std::make_unique<FakePortAllocator>(
+          CreateTestEnvironment(), vss_.get());
+    }
+    return dependencies;
   }
 
   // Creates an offer or an answer on `pc` and waits for the result.
@@ -392,6 +427,7 @@ class PeerConnectionSignalingBaseTest : public ::testing::Test {
   test::RunLoop main_;
   scoped_refptr<PeerConnectionFactoryInterface> pc_factory_;
   const SdpSemantics sdp_semantics_;
+  const bool use_fake_port_allocator_;
 };
 
 class PeerConnectionSignalingTest
@@ -1900,5 +1936,763 @@ TEST_F(PeerConnectionSignalingUnifiedPlanTest,
 
   EXPECT_EQ(offer_sdp, local_sdp);
 }
+
+namespace {
+
+// The callbacks of PeerConnectionObserver.
+enum class ObserverCallback {
+  kSignalingChange,
+  kAddStream,
+  kRemoveStream,
+  kDataChannel,
+  kRenegotiationNeeded,
+  kNegotiationNeededEvent,
+  kIceConnectionChange,
+  kStandardizedIceConnectionChange,
+  kConnectionChange,
+  kIceGatheringChange,
+  kIceCandidate,
+  kIceCandidateError,
+  kIceCandidateRemoved,
+  kIceConnectionReceivingChange,
+  kIceSelectedCandidatePairChanged,
+  kAddTrack,
+  kTrack,
+  kRemoveTrack,
+  kInterestingUsage,
+};
+
+enum class ObserverTeardownAction {
+  kClose,
+  kCloseAndDestroyObserver,
+  // Releasing the last reference from within a callback isn't supported (see
+  // PeerConnectionObserver), but must not crash or access deleted state.
+  kRelease,
+  kReleaseAndDestroyObserver,
+};
+
+constexpr ObserverTeardownAction kObserverTeardownActions[] = {
+    ObserverTeardownAction::kClose,
+    ObserverTeardownAction::kCloseAndDestroyObserver,
+    ObserverTeardownAction::kRelease,
+    ObserverTeardownAction::kReleaseAndDestroyObserver,
+};
+
+// Owns a PeerConnectionObserver and holds the only reference to a
+// PeerConnection. Tears down the PeerConnection as specified by `action` from
+// within the first callback that matches the trigger set by TeardownOn(), and
+// fails the test if a callback is made once the teardown has completed.
+class TeardownObserverController {
+ public:
+  explicit TeardownObserverController(ObserverTeardownAction action)
+      : action_(action), observer_(std::make_unique<Observer>(*this)) {}
+
+  PeerConnectionObserver* absl_nonnull observer() const {
+    RTC_DCHECK(observer_);
+    return observer_.get();
+  }
+
+  void SetPeerConnection(scoped_refptr<PeerConnectionInterface> pc) {
+    pc_ = std::move(pc);
+  }
+
+  PeerConnectionInterface* pc() const { return pc_.get(); }
+  bool triggered() const { return triggered_; }
+  int count(ObserverCallback callback) const {
+    auto it = counts_.find(callback);
+    return it == counts_.end() ? 0 : it->second;
+  }
+
+  // Tears down the PeerConnection from the first `callback` that reports one of
+  // `states`, or from the first `callback` if `states` is empty.
+  template <typename State = int>
+  void TeardownOn(ObserverCallback callback,
+                  std::initializer_list<State> states = {}) {
+    trigger_ = callback;
+    trigger_states_.clear();
+    for (State state : states) {
+      trigger_states_.push_back(static_cast<int>(state));
+    }
+  }
+
+  // Runs `check` from the triggering callback once a teardown with Close() has
+  // returned.
+  void SetAfterCloseCheck(absl::AnyInvocable<void() &&> check) {
+    after_close_check_ = std::move(check);
+  }
+
+ private:
+  class Observer : public PeerConnectionObserver {
+   public:
+    explicit Observer(TeardownObserverController& controller)
+        : controller_(controller) {}
+
+    void OnSignalingChange(SignalingState new_state) override {
+      controller_.OnCallback(ObserverCallback::kSignalingChange, new_state);
+    }
+    void OnAddStream(scoped_refptr<MediaStreamInterface> /*stream*/) override {
+      controller_.OnCallback(ObserverCallback::kAddStream);
+    }
+    void OnRemoveStream(
+        scoped_refptr<MediaStreamInterface> /*stream*/) override {
+      controller_.OnCallback(ObserverCallback::kRemoveStream);
+    }
+    void OnDataChannel(
+        scoped_refptr<DataChannelInterface> /*data_channel*/) override {
+      controller_.OnCallback(ObserverCallback::kDataChannel);
+    }
+    void OnRenegotiationNeeded() override {
+      controller_.OnCallback(ObserverCallback::kRenegotiationNeeded);
+    }
+    void OnNegotiationNeededEvent(uint32_t /*event_id*/) override {
+      controller_.OnCallback(ObserverCallback::kNegotiationNeededEvent);
+    }
+    void OnIceConnectionChange(
+        PeerConnectionInterface::IceConnectionState new_state) override {
+      controller_.OnCallback(ObserverCallback::kIceConnectionChange, new_state);
+    }
+    void OnStandardizedIceConnectionChange(
+        PeerConnectionInterface::IceConnectionState new_state) override {
+      controller_.OnCallback(ObserverCallback::kStandardizedIceConnectionChange,
+                             new_state);
+    }
+    void OnConnectionChange(
+        PeerConnectionInterface::PeerConnectionState new_state) override {
+      controller_.OnCallback(ObserverCallback::kConnectionChange,
+                             static_cast<int>(new_state));
+    }
+    void OnIceGatheringChange(
+        PeerConnectionInterface::IceGatheringState new_state) override {
+      controller_.OnCallback(ObserverCallback::kIceGatheringChange, new_state);
+    }
+    void OnIceCandidate(const IceCandidate* /*candidate*/) override {
+      controller_.OnCallback(ObserverCallback::kIceCandidate);
+    }
+    void OnIceCandidateError(const std::string& /*address*/,
+                             int /*port*/,
+                             const std::string& /*url*/,
+                             int /*error_code*/,
+                             const std::string& /*error_text*/) override {
+      controller_.OnCallback(ObserverCallback::kIceCandidateError);
+    }
+    void OnIceCandidateRemoved(const IceCandidate* /*candidate*/) override {
+      controller_.OnCallback(ObserverCallback::kIceCandidateRemoved);
+    }
+    void OnIceConnectionReceivingChange(bool /*receiving*/) override {
+      controller_.OnCallback(ObserverCallback::kIceConnectionReceivingChange);
+    }
+    void OnIceSelectedCandidatePairChanged(
+        const CandidatePairChangeEvent& /*event*/) override {
+      controller_.OnCallback(
+          ObserverCallback::kIceSelectedCandidatePairChanged);
+    }
+    void OnAddTrack(scoped_refptr<RtpReceiverInterface> /*receiver*/,
+                    const std::vector<scoped_refptr<MediaStreamInterface>>&
+                    /*streams*/) override {
+      controller_.OnCallback(ObserverCallback::kAddTrack);
+    }
+    void OnTrack(
+        scoped_refptr<RtpTransceiverInterface> /*transceiver*/) override {
+      controller_.OnCallback(ObserverCallback::kTrack);
+    }
+    void OnRemoveTrack(
+        scoped_refptr<RtpReceiverInterface> /*receiver*/) override {
+      controller_.OnCallback(ObserverCallback::kRemoveTrack);
+    }
+    void OnInterestingUsage(int /*usage_pattern*/) override {
+      controller_.OnCallback(ObserverCallback::kInterestingUsage);
+    }
+
+   private:
+    TeardownObserverController& controller_;
+  };
+
+  void OnCallback(ObserverCallback callback, int state = -1) {
+    ++counts_[callback];
+    EXPECT_FALSE(torn_down_)
+        << "Callback " << static_cast<int>(callback) << " after teardown";
+    if (!triggered_ && callback == trigger_ &&
+        (trigger_states_.empty() ||
+         absl::c_linear_search(trigger_states_, state))) {
+      Teardown();
+    }
+  }
+
+  void Teardown() {
+    triggered_ = true;
+    switch (action_) {
+      case ObserverTeardownAction::kClose:
+      case ObserverTeardownAction::kCloseAndDestroyObserver:
+        // Callbacks are expected while closing, but not once Close() returns.
+        pc_->Close();
+        torn_down_ = true;
+        if (after_close_check_) {
+          std::move(after_close_check_)();
+        }
+        break;
+      case ObserverTeardownAction::kRelease:
+      case ObserverTeardownAction::kReleaseAndDestroyObserver:
+        // No callbacks are expected while the PeerConnection is destroyed.
+        torn_down_ = true;
+        EXPECT_EQ(pc_.release()->Release(),
+                  RefCountReleaseStatus::kDroppedLastRef);
+        break;
+    }
+    if (action_ == ObserverTeardownAction::kCloseAndDestroyObserver ||
+        action_ == ObserverTeardownAction::kReleaseAndDestroyObserver) {
+      observer_.reset();
+    }
+  }
+
+  const ObserverTeardownAction action_;
+  std::unique_ptr<Observer> observer_;
+  // Declared after `observer_`, which must outlive the PeerConnection.
+  scoped_refptr<PeerConnectionInterface> pc_;
+  std::optional<ObserverCallback> trigger_;
+  std::vector<int> trigger_states_;
+  absl::AnyInvocable<void() &&> after_close_check_;
+  bool triggered_ = false;
+  bool torn_down_ = false;
+  flat_map<ObserverCallback, int> counts_;
+};
+
+}  // namespace
+
+class PeerConnectionObserverTeardownTest
+    : public PeerConnectionSignalingBaseTest,
+      public ::testing::WithParamInterface<
+          std::tuple<SdpSemantics, ObserverTeardownAction>> {
+ protected:
+  PeerConnectionObserverTeardownTest()
+      : PeerConnectionSignalingBaseTest(std::get<0>(GetParam()),
+                                        /*use_fake_port_allocator=*/true) {}
+
+  std::unique_ptr<TeardownObserverController> CreateController(
+      bool with_audio_video = false) {
+    auto controller =
+        std::make_unique<TeardownObserverController>(std::get<1>(GetParam()));
+    PeerConnectionObserver* observer = controller->observer();
+    controller->SetPeerConnection(
+        with_audio_video ? CreateUnwrappedPeerConnectionWithAudioVideo(observer)
+                         : CreateUnwrappedPeerConnection(observer));
+    return controller;
+  }
+
+  bool SetRemoteDescriptionSync(
+      PeerConnectionInterface* absl_nonnull pc,
+      std::unique_ptr<SessionDescriptionInterface> desc) {
+    auto observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+    pc->SetRemoteDescription(std::move(desc), observer);
+    return observer->called() && observer->error().ok();
+  }
+
+  // Has `callee` answer `offer` from `caller`.
+  bool AnswerOffer(PeerConnectionWrapper& caller,
+                   PeerConnectionInterface& callee,
+                   std::unique_ptr<SessionDescriptionInterface> offer) {
+    if (!SetRemoteDescriptionSync(&callee, std::move(offer))) {
+      return false;
+    }
+    std::unique_ptr<SessionDescriptionInterface> answer =
+        CreateOfferOrAnswer(&callee, SdpType::kAnswer);
+    if (answer == nullptr) {
+      return false;
+    }
+    auto observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+    callee.SetLocalDescription(answer->Clone(), observer);
+    return observer->called() && observer->error().ok() &&
+           caller.SetRemoteDescription(std::move(answer));
+  }
+
+  // Connects `caller` to the PeerConnection of `controller` and waits until it
+  // has been torn down. The offer includes all ICE candidates of `caller`, so
+  // that no candidates need to be signaled.
+  void ConnectAndWaitForTeardown(PeerConnectionWrapper& caller,
+                                 TeardownObserverController& controller) {
+    ASSERT_NE(caller.CreateOfferAndSetAsLocal(), nullptr);
+    ASSERT_TRUE(WaitUntil([&] { return caller.IsIceGatheringDone(); },
+                          {.timeout = TimeDelta::Millis(kWaitTimeout)}));
+    ASSERT_TRUE(AnswerOffer(caller, *controller.pc(),
+                            caller.pc()->local_description()->Clone()));
+    EXPECT_TRUE(WaitUntil([&] { return controller.triggered(); },
+                          {.timeout = TimeDelta::Millis(kWaitTimeout)}));
+  }
+};
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnRenegotiationNeededDuringAddTrack) {
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  auto result = controller->pc()->AddTrack(
+      pc_factory_->CreateAudioTrack("a", nullptr), {"s1"});
+  ASSERT_TRUE(result.ok());
+  EXPECT_TRUE(controller->triggered());
+  // The teardown stopped the sender, so this doesn't call into the
+  // PeerConnection, which may have been deleted.
+  result.value()->SetStreams({"s2"});
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnRenegotiationNeededDuringCreateDataChannel) {
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  DataChannelInit init;
+  auto result = controller->pc()->CreateDataChannelOrError("dc", &init);
+  EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnRenegotiationNeededDuringSetConfiguration) {
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  RTCConfiguration config = controller->pc()->GetConfiguration();
+  PeerConnectionInterface::IceServer server;
+  server.uri = "stun:127.0.0.1:3478";
+  config.servers.push_back(server);
+  EXPECT_TRUE(controller->pc()->SetConfiguration(config).ok());
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnRenegotiationNeededDuringRestartIce) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  auto callee = CreatePeerConnectionWithAudioVideo();
+  ASSERT_TRUE(
+      callee->SetRemoteDescription(CreateOfferAndSetAsLocal(controller->pc())));
+  ASSERT_TRUE(SetRemoteDescriptionSync(controller->pc(),
+                                       callee->CreateAnswerAndSetAsLocal()));
+
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  controller->pc()->RestartIce();
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnSignalingChangeDuringSetLocalOffer) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateOfferOrAnswer(controller->pc(), SdpType::kOffer);
+  ASSERT_NE(offer, nullptr);
+
+  controller->TeardownOn(ObserverCallback::kSignalingChange,
+                         {SignalingState::kHaveLocalOffer});
+  auto sld_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  controller->pc()->SetLocalDescription(std::move(offer), sld_observer);
+  EXPECT_TRUE(controller->triggered());
+  ASSERT_TRUE(sld_observer->called());
+  EXPECT_EQ(sld_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnSignalingChangeDuringSetRemoteOffer) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kSignalingChange,
+                         {SignalingState::kHaveRemoteOffer});
+
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnAddTrackStopsSubsequentTracks) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kAddTrack);
+
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kAddTrack), 1);
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnRemoveTrackStopsSubsequentRemovals) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  ASSERT_TRUE(AnswerOffer(*caller, *controller->pc(),
+                          caller->CreateOfferAndSetAsLocal()));
+
+  for (const auto& sender : caller->pc()->GetSenders()) {
+    ASSERT_TRUE(caller->pc()->RemoveTrackOrError(sender).ok());
+  }
+  controller->TeardownOn(ObserverCallback::kRemoveTrack);
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kRemoveTrack), 1);
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownTest, TeardownInOnIceGatheringChange) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kIceGatheringChange,
+                         {PeerConnectionInterface::kIceGatheringGathering});
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateOfferAndSetAsLocal(controller->pc());
+  ASSERT_NE(offer, nullptr);
+  EXPECT_TRUE(WaitUntil([&] { return controller->triggered(); },
+                        {.timeout = TimeDelta::Millis(kWaitTimeout)}));
+}
+
+TEST_P(PeerConnectionObserverTeardownTest, TeardownInOnIceCandidate) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kIceCandidate);
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateOfferAndSetAsLocal(controller->pc());
+  ASSERT_NE(offer, nullptr);
+  EXPECT_TRUE(WaitUntil([&] { return controller->triggered(); },
+                        {.timeout = TimeDelta::Millis(kWaitTimeout)}));
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       TeardownInOnIceConnectionChangeDuringConnectivity) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kIceConnectionChange,
+                         {PeerConnectionInterface::kIceConnectionChecking,
+                          PeerConnectionInterface::kIceConnectionConnected});
+  ConnectAndWaitForTeardown(*caller, *controller);
+}
+
+#ifdef WEBRTC_HAVE_SCTP
+TEST_P(PeerConnectionObserverTeardownTest, TeardownInOnDataChannel) {
+  auto caller = CreatePeerConnection();
+  DataChannelInit init;
+  ASSERT_TRUE(caller->pc()->CreateDataChannelOrError("dc", &init).ok());
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kDataChannel);
+  ConnectAndWaitForTeardown(*caller, *controller);
+}
+#endif  // WEBRTC_HAVE_SCTP
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       ReentrantTeardownInOnIceConnectionChangeDuringClose) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kIceConnectionChange,
+                         {PeerConnectionInterface::kIceConnectionClosed});
+  controller->pc()->Close();
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       ReentrantTeardownInOnConnectionChangeDuringClose) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(
+      ObserverCallback::kConnectionChange,
+      {PeerConnectionInterface::PeerConnectionState::kClosed});
+  controller->pc()->Close();
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       ReentrantTeardownInOnSignalingChangeDuringClose) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kSignalingChange,
+                         {SignalingState::kClosed});
+  controller->pc()->Close();
+  EXPECT_TRUE(controller->triggered());
+}
+
+TEST_P(PeerConnectionObserverTeardownTest,
+       ReentrantTeardownInOnInterestingUsageDuringClose) {
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kInterestingUsage);
+  controller->pc()->Close();
+  EXPECT_TRUE(controller->triggered());
+}
+
+INSTANTIATE_TEST_SUITE_P(PeerConnectionObserverTeardownTest,
+                         PeerConnectionObserverTeardownTest,
+                         Combine(Values(SdpSemantics::kPlanB_DEPRECATED,
+                                        SdpSemantics::kUnifiedPlan),
+                                 ValuesIn(kObserverTeardownActions)));
+
+class PeerConnectionObserverTeardownPlanBTest
+    : public PeerConnectionObserverTeardownTest {};
+
+TEST_P(PeerConnectionObserverTeardownPlanBTest,
+       TeardownInOnAddStreamStopsSubsequentStreams) {
+  auto caller = CreatePeerConnection();
+  caller->AddAudioTrack("a", {"stream1"});
+  caller->AddVideoTrack("v", {"stream2"});
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kAddStream);
+
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kAddStream), 1);
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownPlanBTest,
+       TeardownInOnRemoveStreamStopsSubsequentStreams) {
+  auto caller = CreatePeerConnection();
+  auto audio_sender = caller->AddAudioTrack("a", {"stream1"});
+  auto video_sender = caller->AddVideoTrack("v", {"stream2"});
+  auto controller = CreateController();
+  ASSERT_TRUE(AnswerOffer(*caller, *controller->pc(),
+                          caller->CreateOfferAndSetAsLocal()));
+
+  ASSERT_TRUE(caller->pc()->RemoveTrackOrError(audio_sender).ok());
+  ASSERT_TRUE(caller->pc()->RemoveTrackOrError(video_sender).ok());
+  controller->TeardownOn(ObserverCallback::kRemoveStream);
+
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kRemoveStream), 1);
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownPlanBTest,
+       TeardownInOnRenegotiationNeededDuringLocalStreamChange) {
+  auto controller = CreateController();
+  scoped_refptr<MediaStreamInterface> stream =
+      pc_factory_->CreateLocalMediaStream("stream");
+  RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
+  ASSERT_TRUE(controller->pc()->AddStream(stream.get()));
+  RTC_ALLOW_PLAN_B_DEPRECATION_END();
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  // The PeerConnection observes the stream. Adding a track to it fires
+  // OnRenegotiationNeeded() while the stream notifies its observers.
+  EXPECT_TRUE(stream->AddTrack(pc_factory_->CreateAudioTrack("a", nullptr)));
+  EXPECT_TRUE(controller->triggered());
+}
+
+INSTANTIATE_TEST_SUITE_P(PeerConnectionObserverTeardownPlanBTest,
+                         PeerConnectionObserverTeardownPlanBTest,
+                         Combine(Values(SdpSemantics::kPlanB_DEPRECATED),
+                                 ValuesIn(kObserverTeardownActions)));
+
+class PeerConnectionObserverTeardownUnifiedPlanTest
+    : public PeerConnectionObserverTeardownTest {
+ protected:
+  static bool TeardownCloses() {
+    const ObserverTeardownAction action = std::get<1>(GetParam());
+    return action == ObserverTeardownAction::kClose ||
+           action == ObserverTeardownAction::kCloseAndDestroyObserver;
+  }
+
+  // Calls Close() on the PeerConnection of `controller`, which is set to tear
+  // down from a callback that Close() makes, and checks that the Close() call
+  // that the callback makes re-entrantly returns once media and transports are
+  // closed.
+  void CloseAndCheckReentrantCloseCompletesTeardown(
+      TeardownObserverController& controller) {
+    ASSERT_NE(CreateOfferAndSetAsLocal(controller.pc()), nullptr);
+    std::vector<scoped_refptr<RtpTransceiverInterface>> transceivers =
+        controller.pc()->GetTransceivers();
+    ASSERT_FALSE(transceivers.empty());
+    scoped_refptr<DtlsTransportInterface> dtls_transport =
+        transceivers[0]->sender()->dtls_transport();
+    ASSERT_NE(dtls_transport, nullptr);
+
+    bool checked = false;
+    controller.SetAfterCloseCheck([&] {
+      for (const auto& transceiver : transceivers) {
+        EXPECT_TRUE(transceiver->stopped());
+      }
+      EXPECT_EQ(dtls_transport->Information().state(),
+                DtlsTransportState::kClosed);
+      checked = true;
+    });
+    controller.pc()->Close();
+    EXPECT_TRUE(controller.triggered());
+    EXPECT_TRUE(checked);
+  }
+};
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnNegotiationNeededEventDuringAddTransceiver) {
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kNegotiationNeededEvent);
+  auto result = controller->pc()->AddTransceiver(MediaType::AUDIO);
+  ASSERT_TRUE(result.ok());
+  EXPECT_TRUE(controller->triggered());
+  scoped_refptr<RtpTransceiverInterface> transceiver = result.MoveValue();
+  EXPECT_TRUE(transceiver->stopped());
+  // This doesn't call into the PeerConnection, which may have been deleted.
+  transceiver->sender()->SetStreams({"s1"});
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnTrackStopsSubsequentTracks) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  controller->TeardownOn(ObserverCallback::kTrack);
+
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(caller->CreateOfferAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kTrack), 1);
+  EXPECT_EQ(controller->count(ObserverCallback::kAddTrack), 0);
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_EQ(srd_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnSignalingChangeDuringRollback) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  ASSERT_TRUE(SetRemoteDescriptionSync(controller->pc(),
+                                       caller->CreateOfferAndSetAsLocal()));
+
+  controller->TeardownOn(ObserverCallback::kSignalingChange,
+                         {SignalingState::kStable});
+  auto rollback_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  controller->pc()->SetLocalDescription(CreateRollbackSessionDescription(),
+                                        rollback_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kRemoveTrack), 0);
+  ASSERT_TRUE(rollback_observer->called());
+  EXPECT_EQ(rollback_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnRemoveTrackDuringRollback) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  ASSERT_TRUE(SetRemoteDescriptionSync(controller->pc(),
+                                       caller->CreateOfferAndSetAsLocal()));
+
+  controller->TeardownOn(ObserverCallback::kRemoveTrack);
+  auto rollback_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  controller->pc()->SetLocalDescription(CreateRollbackSessionDescription(),
+                                        rollback_observer);
+  EXPECT_TRUE(controller->triggered());
+  EXPECT_EQ(controller->count(ObserverCallback::kRemoveTrack), 1);
+  ASSERT_TRUE(rollback_observer->called());
+  EXPECT_EQ(rollback_observer->error().type(), RTCErrorType::INTERNAL_ERROR);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnRenegotiationNeededAfterSetLocalAnswer) {
+  auto caller = CreatePeerConnectionWithAudioVideo();
+  auto controller = CreateController();
+  ASSERT_TRUE(controller->pc()->AddTransceiver(MediaType::AUDIO).ok());
+  ASSERT_TRUE(SetRemoteDescriptionSync(controller->pc(),
+                                       caller->CreateOfferAndSetAsLocal()));
+  ASSERT_TRUE(controller->pc()->AddTransceiver(MediaType::AUDIO).ok());
+
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      CreateOfferOrAnswer(controller->pc(), SdpType::kAnswer);
+  ASSERT_NE(answer, nullptr);
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  auto sld_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  controller->pc()->SetLocalDescription(std::move(answer), sld_observer);
+  EXPECT_TRUE(controller->triggered());
+  ASSERT_TRUE(sld_observer->called());
+  EXPECT_TRUE(sld_observer->error().ok());
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       TeardownInOnRenegotiationNeededAfterSetRemoteAnswer) {
+  auto controller = CreateController();
+  ASSERT_TRUE(controller->pc()->AddTransceiver(MediaType::AUDIO).ok());
+  auto callee = CreatePeerConnection();
+  ASSERT_TRUE(
+      callee->SetRemoteDescription(CreateOfferAndSetAsLocal(controller->pc())));
+  ASSERT_TRUE(controller->pc()->AddTransceiver(MediaType::VIDEO).ok());
+
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  auto srd_observer = make_ref_counted<FakeSetRemoteDescriptionObserver>();
+  controller->pc()->SetRemoteDescription(callee->CreateAnswerAndSetAsLocal(),
+                                         srd_observer);
+  EXPECT_TRUE(controller->triggered());
+  ASSERT_TRUE(srd_observer->called());
+  EXPECT_TRUE(srd_observer->error().ok());
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       ReentrantCloseInOnIceConnectionChangeCompletesTeardown) {
+  if (!TeardownCloses()) {
+    GTEST_SKIP() << "Only Close() returns to the callback.";
+  }
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kIceConnectionChange,
+                         {PeerConnectionInterface::kIceConnectionClosed});
+  CloseAndCheckReentrantCloseCompletesTeardown(*controller);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       ReentrantCloseInOnConnectionChangeCompletesTeardown) {
+  if (!TeardownCloses()) {
+    GTEST_SKIP() << "Only Close() returns to the callback.";
+  }
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(
+      ObserverCallback::kConnectionChange,
+      {PeerConnectionInterface::PeerConnectionState::kClosed});
+  CloseAndCheckReentrantCloseCompletesTeardown(*controller);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       ReentrantCloseInOnSignalingChangeCompletesTeardown) {
+  if (!TeardownCloses()) {
+    GTEST_SKIP() << "Only Close() returns to the callback.";
+  }
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kSignalingChange,
+                         {SignalingState::kClosed});
+  CloseAndCheckReentrantCloseCompletesTeardown(*controller);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       ReentrantCloseInOnInterestingUsageCompletesTeardown) {
+  if (!TeardownCloses()) {
+    GTEST_SKIP() << "Only Close() returns to the callback.";
+  }
+  auto controller = CreateController(/*with_audio_video=*/true);
+  controller->TeardownOn(ObserverCallback::kInterestingUsage);
+  CloseAndCheckReentrantCloseCompletesTeardown(*controller);
+}
+
+TEST_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+       NoRenegotiationNeededWhileSettingOfferThatRejectsMSection) {
+  auto controller = CreateController();
+  ASSERT_TRUE(controller->pc()->AddTransceiver(MediaType::AUDIO).ok());
+  auto callee = CreatePeerConnection();
+  ASSERT_TRUE(
+      callee->SetRemoteDescription(CreateOfferAndSetAsLocal(controller->pc())));
+  ASSERT_TRUE(SetRemoteDescriptionSync(controller->pc(),
+                                       callee->CreateAnswerAndSetAsLocal()));
+
+  // Negotiation isn't needed. Reject the m-section by munging the offer.
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateOfferOrAnswer(controller->pc(), SdpType::kOffer);
+  ASSERT_NE(offer, nullptr);
+  offer->description()->contents()[0].rejected = true;
+
+  controller->TeardownOn(ObserverCallback::kRenegotiationNeeded);
+  auto sld_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  controller->pc()->SetLocalDescription(std::move(offer), sld_observer);
+  ASSERT_TRUE(sld_observer->called());
+  EXPECT_TRUE(sld_observer->error().ok());
+  // Negotiation-needed isn't updated while the offer is being applied, and
+  // isn't signaled in the have-local-offer state.
+  EXPECT_FALSE(controller->triggered());
+}
+
+INSTANTIATE_TEST_SUITE_P(PeerConnectionObserverTeardownUnifiedPlanTest,
+                         PeerConnectionObserverTeardownUnifiedPlanTest,
+                         Combine(Values(SdpSemantics::kUnifiedPlan),
+                                 ValuesIn(kObserverTeardownActions)));
 
 }  // namespace webrtc

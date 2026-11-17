@@ -18,6 +18,7 @@
 #include "api/media_stream_interface.h"
 #include "api/scoped_refptr.h"
 #include "pc/media_stream_observer.h"
+#include "rtc_base/thread.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
 
 namespace webrtc {
@@ -44,6 +45,9 @@ class JavaMediaStream {
                                      MediaStreamInterface* stream);
 
   ScopedJavaGlobalRef<jobject> j_media_stream_;
+  // The thread that creates this object, on which the native stream notifies
+  // `observer_`. `observer_` must also be destroyed there.
+  Thread* const signaling_thread_;
   std::unique_ptr<MediaStreamObserver> observer_;
 };
 

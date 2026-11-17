@@ -87,7 +87,7 @@ RtpTransmissionManager::RtpTransmissionManager(
     ConnectionContext* context,
     CodecLookupHelper* codec_lookup_helper,
     UsagePattern* usage_pattern,
-    PeerConnectionObserver* observer,
+    RunWithObserverFunction run_with_observer,
     LegacyStatsCollectorInterface* legacy_stats,
     absl::AnyInvocable<void()> on_negotiation_needed)
     : env_(env),
@@ -96,14 +96,13 @@ RtpTransmissionManager::RtpTransmissionManager(
       context_(context),
       codec_lookup_helper_(codec_lookup_helper),
       usage_pattern_(usage_pattern),
-      observer_(observer),
+      run_with_observer_(std::move(run_with_observer)),
       legacy_stats_(legacy_stats),
       on_negotiation_needed_(std::move(on_negotiation_needed)),
       weak_ptr_factory_(this) {}
 
 void RtpTransmissionManager::Close() {
   closed_ = true;
-  observer_ = nullptr;
 }
 
 // Implementation of SetStreamsObserver
@@ -127,11 +126,10 @@ RtpTransmissionManager::GetDefaultHeaderExtensions(MediaType media_type) {
   return media_engine()->video().GetRtpHeaderExtensions(&env_.field_trials());
 }
 
-void RtpTransmissionManager::RunWithObserver(
+bool RtpTransmissionManager::RunWithObserver(
     absl::AnyInvocable<void(PeerConnectionObserver*) &&> task) {  // NOLINT
   RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(observer_);
-  std::move(task)(observer_);
+  return run_with_observer_(std::move(task));
 }
 
 PLAN_B_ONLY VoiceMediaSendChannelInterface*
@@ -468,7 +466,7 @@ PLAN_B_ONLY void RtpTransmissionManager::RemoveTrackPlanB(
   transceiver->RemoveSenderPlanB(sender.get());
 }
 
-PLAN_B_ONLY void RtpTransmissionManager::CreateAudioReceiverPlanB(
+PLAN_B_ONLY bool RtpTransmissionManager::CreateAudioReceiverPlanB(
     MediaStreamInterface* stream,
     const RtpSenderInfo& remote_sender_info) {
   RTC_DCHECK(!IsUnifiedPlan());
@@ -489,12 +487,13 @@ PLAN_B_ONLY void RtpTransmissionManager::CreateAudioReceiverPlanB(
   auto receiver = RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
       signaling_thread(), network_thread(), std::move(audio_receiver));
   GetAudioTransceiver()->internal()->AddReceiverPlanB(receiver);
-  RunWithObserver(
-      [&](auto observer) { observer->OnAddTrack(receiver, streams); });
+  // Record usage before firing OnAddTrack(), which may release `this`.
   NoteUsageEvent(UsageEvent::AUDIO_ADDED);
+  return RunWithObserver(
+      [&](auto observer) { observer->OnAddTrack(receiver, streams); });
 }
 
-PLAN_B_ONLY void RtpTransmissionManager::CreateVideoReceiverPlanB(
+PLAN_B_ONLY bool RtpTransmissionManager::CreateVideoReceiverPlanB(
     MediaStreamInterface* stream,
     const RtpSenderInfo& remote_sender_info) {
   RTC_DCHECK(!IsUnifiedPlan());
@@ -518,9 +517,10 @@ PLAN_B_ONLY void RtpTransmissionManager::CreateVideoReceiverPlanB(
   auto receiver = RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
       signaling_thread(), network_thread(), std::move(video_receiver));
   GetVideoTransceiver()->internal()->AddReceiverPlanB(receiver);
-  RunWithObserver(
-      [&](auto observer) { observer->OnAddTrack(receiver, streams); });
+  // Record usage before firing OnAddTrack(), which may release `this`.
   NoteUsageEvent(UsageEvent::VIDEO_ADDED);
+  return RunWithObserver(
+      [&](auto observer) { observer->OnAddTrack(receiver, streams); });
 }
 
 // TODO(deadbeef): Keep RtpReceivers around even if track goes away in remote
@@ -543,7 +543,7 @@ RtpTransmissionManager::RemoveAndStopReceiver(
   return receiver;
 }
 
-PLAN_B_ONLY void RtpTransmissionManager::OnRemoteSenderAddedPlanB(
+PLAN_B_ONLY bool RtpTransmissionManager::OnRemoteSenderAddedPlanB(
     const RtpSenderInfo& sender_info,
     MediaStreamInterface* stream,
     MediaType media_type) {
@@ -554,15 +554,16 @@ PLAN_B_ONLY void RtpTransmissionManager::OnRemoteSenderAddedPlanB(
                    << " and stream_id=" << sender_info.stream_id;
 
   if (media_type == MediaType::AUDIO) {
-    CreateAudioReceiverPlanB(stream, sender_info);
-  } else if (media_type == MediaType::VIDEO) {
-    CreateVideoReceiverPlanB(stream, sender_info);
-  } else {
-    RTC_DCHECK_NOTREACHED() << "Invalid media type";
+    return CreateAudioReceiverPlanB(stream, sender_info);
   }
+  if (media_type == MediaType::VIDEO) {
+    return CreateVideoReceiverPlanB(stream, sender_info);
+  }
+  RTC_DCHECK_NOTREACHED() << "Invalid media type";
+  return true;
 }
 
-PLAN_B_ONLY void RtpTransmissionManager::OnRemoteSenderRemovedPlanB(
+PLAN_B_ONLY bool RtpTransmissionManager::OnRemoteSenderRemovedPlanB(
     const RtpSenderInfo& sender_info,
     MediaStreamInterface* stream,
     MediaType media_type) {
@@ -598,8 +599,10 @@ PLAN_B_ONLY void RtpTransmissionManager::OnRemoteSenderRemovedPlanB(
   }
   if (receiver) {
     RTC_DCHECK(!closed_);
-    RunWithObserver([&](auto observer) { observer->OnRemoveTrack(receiver); });
+    return RunWithObserver(
+        [&](auto observer) { observer->OnRemoveTrack(receiver); });
   }
+  return true;
 }
 
 PLAN_B_ONLY void RtpTransmissionManager::OnLocalSenderAdded(

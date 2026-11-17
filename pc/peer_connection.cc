@@ -539,8 +539,13 @@ PeerConnection::PeerConnection(
   sdp_handler_->UpdateCachedIceCredentials(std::move(pooled_credentials));
   rtp_manager_ = std::make_unique<RtpTransmissionManager>(
       env_, call_ptr_, IsUnifiedPlan(), context_.get(),
-      codec_lookup_helper_.get(), &usage_pattern_, observer_,
-      legacy_stats_.get(), [this]() {
+      codec_lookup_helper_.get(), &usage_pattern_,
+      [this](auto task) {
+        RTC_DCHECK_RUN_ON(signaling_thread());
+        return RunWithObserver(std::move(task));
+      },
+      legacy_stats_.get(),
+      [this]() {
         RTC_DCHECK_RUN_ON(signaling_thread());
         sdp_handler_->UpdateNegotiationNeeded();
       });
@@ -577,6 +582,12 @@ PeerConnection::~PeerConnection() {
   TRACE_EVENT0("webrtc", "PeerConnection::~PeerConnection");
   RTC_DCHECK_RUN_ON(signaling_thread());
 
+  // Mark `this` as not alive before tearing down state so that a
+  // RunWithObserver() call on the stack knows that `this` was destroyed, and
+  // detach the observer so that no callbacks are made during destruction.
+  signaling_thread_safety_.flag()->SetNotAlive();
+  observer_ = nullptr;
+
   sdp_handler_->PrepareForShutdown();
 
   // In case `Close()` wasn't called, always make sure the controller cancels
@@ -585,6 +596,12 @@ PeerConnection::~PeerConnection() {
 
   ScopedOperationsBatcher network_tasks(network_thread());
   ScopedOperationsBatcher worker_tasks(worker_thread());
+
+  // In case `Close()` wasn't called, stop the transceivers as it does. This
+  // releases the media channels of transceivers that were never negotiated
+  // before `call_` is destroyed, and stops the transceivers and senders that
+  // the application may still reference.
+  StopTransceivers(worker_tasks);
 
   // Stop transceivers before destroying the stats collector because
   // AudioRtpSender has a reference to the LegacyStatsCollector that it will
@@ -900,8 +917,10 @@ RTCErrorOr<scoped_refptr<RtpSenderInterface>> PeerConnection::AddTrack(
     if (tracer_) {
       tracer_->OnAddTrack(*track, stream_ids);
     }
-    sdp_handler_->UpdateNegotiationNeeded();
+    // Update stats before firing OnRenegotiationNeeded(), which may release
+    // `this`.
     legacy_stats_->AddTrack(track.get());
+    sdp_handler_->UpdateNegotiationNeeded();
   }
   return sender_or_error;
 }
@@ -1469,13 +1488,15 @@ PeerConnection::CreateDataChannelOrError(const std::string& label,
     tracer_->OnCreateDataChannel(*channel, id);
   }
 
+  // Record usage before firing OnRenegotiationNeeded(), which may release
+  // `this`.
+  NoteUsageEvent(UsageEvent::DATA_ADDED);
   // Check the onRenegotiationNeeded event (with plan-b backward compat)
   if (configuration_.sdp_semantics == SdpSemantics::kUnifiedPlan ||
       (configuration_.sdp_semantics == SdpSemantics::kPlanB_DEPRECATED &&
        first_datachannel)) {
     sdp_handler_->UpdateNegotiationNeeded();
   }
-  NoteUsageEvent(UsageEvent::DATA_ADDED);
   return channel;
 }
 
@@ -1669,12 +1690,13 @@ RTCError PeerConnection::SetConfiguration(
   sdp_handler_->UpdateCachedIceCredentials(std::move(pooled_credentials));
   configuration_ = modified_config;
 
-  if (needs_ice_restart) {
-    sdp_handler_->UpdateNegotiationNeeded();
-  }
-
   if (tracer_) {
     tracer_->OnSetConfiguration(configuration_);
+  }
+
+  // Fire OnRenegotiationNeeded() last in case the observer releases `this`.
+  if (needs_ice_restart) {
+    sdp_handler_->UpdateNegotiationNeeded();
   }
   return RTCError::OK();
 }
@@ -1916,42 +1938,68 @@ void PeerConnection::Close() {
   RTC_LOG_THREAD_BLOCK_COUNT();
 
   if (IsClosed()) {
+    // Close() may be called re-entrantly from an observer callback made by an
+    // ongoing Close(). Detach the observer so that no callbacks are made after
+    // this call returns, and complete the teardown so that media and transports
+    // are closed when it returns.
+    observer_ = nullptr;
+    CompleteClose();
     return;
   }
-  if (tracer_) {
-    tracer_->OnClose();
+  // The callbacks below may call Close() re-entrantly, which then completes
+  // the teardown. Check the states so that each is only signaled once.
+  if (ice_connection_state_ != PeerConnectionInterface::kIceConnectionClosed) {
+    // Only Close() sets this state, so the call is traced and stats are
+    // updated only on the first call.
+    if (tracer_) {
+      tracer_->OnClose();
+    }
+    // Update stats here so that we have the most recent stats for tracks and
+    // streams before the channels are closed.
+    legacy_stats_->UpdateStats(kStatsOutputLevelStandard);
+    ice_connection_state_ = PeerConnectionInterface::kIceConnectionClosed;
+    if (!RunWithObserver([&](auto observer) {
+          RTC_DCHECK_RUN_ON(signaling_thread());
+          observer->OnIceConnectionChange(ice_connection_state_);
+        })) {
+      return;
+    }
   }
-  // Update stats here so that we have the most recent stats for tracks and
-  // streams before the channels are closed.
-  legacy_stats_->UpdateStats(kStatsOutputLevelStandard);
-
-  ice_connection_state_ = PeerConnectionInterface::kIceConnectionClosed;
-  RunWithObserver([&](auto observer) {
-    RTC_DCHECK_RUN_ON(signaling_thread());
-    observer->OnIceConnectionChange(ice_connection_state_);
-  });
   standardized_ice_connection_state_ =
       PeerConnectionInterface::IceConnectionState::kIceConnectionClosed;
-  connection_state_ = PeerConnectionInterface::PeerConnectionState::kClosed;
-  RunWithObserver([&](auto observer) {
-    RTC_DCHECK_RUN_ON(signaling_thread());
-    observer->OnConnectionChange(connection_state_);
-  });
+  if (connection_state_ !=
+      PeerConnectionInterface::PeerConnectionState::kClosed) {
+    connection_state_ = PeerConnectionInterface::PeerConnectionState::kClosed;
+    if (!RunWithObserver([&](auto observer) {
+          RTC_DCHECK_RUN_ON(signaling_thread());
+          observer->OnConnectionChange(connection_state_);
+        })) {
+      return;
+    }
+  }
 
-  sdp_handler_->Close();
+  if (!sdp_handler_->Close()) {
+    return;
+  }
+
+  CompleteClose();
+}
+
+void PeerConnection::CompleteClose() {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  RTC_DCHECK(IsClosed());
+  // Runs only once. The first caller is either the Close() call that closed
+  // the signaling state or a Close() call that one of its callbacks made
+  // re-entrantly.
+  if (close_completion_started_) {
+    return;
+  }
+  close_completion_started_ = true;
 
   NoteUsageEvent(UsageEvent::CLOSE_CALLED);
 
   ScopedOperationsBatcher worker_tasks(worker_thread());
-
-  if (ConfiguredForMedia()) {
-    for (RtpTransceiver* transceiver :
-         rtp_manager()->transceivers()->ListInternal()) {
-      if (!transceiver->stopped()) {
-        worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
-      }
-    }
-  }
+  StopTransceivers(worker_tasks);
 
   // Don't destroy BaseChannels until after stats has been cleaned up so that
   // the last stats request can still read from the channels.
@@ -1984,7 +2032,6 @@ void PeerConnection::Close() {
   });
 
   worker_tasks.Run();
-  ReportUsagePattern();
   ReportCloseUsageMetrics();
 
   // Signal shutdown to the sdp handler. This invalidates weak pointers for
@@ -1993,20 +2040,35 @@ void PeerConnection::Close() {
   data_channel_controller_.PrepareForShutdown();
 
   // The .h file says that observer can be discarded after close() returns.
-  // Make sure this is true.
-  observer_ = nullptr;
+  // Make sure this is true. The usage pattern is reported last since
+  // OnInterestingUsage() may call Close() re-entrantly or release the last
+  // reference to `this`.
+  usage_pattern_.ReportUsagePattern(std::exchange(observer_, nullptr));
 }
 
-void PeerConnection::SetIceConnectionState(IceConnectionState new_state) {
+void PeerConnection::StopTransceivers(ScopedOperationsBatcher& worker_tasks) {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  if (!ConfiguredForMedia()) {
+    return;
+  }
+  for (RtpTransceiver* transceiver :
+       rtp_manager()->transceivers()->ListInternal()) {
+    if (!transceiver->stopped()) {
+      worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+    }
+  }
+}
+
+bool PeerConnection::SetIceConnectionState(IceConnectionState new_state) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (ice_connection_state_ == new_state) {
-    return;
+    return true;
   }
 
   // After transitioning to "closed", ignore any additional states from
   // TransportController (such as "disconnected").
   if (IsClosed()) {
-    return;
+    return true;
   }
 
   RTC_LOG(LS_INFO) << "Changing IceConnectionState " << ice_connection_state_
@@ -2015,7 +2077,7 @@ void PeerConnection::SetIceConnectionState(IceConnectionState new_state) {
              PeerConnectionInterface::kIceConnectionClosed);
 
   ice_connection_state_ = new_state;
-  RunWithObserver([&](auto observer) {
+  return RunWithObserver([&](auto observer) {
     RTC_DCHECK_RUN_ON(signaling_thread());
     observer->OnIceConnectionChange(ice_connection_state_);
   });
@@ -2053,15 +2115,17 @@ void PeerConnection::SetConnectionState(
   if (tracer_) {
     tracer_->OnConnectionStateChanged(new_state);
   }
-  RunWithObserver(
-      [&](auto observer) { observer->OnConnectionChange(new_state); });
 
   // The first connection state change to connected happens once per
-  // connection which makes it a good point to report metrics.
+  // connection which makes it a good point to report metrics. Reported before
+  // the callback below, which may close the PeerConnection and thereby report
+  // the close metrics that depend on `was_ever_connected_`.
   if (new_state == PeerConnectionState::kConnected && !was_ever_connected_) {
     was_ever_connected_ = true;
     ReportFirstConnectUsageMetrics();
   }
+  RunWithObserver(
+      [&](auto observer) { observer->OnConnectionChange(new_state); });
 }
 
 void PeerConnection::ReportFirstConnectUsageMetrics() {
@@ -2277,16 +2341,16 @@ void PeerConnection::OnIceGatheringChange(
   });
 }
 
-void PeerConnection::OnIceCandidate(std::unique_ptr<IceCandidate> candidate) {
+bool PeerConnection::OnIceCandidate(std::unique_ptr<IceCandidate> candidate) {
   if (IsClosed()) {
-    return;
+    return true;
   }
   ReportIceCandidateCollected(candidate->candidate());
   ClearStatsCache();
   if (tracer_) {
     tracer_->OnIceCandidate(*candidate);
   }
-  RunWithObserver(
+  return RunWithObserver(
       [&](auto observer) { observer->OnIceCandidate(candidate.get()); });
 }
 
@@ -2315,7 +2379,9 @@ void PeerConnection::OnIceCandidatesRemoved(
 
   for (const Candidate& candidate : candidates) {
     IceCandidate c(mid, -1, candidate);
-    RunWithObserver([&](auto o) { o->OnIceCandidateRemoved(&c); });
+    if (!RunWithObserver([&](auto o) { o->OnIceCandidateRemoved(&c); })) {
+      return;
+    }
   }
 }
 
@@ -2632,21 +2698,33 @@ void PeerConnection::OnTransportControllerConnectionState(
             }));
       }
 
-      SetIceConnectionState(PeerConnectionInterface::kIceConnectionConnected);
+      // Noted before the callbacks below, which may close the PeerConnection
+      // and thereby report the usage pattern.
       NoteUsageEvent(UsageEvent::ICE_STATE_CONNECTED);
+      if (!SetIceConnectionState(
+              PeerConnectionInterface::kIceConnectionConnected)) {
+        return;
+      }
       break;
     case webrtc::kIceConnectionCompleted:
       RTC_LOG(LS_INFO) << "Changing to ICE completed state because "
                           "all transports are complete.";
+      // Noted before the callbacks below, which may close the PeerConnection
+      // and thereby report the usage pattern.
+      NoteUsageEvent(UsageEvent::ICE_STATE_CONNECTED);
       if (ice_connection_state_ !=
           PeerConnectionInterface::kIceConnectionConnected) {
         // If jumping directly from "checking" to "connected",
         // signal "connected" first.
-        SetIceConnectionState(PeerConnectionInterface::kIceConnectionConnected);
+        if (!SetIceConnectionState(
+                PeerConnectionInterface::kIceConnectionConnected)) {
+          return;
+        }
       }
-      SetIceConnectionState(PeerConnectionInterface::kIceConnectionCompleted);
-
-      NoteUsageEvent(UsageEvent::ICE_STATE_CONNECTED);
+      if (!SetIceConnectionState(
+              PeerConnectionInterface::kIceConnectionCompleted)) {
+        return;
+      }
       break;
     default:
       RTC_DCHECK_NOTREACHED();
@@ -2672,7 +2750,9 @@ void PeerConnection::OnTransportControllerCandidatesGathered(
     std::unique_ptr<IceCandidate> candidate(
         new IceCandidate(transport_name, sdp_mline_index, *citer));
     sdp_handler_->AddLocalIceCandidate(candidate.get());
-    OnIceCandidate(std::move(candidate));
+    if (!OnIceCandidate(std::move(candidate))) {
+      return;
+    }
   }
 }
 
@@ -3157,11 +3237,17 @@ bool PeerConnection::OnTransportChanged(
   return ret;
 }
 
-void PeerConnection::RunWithObserver(
+bool PeerConnection::RunWithObserver(
     absl::AnyInvocable<void(PeerConnectionObserver*) &&> task) {  // NOLINT
   RTC_DCHECK_RUN_ON(signaling_thread());
-  RTC_DCHECK(observer_);
+  if (!observer_) {
+    return true;
+  }
+  scoped_refptr<PendingTaskSafetyFlag> alive = signaling_thread_safety_.flag();
   std::move(task)(observer_);
+  // Don't touch `this` if `task` released the last reference to it. Close()
+  // detaches the observer, also when `task` calls it re-entrantly.
+  return alive->alive() && observer_ != nullptr;
 }
 
 void PeerConnection::RunWithMaybeNullObserver(

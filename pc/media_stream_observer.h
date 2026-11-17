@@ -15,11 +15,18 @@
 
 #include "api/media_stream_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/sequence_checker.h"
+#include "rtc_base/system/no_unique_address.h"
+#include "rtc_base/thread_annotations.h"
+#include "rtc_base/weak_ptr.h"
 
 namespace webrtc {
 
 // Helper class which will listen for changes to a stream and emit the
 // corresponding signals.
+//
+// Must be created, notified and destroyed on the same sequence. A callback may
+// destroy the observer.
 class MediaStreamObserver : public ObserverInterface {
  public:
   explicit MediaStreamObserver(
@@ -39,9 +46,11 @@ class MediaStreamObserver : public ObserverInterface {
   void OnChanged() override;
 
  private:
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker sequence_checker_{
+      SequenceChecker::kAttached};
   scoped_refptr<MediaStreamInterface> stream_;
-  AudioTrackVector cached_audio_tracks_;
-  VideoTrackVector cached_video_tracks_;
+  AudioTrackVector cached_audio_tracks_ RTC_GUARDED_BY(sequence_checker_);
+  VideoTrackVector cached_video_tracks_ RTC_GUARDED_BY(sequence_checker_);
   const std::function<void(AudioTrackInterface*, MediaStreamInterface*)>
       audio_track_added_callback_;
   const std::function<void(AudioTrackInterface*, MediaStreamInterface*)>
@@ -50,6 +59,9 @@ class MediaStreamObserver : public ObserverInterface {
       video_track_added_callback_;
   const std::function<void(VideoTrackInterface*, MediaStreamInterface*)>
       video_track_removed_callback_;
+  // Lets OnChanged() detect that a callback destroyed this object. Declared
+  // last so that weak pointers are invalidated first on destruction.
+  WeakPtrFactory<MediaStreamObserver> weak_ptr_factory_{this};
 };
 
 }  // namespace webrtc

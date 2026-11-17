@@ -381,16 +381,19 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
   const PeerConnectionTracerInterface* tracer() const override {
     return nullptr;
   }
-  void RunWithObserver(
+  bool RunWithObserver(
       absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&>) override {
     RTC_DCHECK_NOTREACHED();
+    return true;
   }
   PeerConnectionInterface::IceConnectionState ice_connection_state_internal()
       override {
     return PeerConnectionInterface::IceConnectionState::kIceConnectionNew;
   }
-  void SetIceConnectionState(
-      PeerConnectionInterface::IceConnectionState new_state) override {}
+  bool SetIceConnectionState(
+      PeerConnectionInterface::IceConnectionState new_state) override {
+    return true;
+  }
   void NoteUsageEvent(UsageEvent event) override {}
   bool IsClosed() const override { return false; }
   bool IsUnifiedPlan() const override { return true; }

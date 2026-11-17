@@ -11,14 +11,32 @@
 #include "pc/media_stream_observer.h"
 
 #include <functional>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "api/media_stream_interface.h"
+#include "api/sequence_checker.h"
+#include "rtc_base/weak_ptr.h"
 
 namespace webrtc {
+namespace {
+
+// Returns the tracks in `tracks` that have no track with the same id in
+// `other`.
+template <typename TrackVector>
+TrackVector TracksNotIn(const TrackVector& tracks, const TrackVector& other) {
+  TrackVector result;
+  for (const auto& track : tracks) {
+    if (absl::c_none_of(other, [&track](const auto& other_track) {
+          return other_track->id() == track->id();
+        })) {
+      result.push_back(track);
+    }
+  }
+  return result;
+}
+
+}  // namespace
 
 MediaStreamObserver::MediaStreamObserver(
     MediaStreamInterface* stream,
@@ -41,59 +59,45 @@ MediaStreamObserver::MediaStreamObserver(
 }
 
 MediaStreamObserver::~MediaStreamObserver() {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   stream_->UnregisterObserver(this);
 }
 
 void MediaStreamObserver::OnChanged() {
+  RTC_DCHECK_RUN_ON(&sequence_checker_);
   AudioTrackVector new_audio_tracks = stream_->GetAudioTracks();
   VideoTrackVector new_video_tracks = stream_->GetVideoTracks();
 
-  // Find removed audio tracks.
-  for (const auto& cached_track : cached_audio_tracks_) {
-    if (absl::c_none_of(
-            new_audio_tracks,
-            [cached_track](const AudioTrackVector::value_type& new_track) {
-              return new_track->id() == cached_track->id();
-            })) {
-      audio_track_removed_callback_(cached_track.get(), stream_.get());
-    }
-  }
+  // Find the changes and update the cached tracks before running callbacks,
+  // since a callback may change the stream again or destroy this object.
+  AudioTrackVector removed_audio_tracks =
+      TracksNotIn(cached_audio_tracks_, new_audio_tracks);
+  AudioTrackVector added_audio_tracks =
+      TracksNotIn(new_audio_tracks, cached_audio_tracks_);
+  VideoTrackVector removed_video_tracks =
+      TracksNotIn(cached_video_tracks_, new_video_tracks);
+  VideoTrackVector added_video_tracks =
+      TracksNotIn(new_video_tracks, cached_video_tracks_);
+  cached_audio_tracks_ = std::move(new_audio_tracks);
+  cached_video_tracks_ = std::move(new_video_tracks);
 
-  // Find added audio tracks.
-  for (const auto& new_track : new_audio_tracks) {
-    if (absl::c_none_of(
-            cached_audio_tracks_,
-            [new_track](const AudioTrackVector::value_type& cached_track) {
-              return new_track->id() == cached_track->id();
-            })) {
-      audio_track_added_callback_(new_track.get(), stream_.get());
+  WeakPtr<MediaStreamObserver> self = weak_ptr_factory_.GetWeakPtr();
+  // Runs `callback` for each of `tracks`. Returns false if a callback destroyed
+  // this object, after which no member may be accessed.
+  auto run_callbacks = [&](const auto& tracks, const auto& callback) {
+    for (const auto& track : tracks) {
+      callback(track.get(), stream_.get());
+      if (!self) {
+        return false;
+      }
     }
+    return true;
+  };
+  if (run_callbacks(removed_audio_tracks, audio_track_removed_callback_) &&
+      run_callbacks(added_audio_tracks, audio_track_added_callback_) &&
+      run_callbacks(removed_video_tracks, video_track_removed_callback_)) {
+    run_callbacks(added_video_tracks, video_track_added_callback_);
   }
-
-  // Find removed video tracks.
-  for (const auto& cached_track : cached_video_tracks_) {
-    if (absl::c_none_of(
-            new_video_tracks,
-            [cached_track](const VideoTrackVector::value_type& new_track) {
-              return new_track->id() == cached_track->id();
-            })) {
-      video_track_removed_callback_(cached_track.get(), stream_.get());
-    }
-  }
-
-  // Find added video tracks.
-  for (const auto& new_track : new_video_tracks) {
-    if (absl::c_none_of(
-            cached_video_tracks_,
-            [new_track](const VideoTrackVector::value_type& cached_track) {
-              return new_track->id() == cached_track->id();
-            })) {
-      video_track_added_callback_(new_track.get(), stream_.get());
-    }
-  }
-
-  cached_audio_tracks_ = new_audio_tracks;
-  cached_video_tracks_ = new_video_tracks;
 }
 
 }  // namespace webrtc

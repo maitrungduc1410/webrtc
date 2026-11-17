@@ -217,6 +217,19 @@ PeerConnectionFactoryDependencies CreateFactoryDependencies() {
   return deps;
 }
 
+// Calls Close() re-entrantly when an ongoing Close() signals the closed ICE
+// connection state, before the signaling state is closed.
+class ReentrantCloseObserver : public MockPeerConnectionObserver {
+ public:
+  void OnIceConnectionChange(
+      PeerConnectionInterface::IceConnectionState new_state) override {
+    MockPeerConnectionObserver::OnIceConnectionChange(new_state);
+    if (new_state == PeerConnectionInterface::kIceConnectionClosed) {
+      pc_->Close();
+    }
+  }
+};
+
 class PeerConnectionTracerTest : public ::testing::Test {
  protected:
   PeerConnectionTracerTest()
@@ -229,7 +242,11 @@ class PeerConnectionTracerTest : public ::testing::Test {
   // by the PC; tests recover it via Counts() (or by hand through
   // pc->GetInternalPeerConnection()->tracer()).
   std::unique_ptr<PeerConnectionWrapper> CreatePeerConnection() {
-    auto observer = std::make_unique<MockPeerConnectionObserver>();
+    return CreatePeerConnection(std::make_unique<MockPeerConnectionObserver>());
+  }
+
+  std::unique_ptr<PeerConnectionWrapper> CreatePeerConnection(
+      std::unique_ptr<MockPeerConnectionObserver> observer) {
     PeerConnectionDependencies deps(observer.get());
     deps.tracer = std::make_unique<CountingTracer>();
     RTCConfiguration config;
@@ -360,6 +377,16 @@ TEST_F(PeerConnectionTracerTest, FiresOnClose) {
   EXPECT_GE(Counts(*pc).signaling_state_changed, 1);
 
   // Calling Close again should be a no-op for the tracer.
+  pc->pc()->Close();
+  EXPECT_EQ(Counts(*pc).close, 1);
+}
+
+// A Close() call that an observer callback makes during Close() isn't traced
+// again.
+TEST_F(PeerConnectionTracerTest, FiresOnCloseOnceForReentrantClose) {
+  auto pc = CreatePeerConnection(std::make_unique<ReentrantCloseObserver>());
+  ASSERT_TRUE(pc);
+
   pc->pc()->Close();
   EXPECT_EQ(Counts(*pc).close, 1);
 }

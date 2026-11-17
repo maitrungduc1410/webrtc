@@ -1290,9 +1290,10 @@ void AbslStringify(Sink& sink,
 // Application should implement these methods.
 //
 // The PeerConnection may still be running the operation that triggered a
-// callback when the callback is made. Releasing the last reference to the
-// PeerConnection from within a callback is therefore not supported; release it
-// from a separate task instead.
+// callback when the callback is made. Calling PeerConnection::Close() from
+// within a callback is supported, and no further callbacks are made once it
+// returns. Releasing the last reference to the PeerConnection from within a
+// callback is not supported; release it from a separate task instead.
 class PeerConnectionObserver {
  public:
   virtual ~PeerConnectionObserver() = default;

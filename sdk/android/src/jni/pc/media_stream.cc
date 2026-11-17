@@ -17,6 +17,7 @@
 #include "api/media_stream_interface.h"
 #include "api/scoped_refptr.h"
 #include "pc/media_stream_observer.h"
+#include "rtc_base/thread.h"
 #include "sdk/android/generated_peerconnection_jni/MediaStream_jni.h"
 #include "sdk/android/native_api/jni/java_types.h"
 #include "sdk/android/native_api/jni/scoped_java_ref.h"
@@ -32,7 +33,8 @@ JavaMediaStream::JavaMediaStream(
     : j_media_stream_(
           env,
           Java_MediaStream_Constructor(env,
-                                       jlongFromPointer(media_stream.get()))) {
+                                       jlongFromPointer(media_stream.get()))),
+      signaling_thread_(Thread::Current()) {
   // Create an observer to update the Java stream when the native stream's set
   // of tracks changes.
   observer_.reset(new MediaStreamObserver(
@@ -71,7 +73,17 @@ JavaMediaStream::JavaMediaStream(
 JavaMediaStream::~JavaMediaStream() {
   JNIEnv* env = AttachCurrentThreadIfNeeded();
   // Remove the observer first, so it doesn't react to events during deletion.
-  observer_ = nullptr;
+  // The observer must be destroyed on the signaling thread, where it's
+  // notified. OnRemoveStream() destroys this object there, and the signaling
+  // thread doesn't allow BlockingCall() to itself. PeerConnection teardown
+  // destroys it on another thread.
+  if (signaling_thread_->IsCurrent()) {
+    observer_ = nullptr;
+  } else {
+    signaling_thread_->BlockingCall([this] { observer_ = nullptr; });
+  }
+  // Dispose the Java stream on this thread, since that waits for calls that
+  // may block on the signaling thread.
   Java_MediaStream_dispose(env, j_media_stream_);
 }
 

@@ -358,10 +358,14 @@ class RtpTransceiver : public RtpTransceiverInterface {
   [[nodiscard]] absl_nullable absl::AnyInvocable<void() &&>
   GetStopTransceiverProcedure();
 
-  // Returns a task that stops the transceiver.
-  // The task must be executed on the network thread.
-  // This is used by SdpOfferAnswerHandler to batch network thread operations.
-  ScopedOperationsBatcher::BatchTaskWithFinalizer StopStandardAsync();
+  // Stops sending and receiving as the stop() method does, but without
+  // updating the negotiation-needed flag. Stops the receivers synchronously and
+  // returns a task that stops the senders. The returned task must be executed
+  // on the network thread. Must only be called if the transceiver isn't
+  // stopping. This is used by SdpOfferAnswerHandler to batch network thread
+  // operations.
+  [[nodiscard]] absl_nonnull absl::AnyInvocable<void() &&>
+  GetStopSendingAndReceiving();
 
   // RtpTransceiverInterface implementation.
   MediaType media_type() const override;
@@ -493,11 +497,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
   void ClearRtpTransportState() RTC_RUN_ON(context()->network_thread());
   void SetRtpTransportState(RtpTransportInternal* transport)
       RTC_RUN_ON(context()->network_thread());
-
-  // Stops the receivers synchronously and returns a task that stops the
-  // senders. The returned task must be executed on the network thread.
-  [[nodiscard]] absl_nonnull absl::AnyInvocable<void() &&>
-  GetStopSendingAndReceiving();
 
   void SetMediaChannels(MediaSendChannelInterface* send,
                         MediaReceiveChannelInterface* receive)

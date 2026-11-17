@@ -326,7 +326,7 @@ class PeerConnection : public PeerConnectionInternal,
   // Functions needed by DataChannelController
   void NoteDataAddedEvent() override { NoteUsageEvent(UsageEvent::DATA_ADDED); }
 
-  void RunWithObserver(
+  bool RunWithObserver(
       absl::AnyInvocable<void(webrtc::PeerConnectionObserver*) &&>) override
       RTC_RUN_ON(signaling_thread());
 
@@ -399,7 +399,7 @@ class PeerConnection : public PeerConnectionInternal,
   const PeerConnectionFactoryInterface::Options* options() const override {
     return &options_;
   }
-  void SetIceConnectionState(IceConnectionState new_state) override;
+  bool SetIceConnectionState(IceConnectionState new_state) override;
   void NoteUsageEvent(UsageEvent event) override;
 
   // Asynchronously adds a remote candidate on the network thread.
@@ -508,6 +508,14 @@ class PeerConnection : public PeerConnectionInternal,
                           const std::vector<RelayServerConfig>& turn_servers);
   ScopedOperationsBatcher::BatchTaskWithFinalizer
   MakeCloseOnNetworkThreadTask();
+  // The part of Close() after the signaling state has changed to closed: tears
+  // down media and transports, reports usage metrics and detaches the
+  // observer. Runs only once.
+  void CompleteClose() RTC_RUN_ON(signaling_thread());
+  // Stops the transceivers that aren't stopped yet and adds the tasks that
+  // complete stopping them to `worker_tasks`.
+  void StopTransceivers(ScopedOperationsBatcher& worker_tasks)
+      RTC_RUN_ON(signaling_thread());
   JsepTransportController* InitializeTransportController_n(
       std::unique_ptr<JsepTransportController> controller,
       const RTCConfiguration& configuration) RTC_RUN_ON(network_thread());
@@ -526,8 +534,9 @@ class PeerConnection : public PeerConnectionInternal,
   // Called any time the IceGatheringState changes.
   void OnIceGatheringChange(IceGatheringState new_state)
       RTC_RUN_ON(signaling_thread());
-  // New ICE candidate has been gathered.
-  void OnIceCandidate(std::unique_ptr<IceCandidate> candidate)
+  // New ICE candidate has been gathered. Returns false if the observer closed
+  // or released the PeerConnection.
+  bool OnIceCandidate(std::unique_ptr<IceCandidate> candidate)
       RTC_RUN_ON(signaling_thread());
   // Gathering of an ICE candidate failed.
   void OnIceCandidateError(const std::string& address,
@@ -655,6 +664,8 @@ class PeerConnection : public PeerConnectionInternal,
   const PeerConnectionFactoryInterface::Options options_;
   PeerConnectionObserver* observer_ RTC_GUARDED_BY(signaling_thread()) =
       nullptr;
+  // Set once CompleteClose() has started, so that it runs only once.
+  bool close_completion_started_ RTC_GUARDED_BY(signaling_thread()) = false;
 
   const bool is_unified_plan_;
   const bool dtls_enabled_;
