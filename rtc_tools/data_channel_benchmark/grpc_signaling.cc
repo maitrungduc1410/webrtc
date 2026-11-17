@@ -120,7 +120,6 @@ void ProcessMessages(StreamReader* stream, SessionData* session) {
       }
       case SignalingMessage::ContentCase::kDescription: {
         auto& description = message.description();
-        auto content = description.content();
 
         auto sdp = CreateSessionDescription(
             description.type() == SessionDescription::OFFER ? SdpType::kOffer

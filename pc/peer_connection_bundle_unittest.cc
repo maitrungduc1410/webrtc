@@ -786,7 +786,6 @@ TEST_P(PeerConnectionBundleTest, RejectDescriptionChangingBundleTag) {
   // Create a new bundle-group with different bundled_mid.
   auto* old_bundle_group =
       offer->description()->GetGroupByName(GROUP_TYPE_BUNDLE);
-  std::string first_mid = old_bundle_group->content_names()[0];
   std::string second_mid = old_bundle_group->content_names()[1];
   ContentGroup new_bundle_group(GROUP_TYPE_BUNDLE);
   new_bundle_group.AddContentName(second_mid);

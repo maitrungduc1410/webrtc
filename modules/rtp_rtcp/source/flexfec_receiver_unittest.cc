@@ -286,7 +286,7 @@ TEST_F(FlexfecReceiverTest, DoesNotRecoverFromMediaAndFecLoss) {
 
   PacketList media_packets;
   PacketizeFrame(kNumMediaPackets, 0, &media_packets);
-  std::list<Packet*> fec_packets = EncodeFec(media_packets, kNumFecPackets);
+  EncodeFec(media_packets, kNumFecPackets);
 
   // Receive first media packet.
   auto media_it = media_packets.begin();

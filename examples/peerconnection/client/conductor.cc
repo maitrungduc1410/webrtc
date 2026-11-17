@@ -383,7 +383,6 @@ void Conductor::OnMessageFromPeer(int peer_id, const std::string& message) {
     return;
   }
   std::string type_str;
-  std::string json_object;
 
   webrtc::GetStringFromJsonObject(jmessage, kSessionDescriptionTypeName,
                                   &type_str);

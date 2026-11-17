@@ -721,8 +721,6 @@ TEST_P(PeerConnectionHeaderExtensionUnifiedPlanTest,
                   .media_description()
                   ->rtp_header_extensions(),
               Contains(Field(&RtpExtension::uri, "encrypted_uri")));
-  auto answerer_extensions =
-      pc2->pc()->GetTransceivers()[0]->GetHeaderExtensionsToNegotiate();
   std::unique_ptr<SessionDescriptionInterface> answer =
       pc2->CreateAnswerAndSetAsLocal();
   EXPECT_THAT(answer->description()

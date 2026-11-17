@@ -14,7 +14,6 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
@@ -90,7 +89,6 @@ class FakeTimeoutManager {
   // again.
   std::optional<TimeoutID> GetNextExpiredTimeout() {
     webrtc::Timestamp now = get_time_();
-    std::vector<TimeoutID> expired_timers;
     for (auto& timer : timers_) {
       if (timer->EvaluateHasExpired(now)) {
         return timer->timeout_id();

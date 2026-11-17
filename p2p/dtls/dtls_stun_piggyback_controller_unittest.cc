@@ -586,8 +586,6 @@ TEST_F(DtlsStunPiggybackControllerTest, LimitAckSize) {
 }
 
 TEST_F(DtlsStunPiggybackControllerTest, EmptyDataDoesNotClearAck) {
-  std::vector<uint8_t> dtls_flight5 = FakeDtlsPacket(0x5487);
-
   server_.ReportDataPiggybacked(
       WrapInStun(STUN_ATTR_META_DTLS_IN_STUN, dtls_flight1)->array_view(),
       std::nullopt);

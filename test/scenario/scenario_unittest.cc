@@ -143,7 +143,6 @@ TEST(ScenarioTest, WritesToRtcEventLog) {
     SetupVideoCall(s, nullptr);
     s.RunFor(TimeDelta::Seconds(1));
   }
-  auto logs = storage.logs();
   // We expect that a rtc event log has been created and that it has some data.
   EXPECT_GE(storage.logs().at("alice.rtc.dat").size(), 1u);
 }

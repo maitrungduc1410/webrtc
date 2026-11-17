@@ -171,7 +171,6 @@ INSTANTIATE_TEST_SUITE_P(MultiChannel,
 TEST_P(CoarseFilterUpdateGainOneTwoEightRenderChannels,
        GainCausesFilterToConverge) {
   const size_t num_render_channels = GetParam();
-  std::vector<int> blocks_with_echo_path_changes;
   std::vector<int> blocks_with_saturation;
 
   for (size_t filter_length_blocks : {12, 20, 30}) {
@@ -202,7 +201,6 @@ TEST_P(CoarseFilterUpdateGainOneTwoEightRenderChannels,
 // Verifies that the gain is zero when there is saturation.
 TEST_P(CoarseFilterUpdateGainOneTwoEightRenderChannels, SaturationBehavior) {
   const size_t num_render_channels = GetParam();
-  std::vector<int> blocks_with_echo_path_changes;
   std::vector<int> blocks_with_saturation;
   for (int k = 99; k < 200; ++k) {
     blocks_with_saturation.push_back(k);
@@ -244,7 +242,6 @@ TEST_P(CoarseFilterUpdateGainOneTwoFourRenderChannels, DecreasingGain) {
   const size_t num_render_channels = GetParam();
   for (size_t filter_length_blocks : {12, 20, 30}) {
     SCOPED_TRACE(ProduceDebugText(filter_length_blocks));
-    std::vector<int> blocks_with_echo_path_changes;
     std::vector<int> blocks_with_saturation;
 
     std::array<float, kBlockSize> e;

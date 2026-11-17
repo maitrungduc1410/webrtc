@@ -76,15 +76,15 @@ TEST(SvcConfig, UpdatesInterLayerPredModeBasedOnScalabilityMode) {
   codec.height = 720;
   codec.SetScalabilityMode(ScalabilityMode::kL3T3_KEY);
 
-  std::vector<SpatialLayer> spatial_layers = GetVp9SvcConfig(codec);
+  GetVp9SvcConfig(codec);
   EXPECT_EQ(codec.VP9()->interLayerPred, InterLayerPredMode::kOnKeyPic);
 
   codec.SetScalabilityMode(ScalabilityMode::kL3T3);
-  spatial_layers = GetVp9SvcConfig(codec);
+  GetVp9SvcConfig(codec);
   EXPECT_EQ(codec.VP9()->interLayerPred, InterLayerPredMode::kOn);
 
   codec.SetScalabilityMode(ScalabilityMode::kS3T3);
-  spatial_layers = GetVp9SvcConfig(codec);
+  GetVp9SvcConfig(codec);
   EXPECT_EQ(codec.VP9()->interLayerPred, InterLayerPredMode::kOff);
 }
 

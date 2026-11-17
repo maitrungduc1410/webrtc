@@ -305,8 +305,6 @@ TEST_F(RtpTransceiverTest, CanUnsetChannelOnStoppedTransceiver) {
 }
 
 TEST_F(RtpTransceiverTestWithFakeCall, TransportNameIsUpdated) {
-  const std::string content_name("my_mid");
-
   auto fake_dtls =
       std::make_unique<FakeDtlsTransport>(env(), "test_transport", false);
   auto rtp_transport = std::make_unique<RtpTransport>(/*rtcp_mux_enabled=*/true,
@@ -1173,8 +1171,6 @@ TEST_F(RtpTransceiverTestWithFakeCall,
 }
 
 TEST_F(RtpTransceiverTestWithFakeCall, OnNetworkRouteChangedForwardsToChannel) {
-  const std::string content_name("my_mid");
-
   auto fake_dtls =
       std::make_unique<FakeDtlsTransport>(env(), "test_transport", false);
   auto rtp_transport = std::make_unique<RtpTransport>(/*rtcp_mux_enabled=*/true,
@@ -1220,8 +1216,6 @@ TEST_F(RtpTransceiverTestWithFakeCall, OnNetworkRouteChangedForwardsToChannel) {
 
 TEST_F(RtpTransceiverTestWithFakeCall,
        OnNetworkRouteChangedForwardsToVideoChannel) {
-  const std::string content_name("my_mid");
-
   auto fake_dtls =
       std::make_unique<FakeDtlsTransport>(env(), "test_transport", false);
   auto rtp_transport = std::make_unique<RtpTransport>(/*rtcp_mux_enabled=*/true,
@@ -1267,7 +1261,6 @@ TEST_F(RtpTransceiverTestWithFakeCall,
 
 TEST_F(RtpTransceiverDoubleThreadTest,
        OnNetworkRouteChangedForwardsToChannel_DoubleThread) {
-  const std::string content_name("my_mid");
   RTC_LOG(LS_INFO) << "TestBody current_thread=" << Thread::Current();
   RTC_LOG(LS_INFO) << "TestBody signaling_thread="
                    << context()->signaling_thread();

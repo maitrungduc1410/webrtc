@@ -804,7 +804,6 @@ void CallPerfTest::TestMinAudioVideoBitrate(int test_bitrate_from,
                                             int min_bwe,
                                             int start_bwe,
                                             int max_bwe) {
-  static const std::string kAudioTrackId = "audio_track_0";
   static constexpr int kBitrateStabilizationMs = 10000;
   static constexpr int kBitrateMeasurements = 10;
   static constexpr int kBitrateMeasurementMs = 1000;

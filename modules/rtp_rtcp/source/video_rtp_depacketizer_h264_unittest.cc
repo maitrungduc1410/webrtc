@@ -272,8 +272,6 @@ TEST(VideoRtpDepacketizerH264Test, DepacketizeWithDoubleRewriting) {
   VideoRtpDepacketizerH264 depacketizer;
   auto parsed = depacketizer.Parse(in_buffer);
   ASSERT_TRUE(parsed);
-  std::vector<uint8_t> expected_packet_payload(
-      out_buffer.data(), &out_buffer.data()[out_buffer.size()]);
   EXPECT_THAT(
       std::span(parsed->video_payload.cdata(), parsed->video_payload.size()),
       ElementsAreArray(out_buffer));

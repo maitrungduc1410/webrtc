@@ -68,8 +68,7 @@ bool MultiEndCall::CreateAudioTrackReaders() {
 
     // Map the audiotrack file name to a new instance of WavReaderInterface.
     std::unique_ptr<WavReaderInterface> wavreader =
-        wavreader_abstract_factory_->Create(
-            test::JoinFilename(audiotracks_path_, turn.audiotrack_file_name));
+        wavreader_abstract_factory_->Create(audiotrack_file_path);
 
     if (sample_rate_hz_ == 0) {
       sample_rate_hz_ = wavreader->SampleRate();

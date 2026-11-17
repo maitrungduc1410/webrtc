@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
-#include <vector>
 
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/delay_estimate.h"
@@ -83,7 +82,6 @@ TEST(MatchedFilterLagAggregator, DISABLED_PersistentAggregatedLag) {
   constexpr size_t kLag2 = 10;
   ApmDataDumper data_dumper(0);
   EchoCanceller3Config config;
-  std::vector<MatchedFilter::LagEstimate> lag_estimates(1);
   MatchedFilterLagAggregator aggregator(&data_dumper, std::max(kLag1, kLag2),
                                         config.delay);
   std::optional<DelayEstimate> aggregated_lag;

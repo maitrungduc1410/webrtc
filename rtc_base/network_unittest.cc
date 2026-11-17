@@ -952,7 +952,6 @@ TEST_F(NetworkTest, TestGetAdapterTypeFromNameMatching) {
   std::string ipv4_address1 = "192.0.0.121";
   std::string ipv4_mask = "255.255.255.0";
   std::string ipv6_address1 = "1000:2000:3000:4000:0:0:0:1";
-  std::string ipv6_address2 = "1000:2000:3000:8000:0:0:0:1";
   std::string ipv6_mask = "FFFF:FFFF:FFFF:FFFF::";
   PhysicalSocketServer socket_server;
   BasicNetworkManager manager(env_, &socket_server);
@@ -1012,6 +1011,7 @@ TEST_F(NetworkTest, TestGetAdapterTypeFromNameMatching) {
   ReleaseIfAddrs(addr_list);
 
   strcpy(if_name, "v4-rmnet_data0");
+  std::string ipv6_address2 = "1000:2000:3000:8000:0:0:0:1";
   addr_list = InstallIpv6Network(if_name, ipv6_address2, ipv6_mask, manager);
   EXPECT_EQ(ADAPTER_TYPE_CELLULAR, GetAdapterType(manager));
   ClearNetworks(manager);

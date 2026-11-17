@@ -3006,9 +3006,6 @@ TEST_F(TestSimulcastEncoderAdapterFake,
 // In the case of mixed-codec simulcast, verify whether each encoder is created
 // with the specified video format.
 TEST_F(TestSimulcastEncoderAdapterFake, InitEncodeForMixedCodec) {
-  std::vector<SdpVideoFormat> codecs = {SdpVideoFormat::VP8(),
-                                        SdpVideoFormat::VP9Profile0(),
-                                        SdpVideoFormat::VP9Profile1()};
   SetupMixedCodec({{.active = true, .format = SdpVideoFormat::VP8()},
                    {.active = true, .format = SdpVideoFormat::VP9Profile0()},
                    {.active = true, .format = SdpVideoFormat::VP9Profile1()}});
@@ -3034,9 +3031,6 @@ TEST_F(TestSimulcastEncoderAdapterFake, InitEncodeForMixedCodec) {
 
 TEST_F(TestSimulcastEncoderAdapterFake,
        CodecSpecificSettingsIsInitializedDefaultValueForMixedCodec) {
-  std::vector<SdpVideoFormat> codecs = {SdpVideoFormat::VP8(),
-                                        SdpVideoFormat::VP9Profile0(),
-                                        SdpVideoFormat::VP9Profile1()};
   SetupMixedCodec({{.active = true, .format = SdpVideoFormat::VP8()},
                    {.active = true, .format = SdpVideoFormat::VP9Profile0()},
                    {.active = true, .format = SdpVideoFormat::VP9Profile1()}});
@@ -3071,9 +3065,6 @@ TEST_F(TestSimulcastEncoderAdapterFake,
 // supports_simulcast() == true.
 TEST_F(TestSimulcastEncoderAdapterFake,
        CreateMultipleEncodersEvenIfSimulcastIsSupportedForMixedCodec) {
-  std::vector<SdpVideoFormat> codecs = {SdpVideoFormat::VP8(),
-                                        SdpVideoFormat::VP9Profile0(),
-                                        SdpVideoFormat::VP9Profile1()};
   helper_->factory()->set_supports_simulcast(true);
   SetupMixedCodec({{.active = true, .format = SdpVideoFormat::VP8()},
                    {.active = true, .format = SdpVideoFormat::VP9Profile0()},

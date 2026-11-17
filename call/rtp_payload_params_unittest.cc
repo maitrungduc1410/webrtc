@@ -12,7 +12,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <set>
 #include <variant>
@@ -66,7 +65,6 @@ TEST(RtpPayloadParamsTest, InfoMappedToRtpVideoHeader_Vp8) {
   RtpPayloadState state2;
   state2.picture_id = kPictureId;
   state2.tl0_pic_idx = kTl0PicIdx;
-  std::map<uint32_t, RtpPayloadState> states = {{kSsrc2, state2}};
 
   RtpPayloadParams params(CreateTestEnvironment(), kSsrc2, &state2);
   EncodedImage encoded_image;

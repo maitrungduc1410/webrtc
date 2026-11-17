@@ -2879,9 +2879,6 @@ TEST_P(PeerConnectionEncodingsIntegrationParameterizedTest,
   scoped_refptr<PeerConnectionTestWrapper> remote_pc_wrapper = CreatePc();
   ExchangeIceCandidates(local_pc_wrapper, remote_pc_wrapper);
 
-  std::vector<SimulcastLayer> layers =
-      CreateLayers({"q", "h", "f"}, /*active=*/true);
-
   // Configure {20p,40p,80p} with 2:1 aspect ratio.
   RtpTransceiverInit init;
   RtpEncodingParameters encoding;

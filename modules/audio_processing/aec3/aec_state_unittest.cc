@@ -72,8 +72,6 @@ void RunNormalUsageTest(size_t num_render_channels,
       v.fill(0.01f);
     }
   }
-  std::vector<std::vector<std::array<float, kFftLengthBy2Plus1>>>
-      diverged_filter_frequency_response = converged_filter_frequency_response;
   converged_filter_frequency_response[0][2].fill(100.f);
   converged_filter_frequency_response[0][2][0] = 1.f;
   std::vector<std::vector<float>> impulse_response(

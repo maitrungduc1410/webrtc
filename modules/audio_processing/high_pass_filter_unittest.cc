@@ -169,14 +169,13 @@ TEST(HighPassFilterAccuracyTest, ResetWithAudioBufferInterface) {
   std::vector<float> x_mono(160, 1.f);
   std::vector<float> x_stereo(320, 1.f);
   HighPassFilter hpf(16000, 1);
-  std::vector<float> y =
-      ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
   hpf.Reset(2);
-  y = ProcessOneFrameAsAudioBuffer(x_stereo, stream_config_stereo, &hpf);
+  ProcessOneFrameAsAudioBuffer(x_stereo, stream_config_stereo, &hpf);
   hpf.Reset(1);
-  y = ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
   hpf.Reset();
-  y = ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsAudioBuffer(x_mono, stream_config_mono, &hpf);
 }
 
 TEST(HighPassFilterAccuracyTest, ResetWithVectorInterface) {
@@ -185,14 +184,13 @@ TEST(HighPassFilterAccuracyTest, ResetWithVectorInterface) {
   std::vector<float> x_mono(160, 1.f);
   std::vector<float> x_stereo(320, 1.f);
   HighPassFilter hpf(16000, 1);
-  std::vector<float> y =
-      ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
   hpf.Reset(2);
-  y = ProcessOneFrameAsVector(x_stereo, stream_config_stereo, &hpf);
+  ProcessOneFrameAsVector(x_stereo, stream_config_stereo, &hpf);
   hpf.Reset(1);
-  y = ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
   hpf.Reset();
-  y = ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
+  ProcessOneFrameAsVector(x_mono, stream_config_mono, &hpf);
 }
 
 TEST(HighPassFilterAccuracyTest, MonoInitial) {

@@ -392,7 +392,6 @@ TEST(PacketBuffer, DiscardPackets) {
   const uint32_t start_ts = 4711;
   const uint32_t ts_increment = 10;
   PacketGenerator gen(start_seq_no, start_ts, 0, ts_increment);
-  PacketList list;
   const int payload_len = 10;
   MockDecoderDatabase decoder_database;
 

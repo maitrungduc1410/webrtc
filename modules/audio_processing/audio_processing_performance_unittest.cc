@@ -206,8 +206,6 @@ class TimedThreadApiProcessor {
 
   // Method for printing out the simulation statistics.
   void print_processor_statistics(absl::string_view processor_name) const {
-    const std::string modifier = "_api_call_duration";
-
     const std::string sample_rate_name =
         "_" + std::to_string(simulation_config_->sample_rate_hz) + "Hz";
 
