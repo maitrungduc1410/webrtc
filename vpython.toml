@@ -10,7 +10,7 @@ dependencies = [
   'pbr==5.9.0',
   'funcsigs==1.0.2',
   'mock==4.0.3',
-  'protobuf==7.36.0',
+  'protobuf==7.36.2',
   'requests==2.31.0',
   'idna==3.4',
   'urllib3==2.1.0',

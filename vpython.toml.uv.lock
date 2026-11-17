@@ -78,8 +78,8 @@ packaging==16.8 ; python_full_version < '3.12' \
 pbr==5.9.0 ; python_full_version < '3.12' \
     --hash=sha256:6c4c2a8dec9b65365d14657f27288c84ca1ddb44bb920d12537424265c0817e8 \
     --hash=sha256:e547125940bcc052856ded43be8e101f63828c2d94239ffbe2b327ba3d5ccf0a
-protobuf==7.36.0 ; python_full_version < '3.12' \
-    --hash=sha256:53374d53fc29a67f7dbbf0ade47d7526a0f0137bf0f9c90e48d8a60790ef748c
+protobuf==7.36.2 ; python_full_version < '3.12' \
+    --hash=sha256:bdb3a345d48db958e6ce1f18e508beb0cc981d64f24088427549c866cd039f1e
 psutil==5.8.0+chromium.3 ; python_full_version < '3.12' \
     --hash=sha256:0414d09ff0e351534cec610ea7abb69293c3247d85957cb8ca9079b25dcee9aa \
     --hash=sha256:14353392ca62cfd804920a31453f4d05fa076c18bd093c2e7bcef767f14c4e9c \
