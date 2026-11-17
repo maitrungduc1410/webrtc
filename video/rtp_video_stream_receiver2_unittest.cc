@@ -28,6 +28,7 @@
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/sframe/sframe_decryptor_interface.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/test/mock_frame_transformer.h"
@@ -59,6 +60,9 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "modules/rtp_rtcp/source/rtp_video_header.h"
+#include "modules/sframe/mock_sframe_media_decryptor.h"
+#include "modules/sframe/sframe_decrypt_error_reporter.h"
+#include "modules/sframe/sframe_decryption_config.h"
 #include "modules/video_coding/codecs/h264/include/h264_globals.h"
 #include "modules/video_coding/codecs/vp8/include/vp8_globals.h"
 #include "modules/video_coding/codecs/vp9/include/vp9_globals.h"
@@ -745,6 +749,24 @@ TEST_F(RtpVideoStreamReceiver2Test,
 
   rtp_video_stream_receiver_->UpdateSframeOptions({.required = true});
 
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
+  rtp_video_stream_receiver_->OnRtpPacket(CreateGenericKeyFramePacket());
+}
+
+TEST_F(RtpVideoStreamReceiver2Test,
+       DropsMediaWhileSframeDecryptionIsNotWiredUp) {
+  scoped_refptr<MockSframeMediaDecryptor> decryptor =
+      make_ref_counted<MockSframeMediaDecryptor>();
+  rtp_video_stream_receiver_->StartReceive();
+
+  rtp_video_stream_receiver_->UpdateSframeOptions(
+      {.required = true,
+       .decryption_config = SframeDecryptionConfig{
+           .decryptor = decryptor,
+           .error_reporter = SframeDecryptErrorReporter::Create(
+               /*error_callback=*/[](SframeDecryptError) {})}});
+
+  EXPECT_CALL(*decryptor, Decrypt).Times(0);
   EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
   rtp_video_stream_receiver_->OnRtpPacket(CreateGenericKeyFramePacket());
 }

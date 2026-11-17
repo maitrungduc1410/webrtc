@@ -93,6 +93,7 @@
 #include "rtc_base/strings/string_builder.h"
 #include "system_wrappers/include/ntp_time.h"
 #include "video/buffered_frame_decryptor.h"
+#include "video/sframe_video_receive_delegate.h"
 
 namespace webrtc {
 
@@ -352,6 +353,10 @@ RtpVideoStreamReceiver2::RtpVideoStreamReceiver2(
   }
 
   sframe_required_by_negotiation_ = config_.rtp.sframe_options.required;
+  if (config_.rtp.sframe_options.decryption_config.has_value()) {
+    sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
+        *config_.rtp.sframe_options.decryption_config);
+  }
 }
 
 RtpVideoStreamReceiver2::~RtpVideoStreamReceiver2() {
@@ -1141,6 +1146,12 @@ void RtpVideoStreamReceiver2::UpdateSframeOptions(
     const SframeReceiveOptions& options) {
   RTC_DCHECK_RUN_ON(network_queue_);
   sframe_required_by_negotiation_ = options.required;
+  if (options.decryption_config.has_value()) {
+    sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
+        *options.decryption_config);
+  } else {
+    sframe_delegate_ = nullptr;
+  }
 }
 
 void RtpVideoStreamReceiver2::SetDepacketizerToDecoderFrameTransformer(

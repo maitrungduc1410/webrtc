@@ -69,6 +69,7 @@
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 #include "video/buffered_frame_decryptor.h"
+#include "video/sframe_video_receive_delegate.h"
 #include "video/unique_timestamp_counter.h"
 
 namespace webrtc {
@@ -387,6 +388,8 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
 
   video_coding::PacketBuffer packet_buffer_ RTC_GUARDED_BY(network_queue_);
   bool sframe_required_by_negotiation_ RTC_GUARDED_BY(network_queue_) = false;
+  std::unique_ptr<SframeVideoReceiveDelegate> sframe_delegate_
+      RTC_GUARDED_BY(network_queue_);
   // h26x_packet_buffer_ is applicable to H.264 and H.265. For H.265 it is
   // always used but for H.264 it is only used if WebRTC-Video-H26xPacketBuffer
   // is enabled, see condition inside UseH26xPacketBuffer().

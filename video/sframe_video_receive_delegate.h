@@ -1,0 +1,54 @@
+/*
+ *  Copyright 2026 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+#ifndef VIDEO_SFRAME_VIDEO_RECEIVE_DELEGATE_H_
+#define VIDEO_SFRAME_VIDEO_RECEIVE_DELEGATE_H_
+
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+#include "absl/base/nullability.h"
+#include "api/scoped_refptr.h"
+#include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/sframe/sframe_decrypt_error_reporter.h"
+#include "modules/sframe/sframe_decryption_config.h"
+#include "modules/sframe/sframe_media_decryptor_interface.h"
+
+namespace webrtc {
+
+// Decrypts the Sframe media of one video receive stream and reports the
+// failures to the application. In per-packet mode (T=1) each packet is
+// decrypted before depacketization.
+//
+// The decryptor and the error reporter in `config` hold all the crypto and
+// reporting state, and are shared with the other receive streams of the same
+// receiver.
+//
+// All methods must be called on the sequence that receives the media.
+class SframeVideoReceiveDelegate {
+ public:
+  explicit SframeVideoReceiveDelegate(SframeDecryptionConfig config);
+
+  // Returns `packet` with its payload replaced by the plaintext, or nullptr if
+  // it did not decrypt, in which case the packet is dropped.
+  absl_nullable std::unique_ptr<RtpPacketReceived> DecryptPacket(
+      absl_nonnull std::unique_ptr<RtpPacketReceived> packet);
+
+ private:
+  const absl_nonnull scoped_refptr<SframeMediaDecryptorInterface> decryptor_;
+  const absl_nonnull scoped_refptr<SframeDecryptErrorReporter> error_reporter_;
+  // Scratch buffer reused to avoid allocating per packet.
+  std::vector<uint8_t> packet_plaintext_;
+};
+
+}  // namespace webrtc
+
+#endif  // VIDEO_SFRAME_VIDEO_RECEIVE_DELEGATE_H_

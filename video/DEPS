@@ -11,6 +11,7 @@ include_rules = [
   "+modules/pacing",
   "+modules/remote_bitrate_estimator",
   "+modules/rtp_rtcp",
+  "+modules/sframe",
   "+modules/utility",
   "+modules/video_coding",
   "+system_wrappers",

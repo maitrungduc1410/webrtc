@@ -74,6 +74,7 @@ rtc_library("video") {
     ":frame_decode_scheduler",
     ":frame_dumping_decoder",
     ":null_video_decoder",
+    ":sframe_video_receive_delegate",
     ":task_queue_frame_decode_scheduler",
     ":unique_timestamp_counter",
     ":video_stream_buffer_controller",
@@ -503,6 +504,21 @@ rtc_library("unique_timestamp_counter") {
   sources = [
     "unique_timestamp_counter.cc",
     "unique_timestamp_counter.h",
+  ]
+}
+
+rtc_library("sframe_video_receive_delegate") {
+  sources = [
+    "sframe_video_receive_delegate.cc",
+    "sframe_video_receive_delegate.h",
+  ]
+  deps = [
+    "../api:scoped_refptr",
+    "../modules/rtp_rtcp:rtp_rtcp_format",
+    "../modules/sframe:sframe_decrypt_error_reporter",
+    "../modules/sframe:sframe_decryption_config",
+    "../modules/sframe:sframe_media_decryptor_interface",
+    "//third_party/abseil-cpp/absl/base:nullability",
   ]
 }
 
@@ -1689,6 +1705,7 @@ if (rtc_include_tests) {
       "../api:rtp_headers",
       "../api:rtp_parameters",
       "../api:scoped_refptr",
+      "../api:sframe_decryptor_interface",
       "../api/environment",
       "../api/environment:environment_factory",
       "../api/task_queue",
@@ -1711,6 +1728,9 @@ if (rtc_include_tests) {
       "../modules/rtp_rtcp",
       "../modules/rtp_rtcp:rtp_rtcp_format",
       "../modules/rtp_rtcp:rtp_video_header",
+      "../modules/sframe:mock_sframe_media_decryptor",
+      "../modules/sframe:sframe_decrypt_error_reporter",
+      "../modules/sframe:sframe_decryption_config",
       "../modules/video_coding:codec_globals_headers",
       "../modules/video_coding:nack_requester",
       "../rtc_base:copy_on_write_buffer",
@@ -1737,6 +1757,22 @@ if (rtc_include_tests) {
       "../test:test_support",
       "//call",
       "//call:call_interfaces",
+    ]
+  }
+
+  rtc_cc_test("sframe_video_receive_delegate_unittest") {
+    sources = [ "sframe_video_receive_delegate_unittest.cc" ]
+    deps = [
+      ":sframe_video_receive_delegate",
+      "../api:make_ref_counted",
+      "../api:scoped_refptr",
+      "../api:sframe_decryptor_interface",
+      "../modules/rtp_rtcp:rtp_rtcp_format",
+      "../modules/sframe:mock_sframe_media_decryptor",
+      "../modules/sframe:sframe_decrypt_error_reporter",
+      "../modules/sframe:sframe_decryption_config",
+      "../modules/sframe:sframe_media_decryptor_interface",
+      "../test:test_support",
     ]
   }
 
@@ -2256,6 +2292,7 @@ if (rtc_include_tests) {
       ":rtp_video_stream_receiver2_unittest",
       ":send_delay_stats_unittest",
       ":send_statistics_proxy_unittest",
+      ":sframe_video_receive_delegate_unittest",
       ":ssrc_tests",
       ":stats_counter_unittest",
       ":stats_tests",
