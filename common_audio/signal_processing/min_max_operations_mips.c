@@ -16,7 +16,11 @@
  *
  */
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/min_max_operations.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
 #include "rtc_base/checks.h"
 
 // Maximum absolute value of word16 vector.
@@ -101,7 +105,7 @@ int16_t WebRtcSpl_MaxAbsValueW16_mips(const int16_t* vector, size_t length) {
         : "memory");
   }
 #else   // #if defined(MIPS_DSP_R1)
-  int32_t v16MaxMax = WEBRTC_SPL_WORD16_MAX;
+  int32_t v16MaxMax = INT16_MAX;
   int32_t r, r1, r2, r3;
   const int16_t* tmpvector = vector;
   loop_size = length >> 4;
@@ -252,7 +256,7 @@ int32_t WebRtcSpl_MaxAbsValueW32_mips(const int32_t* vector, size_t length) {
 
 // Maximum value of word16 vector. Version for MIPS platform.
 int16_t WebRtcSpl_MaxValueW16_mips(const int16_t* vector, size_t length) {
-  int16_t maximum = WEBRTC_SPL_WORD16_MIN;
+  int16_t maximum = INT16_MIN;
   int tmp1;
   int16_t value;
 
@@ -280,7 +284,7 @@ int16_t WebRtcSpl_MaxValueW16_mips(const int16_t* vector, size_t length) {
 
 // Maximum value of word32 vector. Version for MIPS platform.
 int32_t WebRtcSpl_MaxValueW32_mips(const int32_t* vector, size_t length) {
-  int32_t maximum = WEBRTC_SPL_WORD32_MIN;
+  int32_t maximum = INT32_MIN;
   int tmp1, value;
 
   RTC_DCHECK_GT(length, 0);
@@ -308,7 +312,7 @@ int32_t WebRtcSpl_MaxValueW32_mips(const int32_t* vector, size_t length) {
 
 // Minimum value of word16 vector. Version for MIPS platform.
 int16_t WebRtcSpl_MinValueW16_mips(const int16_t* vector, size_t length) {
-  int16_t minimum = WEBRTC_SPL_WORD16_MAX;
+  int16_t minimum = INT16_MAX;
   int tmp1;
   int16_t value;
 
@@ -337,7 +341,7 @@ int16_t WebRtcSpl_MinValueW16_mips(const int16_t* vector, size_t length) {
 
 // Minimum value of word32 vector. Version for MIPS platform.
 int32_t WebRtcSpl_MinValueW32_mips(const int32_t* vector, size_t length) {
-  int32_t minimum = WEBRTC_SPL_WORD32_MAX;
+  int32_t minimum = INT32_MAX;
   int tmp1, value;
 
   RTC_DCHECK_GT(length, 0);

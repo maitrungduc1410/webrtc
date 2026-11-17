@@ -22,7 +22,7 @@
 #include "api/sequence_checker.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/units/time_delta.h"
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/min_max_operations.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/synchronization/mutex.h"

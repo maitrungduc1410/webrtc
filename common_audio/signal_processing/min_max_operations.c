@@ -24,10 +24,13 @@
  *
  */
 
+#include "common_audio/signal_processing/min_max_operations.h"
+
 #include <limits.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
 #include "rtc_base/checks.h"
 
 // TODO(bjorn/kma): Consolidate function pairs (e.g. combine
@@ -50,8 +53,8 @@ int16_t WebRtcSpl_MaxAbsValueW16C(const int16_t* vector, size_t length) {
   }
 
   // Guard the case for abs(-32768).
-  if (maximum > WEBRTC_SPL_WORD16_MAX) {
-    maximum = WEBRTC_SPL_WORD16_MAX;
+  if (maximum > INT16_MAX) {
+    maximum = INT16_MAX;
   }
 
   return (int16_t)maximum;
@@ -75,14 +78,16 @@ int32_t WebRtcSpl_MaxAbsValueW32C(const int32_t* vector, size_t length) {
     }
   }
 
-  maximum = WEBRTC_SPL_MIN(maximum, WEBRTC_SPL_WORD32_MAX);
+  if (maximum > (uint32_t)INT32_MAX) {
+    maximum = INT32_MAX;
+  }
 
   return (int32_t)maximum;
 }
 
 // Maximum value of word16 vector. C version for generic platforms.
 int16_t WebRtcSpl_MaxValueW16C(const int16_t* vector, size_t length) {
-  int16_t maximum = WEBRTC_SPL_WORD16_MIN;
+  int16_t maximum = INT16_MIN;
   size_t i = 0;
 
   RTC_DCHECK_GT(length, 0);
@@ -96,7 +101,7 @@ int16_t WebRtcSpl_MaxValueW16C(const int16_t* vector, size_t length) {
 
 // Maximum value of word32 vector. C version for generic platforms.
 int32_t WebRtcSpl_MaxValueW32C(const int32_t* vector, size_t length) {
-  int32_t maximum = WEBRTC_SPL_WORD32_MIN;
+  int32_t maximum = INT32_MIN;
   size_t i = 0;
 
   RTC_DCHECK_GT(length, 0);
@@ -110,7 +115,7 @@ int32_t WebRtcSpl_MaxValueW32C(const int32_t* vector, size_t length) {
 
 // Minimum value of word16 vector. C version for generic platforms.
 int16_t WebRtcSpl_MinValueW16C(const int16_t* vector, size_t length) {
-  int16_t minimum = WEBRTC_SPL_WORD16_MAX;
+  int16_t minimum = INT16_MAX;
   size_t i = 0;
 
   RTC_DCHECK_GT(length, 0);
@@ -124,7 +129,7 @@ int16_t WebRtcSpl_MinValueW16C(const int16_t* vector, size_t length) {
 
 // Minimum value of word32 vector. C version for generic platforms.
 int32_t WebRtcSpl_MinValueW32C(const int32_t* vector, size_t length) {
-  int32_t minimum = WEBRTC_SPL_WORD32_MAX;
+  int32_t minimum = INT32_MAX;
   size_t i = 0;
 
   RTC_DCHECK_GT(length, 0);
@@ -169,7 +174,7 @@ int16_t WebRtcSpl_MaxAbsElementW16(const int16_t* vector, size_t length) {
 // Index of maximum value in a word16 vector.
 size_t WebRtcSpl_MaxIndexW16(const int16_t* vector, size_t length) {
   size_t i = 0, index = 0;
-  int16_t maximum = WEBRTC_SPL_WORD16_MIN;
+  int16_t maximum = INT16_MIN;
 
   RTC_DCHECK_GT(length, 0);
 
@@ -186,7 +191,7 @@ size_t WebRtcSpl_MaxIndexW16(const int16_t* vector, size_t length) {
 // Index of maximum value in a word32 vector.
 size_t WebRtcSpl_MaxIndexW32(const int32_t* vector, size_t length) {
   size_t i = 0, index = 0;
-  int32_t maximum = WEBRTC_SPL_WORD32_MIN;
+  int32_t maximum = INT32_MIN;
 
   RTC_DCHECK_GT(length, 0);
 
@@ -203,7 +208,7 @@ size_t WebRtcSpl_MaxIndexW32(const int32_t* vector, size_t length) {
 // Index of minimum value in a word16 vector.
 size_t WebRtcSpl_MinIndexW16(const int16_t* vector, size_t length) {
   size_t i = 0, index = 0;
-  int16_t minimum = WEBRTC_SPL_WORD16_MAX;
+  int16_t minimum = INT16_MAX;
 
   RTC_DCHECK_GT(length, 0);
 
@@ -220,7 +225,7 @@ size_t WebRtcSpl_MinIndexW16(const int16_t* vector, size_t length) {
 // Index of minimum value in a word32 vector.
 size_t WebRtcSpl_MinIndexW32(const int32_t* vector, size_t length) {
   size_t i = 0, index = 0;
-  int32_t minimum = WEBRTC_SPL_WORD32_MAX;
+  int32_t minimum = INT32_MAX;
 
   RTC_DCHECK_GT(length, 0);
 
@@ -242,8 +247,8 @@ void WebRtcSpl_MinMaxW16(const int16_t* vector,
 #if defined(WEBRTC_HAS_NEON)
   return WebRtcSpl_MinMaxW16Neon(vector, length, min_val, max_val);
 #else
-  int16_t minimum = WEBRTC_SPL_WORD16_MAX;
-  int16_t maximum = WEBRTC_SPL_WORD16_MIN;
+  int16_t minimum = INT16_MAX;
+  int16_t maximum = INT16_MIN;
   size_t i = 0;
 
   RTC_DCHECK_GT(length, 0);
@@ -256,5 +261,65 @@ void WebRtcSpl_MinMaxW16(const int16_t* vector,
   }
   *min_val = minimum;
   *max_val = maximum;
+#endif
+}
+
+int16_t WebRtcSpl_MaxAbsValueW16(const int16_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MaxAbsValueW16Neon(vector, length);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_MaxAbsValueW16_mips(vector, length);
+#else
+  return WebRtcSpl_MaxAbsValueW16C(vector, length);
+#endif
+}
+
+int32_t WebRtcSpl_MaxAbsValueW32(const int32_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MaxAbsValueW32Neon(vector, length);
+#elif defined(MIPS_DSP_R1_LE)
+  return WebRtcSpl_MaxAbsValueW32_mips(vector, length);
+#else
+  return WebRtcSpl_MaxAbsValueW32C(vector, length);
+#endif
+}
+
+int16_t WebRtcSpl_MaxValueW16(const int16_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MaxValueW16Neon(vector, length);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_MaxValueW16_mips(vector, length);
+#else
+  return WebRtcSpl_MaxValueW16C(vector, length);
+#endif
+}
+
+int32_t WebRtcSpl_MaxValueW32(const int32_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MaxValueW32Neon(vector, length);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_MaxValueW32_mips(vector, length);
+#else
+  return WebRtcSpl_MaxValueW32C(vector, length);
+#endif
+}
+
+int16_t WebRtcSpl_MinValueW16(const int16_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MinValueW16Neon(vector, length);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_MinValueW16_mips(vector, length);
+#else
+  return WebRtcSpl_MinValueW16C(vector, length);
+#endif
+}
+
+int32_t WebRtcSpl_MinValueW32(const int32_t* vector, size_t length) {
+#if defined(WEBRTC_HAS_NEON)
+  return WebRtcSpl_MinValueW32Neon(vector, length);
+#elif defined(MIPS32_LE)
+  return WebRtcSpl_MinValueW32_mips(vector, length);
+#else
+  return WebRtcSpl_MinValueW32C(vector, length);
 #endif
 }

@@ -513,6 +513,7 @@ rtc_library("neteq") {
     "../../common_audio",  # keep
     "../../common_audio:common_audio_c",
     "../../common_audio:common_audio_cc",
+    "../../common_audio:min_max_operations",
     "../../rtc_base:buffer",
     "../../rtc_base:checks",
     "../../rtc_base:event_tracer",

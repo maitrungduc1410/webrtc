@@ -82,7 +82,7 @@ rtc_library("audio") {
     "../call:rtp_interfaces",
     "../call:sframe_options",
     "../common_audio",
-    "../common_audio:common_audio_c",
+    "../common_audio:min_max_operations",
     "../logging:rtc_event_audio",
     "../logging:rtc_event_rtp_rtcp",
     "../logging:rtc_stream_config",

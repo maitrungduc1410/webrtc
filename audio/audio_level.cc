@@ -13,7 +13,7 @@
 #include <cstdint>
 
 #include "api/audio/audio_frame.h"
-#include "common_audio/signal_processing/include/signal_processing_library.h"
+#include "common_audio/signal_processing/min_max_operations.h"
 #include "rtc_base/synchronization/mutex.h"
 
 namespace webrtc {

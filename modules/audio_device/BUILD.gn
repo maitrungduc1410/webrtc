@@ -63,7 +63,7 @@ rtc_library("audio_device_buffer") {
     "../../api/environment",
     "../../api/task_queue",
     "../../api/units:time_delta",
-    "../../common_audio:common_audio_c",
+    "../../common_audio:min_max_operations",
     "../../rtc_base:buffer",
     "../../rtc_base:checks",
     "../../rtc_base:event_tracer",
