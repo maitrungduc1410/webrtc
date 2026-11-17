@@ -167,6 +167,10 @@ class RTC_EXPORT P2PTransportChannel : public IceTransportInternal,
       std::span<const Connection* const> connections) override;
   bool PruneConnections(
       std::span<const Connection* const> connections) override;
+  Candidate GetSanitizedLocalCandidate(
+      const Connection* connection) const override;
+  Candidate GetSanitizedRemoteCandidate(
+      const Connection* connection) const override;
 
   void set_incoming_only(bool value) {
     RTC_DCHECK_RUN_ON(&network_thread_);

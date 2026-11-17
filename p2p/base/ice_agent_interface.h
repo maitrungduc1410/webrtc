@@ -13,6 +13,7 @@
 
 #include <span>
 
+#include "api/candidate.h"
 #include "api/units/timestamp.h"
 #include "p2p/base/connection.h"
 #include "p2p/base/ice_switch_reason.h"
@@ -76,6 +77,15 @@ class IceAgentInterface {
   // successfully performed.
   virtual bool PruneConnections(
       std::span<const Connection* const> connections) = 0;
+
+  // Returns a sanitized copy of the given connection's local or remote
+  // candidate suitable for surfacing to applications (for example, preserving
+  // mDNS hostname obfuscation and redacting peer-reflexive remote addresses).
+  // `connection` must be non-null.
+  virtual Candidate GetSanitizedLocalCandidate(
+      const Connection* connection) const = 0;
+  virtual Candidate GetSanitizedRemoteCandidate(
+      const Connection* connection) const = 0;
 };
 
 }  //  namespace webrtc

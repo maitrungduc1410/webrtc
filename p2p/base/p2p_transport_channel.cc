@@ -412,9 +412,8 @@ P2PTransportChannel::GetSelectedCandidatePair() const {
   }
 
   CandidatePair pair;
-  pair.local = SanitizeLocalCandidate(selected_connection_->local_candidate());
-  pair.remote =
-      SanitizeRemoteCandidate(selected_connection_->remote_candidate());
+  pair.local = GetSanitizedLocalCandidate(selected_connection_);
+  pair.remote = GetSanitizedRemoteCandidate(selected_connection_);
   return pair;
 }
 
@@ -1822,6 +1821,20 @@ bool P2PTransportChannel::PruneConnections(
     FromIceController(conn)->Prune();
   }
   return true;
+}
+
+Candidate P2PTransportChannel::GetSanitizedLocalCandidate(
+    const Connection* connection) const {
+  RTC_DCHECK_RUN_ON(&network_thread_);
+  RTC_DCHECK(connection != nullptr);
+  return SanitizeLocalCandidate(connection->local_candidate());
+}
+
+Candidate P2PTransportChannel::GetSanitizedRemoteCandidate(
+    const Connection* connection) const {
+  RTC_DCHECK_RUN_ON(&network_thread_);
+  RTC_DCHECK(connection != nullptr);
+  return SanitizeRemoteCandidate(connection->remote_candidate());
 }
 
 NetworkRoute P2PTransportChannel::ConfigureNetworkRoute(

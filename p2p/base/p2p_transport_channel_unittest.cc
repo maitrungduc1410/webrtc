@@ -45,6 +45,7 @@
 #include "p2p/base/candidate_pair_interface.h"
 #include "p2p/base/connection.h"
 #include "p2p/base/connection_info.h"
+#include "p2p/base/ice_agent_interface.h"
 #include "p2p/base/ice_controller_factory_interface.h"
 #include "p2p/base/ice_controller_interface.h"
 #include "p2p/base/ice_switch_reason.h"
@@ -5912,6 +5913,45 @@ TEST_F(P2PTransportChannelTest,
   ASSERT_TRUE(pair_ep2.has_value());
   EXPECT_TRUE(pair_ep2->remote_candidate().is_local());
   EXPECT_TRUE(pair_ep2->remote_candidate().address().IsUnresolvedIP());
+
+  const IceAgentInterface* agent_ep1 = ep1_ch1();
+  const Candidate sanitized_local_ep1 =
+      agent_ep1->GetSanitizedLocalCandidate(ep1_ch1()->selected_connection());
+  EXPECT_TRUE(sanitized_local_ep1.is_local());
+  EXPECT_TRUE(sanitized_local_ep1.address().IsUnresolvedIP());
+
+  const IceAgentInterface* agent_ep2 = ep2_ch1();
+  const Candidate sanitized_remote_ep2 =
+      agent_ep2->GetSanitizedRemoteCandidate(ep2_ch1()->selected_connection());
+  EXPECT_TRUE(sanitized_remote_ep2.is_local());
+  EXPECT_TRUE(sanitized_remote_ep2.address().IsUnresolvedIP());
+
+  DestroyChannels();
+}
+
+TEST_F(P2PTransportChannelTest, IceAgentSanitizesPeerReflexiveRemoteCandidate) {
+  ConfigureEndpoints(OPEN, OPEN, kOnlyLocalPorts, kOnlyLocalPorts);
+  set_remote_ice_parameter_source(FROM_SETICEPARAMETERS);
+  CreateChannels();
+  // Hold ep1's candidates so ep2 only learns about ep1 via STUN pings
+  // (creating a peer-reflexive remote candidate on ep2).
+  PauseCandidates(0);
+
+  ASSERT_TRUE(MediumWait().Until([&] {
+    return ep1_ch1()->selected_connection() != nullptr &&
+           ep2_ch1()->selected_connection() != nullptr;
+  }));
+
+  const Connection* selected_ep2 = ep2_ch1()->selected_connection();
+  ASSERT_TRUE(selected_ep2->remote_candidate().is_prflx());
+  EXPECT_FALSE(selected_ep2->remote_candidate().address().IsNil());
+
+  const IceAgentInterface* agent_ep2 = ep2_ch1();
+  const Candidate sanitized_remote_ep2 =
+      agent_ep2->GetSanitizedRemoteCandidate(selected_ep2);
+  EXPECT_TRUE(sanitized_remote_ep2.is_prflx());
+  EXPECT_TRUE(sanitized_remote_ep2.address().IsUnresolvedIP());
+  EXPECT_TRUE(sanitized_remote_ep2.address().ipaddr().IsNil());
 
   DestroyChannels();
 }

@@ -13,6 +13,7 @@
 
 #include <span>
 
+#include "api/candidate.h"
 #include "api/units/timestamp.h"
 #include "p2p/base/connection.h"
 #include "p2p/base/ice_agent_interface.h"
@@ -44,6 +45,14 @@ class MockIceAgent : public IceAgentInterface {
               PruneConnections,
               (std::span<const Connection* const>),
               (override));
+  MOCK_METHOD(Candidate,
+              GetSanitizedLocalCandidate,
+              (const Connection*),
+              (override, const));
+  MOCK_METHOD(Candidate,
+              GetSanitizedRemoteCandidate,
+              (const Connection*),
+              (override, const));
 };
 
 }  //  namespace webrtc

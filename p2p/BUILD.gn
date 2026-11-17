@@ -343,6 +343,7 @@ rtc_source_set("ice_agent_interface") {
     ":connection",
     ":ice_switch_reason",
     ":transport_description",
+    "../api:candidate",
     "../api/units:timestamp",
   ]
 }
@@ -1210,6 +1211,7 @@ if (rtc_include_tests) {
       ":connection_info",
       ":dtls_stun_piggyback_controller",
       ":fake_port_allocator",
+      ":ice_agent_interface",
       ":ice_controller_factory_interface",
       ":ice_controller_interface",
       ":ice_switch_reason",
