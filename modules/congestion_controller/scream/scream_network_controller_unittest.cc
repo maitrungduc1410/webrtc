@@ -11,6 +11,7 @@
 #include "modules/congestion_controller/scream/scream_network_controller.h"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 #include "api/environment/environment.h"
@@ -356,7 +357,7 @@ TEST(ScreamControllerTest, PacingWindowReducedIfCeCongestedStreamsConfigured) {
   streams_config.max_total_allocated_bitrate = DataRate::KilobitsPerSec(1000);
   scream_controller.OnStreamsConfig(streams_config);
 
-  NetworkControlUpdate update;
+  std::optional<PacerConfig> pacer_config;
   DataRate send_rate = DataRate::KilobitsPerSec(500);
   for (int i = 0; i < 20; ++i) {
     TransportPacketsFeedback feedback =
@@ -364,13 +365,17 @@ TEST(ScreamControllerTest, PacingWindowReducedIfCeCongestedStreamsConfigured) {
             send_rate, clock, [&](const SentPacket& packet) {
               scream_controller.OnSentPacket(packet);
             });
-    update = scream_controller.OnTransportPacketsFeedback(feedback);
+    NetworkControlUpdate update =
+        scream_controller.OnTransportPacketsFeedback(feedback);
     if (update.target_rate.has_value()) {
       send_rate = update.target_rate->target_rate;
     }
+    if (update.pacer_config.has_value()) {
+      pacer_config = update.pacer_config;
+    }
   }
-  EXPECT_THAT(update.pacer_config, Optional(Field(&PacerConfig::time_window,
-                                                  Eq(TimeDelta::Millis(2)))));
+  EXPECT_THAT(pacer_config, Optional(Field(&PacerConfig::time_window,
+                                           Eq(TimeDelta::Millis(2)))));
 }
 
 TEST(ScreamControllerTest,

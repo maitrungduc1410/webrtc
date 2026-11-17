@@ -135,7 +135,8 @@ double ScreamV2::ScaleBackoff(double backoff, DataSize data_in_flight) const {
       }
     }
   }
-  return backoff / std::max(1.0, delay_based_congestion_control_.rtt() /
+  return backoff / std::max(1.0, (delay_based_congestion_control_.rtt() +
+                                  feedback_hold_time_) /
                                      ReactionInterval());
 }
 
@@ -263,19 +264,18 @@ void ScreamV2::UpdateRefWindow(const ScreamFeedback& parsed) {
     // marked in every feedback.
     double increase_scale_factor = ref_window_mss_ratio();
 
-    // Limit increase for small RTTs
-    if (delay_based_congestion_control_.rtt() + feedback_hold_time_ <
-        params_.virtual_rtt.Get()) {
-      double rtt_ratio =
-          (delay_based_congestion_control_.rtt() + feedback_hold_time_) /
-          params_.virtual_rtt.Get();
-      increase_scale_factor = increase_scale_factor * rtt_ratio;
-    }
+    const TimeDelta max_of_virtual_and_smothed_rtt = std::max(
+        params_.virtual_rtt.Get(), delay_based_congestion_control_.rtt());
+
+    // Scale increase for small RTTs and compensate for feedback_hold_time_ in
+    // ref_window_.
+    double rtt_ratio =
+        (delay_based_congestion_control_.rtt() + feedback_hold_time_) /
+        max_of_virtual_and_smothed_rtt;
+    increase_scale_factor = increase_scale_factor * rtt_ratio;
 
     // Use lower multiplicative scale factor if congestion was detected
     // recently.
-    const TimeDelta max_of_virtual_and_smothed_rtt = std::max(
-        params_.virtual_rtt.Get(), delay_based_congestion_control_.rtt());
     double post_congestion_scale =
         std::clamp((parsed.feedback_time - last_reaction_to_congestion_time_) /
                        (params_.post_congestion_delay_rtts.Get() *

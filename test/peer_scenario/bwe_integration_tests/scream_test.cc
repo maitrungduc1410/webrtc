@@ -728,7 +728,7 @@ TEST(ScreamTest, MaybeTest(LinkCapacity2MbpsRtt50msNoEcnWithTwcc)) {
   // approximately.
   EXPECT_THAT(result.caller().subspan(5), Each(AvailableSendBitrateIsBetween(
                                               DataRate::KilobitsPerSec(700),
-                                              DataRate::KilobitsPerSec(2700))));
+                                              DataRate::KilobitsPerSec(2800))));
 }
 
 TEST(ScreamTest, MaybeTest(CallerPauseSendingVideoIfFeedbackNotReceived)) {
@@ -947,7 +947,7 @@ TEST(ScreamTest, MaybeTest(RampupFastOnLinkCapacity50Mbit20MsRttNoEcn)) {
   // After 400ms.
   EXPECT_THAT(result.caller_stats[3],
               AvailableSendBitrateIsBetween(DataRate::KilobitsPerSec(1200),
-                                            DataRate::KilobitsPerSec(2500)));
+                                            DataRate::KilobitsPerSec(2700)));
 }
 
 TEST(ScreamTest, MaybeTest(LinkCapacity100Kbit50msRttNoEcn)) {

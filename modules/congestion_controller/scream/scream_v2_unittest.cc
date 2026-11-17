@@ -292,6 +292,7 @@ TEST(ScreamV2Test, L4sAlphaScalesUpAndDownWithRtt) {
 
 struct AdaptsToLinkCapacityParams {
   SimulatedNetwork::Config network_config;
+  DataSize packet_size = DataSize::Bytes(255);
   bool send_as_ect1 = true;
   TimeDelta adaption_time;
   TimeDelta time_to_run_after_adaption_time = TimeDelta::Seconds(5);
@@ -301,7 +302,9 @@ struct AdaptsToLinkCapacityResult {
   DataRate data_rate;
   DataRate min_rate_after_adaption;
   DataRate max_rate_after_adaption;
+  TimeDelta smoothed_rtt = TimeDelta::Zero();
   TimeDelta max_smoothed_rtt_after_adaptation = TimeDelta::Zero();
+  int ce_marks_after_adaption = 0;
 };
 
 AdaptsToLinkCapacityResult RunAdaptToLinkCapacityTest(
@@ -314,7 +317,7 @@ AdaptsToLinkCapacityResult RunAdaptToLinkCapacityTest(
   CcFeedbackGenerator feedback_generator(
       {.network_config = params.network_config,
        .send_as_ect1 = params.send_as_ect1,
-       .packet_size = DataSize::Bytes(255)});
+       .packet_size = params.packet_size});
 
   DataRate send_rate = DataRate::KilobitsPerSec(100);
   while (clock.CurrentTime() < kStartTime + params.adaption_time) {
@@ -339,6 +342,8 @@ AdaptsToLinkCapacityResult RunAdaptToLinkCapacityTest(
               scream.OnPacketSent(packet.data_in_flight);
             });
     scream.OnTransportPacketsFeedback(feedback);
+    result.ce_marks_after_adaption +=
+        CcFeedbackGenerator::CountCeMarks(feedback);
     send_rate = scream.target_rate();
     result.min_rate_after_adaption =
         std::min(result.min_rate_after_adaption, send_rate);
@@ -347,11 +352,14 @@ AdaptsToLinkCapacityResult RunAdaptToLinkCapacityTest(
     result.max_smoothed_rtt_after_adaptation =
         std::max(result.max_smoothed_rtt_after_adaptation, scream.rtt());
   }
+  result.smoothed_rtt = scream.rtt();
   RTC_LOG(LS_INFO) << " rate_after_adaption " << result.data_rate
                    << " max_rate_after_adaption: "
                    << result.max_rate_after_adaption
                    << " min_rate_after_adaption: "
-                   << result.min_rate_after_adaption;
+                   << result.min_rate_after_adaption
+                   << " ce_marks_after_adaption: "
+                   << result.ce_marks_after_adaption;
   return result;
 }
 
@@ -359,6 +367,7 @@ TEST(ScreamV2Test, AdaptsToEcnLinkCapacity1Mbps) {
   AdaptsToLinkCapacityParams params{
       .network_config = {.queue_delay_ms = 25,
                          .link_capacity = DataRate::KilobitsPerSec(1000)},
+      .packet_size = DataSize::Bytes(1280),
       .send_as_ect1 = true,
       .adaption_time = TimeDelta::Seconds(4)};
   AdaptsToLinkCapacityResult result = RunAdaptToLinkCapacityTest(params);
@@ -370,6 +379,12 @@ TEST(ScreamV2Test, AdaptsToEcnLinkCapacity1Mbps) {
 
   EXPECT_LT(result.max_smoothed_rtt_after_adaptation,
             TimeDelta::Millis(25 * 2 + 25));
+
+  double rtts_after_adaption =
+      params.time_to_run_after_adaption_time / result.smoothed_rtt;
+  double ce_marks_per_rtt =
+      result.ce_marks_after_adaption / rtts_after_adaption;
+  EXPECT_NEAR(ce_marks_per_rtt, 2.0, 0.2);
 }
 
 TEST(ScreamV2Test, AdaptsToLossLinkCapacity5Mbps) {
