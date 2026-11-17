@@ -2143,6 +2143,59 @@ TEST_F(PeerConnectionMediaTestUnifiedPlan,
       GetFirstVideoContentDescription(reoffer->description())->codecs().size());
 }
 
+// A codec that is sent and received at different levels is listed twice, with
+// entries that only differ in level, when an application passes both its
+// sender and its receiver capabilities to setCodecPreferences(). Both entries
+// match the codec, which must end up in the offer and in the answer once.
+TEST_F(PeerConnectionMediaTestUnifiedPlan,
+       SetCodecPreferencesWithSendAndReceiveLevelsOfCodec) {
+  // H264 Constrained Baseline, sent at level 3.1 and received at level 5.2.
+  Codec h264_send = CreateVideoCodec(100, kH264CodecName);
+  h264_send.SetParam(kH264FmtpProfileLevelId, "42e01f");
+  h264_send.SetParam(kH264FmtpPacketizationMode, "1");
+  Codec h264_recv = h264_send;
+  h264_recv.SetParam(kH264FmtpProfileLevelId, "42e034");
+  const Codec rtx = CreateVideoRtxCodec(101, 100);
+  auto make_engine = [&] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetVideoSendCodecs({h264_send, rtx});
+    engine->SetVideoRecvCodecs({h264_recv, rtx});
+    return engine;
+  };
+  auto caller = CreatePeerConnectionWithVideo(make_engine());
+  auto callee = CreatePeerConnectionWithVideo(make_engine());
+
+  std::vector<RtpCodecCapability> preferences =
+      caller->pc_factory()->GetRtpSenderCapabilities(MediaType::VIDEO).codecs;
+  const std::vector<RtpCodecCapability> receiver_codecs =
+      caller->pc_factory()->GetRtpReceiverCapabilities(MediaType::VIDEO).codecs;
+  preferences.insert(preferences.end(), receiver_codecs.begin(),
+                     receiver_codecs.end());
+  // H264 at level 3.1, RTX, H264 at level 5.2 and RTX.
+  ASSERT_EQ(preferences.size(), 4u);
+  const auto h264_and_rtx =
+      ElementsAre(Field(&Codec::name, StrCaseEq(kH264CodecName)),
+                  Field(&Codec::name, StrCaseEq(kRtxCodecName)));
+
+  EXPECT_THAT(
+      caller->pc()->GetTransceivers()[0]->SetCodecPreferences(preferences),
+      IsRtcOk());
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(offer, NotNull());
+  EXPECT_THAT(GetFirstVideoContentDescription(offer->description())->codecs(),
+              h264_and_rtx);
+
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  EXPECT_THAT(
+      callee->pc()->GetTransceivers()[0]->SetCodecPreferences(preferences),
+      IsRtcOk());
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  ASSERT_THAT(answer, NotNull());
+  EXPECT_THAT(GetFirstVideoContentDescription(answer->description())->codecs(),
+              h264_and_rtx);
+}
+
 TEST_F(PeerConnectionMediaTestUnifiedPlan,
        SetCodecPreferencesRecvOnlyCodecOnSendOnlyTransceiver) {
   auto fake_engine = std::make_unique<FakeMediaEngine>();

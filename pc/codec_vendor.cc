@@ -637,6 +637,16 @@ CodecList MatchCodecPreference(
     const CodecList& supported_codecs) {
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   CodecList filtered_codecs;
+  // Adds `codec` unless it is in the list already. A preference matches a codec
+  // regardless of its level, so several preferences can match the same codec:
+  // an application that passes both its sender and its receiver capabilities
+  // lists a codec twice if it is sent and received at different levels.
+  auto add_codec = [&filtered_codecs](const Codec& codec) {
+    CodecList::PushResult result = filtered_codecs.PushIfNotPresent(codec);
+    // All the codecs come from `codecs`, where a payload type identifies one
+    // codec.
+    RTC_DCHECK_NE(result, CodecList::PushResult::kConflict);
+  };
   bool want_rtx = false;
   bool want_red = false;
 
@@ -667,7 +677,7 @@ CodecList MatchCodecPreference(
         bool is_red_codec = found_codec_with_correct_pt->GetResiliencyType() ==
                             Codec::ResiliencyType::kRed;
         if (!is_red_codec || !red_was_added) {
-          filtered_codecs.push_back(*found_codec_with_correct_pt);
+          add_codec(*found_codec_with_correct_pt);
           red_was_added = is_red_codec ? true : red_was_added;
         }
         PayloadType id = found_codec_with_correct_pt->id;
@@ -679,7 +689,7 @@ CodecList MatchCodecPreference(
               int apt;
               if (codec.GetParam(kCodecParamAssociatedPayloadType, &apt) &&
                   apt == id.value()) {
-                filtered_codecs.push_back(codec);
+                add_codec(codec);
                 break;
               }
             } else if (want_red && codec.GetResiliencyType() ==
@@ -697,7 +707,7 @@ CodecList MatchCodecPreference(
                     FromString(redundant_payloads[0], &first_redundant_pt) &&
                     first_redundant_pt == id.value()) {
                   if (!red_was_added) {
-                    filtered_codecs.push_back(codec);
+                    add_codec(codec);
                     red_was_added = true;
                   }
                   break;
