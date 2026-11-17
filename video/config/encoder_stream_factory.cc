@@ -605,39 +605,47 @@ std::vector<Resolution> EncoderStreamFactory::GetStreamResolutions(
     RTC_DCHECK_LE(max_num_layers, encoder_config.number_of_streams);
 
     // When the `scale_resolution_down_to` API is used, disable upper layers
-    // that are bigger than what adaptation restrictions allow. For example if
+    // that are bigger than what adaptation restrictions allow, or trailing
+    // inactive layers that are bigger than the input resolution. For example if
     // restrictions are 540p, simulcast 180p:360p:720p becomes 180p:360p:- as
     // opposed to 180p:360p:540p. This makes CPU adaptation consistent with BW
     // adaptation (bitrate allocator disabling layers rather than downscaling)
     // and means we don't have to break power of two optimization paths (i.e.
     // S-modes based simulcast). Note that the lowest active layer is never
     // disabled.
-    if (has_scale_resolution_down_to && restrictions_.has_value() &&
-        restrictions_->max_pixels_per_frame().has_value()) {
-      int max_pixels =
-          dchecked_cast<int>(restrictions_->max_pixels_per_frame().value());
-      int prev_pixel_count =
+    if (has_scale_resolution_down_to) {
+      std::optional<int> max_pixels;
+      if (restrictions_.has_value() &&
+          restrictions_->max_pixels_per_frame().has_value()) {
+        max_pixels =
+            dchecked_cast<int>(restrictions_->max_pixels_per_frame().value());
+      }
+      const int input_pixels = width * height;
+      int prev_layer_pixels =
           encoder_config.simulcast_layers[0]
               .scale_resolution_down_to.value_or(Resolution())
               .PixelCount();
-      std::optional<size_t> restricted_num_layers;
+      size_t num_layers = 1;
       for (size_t i = 1; i < max_num_layers; ++i) {
-        int pixel_count = encoder_config.simulcast_layers[i]
-                              .scale_resolution_down_to.value_or(Resolution())
-                              .PixelCount();
-        if (!restricted_num_layers.has_value() && max_pixels < pixel_count) {
-          // Current layer is the highest layer allowed by restrictions.
-          restricted_num_layers = i;
-        }
-        if (pixel_count < prev_pixel_count) {
+        int layer_pixels = encoder_config.simulcast_layers[i]
+                               .scale_resolution_down_to.value_or(Resolution())
+                               .PixelCount();
+        if (layer_pixels < prev_layer_pixels) {
           // Cannot limit layers because config is not lower-to-higher.
-          restricted_num_layers = std::nullopt;
+          num_layers = max_num_layers;
           break;
         }
-        prev_pixel_count = pixel_count;
+        const bool exceeds_restrictions =
+            max_pixels.has_value() && *max_pixels < layer_pixels;
+        const bool inactive_above_input =
+            !encoder_config.simulcast_layers[i].active &&
+            input_pixels < layer_pixels;
+        if (!exceeds_restrictions && !inactive_above_input) {
+          num_layers = i + 1;
+        }
+        prev_layer_pixels = layer_pixels;
       }
-      max_num_layers = std::max(min_num_layers,
-                                restricted_num_layers.value_or(max_num_layers));
+      max_num_layers = std::max(min_num_layers, num_layers);
     }
 
     Resolution norm_resolution =
