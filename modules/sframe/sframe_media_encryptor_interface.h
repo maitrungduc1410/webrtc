@@ -15,15 +15,16 @@
 #include <cstdint>
 #include <span>
 
+#include "api/ref_count.h"
 #include "api/rtc_error.h"
-#include "api/sframe/sframe_encryptor_interface.h"
 
 namespace webrtc {
 
-// Internal media pipeline interface that extends the public key management
-// interface with the actual encrypt operation.
-class SframeMediaEncryptorInterface : public SframeEncryptorInterface {
+class SframeMediaEncryptorInterface : public RefCountInterface {
  public:
+  virtual RTCError SetEncryptionKey(uint64_t key_id,
+                                    std::span<const uint8_t> key_material) = 0;
+
   virtual RTCErrorOr<size_t> Encrypt(std::span<const uint8_t> frame,
                                      std::span<const uint8_t> additional_data,
                                      std::span<uint8_t> encrypted_frame) = 0;

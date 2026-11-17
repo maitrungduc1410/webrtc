@@ -2146,6 +2146,7 @@ rtc_library("rtp_sender") {
     "../media:media_channel",
     "../media:media_engine",
     "../modules/sframe:sframe_encryption_config",
+    "../modules/sframe:sframe_encryptor_handle",
     "../modules/sframe:synchronized_sframe_encryptor",
     "../modules/video_coding:video_codec_interface",
     "../rtc_base:buffer",

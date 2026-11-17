@@ -53,6 +53,7 @@
 #include "media/base/media_channel.h"
 #include "media/base/media_engine.h"
 #include "modules/sframe/sframe_encryption_config.h"
+#include "modules/sframe/sframe_encryptor_handle.h"
 #include "modules/sframe/synchronized_sframe_encryptor.h"
 #include "pc/dtmf_sender.h"
 #include "pc/encoded_audio_frame_injector.h"
@@ -1328,8 +1329,8 @@ RtpSenderBase::CreateSframeEncryptorOrError(
         }
       }));
 
-  return scoped_refptr<SframeEncryptorInterface>(
-      std::move(sframe_encryption_config.encryptor));
+  return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorHandle::Create(
+      std::move(sframe_encryption_config.encryptor)));
 }
 
 LocalAudioSinkAdapter::LocalAudioSinkAdapter() : sink_(nullptr) {}

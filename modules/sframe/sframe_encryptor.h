@@ -39,11 +39,9 @@ class SframeEncryptor : public SframeMediaEncryptorInterface {
 
   ~SframeEncryptor() override;
 
-  // SframeEncryptorInterface implementation.
+  // SframeMediaEncryptorInterface implementation.
   RTCError SetEncryptionKey(uint64_t key_id,
                             std::span<const uint8_t> key_material) override;
-
-  // SframeMediaEncryptorInterface implementation.
   RTCErrorOr<size_t> Encrypt(std::span<const uint8_t> frame,
                              std::span<const uint8_t> additional_data,
                              std::span<uint8_t> encrypted_frame) override;
