@@ -2111,7 +2111,6 @@ rtc_library("rtp_sender") {
   deps = [
     ":dtmf_sender",
     ":legacy_stats_collector_interface",
-    ":proxy",
     ":scoped_operations_batcher",
     ":simulcast_description",
     "../api:audio_options_api",
@@ -4176,6 +4175,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/environment",
       "../api/task_queue",
       "../api/units:data_rate",
+      "../api/units:time_delta",
       "../api/units:timestamp",
       "../api/video:builtin_video_bitrate_allocator_factory",
       "../api/video:encoded_image",
@@ -4198,6 +4198,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../p2p:p2p_constants",
       "../p2p:p2p_test_utils",
       "../rtc_base:checks",
+      "../rtc_base:rtc_event",
       "../rtc_base:task_queue_for_test",
       "../rtc_base:threading",
       "../rtc_base:unique_id_generator",

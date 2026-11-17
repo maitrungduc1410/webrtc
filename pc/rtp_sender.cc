@@ -58,7 +58,6 @@
 #include "pc/encoded_audio_frame_injector.h"
 #include "pc/encoded_video_frame_injector.h"
 #include "pc/legacy_stats_collector_interface.h"
-#include "pc/proxy.h"
 #include "pc/scoped_operations_batcher.h"
 #include "pc/simulcast_description.h"
 #include "rtc_base/checks.h"
@@ -72,11 +71,6 @@
 namespace webrtc {
 
 namespace {
-
-BEGIN_PRIMARY_PROXY_MAP(SframeEncryptor)
-PROXY_PRIMARY_THREAD_DESTRUCTOR()
-PROXY_METHOD2(RTCError, SetEncryptionKey, uint64_t, std::span<const uint8_t>)
-END_PROXY_MAP(SframeEncryptor)
 
 // This function is only expected to be called on the signaling thread.
 // On the other hand, some test or even production setups may use
@@ -1297,8 +1291,8 @@ RtpSenderBase::CreateSframeEncryptorOrError(
         }
       }));
 
-  return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorProxy::Create(
-      network_thread_, std::move(sframe_encryption_config.encryptor)));
+  return scoped_refptr<SframeEncryptorInterface>(
+      std::move(sframe_encryption_config.encryptor));
 }
 
 LocalAudioSinkAdapter::LocalAudioSinkAdapter() : sink_(nullptr) {}

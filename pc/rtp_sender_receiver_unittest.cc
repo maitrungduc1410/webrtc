@@ -49,6 +49,7 @@
 #include "api/test/mock_transformable_video_frame.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/data_rate.h"
+#include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "api/video/encoded_image.h"
@@ -90,6 +91,7 @@
 #include "pc/video_rtp_receiver.h"
 #include "pc/video_track.h"
 #include "rtc_base/checks.h"  // IWYU pragma: keep
+#include "rtc_base/event.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/unique_id_generator.h"
@@ -3097,6 +3099,7 @@ TEST_F(RtpSenderReceiverTest,
   const std::vector<uint8_t> key_material(16, 0xab);
   EXPECT_TRUE(
       result.value()->SetEncryptionKey(/*key_id=*/1, key_material).ok());
+  FlushWorker();
 
   ASSERT_TRUE(mock_channel_ptr->last_set_sframe_encryption_config_.has_value());
   scoped_refptr<SframeMediaEncryptorInterface> encryptor =
@@ -3111,12 +3114,32 @@ TEST_F(RtpSenderReceiverTest,
                               std::span<uint8_t>(encrypted_frame))
                     .ok());
   });
-  // Video frames are encrypted on the encoder or frame transformer queue, which
-  // is neither the signaling nor the worker thread.
-  TaskQueueForTest encoder_queue("EncoderQueue");
-  encoder_queue.SendTask([&] {
+  TaskQueueForTest transformer_queue("TransformerQueue");
+  transformer_queue.SendTask([&] {
     EXPECT_TRUE(encryptor->Encrypt(frame, {}, encrypted_frame).ok());
   });
+}
+
+TEST_F(RtpSenderReceiverTest, SframeEncryptorSetsKeyWhileNetworkThreadIsBusy) {
+  CreateVideoRtpSenderWithSframe();
+  RTCErrorOr<scoped_refptr<SframeEncryptorInterface>> result =
+      video_rtp_sender_->CreateSframeEncryptorOrError(
+          {SframeMode::kPerFrame, SframeCipherSuite::kAes128GcmSha256_128});
+  ASSERT_TRUE(result.ok());
+  Event key_set;
+  bool key_set_while_busy = false;
+  worker_thread_->PostTask([&key_set, &key_set_while_busy] {
+    key_set_while_busy = key_set.Wait(TimeDelta::Seconds(5));
+  });
+
+  EXPECT_TRUE(
+      result.value()
+          ->SetEncryptionKey(/*key_id=*/1, std::vector<uint8_t>(16, 0xab))
+          .ok());
+  key_set.Set();
+  FlushWorker();
+
+  EXPECT_TRUE(key_set_while_busy);
 }
 
 TEST_F(RtpSenderReceiverTest, ReplacingSframeEncryptorUpdatesConfiguration) {
