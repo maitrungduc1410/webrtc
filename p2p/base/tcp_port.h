@@ -52,6 +52,10 @@ class TCPConnection;
 // call this TCPPort::OnReadPacket (3 arg) to dispatch to a connection.
 class TCPPort : public Port {
  public:
+  // Maximum number of accepted sockets that wait for their first STUN binding
+  // request. When the limit is reached, the oldest one is closed.
+  static constexpr size_t kMaxPendingIncomingSockets = 8;
+
   static std::unique_ptr<TCPPort> Create(PortParametersRef args,
                                          uint16_t min_port,
                                          uint16_t max_port,
@@ -62,6 +66,8 @@ class TCPPort : public Port {
   }
 
   ~TCPPort() override;
+
+  size_t PendingIncomingSocketsForTesting() const { return incoming_.size(); }
 
   Connection* CreateConnection(const Candidate& address,
                                CandidateOrigin origin) override;
@@ -97,6 +103,7 @@ class TCPPort : public Port {
   struct Incoming {
     SocketAddress addr;
     AsyncPacketSocket* socket;
+    bool closed = false;
   };
 
   void TryCreateServerSocket();
@@ -111,6 +118,9 @@ class TCPPort : public Port {
                     const SentPacketInfo& sent_packet) override;
 
   void OnReadyToSend(AsyncPacketSocket* socket);
+
+  void OnIncomingSocketClosed(AsyncPacketSocket* socket, int error);
+  void DeleteClosedIncoming();
 
   const bool allow_listen_;
   std::unique_ptr<AsyncListenSocket> listen_socket_;

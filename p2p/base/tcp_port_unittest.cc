@@ -10,17 +10,22 @@
 
 #include "p2p/base/tcp_port.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <list>
 #include <memory>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/environment/environment.h"
+#include "api/packet_socket_factory.h"
 #include "api/rtc_error.h"
+#include "api/test/mock_packet_socket_factory.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -50,8 +55,11 @@ namespace webrtc {
 namespace {
 
 using ::testing::Eq;
+using ::testing::IsEmpty;
 using ::testing::IsTrue;
+using ::testing::Not;
 using ::testing::NotNull;
+using ::testing::Return;
 
 int kTimeout = 1000;
 const SocketAddress kLocalAddr("11.11.11.11", 0);
@@ -126,6 +134,20 @@ class TCPPortTest : public ::testing::Test {
                          .ice_password = password_,
                          .ice_tiebreaker = kTiebreakerDefault},
                         0, 0, true));
+  }
+
+  // Returns a TCPPort that accepts incoming connections.
+  std::unique_ptr<TCPPort> CreateListeningPort() {
+    std::unique_ptr<TCPPort> port = CreateTCPPort(kRemoteAddr);
+    port->PrepareAddress();
+    return port;
+  }
+
+  // Connects a plain TCP client socket to the candidate of `server`.
+  std::unique_ptr<AsyncPacketSocket> ConnectClient(const TCPPort& server) {
+    return socket_factory_.CreateClientTcpSocket(
+        env_, SocketAddress(kLocalAddr.ipaddr(), 0),
+        server.Candidates()[0].address(), PacketSocketTcpOptions());
   }
 
  protected:
@@ -522,6 +544,166 @@ TEST_F(TCPPortTest, VerifyCandidateChecksTcpActiveAndZeroPorts) {
       VerifyCandidate(parse("candidate:1 1 tcp 2122252543 1.2.3.4 443 typ host "
                             "tcptype active generation 0")),
       IsRtcOk());
+}
+
+TEST_F(TCPPortTest, UnclaimedIncomingSocketsDeletedOnPeerClose) {
+  std::unique_ptr<TCPPort> server = CreateListeningPort();
+  ASSERT_THAT(server->Candidates(), Not(IsEmpty()));
+
+  constexpr size_t kNumClients = TCPPort::kMaxPendingIncomingSockets;
+  std::vector<std::unique_ptr<AsyncPacketSocket>> clients;
+  for (size_t i = 0; i < kNumClients; ++i) {
+    clients.push_back(ConnectClient(*server));
+    ASSERT_THAT(clients.back(), NotNull());
+  }
+
+  ASSERT_THAT(
+      WaitUntil(
+          [&] { return server->PendingIncomingSocketsForTesting(); },
+          Eq(kNumClients),
+          {.timeout = TimeDelta::Millis(kTimeout), .clock = &time_controller_}),
+      IsRtcOk());
+
+  for (auto& client : clients) {
+    client->Close();
+  }
+  EXPECT_THAT(
+      WaitUntil(
+          [&] { return server->PendingIncomingSocketsForTesting(); }, Eq(0u),
+          {.timeout = TimeDelta::Millis(kTimeout), .clock = &time_controller_}),
+      IsRtcOk());
+}
+
+TEST_F(TCPPortTest, PendingIncomingSocketsCappedAndEvictsOldest) {
+  std::unique_ptr<TCPPort> server = CreateListeningPort();
+  ASSERT_THAT(server->Candidates(), Not(IsEmpty()));
+
+  constexpr size_t kExtraSockets = 8;
+  constexpr size_t kTotalSockets =
+      TCPPort::kMaxPendingIncomingSockets + kExtraSockets;
+  std::vector<std::unique_ptr<AsyncPacketSocket>> attackers;
+  for (size_t i = 0; i < kTotalSockets; ++i) {
+    attackers.push_back(ConnectClient(*server));
+    ASSERT_THAT(attackers.back(), NotNull());
+    // Connect one at a time so that the server accepts them in order.
+    ASSERT_THAT(WaitUntil(
+                    [&] {
+                      return attackers.back()->GetState() ==
+                             AsyncPacketSocket::STATE_CONNECTED;
+                    },
+                    IsTrue(),
+                    {.timeout = TimeDelta::Millis(kTimeout),
+                     .clock = &time_controller_}),
+                IsRtcOk());
+  }
+  EXPECT_EQ(server->PendingIncomingSocketsForTesting(),
+            TCPPort::kMaxPendingIncomingSockets);
+
+  // The oldest sockets are closed and the newest ones are still connected.
+  auto all_in_state =
+      [](std::span<const std::unique_ptr<AsyncPacketSocket>> sockets,
+         AsyncPacketSocket::State state) {
+        return std::all_of(sockets.begin(), sockets.end(),
+                           [state](const auto& socket) {
+                             return socket->GetState() == state;
+                           });
+      };
+  std::span<const std::unique_ptr<AsyncPacketSocket>> sockets(attackers);
+  EXPECT_THAT(
+      WaitUntil(
+          [&] {
+            return all_in_state(sockets.first(kExtraSockets),
+                                AsyncPacketSocket::STATE_CLOSED);
+          },
+          IsTrue(),
+          {.timeout = TimeDelta::Millis(kTimeout), .clock = &time_controller_}),
+      IsRtcOk());
+  EXPECT_TRUE(all_in_state(sockets.subspan(kExtraSockets),
+                           AsyncPacketSocket::STATE_CONNECTED));
+}
+
+class FakeListenSocket : public AsyncListenSocket {
+ public:
+  explicit FakeListenSocket(const SocketAddress& local_address)
+      : local_address_(local_address) {}
+  State GetState() const override { return State::kBound; }
+  SocketAddress GetLocalAddress() const override { return local_address_; }
+
+ private:
+  const SocketAddress local_address_;
+};
+
+class DestructionTrackingPacketSocket : public AsyncPacketSocket {
+ public:
+  DestructionTrackingPacketSocket(const SocketAddress& remote_address,
+                                  bool* destroyed)
+      : remote_address_(remote_address), destroyed_(destroyed) {}
+  ~DestructionTrackingPacketSocket() override { *destroyed_ = true; }
+
+  SocketAddress GetLocalAddress() const override { return SocketAddress(); }
+  SocketAddress GetRemoteAddress() const override { return remote_address_; }
+  int Send(const void*, size_t, const AsyncSocketPacketOptions&) override {
+    return 0;
+  }
+  int SendTo(const void*,
+             size_t,
+             const SocketAddress&,
+             const AsyncSocketPacketOptions&) override {
+    return 0;
+  }
+  int Close() override { return 0; }
+  State GetState() const override { return STATE_CONNECTED; }
+  int GetOption(Socket::Option, int*) override { return 0; }
+  int SetOption(Socket::Option, int) override { return 0; }
+  int GetError() const override { return 0; }
+  void SetError(int) override {}
+
+ private:
+  const SocketAddress remote_address_;
+  bool* const destroyed_;
+};
+
+TEST_F(TCPPortTest, ClosedIncomingSocketsDeletedOnTaskOrPortDestruction) {
+  MockPacketSocketFactory factory;
+  auto listen_socket_owner = std::make_unique<FakeListenSocket>(
+      SocketAddress(kRemoteAddr.ipaddr(), 1));
+  FakeListenSocket* listen_socket = listen_socket_owner.get();
+  EXPECT_CALL(factory, CreateServerTcpSocket)
+      .WillOnce(Return(std::move(listen_socket_owner)));
+
+  std::unique_ptr<TCPPort> server =
+      TCPPort::Create({.env = env_,
+                       .network_thread = main_,
+                       .socket_factory = &factory,
+                       .network = MakeNetwork(kRemoteAddr),
+                       .ice_username_fragment = username_,
+                       .ice_password = password_,
+                       .ice_tiebreaker = kTiebreakerDefault},
+                      0, 0, /*allow_listen=*/true);
+
+  bool socket1_destroyed = false;
+  auto* socket1 = new DestructionTrackingPacketSocket(
+      SocketAddress(kLocalAddr.ipaddr(), 1001), &socket1_destroyed);
+  bool socket2_destroyed = false;
+  auto* socket2 = new DestructionTrackingPacketSocket(
+      SocketAddress(kLocalAddr.ipaddr(), 1002), &socket2_destroyed);
+  listen_socket->NotifyNewConnection(listen_socket, socket1);
+  listen_socket->NotifyNewConnection(listen_socket, socket2);
+  ASSERT_EQ(server->PendingIncomingSocketsForTesting(), 2u);
+
+  // Closing socket1 keeps it in `incoming_` until the queued task runs.
+  socket1->NotifyClosedForTest(0);
+  EXPECT_FALSE(socket1_destroyed);
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+  EXPECT_TRUE(socket1_destroyed);
+  EXPECT_EQ(server->PendingIncomingSocketsForTesting(), 1u);
+
+  // Destroying TCPPort before the queued task runs deletes socket2 immediately.
+  socket2->NotifyClosedForTest(0);
+  EXPECT_FALSE(socket2_destroyed);
+  server.reset();
+  EXPECT_TRUE(socket2_destroyed);
+  time_controller_.AdvanceTime(TimeDelta::Zero());
 }
 
 }  // namespace

@@ -80,6 +80,7 @@
 #include "api/packet_socket_factory.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/transport/stun.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -278,6 +279,16 @@ ProtocolType TCPPort::GetProtocol() const {
 void TCPPort::OnNewConnection(AsyncListenSocket* socket,
                               AsyncPacketSocket* new_socket) {
   RTC_DCHECK_EQ(socket, listen_socket_.get());
+  DeleteClosedIncoming();
+
+  if (incoming_.size() >= kMaxPendingIncomingSockets) {
+    RTC_LOG(LS_WARNING) << ToString()
+                        << ": Too many unclaimed connections, closing the "
+                           "oldest one, from "
+                        << incoming_.front().addr.ToSensitiveString();
+    delete incoming_.front().socket;
+    incoming_.pop_front();
+  }
 
   for (const auto& option : socket_options_) {
     new_socket->SetOption(option.first, option.second);
@@ -295,10 +306,49 @@ void TCPPort::OnNewConnection(AsyncListenSocket* socket,
       this, [this](AsyncPacketSocket* socket, const SentPacketInfo& info) {
         OnSentPacket(socket, info);
       });
+  incoming.socket->SubscribeCloseEvent(
+      this, [this](AsyncPacketSocket* closed_socket, int error) {
+        OnIncomingSocketClosed(closed_socket, error);
+      });
 
   RTC_LOG(LS_VERBOSE) << ToString() << ": Accepted connection from "
                       << incoming.addr.ToSensitiveString();
   incoming_.push_back(incoming);
+}
+
+void TCPPort::OnIncomingSocketClosed(AsyncPacketSocket* socket, int error) {
+  RTC_DCHECK_RUN_ON(thread());
+  auto it = absl::c_find_if(incoming_, [&](const Incoming& incoming) {
+    return incoming.socket == socket;
+  });
+  if (it == incoming_.end() || it->closed) {
+    return;
+  }
+  RTC_LOG(LS_VERBOSE) << ToString() << ": Unclaimed incoming connection from "
+                      << it->addr.ToSensitiveString() << " closed with error "
+                      << error;
+  it->closed = true;
+  socket->DeregisterReceivedPacketCallback();
+  socket->UnsubscribeReadyToSend(this);
+  socket->UnsubscribeSentPacket(this);
+  socket->UnsubscribeCloseEvent(this);
+  // Can't delete the socket from within its own close callback.
+  thread()->PostTask([this, alive = NewWeakPtr()] {
+    if (alive) {
+      DeleteClosedIncoming();
+    }
+  });
+}
+
+void TCPPort::DeleteClosedIncoming() {
+  RTC_DCHECK_RUN_ON(thread());
+  incoming_.remove_if([](const Incoming& incoming) {
+    if (!incoming.closed) {
+      return false;
+    }
+    delete incoming.socket;
+    return true;
+  });
 }
 
 void TCPPort::TryCreateServerSocket() {
@@ -323,10 +373,16 @@ AsyncPacketSocket* TCPPort::GetIncoming(const SocketAddress& addr,
   AsyncPacketSocket* socket = nullptr;
   for (std::list<Incoming>::iterator it = incoming_.begin();
        it != incoming_.end(); ++it) {
-    if (it->addr == addr) {
+    if (it->addr == addr && !it->closed) {
       socket = it->socket;
-      if (remove)
+      // `remove` is false when SendTo() replies (e.g. a STUN binding error)
+      // on a socket before a TCPConnection claims it.
+      if (remove) {
+        // TCPConnection takes over close handling and replaces
+        // ReceivedPacketCallback; ReadyToSend and SentPacket stay on TCPPort.
+        socket->UnsubscribeCloseEvent(this);
         incoming_.erase(it);
+      }
       break;
     }
   }
