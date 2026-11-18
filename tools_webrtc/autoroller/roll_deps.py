@@ -256,24 +256,34 @@ def ReadRemoteCrCommit(revision):
     return _ReadGitilesContent(CHROMIUM_COMMIT_TEMPLATE % revision)
 
 
-def ReadUrlContent(url, retry_limit=3, retry_delay_seconds=5):
+def ReadUrlContent(url,
+                   retry_limit=7,
+                   retry_delay_seconds=5,
+                   max_retry_delay_seconds=60):
     """Connect to a remote host and read the contents with retries.
+
+    Retries use exponential backoff because a freshly landed commit can
+    briefly 404 on Gitiles while it replicates across GoB.
 
     Args:
       url: URL to connect to.
       retry_limit: Number of retry attempts.
-      retry_delay_seconds: Delay between retries in seconds.
+      retry_delay_seconds: Initial delay between retries in seconds.
+      max_retry_delay_seconds: Upper bound for the delay between retries.
     Returns:
       A list of lines.
     """
-    for _ in range(retry_limit):
+    delay = retry_delay_seconds
+    for attempt in range(retry_limit):
         conn = None
         try:
             conn = urllib.request.urlopen(url)
             return conn.readlines()
         except (urllib.error.URLError, IOError) as e:
             logging.warning('Error connecting to %s: %s.', url, e)
-            time.sleep(retry_delay_seconds)
+            if attempt < retry_limit - 1:
+                time.sleep(delay)
+                delay = min(delay * 2, max_retry_delay_seconds)
         finally:
             if conn:
                 conn.close()

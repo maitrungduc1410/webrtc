@@ -472,12 +472,30 @@ class TestReadUrlContent(unittest.TestCase):
             roll_deps.ReadUrlContent(self.url,
                                      retry_limit=3,
                                      retry_delay_seconds=1)
-        self.assertEqual(self.mock_sleep.call_count, 3)
-        self.assertEqual(
-            self.mock_sleep.call_args_list,
-            [mock.call(1), mock.call(1),
-             mock.call(1)])
+        # No sleep after the last failed attempt.
+        self.assertEqual(self.mock_sleep.call_args_list,
+                         [mock.call(1), mock.call(2)])
         self.assertEqual(self.mock_logging.warning.call_count, 3)
+
+    def testReadUrlContent_ExponentialBackoffIsCapped(self):
+        http_error = roll_deps.urllib.error.HTTPError(self.url, 404,
+                                                      'Not Found', {}, None)
+
+        url_mock = mock.Mock(side_effect=http_error)
+        roll_deps.urllib.request.urlopen = url_mock
+
+        with self.assertRaises(roll_deps.RollError):
+            roll_deps.ReadUrlContent(self.url)
+        self.assertEqual(url_mock.call_count, 7)
+        self.assertEqual(self.mock_sleep.call_args_list, [
+            mock.call(5),
+            mock.call(10),
+            mock.call(20),
+            mock.call(40),
+            mock.call(60),
+            mock.call(60)
+        ])
+        self.assertEqual(self.mock_logging.warning.call_count, 7)
 
     def testReadUrlContentError(self):
         readlines_mock = mock.Mock()
@@ -489,8 +507,8 @@ class TestReadUrlContent(unittest.TestCase):
         roll_deps.urllib.request.urlopen = url_mock
 
         with self.assertRaises(roll_deps.RollError):
-            roll_deps.ReadUrlContent(self.url)
-        self.assertEqual(self.mock_sleep.call_count, 3)
+            roll_deps.ReadUrlContent(self.url, retry_limit=3)
+        self.assertEqual(self.mock_sleep.call_count, 2)
         self.assertEqual(self.mock_logging.warning.call_count, 3)
 
 
