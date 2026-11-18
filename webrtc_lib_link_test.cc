@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "api/audio/audio_device.h"
@@ -23,8 +24,12 @@
 #include "api/create_peerconnection_factory.h"
 #include "api/enable_media.h"
 #include "api/environment/environment_factory.h"
+#include "api/make_ref_counted.h"
+#include "api/media_stream_interface.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_event_log/rtc_event_log_factory.h"
+#include "api/scoped_refptr.h"
+#include "api/video/adapted_video_track_source.h"
 #include "api/video_codecs/video_decoder_factory_template.h"
 #include "api/video_codecs/video_decoder_factory_template_dav1d_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_libvpx_vp8_adapter.h"
@@ -102,10 +107,28 @@ void TestCase2RegularFactory() {
   printf("peer_connection creation=%s\n", result.ok() ? "succeeded" : "failed");
 }
 
+class LinkTestVideoSource : public AdaptedVideoTrackSource {
+ public:
+  SourceState state() const override { return kLive; }
+  bool remote() const override { return false; }
+  bool is_screencast() const override { return false; }
+  std::optional<bool> needs_denoising() const override { return std::nullopt; }
+};
+
+// Applications derive their video sources from AdaptedVideoTrackSource.
+void TestCase3AdaptedVideoTrackSource() {
+  scoped_refptr<VideoTrackSourceInterface> source =
+      make_ref_counted<LinkTestVideoSource>();
+  VideoTrackSourceInterface::Stats stats;
+  printf("adapted video source stats=%s\n",
+         source->GetStats(&stats) ? "available" : "unavailable");
+}
+
 }  // namespace webrtc
 
 int main(int argc, char** argv) {
   webrtc::TestCase1ModularFactory();
   webrtc::TestCase2RegularFactory();
+  webrtc::TestCase3AdaptedVideoTrackSource();
   return 0;
 }
