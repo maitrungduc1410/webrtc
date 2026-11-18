@@ -712,6 +712,42 @@ TEST_F(TestVp9Impl, KeyframeRequestOnAnyStreamForcesKeyframeOnAllStreams) {
   }
 }
 
+TEST(Vp9ImplTest, SimulcastKeyframeWhenFirstStreamIsDisabled) {
+  std::unique_ptr<VideoEncoder> encoder =
+      CreateVp9Encoder(CreateTestEnvironment());
+  VideoCodec codec_settings = DefaultCodecSettings();
+  ConfigureSimulcast(codec_settings, /*num_simulcast_streams=*/3,
+                     /*num_temporal_layers=*/1);
+  ASSERT_EQ(encoder->InitEncode(&codec_settings, kSettings),
+            WEBRTC_VIDEO_CODEC_OK);
+
+  EncodedVideoFrameProducer producer(*encoder);
+  producer.SetResolution({kWidth, kHeight});
+  // Encode one frame with all streams active so stream 2 has a valid reference
+  // buffer before stream 0 is disabled.
+  ASSERT_THAT(producer.Encode(), SizeIs(3));
+
+  VideoBitrateAllocation bitrate_allocation;
+  bitrate_allocation.SetBitrate(1, 0, 500'000);
+  bitrate_allocation.SetBitrate(2, 0, 1'500'000);
+  encoder->SetRates(VideoEncoder::RateControlParameters(
+      bitrate_allocation, codec_settings.maxFramerate));
+
+  std::vector<EncodedVideoFrameProducer::EncodedFrame> frames =
+      producer.ForceKeyFrame().SetNumInputFrames(2).Encode();
+  ASSERT_THAT(frames, SizeIs(4));
+  EXPECT_EQ(frames[0].encoded_image.SimulcastIndex(), 1);
+  EXPECT_EQ(frames[1].encoded_image.SimulcastIndex(), 2);
+  EXPECT_EQ(frames[0].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameKey);
+  EXPECT_EQ(frames[1].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameKey);
+  EXPECT_EQ(frames[2].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameDelta);
+  EXPECT_EQ(frames[3].encoded_image.frame_type(),
+            VideoFrameType::kVideoFrameDelta);
+}
+
 TEST_F(TestVp9Impl, EnableDisableSpatialLayers) {
   // Configure encoder to produce N spatial layers. Encode frames of layer 0
   // then enable layer 1 and encode more frames and so on until layer N-1.
