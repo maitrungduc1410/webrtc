@@ -257,7 +257,7 @@ def ReadRemoteCrCommit(revision):
 
 
 def ReadUrlContent(url,
-                   retry_limit=7,
+                   retry_limit=20,
                    retry_delay_seconds=5,
                    max_retry_delay_seconds=60):
     """Connect to a remote host and read the contents with retries.

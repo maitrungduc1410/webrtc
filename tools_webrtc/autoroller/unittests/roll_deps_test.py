@@ -486,16 +486,10 @@ class TestReadUrlContent(unittest.TestCase):
 
         with self.assertRaises(roll_deps.RollError):
             roll_deps.ReadUrlContent(self.url)
-        self.assertEqual(url_mock.call_count, 7)
-        self.assertEqual(self.mock_sleep.call_args_list, [
-            mock.call(5),
-            mock.call(10),
-            mock.call(20),
-            mock.call(40),
-            mock.call(60),
-            mock.call(60)
-        ])
-        self.assertEqual(self.mock_logging.warning.call_count, 7)
+        self.assertEqual(url_mock.call_count, 20)
+        self.assertEqual(self.mock_sleep.call_args_list,
+                         [mock.call(d) for d in [5, 10, 20, 40] + [60] * 15])
+        self.assertEqual(self.mock_logging.warning.call_count, 20)
 
     def testReadUrlContentError(self):
         readlines_mock = mock.Mock()
