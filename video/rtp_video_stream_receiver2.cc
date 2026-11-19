@@ -355,7 +355,7 @@ RtpVideoStreamReceiver2::RtpVideoStreamReceiver2(
   sframe_required_by_negotiation_ = config_.rtp.sframe_options.required;
   if (config_.rtp.sframe_options.decryption_config.has_value()) {
     sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
-        *config_.rtp.sframe_options.decryption_config);
+        *config_.rtp.sframe_options.decryption_config, config_.rtp.remote_ssrc);
   }
 }
 
@@ -1148,7 +1148,7 @@ void RtpVideoStreamReceiver2::UpdateSframeOptions(
   sframe_required_by_negotiation_ = options.required;
   if (options.decryption_config.has_value()) {
     sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
-        *options.decryption_config);
+        *options.decryption_config, config_.rtp.remote_ssrc);
   } else {
     sframe_delegate_ = nullptr;
   }

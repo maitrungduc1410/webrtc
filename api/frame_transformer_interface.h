@@ -239,6 +239,7 @@ class TransformableFrameInterface::Passkey {
   friend class TransformableIncomingAudioFrame;
   friend class TransformableVideoSenderFrame;
   friend class TransformableVideoReceiverFrame;
+  friend class SframeEncryptedVideoFrame;
 
   friend class MockTransformableFrame;
   friend class MockTransformableAudioFrame;

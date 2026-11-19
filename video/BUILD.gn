@@ -513,11 +513,24 @@ rtc_library("sframe_video_receive_delegate") {
     "sframe_video_receive_delegate.h",
   ]
   deps = [
+    "../api:frame_transformer_interface",
+    "../api:payload_type",
+    "../api:rtp_headers",
     "../api:scoped_refptr",
+    "../api/units:time_delta",
+    "../api/units:timestamp",
+    "../api/video:video_frame",
+    "../api/video:video_frame_metadata",
+    "../api/video:video_frame_type",
+    "../api/video:video_rtp_headers",
+    "../api/video_codecs:video_codecs_api",
     "../modules/rtp_rtcp:rtp_rtcp_format",
     "../modules/sframe:sframe_decrypt_error_reporter",
     "../modules/sframe:sframe_decryption_config",
     "../modules/sframe:sframe_media_decryptor_interface",
+    "../rtc_base:copy_on_write_buffer",
+    "../rtc_base:stringutils",
+    "../system_wrappers",
     "//third_party/abseil-cpp/absl/base:nullability",
   ]
 }
@@ -1764,9 +1777,18 @@ if (rtc_include_tests) {
     sources = [ "sframe_video_receive_delegate_unittest.cc" ]
     deps = [
       ":sframe_video_receive_delegate",
+      "../api:frame_transformer_interface",
       "../api:make_ref_counted",
+      "../api:rtp_header_extension_id",
+      "../api:rtp_headers",
       "../api:scoped_refptr",
       "../api:sframe_decryptor_interface",
+      "../api/units:time_delta",
+      "../api/units:timestamp",
+      "../api/video:video_frame",
+      "../api/video:video_frame_metadata",
+      "../api/video:video_frame_type",
+      "../api/video:video_rtp_headers",
       "../modules/rtp_rtcp:rtp_rtcp_format",
       "../modules/sframe:mock_sframe_media_decryptor",
       "../modules/sframe:sframe_decrypt_error_reporter",

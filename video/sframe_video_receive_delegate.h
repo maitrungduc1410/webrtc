@@ -17,6 +17,7 @@
 
 #include "absl/base/nullability.h"
 #include "api/scoped_refptr.h"
+#include "api/video/video_codec_type.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/sframe/sframe_decrypt_error_reporter.h"
 #include "modules/sframe/sframe_decryption_config.h"
@@ -35,16 +36,27 @@ namespace webrtc {
 // All methods must be called on the sequence that receives the media.
 class SframeVideoReceiveDelegate {
  public:
-  explicit SframeVideoReceiveDelegate(SframeDecryptionConfig config);
+  // Describes the frame that the media belongs to. In per-packet mode, all
+  // packets of a frame are decrypted with the same FrameInfo.
+  struct FrameInfo {
+    VideoCodecType codec = kVideoCodecGeneric;
+    // True if the media is part of a key frame. False when it is not known.
+    bool is_key_frame = false;
+  };
+
+  SframeVideoReceiveDelegate(SframeDecryptionConfig config, uint32_t ssrc);
 
   // Returns `packet` with its payload replaced by the plaintext, or nullptr if
-  // it did not decrypt, in which case the packet is dropped.
+  // it did not decrypt, in which case the packet is dropped. `frame_info` is
+  // only used to report failures.
   absl_nullable std::unique_ptr<RtpPacketReceived> DecryptPacket(
-      absl_nonnull std::unique_ptr<RtpPacketReceived> packet);
+      absl_nonnull std::unique_ptr<RtpPacketReceived> packet,
+      const FrameInfo& frame_info);
 
  private:
   const absl_nonnull scoped_refptr<SframeMediaDecryptorInterface> decryptor_;
   const absl_nonnull scoped_refptr<SframeDecryptErrorReporter> error_reporter_;
+  const uint32_t ssrc_;
   // Scratch buffer reused to avoid allocating per packet.
   std::vector<uint8_t> packet_plaintext_;
 };
