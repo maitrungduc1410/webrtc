@@ -505,6 +505,8 @@ PeerConnection::PeerConnection(
       tracer_(std::move(dependencies.tracer)),
       codec_lookup_helper_(
           std::make_unique<CodecLookupHelperForPeerConnection>(this)) {
+  RTC_LOG_THREAD_BLOCK_COUNT();
+
   // Field trials specific to the peerconnection should be owned by the `env`,
   RTC_DCHECK(dependencies.trials == nullptr);
 
@@ -521,16 +523,6 @@ PeerConnection::PeerConnection(
   std::vector<IceParameters> pooled_credentials;
   std::tie(transport_controller_copy_, pooled_credentials) =
       InitializeNetworkThread(stun_servers, turn_servers);
-
-  if (call_ptr_) {
-    worker_thread()->BlockingCall([this] {
-      RTC_DCHECK_RUN_ON(worker_thread());
-      if (context_->is_configured_for_media()) {
-        media_engine_ref_ =
-            std::make_unique<ConnectionContext::MediaEngineReference>(context_);
-      }
-    });
-  }
 
   sdp_handler_ = SdpOfferAnswerHandler::Create(
       env_, this, std::move(dependencies.cert_generator),
@@ -576,6 +568,8 @@ PeerConnection::PeerConnection(
         ReportUsagePattern();
       },
       delay_ms);
+
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(1);
 }
 
 PeerConnection::~PeerConnection() {
@@ -762,6 +756,13 @@ PeerConnection::InitializeNetworkThread(
         InitializeTransportController_n(std::move(controller), *config);
     std::vector<IceParameters> credentials =
         port_allocator_->GetPooledIceCredentials();
+    // Taken here rather than in a separate blocking call to save a round trip
+    // to the network thread.
+    if (call_ptr_ && context_->is_configured_for_media()) {
+      RTC_DCHECK_RUN_ON(worker_thread());
+      media_engine_ref_ =
+          std::make_unique<ConnectionContext::MediaEngineReference>(context_);
+    }
     return std::make_pair(controller_ptr, credentials);
   });
 }

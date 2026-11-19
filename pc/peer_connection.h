@@ -501,8 +501,9 @@ class PeerConnection : public PeerConnectionInternal,
  private:
   // Called from the constructor to apply the server configuration on the
   // network thread and initialize network thread related state (see
-  // InitializeTransportController_n). The return value of this function is used
-  // to set the initial value of `transport_controller_copy_`.
+  // InitializeTransportController_n), including `media_engine_ref_` when
+  // configured for media. The return value of this function is used to set the
+  // initial value of `transport_controller_copy_`.
   std::pair<JsepTransportController*, std::vector<IceParameters>>
   InitializeNetworkThread(const ServerAddresses& stun_servers,
                           const std::vector<RelayServerConfig>& turn_servers);
