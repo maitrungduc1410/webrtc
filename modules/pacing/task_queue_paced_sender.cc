@@ -132,27 +132,44 @@ void TaskQueuePacedSender::SetConfig(const PacerConfig& pacer_config) {
 
 void TaskQueuePacedSender::EnqueuePackets(
     std::vector<std::unique_ptr<RtpPacketToSend>> packets) {
+  // Packets are normally produced on `task_queue_`. Enqueue and process them
+  // right away instead of in a separate task, unless this is a reentrant call
+  // made while sending packets, e.g. a retransmission triggered by a packet
+  // that was just sent.
+  if (task_queue_->IsCurrent()) {
+    RTC_DCHECK_RUN_ON(task_queue_);
+    if (!processing_packets_) {
+      EnqueueAndMaybeProcessPackets(std::move(packets));
+      return;
+    }
+  }
+
   task_queue_->PostTask(
       SafeTask(safety_.flag(), [this, packets = std::move(packets)]() mutable {
         RTC_DCHECK_RUN_ON(task_queue_);
-        TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("webrtc"),
-                     "TaskQueuePacedSender::EnqueuePackets");
-        for (auto& packet : packets) {
-          TRACE_EVENT2(TRACE_DISABLED_BY_DEFAULT("webrtc"),
-                       "TaskQueuePacedSender::EnqueuePackets::Loop",
-                       "sequence_number", packet->SequenceNumber(),
-                       "rtp_timestamp", packet->Timestamp());
-
-          size_t packet_size = packet->payload_size() + packet->padding_size();
-          if (include_overhead_) {
-            packet_size += packet->headers_size();
-          }
-          packet_size_.Apply(1, packet_size);
-          RTC_DCHECK_GE(packet->capture_time(), Timestamp::Zero());
-          pacing_controller_.EnqueuePacket(std::move(packet));
-        }
-        MaybeProcessPackets(Timestamp::MinusInfinity());
+        EnqueueAndMaybeProcessPackets(std::move(packets));
       }));
+}
+
+void TaskQueuePacedSender::EnqueueAndMaybeProcessPackets(
+    std::vector<std::unique_ptr<RtpPacketToSend>> packets) {
+  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("webrtc"),
+               "TaskQueuePacedSender::EnqueuePackets");
+  for (auto& packet : packets) {
+    TRACE_EVENT2(TRACE_DISABLED_BY_DEFAULT("webrtc"),
+                 "TaskQueuePacedSender::EnqueuePackets::Loop",
+                 "sequence_number", packet->SequenceNumber(), "rtp_timestamp",
+                 packet->Timestamp());
+
+    size_t packet_size = packet->payload_size() + packet->padding_size();
+    if (include_overhead_) {
+      packet_size += packet->headers_size();
+    }
+    packet_size_.Apply(1, packet_size);
+    RTC_DCHECK_GE(packet->capture_time(), Timestamp::Zero());
+    pacing_controller_.EnqueuePacket(std::move(packet));
+  }
+  MaybeProcessPackets(Timestamp::MinusInfinity());
 }
 
 void TaskQueuePacedSender::RemovePacketsForSsrc(uint32_t ssrc) {

@@ -140,8 +140,6 @@ TEST(TaskQueuePacedSenderTest, PacesPackets) {
           DataRate::BitsPerSec(kDefaultPacketSize * 8 * kPacketsToSend),
           /*pad_rate=*/DataRate::Zero()));
   pacer.EnsureStarted();
-  pacer.EnqueuePackets(
-      GeneratePackets(RtpPacketMediaType::kVideo, kPacketsToSend));
 
   // Expect all of them to be sent.
   size_t packets_sent = 0;
@@ -157,6 +155,10 @@ TEST(TaskQueuePacedSenderTest, PacesPackets) {
       });
 
   const Timestamp start_time = time_controller.GetClock()->CurrentTime();
+  // Enqueued after setting up the expectation, since the first packet is sent
+  // from within EnqueuePackets() when called on the pacer's task queue.
+  pacer.EnqueuePackets(
+      GeneratePackets(RtpPacketMediaType::kVideo, kPacketsToSend));
 
   // Packets should be sent over a period of close to 1s. Expect a little
   // lower than this since initial probing is a bit quicker.
@@ -185,8 +187,6 @@ TEST(TaskQueuePacedSenderTest, PacesPacketsWithBurst) {
           /*pad_rate=*/DataRate::Zero(),
           /*time_window=*/TimeDelta::Seconds(0.5)));
   pacer.EnsureStarted();
-  pacer.EnqueuePackets(
-      GeneratePackets(RtpPacketMediaType::kVideo, kPacketsToSend));
 
   // Expect all of them to be sent.
   size_t packets_sent = 0;
@@ -202,6 +202,10 @@ TEST(TaskQueuePacedSenderTest, PacesPacketsWithBurst) {
       });
 
   const Timestamp start_time = time_controller.GetClock()->CurrentTime();
+  // Enqueued after setting up the expectation, since the first packet is sent
+  // from within EnqueuePackets() when called on the pacer's task queue.
+  pacer.EnqueuePackets(
+      GeneratePackets(RtpPacketMediaType::kVideo, kPacketsToSend));
 
   // Packets should be sent over a period of close to 1s. Expect a little
   // lower than this since initial probing is a bit quicker.
@@ -400,11 +404,11 @@ TEST(TaskQueuePacedSenderTest, SchedulesProbeAtSentTime) {
 
   // Enqueue two packets, only the first is sent immediately and the next
   // will be scheduled for sending in 4ms.
-  pacer.EnqueuePackets(GeneratePackets(RtpPacketMediaType::kVideo, 2));
   const int kNotAProbe = PacedPacketInfo::kNotAProbe;
   EXPECT_CALL(packet_router,
               SendPacket(_, ::testing::Field(&PacedPacketInfo::probe_cluster_id,
                                              kNotAProbe)));
+  pacer.EnqueuePackets(GeneratePackets(RtpPacketMediaType::kVideo, 2));
   // Advance to less than 3ms before next packet send time.
   time_controller.AdvanceTime(TimeDelta::Micros(1001));
 
@@ -811,6 +815,42 @@ TEST(TaskQueuePacedSenderTest,
   pacer.EnqueuePackets(
       GeneratePackets(RtpPacketMediaType::kVideo, /*num_packets=*/2));
   time_controller.AdvanceTime(TimeDelta::Millis(10));
+}
+
+TEST(TaskQueuePacedSenderTest, SendsPacketsEnqueuedOnTaskQueueBeforeReturning) {
+  FieldTrials trials = CreateTestFieldTrials();
+  GlobalSimulatedTimeController time_controller(Timestamp::Millis(1234));
+  MockPacketRouter packet_router;
+  TaskQueuePacedSender pacer(
+      time_controller.GetClock(), &packet_router, trials,
+      PacingController::kMinSleepTime, TaskQueuePacedSender::kNoPacketHoldback,
+      time_controller.GetMainThread(),
+      PacerConfig::Create(time_controller.GetClock()->CurrentTime(),
+                          /*send_rate=*/DataRate::KilobitsPerSec(500),
+                          /*pad_rate=*/DataRate::Zero()));
+  pacer.EnsureStarted();
+
+  int packets_sent = 0;
+  bool send_packet_stack = false;
+  EXPECT_CALL(packet_router, SendPacket)
+      .Times(2)
+      .WillRepeatedly([&](std::unique_ptr<RtpPacketToSend> /* packet */,
+                          const PacedPacketInfo& /* cluster_info */) {
+        EXPECT_FALSE(send_packet_stack);
+        send_packet_stack = true;
+        absl::Cleanup cleanup = [&] { send_packet_stack = false; };
+        if (++packets_sent == 1) {
+          pacer.EnqueuePackets(GeneratePackets(RtpPacketMediaType::kAudio, 1));
+        }
+      });
+
+  // The test runs on the pacer's task queue, so the first packet is sent
+  // before EnqueuePackets() returns. The packet enqueued from within
+  // SendPacket() is sent from a separate task.
+  pacer.EnqueuePackets(GeneratePackets(RtpPacketMediaType::kAudio, 1));
+  EXPECT_EQ(packets_sent, 1);
+  time_controller.AdvanceTime(TimeDelta::Zero());
+  EXPECT_EQ(packets_sent, 2);
 }
 
 }  // namespace test

@@ -70,6 +70,9 @@ class TaskQueuePacedSender : public RtpPacketPacer, public RtpPacketSender {
 
   // Adds the packet to the queue and calls
   // PacingController::PacketSender::SendPacket() when it's time to send.
+  // When called on the pacer's task queue, packets that are due are sent
+  // before this method returns, unless the call is made while the pacer is
+  // sending packets.
   void EnqueuePackets(
       std::vector<std::unique_ptr<RtpPacketToSend>> packets) override;
   // Remove any pending packets matching this SSRC from the packet queue.
@@ -140,6 +143,10 @@ class TaskQueuePacedSender : public RtpPacketPacer, public RtpPacketSender {
                        TaskQueueBase* task_queue,
                        PacingController::Configuration pacing_config);
 
+  // Adds `packets` to the queue and calls MaybeProcessPackets().
+  void EnqueueAndMaybeProcessPackets(
+      std::vector<std::unique_ptr<RtpPacketToSend>> packets)
+      RTC_RUN_ON(task_queue_);
   // Call in response to state updates that could warrant sending out packets.
   // API methods should use this method if the method can be executed as a
   // consequence of sending a packet to avoid sending another packet in the same
