@@ -398,14 +398,16 @@ rtc_library("perf_test") {
     "../test:fileutils",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
-  if (rtc_enable_protobuf) {
+  if (rtc_use_catapult_histograms) {
+    assert(rtc_enable_protobuf,
+           "rtc_use_catapult_histograms requires rtc_enable_protobuf.")
     sources += [ "testsupport/perf_test_histogram_writer.cc" ]
     deps += [
       "//third_party/catapult/tracing/tracing:histogram",
       "//third_party/catapult/tracing/tracing:reserved_infos",
     ]
   } else {
-    sources += [ "testsupport/perf_test_histogram_writer_no_protobuf.cc" ]
+    sources += [ "testsupport/perf_test_histogram_writer_disabled.cc" ]
   }
 }
 
@@ -1026,8 +1028,11 @@ if (rtc_include_tests) {
         ":test_support",
         "../api/numerics",
         "../api/units:timestamp",
-        "//third_party/catapult/tracing/tracing:histogram",
       ]
+      if (rtc_use_catapult_histograms) {
+        defines = [ "WEBRTC_USE_CATAPULT_HISTOGRAMS" ]
+        deps += [ "//third_party/catapult/tracing/tracing:histogram" ]
+      }
       data = test_support_unittests_resources
       if (is_ios) {
         deps += [ ":test_support_unittests_bundle_data" ]
@@ -1279,7 +1284,7 @@ if (rtc_include_tests) {
       }
     }
 
-    if (rtc_enable_protobuf) {
+    if (rtc_use_catapult_histograms) {
       rtc_cc_test("perf_test_histogram_writer_unittest") {
         sources = [ "testsupport/perf_test_histogram_writer_unittest.cc" ]
         deps = [
@@ -1388,9 +1393,11 @@ if (rtc_include_tests) {
         "time_controller:simulated_time_task_queue_controller_unittest",
         "time_controller:time_controller_conformance_test",
       ]
+      if (rtc_use_catapult_histograms) {
+        tests += [ ":perf_test_histogram_writer_unittest" ]
+      }
       if (rtc_enable_protobuf) {
         tests += [
-          ":perf_test_histogram_writer_unittest",
           "peer_scenario/bwe_integration_tests:bwe_ramp_up_test",
           "peer_scenario/bwe_integration_tests:l4s_test",
           "peer_scenario/bwe_integration_tests:receive_side_bwe_test",

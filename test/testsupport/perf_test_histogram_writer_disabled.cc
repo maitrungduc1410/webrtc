@@ -8,17 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "rtc_base/checks.h"
 #include "test/testsupport/perf_test_histogram_writer.h"
 #include "test/testsupport/perf_test_result_writer.h"
 
 namespace webrtc {
 namespace test {
 
+// Built when rtc_use_catapult_histograms = false: there is no histogram
+// writer, callers must handle nullptr.
 PerfTestResultWriter* CreateHistogramWriter() {
-  RTC_DCHECK_NOTREACHED()
-      << "Cannot run perf tests with rtc_enable_protobuf = false. "
-         "Perf write results as protobufs.";
   return nullptr;
 }
 

@@ -22,6 +22,8 @@ namespace webrtc {
 namespace test {
 
 // Exports all collected metrics in the Chrome Perf Dashboard proto format.
+// Export() returns false if WebRTC was built with
+// rtc_use_catapult_histograms = false.
 class ChromePerfDashboardMetricsExporter : public MetricsExporter {
  public:
   // `export_file_path` - path where the proto file will be written.

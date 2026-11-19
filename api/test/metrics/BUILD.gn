@@ -109,6 +109,7 @@ rtc_library("chrome_perf_dashboard_metrics_exporter") {
   deps = [
     ":metric",
     ":metrics_exporter",
+    "../../../rtc_base:logging",
     "../../../test:fileutils",
     "../../../test:perf_test",
     "//third_party/abseil-cpp/absl/memory",
@@ -245,7 +246,9 @@ if (rtc_include_tests) {
         "../../units:timestamp",
       ]
     }
+  }
 
+  if (rtc_use_catapult_histograms) {
     rtc_cc_test("chrome_perf_dashboard_metrics_exporter_test") {
       sources = [ "chrome_perf_dashboard_metrics_exporter_test.cc" ]
       deps = [

@@ -333,6 +333,11 @@ declare_args() {
 
   # Enable gRPC used for negotiation in multiprocess tests
   rtc_enable_grpc = rtc_enable_protobuf && (is_linux || is_mac)
+
+  # Enables writing perf results as Catapult HistogramSet protos, the format
+  # uploaded to the Chrome Perf Dashboard. When false, perf results are only
+  # printed to stdout and ChromePerfDashboardMetricsExporter::Export() fails.
+  rtc_use_catapult_histograms = rtc_enable_protobuf
 }
 
 # Make it possible to provide custom locations for some libraries (move these

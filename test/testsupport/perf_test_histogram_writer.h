@@ -16,6 +16,9 @@
 namespace webrtc {
 namespace test {
 
+// Returns a writer that serializes perf results as a Catapult HistogramSet
+// proto, or nullptr if WebRTC was built with rtc_use_catapult_histograms =
+// false. The caller takes ownership of the returned writer.
 PerfTestResultWriter* CreateHistogramWriter();
 
 }  // namespace test

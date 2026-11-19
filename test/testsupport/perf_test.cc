@@ -220,8 +220,40 @@ ResultsLinePrinter& GetResultsLinePrinter() {
   return *printer_;
 }
 
+// Used when WebRTC is built without Catapult histogram support: results are
+// only printed to stdout, and GetPerfResults() returns an empty string.
+class NullPerfTestResultWriter : public PerfTestResultWriter {
+ public:
+  void ClearResults() override {}
+  void LogResult(absl::string_view graph_name,
+                 absl::string_view trace_name,
+                 double value,
+                 absl::string_view units,
+                 bool important,
+                 ImproveDirection improve_direction) override {}
+  void LogResultMeanAndError(absl::string_view graph_name,
+                             absl::string_view trace_name,
+                             double mean,
+                             double error,
+                             absl::string_view units,
+                             bool important,
+                             ImproveDirection improve_direction) override {}
+  void LogResultList(absl::string_view graph_name,
+                     absl::string_view trace_name,
+                     std::span<const double> values,
+                     absl::string_view units,
+                     bool important,
+                     ImproveDirection improve_direction) override {}
+  std::string Serialize() const override { return ""; }
+};
+
 PerfTestResultWriter& GetPerfWriter() {
-  static PerfTestResultWriter* writer = CreateHistogramWriter();
+  static PerfTestResultWriter* const writer = [] {
+    PerfTestResultWriter* histogram_writer = CreateHistogramWriter();
+    return histogram_writer != nullptr ? histogram_writer
+                                       : static_cast<PerfTestResultWriter*>(
+                                             new NullPerfTestResultWriter());
+  }();
   return *writer;
 }
 

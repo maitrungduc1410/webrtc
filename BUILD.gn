@@ -850,9 +850,13 @@ if (rtc_include_tests && !build_with_chromium) {
       ]
     }
 
+    if (rtc_use_catapult_histograms) {
+      tests +=
+          [ "api/test/metrics:chrome_perf_dashboard_metrics_exporter_test" ]
+    }
+
     if (rtc_enable_protobuf) {
       tests += [
-        "api/test/metrics:chrome_perf_dashboard_metrics_exporter_test",
         "api/test/metrics:metrics_set_proto_file_exporter_test",
         "logging:blob_encoding_unittest",
         "logging:delta_encoding_unittest",

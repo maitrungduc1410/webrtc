@@ -18,6 +18,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "api/test/metrics/metric.h"
+#include "rtc_base/logging.h"
 #include "test/testsupport/file_utils.h"
 #include "test/testsupport/perf_test.h"
 #include "test/testsupport/perf_test_histogram_writer.h"
@@ -104,6 +105,12 @@ bool ChromePerfDashboardMetricsExporter::Export(
     std::span<const Metric> metrics) {
   std::unique_ptr<PerfTestResultWriter> writer =
       absl::WrapUnique<PerfTestResultWriter>(CreateHistogramWriter());
+  if (writer == nullptr) {
+    RTC_LOG(LS_ERROR) << "Cannot export metrics to " << export_file_path_
+                      << ": WebRTC was built with "
+                         "rtc_use_catapult_histograms = false.";
+    return false;
+  }
   for (const Metric& metric : metrics) {
     if (metric.time_series.samples.empty() && IsEmpty(metric.stats)) {
       // If there were no data collected for the metric it is expected that 0

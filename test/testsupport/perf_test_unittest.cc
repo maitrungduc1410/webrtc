@@ -19,7 +19,7 @@
 #include "test/gtest.h"
 #include "test/testsupport/rtc_expect_death.h"
 
-#if WEBRTC_ENABLE_PROTOBUF
+#if defined(WEBRTC_USE_CATAPULT_HISTOGRAMS)
 #include "third_party/catapult/tracing/tracing/value/histogram.h"
 namespace proto = catapult::tracing::tracing::proto;
 #endif
@@ -63,7 +63,7 @@ TEST_F(PerfTest, TestClearPerfResults) {
   EXPECT_EQ("", GetPerfResults());
 }
 
-#if WEBRTC_ENABLE_PROTOBUF
+#if defined(WEBRTC_USE_CATAPULT_HISTOGRAMS)
 
 TEST_F(PerfTest, TestGetPerfResultsHistograms) {
   ClearPerfResults();
@@ -180,7 +180,7 @@ TEST_F(PerfTest, TestGetPerfResultsHistogramsWithStatsCounter) {
   EXPECT_EQ(expected, ::testing::internal::GetCapturedStdout());
 }
 
-#endif  // WEBRTC_ENABLE_PROTOBUF
+#endif  // defined(WEBRTC_USE_CATAPULT_HISTOGRAMS)
 
 #if GTEST_HAS_DEATH_TEST
 using PerfDeathTest = PerfTest;
