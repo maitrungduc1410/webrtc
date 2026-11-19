@@ -579,15 +579,6 @@ class PeerConnection : public PeerConnectionInternal,
       std::optional<int> stun_candidate_keepalive_interval,
       bool have_local_description);
 
-  // Starts output of an RTC event log to the given output object.
-  // This function should only be called from the worker thread.
-  bool StartRtcEventLog_w(std::unique_ptr<RtcEventLogOutput> output,
-                          int64_t output_period_ms);
-
-  // Stops recording an RTC event log.
-  // This function should only be called from the worker thread.
-  void StopRtcEventLog_w();
-
   // Returns the media index for a local ice candidate given the content name.
   // Returns false if the local session description does not have a media
   // content called  `content_name`.
@@ -713,7 +704,6 @@ class PeerConnection : public PeerConnectionInternal,
       RTC_GUARDED_BY(worker_thread());
   ScopedTaskSafety signaling_thread_safety_;
   scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;
-  scoped_refptr<PendingTaskSafetyFlag> worker_thread_safety_;
 
   // Points to the same thing as `call_`. Since it's const, we may read the
   // pointer from any thread.

@@ -489,9 +489,6 @@ PeerConnection::PeerConnection(
       network_thread_safety_(
           PendingTaskSafetyFlag::CreateAttachedToTaskQueue(true,
                                                            network_thread())),
-      worker_thread_safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
-          /*alive=*/call_ != nullptr,
-          worker_thread())),
       call_ptr_(call_.get()),
       legacy_stats_(std::make_unique<LegacyStatsCollector>(this, env_.clock())),
       stats_collector_(this, env_),
@@ -609,7 +606,6 @@ PeerConnection::~PeerConnection() {
   // Destroy `call_` last, since the channels and transports use it.
   network_tasks.Add([this]() {
     RTC_DCHECK_RUN_ON(worker_thread());
-    worker_thread_safety_->SetNotAlive();
     call_.reset();
     media_engine_ref_.reset();
   });
@@ -1805,11 +1801,15 @@ RTCError PeerConnection::SetBitrate(const BitrateSettings& bitrate) {
 
 void PeerConnection::ReconfigureBandwidthEstimation(
     const BandwidthEstimationSettings& settings) {
-  worker_thread()->PostTask(SafeTask(worker_thread_safety_, [this, settings]() {
-    RTC_DCHECK_RUN_ON(worker_thread());
-    call_->GetTransportControllerSend()->ReconfigureBandwidthEstimation(
-        settings);
-  }));
+  network_thread()->PostTask(
+      SafeTask(network_thread_safety_, [this, settings]() {
+        RTC_DCHECK_RUN_ON(worker_thread());
+        // There is no Call without media.
+        if (call_) {
+          call_->GetTransportControllerSend()->ReconfigureBandwidthEstimation(
+              settings);
+        }
+      }));
 }
 
 void PeerConnection::SetAudioPlayout(bool playout) {
@@ -1855,10 +1855,12 @@ bool PeerConnection::ConfiguredForMedia() const {
 
 bool PeerConnection::StartRtcEventLog(std::unique_ptr<RtcEventLogOutput> output,
                                       int64_t output_period_ms) {
-  return worker_thread()->BlockingCall(
-      [this, output = std::move(output), output_period_ms]() mutable {
-        return StartRtcEventLog_w(std::move(output), output_period_ms);
-      });
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  // There is no Call to log for without media or after Close().
+  if (!ConfiguredForMedia() || IsClosed()) {
+    return false;
+  }
+  return env_.event_log().StartLogging(std::move(output), output_period_ms);
 }
 
 bool PeerConnection::StartRtcEventLog(
@@ -1868,7 +1870,8 @@ bool PeerConnection::StartRtcEventLog(
 }
 
 void PeerConnection::StopRtcEventLog() {
-  worker_thread()->BlockingCall([this] { StopRtcEventLog_w(); });
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  env_.event_log().StopLogging();
 }
 
 void PeerConnection::SetDataChannelEventObserver(
@@ -2010,15 +2013,17 @@ void PeerConnection::CompleteClose() {
     StopTransceivers(network_tasks);
     sdp_handler_->GetMediaChannelTeardownTasks(network_tasks);
     network_tasks.AddWithFinalizer(MakeCloseOnNetworkThreadTask());
-    // Destroy `call_` and stop the event log last, since the channels and the
-    // transport controller use them.
+    // Destroy `call_` last, since the channels and the transport controller
+    // use it.
     network_tasks.Add([this]() {
       RTC_DCHECK_RUN_ON(worker_thread());
-      worker_thread_safety_->SetNotAlive();
       call_.reset();
-      StopRtcEventLog_w();
     });
   }
+
+  // Stop the event log after the channels, the transport controller and
+  // `call_` are gone, since they log to it.
+  StopRtcEventLog();
 
   // CreateOffer by the peer connection is implemented asynchronously and if
   // the peer connection is closed without resetting the WebRTC session
@@ -2526,21 +2531,6 @@ bool PeerConnection::ReconfigurePortAllocator_n(
       stun_servers, std::move(turn_servers_copy), candidate_pool_size,
       turn_port_prune_policy, turn_customizer,
       stun_candidate_keepalive_interval);
-}
-
-bool PeerConnection::StartRtcEventLog_w(
-    std::unique_ptr<RtcEventLogOutput> output,
-    int64_t output_period_ms) {
-  RTC_DCHECK_RUN_ON(worker_thread());
-  if (!worker_thread_safety_->alive()) {
-    return false;
-  }
-  return env_.event_log().StartLogging(std::move(output), output_period_ms);
-}
-
-void PeerConnection::StopRtcEventLog_w() {
-  RTC_DCHECK_RUN_ON(worker_thread());
-  env_.event_log().StopLogging();
 }
 
 bool PeerConnection::GetSslRole(const std::string& content_name,
