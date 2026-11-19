@@ -354,9 +354,8 @@ class ChannelSend : public ChannelSendInterface,
   scoped_refptr<ChannelSendFrameTransformerDelegate> frame_transformer_delegate_
       RTC_GUARDED_BY(encoder_queue_checker_);
 
-  mutable Mutex rtcp_counter_mutex_;
   RtcpPacketTypeCounter rtcp_packet_type_counter_
-      RTC_GUARDED_BY(rtcp_counter_mutex_);
+      RTC_GUARDED_BY(network_thread_);
 
   std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue_;
   RTC_NO_UNIQUE_ADDRESS SequenceChecker encoder_queue_checker_;
@@ -377,14 +376,13 @@ class RtpPacketSenderProxy : public RtpPacketSender {
   RtpPacketSenderProxy() : rtp_packet_pacer_(nullptr) {}
 
   void SetPacketPacer(RtpPacketSender* rtp_packet_pacer) {
-    RTC_DCHECK(thread_checker_.IsCurrent());
-    MutexLock lock(&mutex_);
+    RTC_DCHECK_RUN_ON(&thread_checker_);
     rtp_packet_pacer_ = rtp_packet_pacer;
   }
 
   void EnqueuePackets(
       std::vector<std::unique_ptr<RtpPacketToSend>> packets) override {
-    MutexLock lock(&mutex_);
+    RTC_DCHECK_RUN_ON(&thread_checker_);
 
     // Since we allow having an instance with no rtp_packet_pacer_ set we
     // should handle calls to member functions in this state gracefully rather
@@ -398,7 +396,7 @@ class RtpPacketSenderProxy : public RtpPacketSender {
   }
 
   void RemovePacketsForSsrc(uint32_t ssrc) override {
-    MutexLock lock(&mutex_);
+    RTC_DCHECK_RUN_ON(&thread_checker_);
 
     // Since we allow having an instance with no rtp_packet_pacer_ set we
     // should handle calls to member functions in this state gracefully rather
@@ -411,8 +409,7 @@ class RtpPacketSenderProxy : public RtpPacketSender {
 
  private:
   RTC_NO_UNIQUE_ADDRESS SequenceChecker thread_checker_;
-  Mutex mutex_;
-  RtpPacketSender* rtp_packet_pacer_ RTC_GUARDED_BY(&mutex_);
+  RtpPacketSender* rtp_packet_pacer_ RTC_GUARDED_BY(thread_checker_);
 };
 
 int32_t ChannelSend::SendData(
@@ -895,11 +892,7 @@ ChannelSendStatistics ChannelSend::GetRTCPStatistics() const {
   stats.total_packet_send_delay = rtp_stats.transmitted.total_packet_delay;
   stats.retransmitted_packets_sent = rtp_stats.retransmitted.packets;
   stats.report_block_datas = rtp_rtcp_->GetLatestReportBlockData();
-
-  {
-    MutexLock lock(&rtcp_counter_mutex_);
-    stats.nacks_received = rtcp_packet_type_counter_.nack_packets;
-  }
+  stats.nacks_received = rtcp_packet_type_counter_.nack_packets;
 
   return stats;
 }
@@ -907,10 +900,10 @@ ChannelSendStatistics ChannelSend::GetRTCPStatistics() const {
 void ChannelSend::RtcpPacketTypesCounterUpdated(
     uint32_t ssrc,
     const RtcpPacketTypeCounter& packet_counter) {
+  RTC_DCHECK_RUN_ON(network_thread_);
   if (ssrc != ssrc_) {
     return;
   }
-  MutexLock lock(&rtcp_counter_mutex_);
   rtcp_packet_type_counter_ = packet_counter;
 }
 
