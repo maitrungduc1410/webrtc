@@ -100,11 +100,24 @@ void RtpReceiverBase::Stop() {
 
 void RtpReceiverBase::set_media_channel(
     MediaReceiveChannelInterface* media_channel) {
+  if (media_channel_ == media_channel) {
+    return;
+  }
   media_channel_ = media_channel;
+  media_channel_configured_ = false;
+  if (media_channel_ == nullptr) {
+    signaled_ssrc_.reset();
+  }
   media_channel_ != nullptr ? network_thread_safety_->SetAlive()
                             : network_thread_safety_->SetNotAlive();
-  if (media_channel_ != nullptr && sframe_decryption_config_.has_value()) {
-    media_channel_->SetSframeDecryptionConfig(*sframe_decryption_config_);
+  if (media_channel_ != nullptr) {
+    if (sframe_decryption_config_.has_value()) {
+      media_channel_->SetSframeDecryptionConfig(*sframe_decryption_config_);
+    }
+    if (frame_transformer_ != nullptr) {
+      media_channel_->SetDepacketizerToDecoderFrameTransformer(
+          signaled_ssrc_.value_or(0), frame_transformer_);
+    }
   }
 }
 

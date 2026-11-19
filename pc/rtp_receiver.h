@@ -193,6 +193,7 @@ class RtpReceiverBase : public RtpReceiverInternal {
       RTC_GUARDED_BY(network_thread_);
   scoped_refptr<FrameTransformerInterface> frame_transformer_
       RTC_GUARDED_BY(network_thread_);
+  bool media_channel_configured_ RTC_GUARDED_BY(network_thread_) = false;
 
  private:
   const scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;

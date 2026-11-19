@@ -28,6 +28,7 @@
 #include "api/rtp_packet_infos.h"
 #include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/test/mock_frame_transformer.h"
 #include "api/test/rtc_error_matchers.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -478,6 +479,72 @@ TEST_F(AudioRtpReceiverSsrcTest,
   EXPECT_FALSE(receiver_->has_signaled_ssrc_s());
   receiver_->SetUnsignaledSsrc_s(kNewUnsignaledSsrc);
   EXPECT_EQ(receiver_->ssrc_s(), kNewUnsignaledSsrc);
+}
+
+TEST(AudioRtpReceiver, SetMediaChannelForwardsFrameTransformerToNewChannel) {
+  test::RunLoop loop;
+  std::unique_ptr<Thread> worker_thread = Thread::Create();
+  worker_thread->Start();
+  ::testing::NiceMock<MockVoiceMediaReceiveChannelInterface> channel1;
+  ::testing::NiceMock<MockVoiceMediaReceiveChannelInterface> channel2;
+  auto receiver = make_ref_counted<AudioRtpReceiver>(
+      worker_thread.get(), std::string(), std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/nullptr, &channel1);
+  auto transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+
+  EXPECT_CALL(channel1,
+              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  worker_thread->BlockingCall(
+      [&] { receiver->SetFrameTransformer(transformer); });
+
+  // Detach old channel (as during rollback) and attach replacement channel.
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
+  EXPECT_CALL(channel2,
+              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(&channel2); });
+
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
+}
+
+TEST(AudioRtpReceiver, ReconfiguresSameSsrcAfterChannelSwap) {
+  test::RunLoop loop;
+  std::unique_ptr<Thread> worker_thread = Thread::Create();
+  worker_thread->Start();
+  ::testing::NiceMock<MockVoiceMediaReceiveChannelInterface> channel1;
+  ::testing::NiceMock<MockVoiceMediaReceiveChannelInterface> channel2;
+  auto receiver = make_ref_counted<AudioRtpReceiver>(
+      worker_thread.get(), std::string(), std::vector<std::string>(),
+      /*enable_sframe_at_owner=*/nullptr, &channel1);
+  auto transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  constexpr uint32_t kSsrc = 12345;
+
+  EXPECT_CALL(channel1,
+              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  worker_thread->BlockingCall(
+      [&] { receiver->SetFrameTransformer(transformer); });
+
+  EXPECT_CALL(channel1,
+              SetDepacketizerToDecoderFrameTransformer(kSsrc, Eq(transformer)));
+  auto setup1 = receiver->GetSetupForMediaChannel(kSsrc);
+  worker_thread->BlockingCall([&] { std::move(setup1)(); });
+
+  // Simulate rollback (channel detached) followed by renegotiation with a new
+  // channel and the same signaled SSRC.
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
+  EXPECT_CALL(channel2,
+              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(&channel2); });
+
+  EXPECT_CALL(channel2,
+              SetDepacketizerToDecoderFrameTransformer(kSsrc, Eq(transformer)));
+  EXPECT_CALL(channel2, SetOutputVolume(kSsrc, 1.0));
+  auto setup2 = receiver->GetSetupForMediaChannel(kSsrc);
+  worker_thread->BlockingCall([&] { std::move(setup2)(); });
+  ::testing::Mock::VerifyAndClearExpectations(&channel2);
+
+  worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
 }
 
 }  // namespace webrtc

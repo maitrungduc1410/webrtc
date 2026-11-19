@@ -16,8 +16,10 @@
 // slow_peer_connection_integrationtest.cc
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,6 +36,7 @@
 #include "api/data_channel_interface.h"
 #include "api/dtls_transport_interface.h"
 #include "api/dtmf_sender_interface.h"
+#include "api/frame_transformer_interface.h"
 #include "api/jsep.h"
 #include "api/make_ref_counted.h"
 #include "api/media_stream_interface.h"
@@ -91,10 +94,12 @@
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/string_encode.h"
+#include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/test_certificate_verifier.h"
 #include "rtc_base/thread.h"
+#include "rtc_base/thread_annotations.h"
 #include "rtc_base/virtual_socket_server.h"
 #include "system_wrappers/include/metrics.h"
 #include "test/gmock.h"
@@ -5742,6 +5747,120 @@ TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
   ASSERT_TRUE(WaitUntil([&] { return observer->called(); }));
   // Observe failure.
   EXPECT_FALSE(observer->result());
+}
+
+class CountingPassThroughFrameTransformer : public FrameTransformerInterface {
+ public:
+  void Transform(std::unique_ptr<TransformableFrameInterface> frame) override {
+    transformed_frames_.fetch_add(1, std::memory_order_relaxed);
+    scoped_refptr<TransformedFrameCallback> callback;
+    {
+      MutexLock lock(&mutex_);
+      auto it = sink_callbacks_.find(frame->GetSsrc());
+      if (it != sink_callbacks_.end()) {
+        callback = it->second;
+      } else {
+        callback = callback_;
+      }
+    }
+    if (callback) {
+      callback->OnTransformedFrame(std::move(frame));
+    }
+  }
+
+  void RegisterTransformedFrameCallback(
+      scoped_refptr<TransformedFrameCallback> callback) override {
+    MutexLock lock(&mutex_);
+    callback_ = std::move(callback);
+  }
+
+  void RegisterTransformedFrameSinkCallback(
+      scoped_refptr<TransformedFrameCallback> callback,
+      uint32_t ssrc) override {
+    MutexLock lock(&mutex_);
+    sink_callbacks_[ssrc] = std::move(callback);
+  }
+
+  void UnregisterTransformedFrameCallback() override {
+    MutexLock lock(&mutex_);
+    callback_ = nullptr;
+  }
+
+  void UnregisterTransformedFrameSinkCallback(uint32_t ssrc) override {
+    MutexLock lock(&mutex_);
+    sink_callbacks_.erase(ssrc);
+  }
+
+  int transformed_frames() const {
+    return transformed_frames_.load(std::memory_order_relaxed);
+  }
+
+ private:
+  Mutex mutex_;
+  scoped_refptr<TransformedFrameCallback> callback_ RTC_GUARDED_BY(mutex_);
+  std::map<uint32_t, scoped_refptr<TransformedFrameCallback>> sink_callbacks_
+      RTC_GUARDED_BY(mutex_);
+  std::atomic<int> transformed_frames_{0};
+};
+
+TEST_F(PeerConnectionIntegrationTestUnifiedPlan,
+       FrameTransformerAppliedAfterRemoteOfferRollbackWithSameSsrc) {
+  ASSERT_TRUE(CreatePeerConnectionWrappers());
+  ConnectFakeSignaling();
+  caller()->AddAudioVideoTracks();
+  callee()->AddAudioVideoTracks();
+
+  auto transceivers = callee()->pc()->GetTransceivers();
+  ASSERT_EQ(transceivers.size(), 2u);
+  auto audio_transformer =
+      make_ref_counted<CountingPassThroughFrameTransformer>();
+  auto video_transformer =
+      make_ref_counted<CountingPassThroughFrameTransformer>();
+  for (const auto& transceiver : transceivers) {
+    if (transceiver->media_type() == MediaType::AUDIO) {
+      transceiver->receiver()->SetFrameTransformer(audio_transformer);
+    } else {
+      transceiver->receiver()->SetFrameTransformer(video_transformer);
+    }
+  }
+
+  // Apply the caller's offer once so the callee associates its addTrack
+  // transceivers and sets signaled_ssrc_ on both receivers, then roll back so
+  // the channels are torn down while keeping the transceivers alive.
+  auto offer = caller()->CreateOfferAndWait();
+  ASSERT_THAT(offer, NotNull());
+  std::string offer_sdp;
+  ASSERT_TRUE(offer->ToString(&offer_sdp));
+
+  ASSERT_TRUE(callee()->SetRemoteDescription(
+      CreateSessionDescription(SdpType::kOffer, offer_sdp)));
+  ASSERT_EQ(callee()->pc()->GetTransceivers().size(), 2u);
+  EXPECT_EQ(callee()->pc()->signaling_state(),
+            PeerConnectionInterface::kHaveRemoteOffer);
+
+  auto rollback_observer =
+      make_ref_counted<MockSetSessionDescriptionObserver>();
+  callee()->pc()->SetRemoteDescription(
+      rollback_observer.get(),
+      CreateSessionDescription(SdpType::kRollback, "").release());
+  ASSERT_TRUE(WaitUntil([&] { return rollback_observer->called(); }));
+  ASSERT_TRUE(rollback_observer->result()) << rollback_observer->error();
+  ASSERT_EQ(callee()->pc()->GetTransceivers().size(), 2u);
+  EXPECT_EQ(callee()->pc()->signaling_state(),
+            PeerConnectionInterface::kStable);
+
+  // Now deliver the exact same offer (with the same signaled SSRCs) and
+  // complete negotiation. Both new channels must still invoke the transformers.
+  ASSERT_TRUE(caller()->SetLocalDescriptionAndSendSdpMessage(std::move(offer)));
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); }));
+  ASSERT_EQ(callee()->pc()->GetTransceivers().size(), 2u);
+
+  MediaExpectations media_expectations;
+  media_expectations.CalleeExpectsSomeAudioAndVideo();
+  ASSERT_TRUE(ExpectNewFrames(media_expectations));
+
+  EXPECT_GT(audio_transformer->transformed_frames(), 0);
+  EXPECT_GT(video_transformer->transformed_frames(), 0);
 }
 
 }  // namespace

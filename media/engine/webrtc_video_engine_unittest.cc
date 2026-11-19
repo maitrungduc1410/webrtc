@@ -46,6 +46,7 @@
 #include "api/sframe/sframe_decryptor_interface.h"
 #include "api/sframe/sframe_types.h"
 #include "api/test/mock_encoder_selector.h"
+#include "api/test/mock_frame_transformer.h"
 #include "api/test/mock_video_bitrate_allocator.h"
 #include "api/test/mock_video_bitrate_allocator_factory.h"
 #include "api/test/mock_video_decoder_factory.h"
@@ -8130,6 +8131,61 @@ TEST_F(WebRtcVideoChannelTest,
   FakeVideoReceiveStream* recv_stream1 =
       fake_call_->GetVideoReceiveStreams()[1];
   EXPECT_EQ(kSsrcs3[1], recv_stream1->GetConfig().rtp.remote_ssrc);
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       SetFrameTransformerWithZeroSsrcUpdatesSignaledZeroSsrcStream) {
+  VideoReceiverParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  ASSERT_TRUE(receive_channel_->SetReceiverParameters(parameters));
+
+  ASSERT_TRUE(
+      receive_channel_->AddRecvStream(StreamParams::CreateLegacy(/*ssrc=*/0)));
+  const FakeVideoReceiveStream* stream0 =
+      fake_call_->GetVideoReceiveStream(/*ssrc=*/0);
+  ASSERT_NE(stream0, nullptr);
+  EXPECT_EQ(stream0->GetConfig().frame_transformer, nullptr);
+
+  auto transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(/*ssrc=*/0,
+                                                             transformer);
+  EXPECT_EQ(stream0->GetConfig().frame_transformer, transformer);
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       SetFrameTransformerWithZeroSsrcUpdatesExistingAndFutureDefaultStreams) {
+  VideoReceiverParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  ASSERT_TRUE(receive_channel_->SetReceiverParameters(parameters));
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+
+  // Spawn a default stream before setting the frame transformer.
+  RtpPacketReceived rtp_packet;
+  rtp_packet.SetPayloadType(GetEngineCodec("VP8").id);
+  rtp_packet.SetSsrc(kSsrcs3[0]);
+  ReceivePacketAndAdvanceTime(rtp_packet);
+
+  const FakeVideoReceiveStream* default_stream =
+      fake_call_->GetVideoReceiveStream(kSsrcs3[0]);
+  ASSERT_NE(default_stream, nullptr);
+  EXPECT_EQ(default_stream->GetConfig().frame_transformer, nullptr);
+
+  auto transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(/*ssrc=*/0,
+                                                             transformer);
+  EXPECT_EQ(default_stream->GetConfig().frame_transformer, transformer);
+
+  // Wait past unsignaled SSRC cooldown so a new default stream is created on
+  // SSRC change, and verify it inherits the cached transformer.
+  time_controller_.AdvanceTime(TimeDelta::Seconds(1));
+  rtp_packet.SetSsrc(kSsrcs3[1]);
+  ReceivePacketAndAdvanceTime(rtp_packet);
+  const FakeVideoReceiveStream* new_default_stream =
+      fake_call_->GetVideoReceiveStream(kSsrcs3[1]);
+  ASSERT_NE(new_default_stream, nullptr);
+  EXPECT_EQ(new_default_stream->GetConfig().frame_transformer, transformer);
 }
 
 TEST_F(WebRtcVideoChannelTest, CanSetMaxBitrateForExistingStream) {

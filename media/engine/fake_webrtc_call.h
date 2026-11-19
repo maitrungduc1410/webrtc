@@ -292,8 +292,9 @@ class FakeVideoReceiveStream final : public VideoReceiveStreamInterface {
   }
 
   void SetDepacketizerToDecoderFrameTransformer(
-      scoped_refptr<FrameTransformerInterface> /* frame_transformer */)
-      override {}
+      scoped_refptr<FrameTransformerInterface> frame_transformer) override {
+    config_.frame_transformer = std::move(frame_transformer);
+  }
 
   RecordingState SetAndGetRecordingState(
       RecordingState /* state */,

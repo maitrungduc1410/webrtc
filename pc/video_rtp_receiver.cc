@@ -143,7 +143,8 @@ void VideoRtpReceiver::GetRestartFunctionForMediaChannel_n(
 
   const bool encoded_sink_enabled = saved_encoded_sink_enabled_;
 
-  if (state != MediaSourceInterface::kInitializing) {
+  if (state != MediaSourceInterface::kInitializing &&
+      media_channel_configured_) {
     if (ssrc == signaled_ssrc_)
       return;
 
@@ -156,6 +157,7 @@ void VideoRtpReceiver::GetRestartFunctionForMediaChannel_n(
 
   // Set up the new ssrc.
   signaled_ssrc_ = std::move(ssrc);
+  media_channel_configured_ = true;
   SetSink(source_->sink());
   if (encoded_sink_enabled) {
     SetEncodedSinkEnabled(true);
@@ -296,10 +298,6 @@ void VideoRtpReceiver::SetMediaChannel_n(
     }
     if (encoded_sink_enabled) {
       SetEncodedSinkEnabled(true);
-    }
-    if (frame_transformer_) {
-      video_channel->SetDepacketizerToDecoderFrameTransformer(
-          signaled_ssrc_.value_or(0), frame_transformer_);
     }
   }
 

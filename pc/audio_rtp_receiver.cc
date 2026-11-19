@@ -231,13 +231,15 @@ void AudioRtpReceiver::GetRestartFunctionForMediaChannel_n(
   if (!voice_channel)
     return;  // Can't restart.
 
-  if (state != MediaSourceInterface::kInitializing) {
+  if (state != MediaSourceInterface::kInitializing &&
+      media_channel_configured_) {
     if (signaled_ssrc_ == ssrc)
       return;
     source_->Stop(voice_channel, signaled_ssrc_);
   }
 
   signaled_ssrc_ = std::move(ssrc);
+  media_channel_configured_ = true;
   source_->Start(voice_channel, signaled_ssrc_);
   if (signaled_ssrc_) {
     voice_channel->SetBaseMinimumPlayoutDelayMs(*signaled_ssrc_,
