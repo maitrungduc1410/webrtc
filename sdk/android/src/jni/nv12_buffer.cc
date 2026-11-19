@@ -10,9 +10,12 @@
 
 #include <jni.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
+#include "rtc_base/checks.h"
+#include "rtc_base/numerics/safe_conversions.h"
 #include "sdk/android/generated_video_jni/NV12Buffer_jni.h"
 #include "third_party/jni_zero/jni_zero.h"
 #include "third_party/libyuv/include/libyuv/planar_functions.h"
@@ -20,6 +23,14 @@
 
 namespace webrtc {
 namespace jni {
+
+namespace {
+
+// Upper bound on video frame dimensions to prevent integer overflows in
+// intermediate buffer size calculations.
+constexpr int kMaxDimension = 1 << 15;
+
+}  // namespace
 
 static void JNI_NV12Buffer_CropAndScale(
     JNIEnv* jni,
@@ -40,6 +51,23 @@ static void JNI_NV12Buffer_CropAndScale(
     jint dst_stride_u,
     const jni_zero::JavaRef<jobject>& j_dst_v,
     jint dst_stride_v) {
+  RTC_CHECK_GT(src_width, 0);
+  RTC_CHECK_GT(src_height, 0);
+  RTC_CHECK_LE(src_width, kMaxDimension);
+  RTC_CHECK_LE(src_height, kMaxDimension);
+  RTC_CHECK_GT(src_stride, 0);
+  RTC_CHECK_GT(src_slice_height, 0);
+  RTC_CHECK_GE(crop_x, 0);
+  RTC_CHECK_LT(crop_x, src_width);
+  RTC_CHECK_GE(crop_y, 0);
+  RTC_CHECK_LT(crop_y, src_height);
+  RTC_CHECK_GT(crop_width, 0);
+  RTC_CHECK_LE(crop_width, src_width - crop_x);
+  RTC_CHECK_GT(crop_height, 0);
+  RTC_CHECK_LE(crop_height, src_height - crop_y);
+  RTC_CHECK_GT(scale_width, 0);
+  RTC_CHECK_GT(scale_height, 0);
+
   const int src_stride_y = src_stride;
   const int src_stride_uv = src_stride;
   const int crop_chroma_x = crop_x / 2;
@@ -48,11 +76,15 @@ static void JNI_NV12Buffer_CropAndScale(
   const int crop_chroma_height = (crop_height + 1) / 2;
   const int tmp_stride_u = crop_chroma_width;
   const int tmp_stride_v = crop_chroma_width;
-  const int tmp_size = crop_chroma_height * (tmp_stride_u + tmp_stride_v);
+  const size_t tmp_size =
+      static_cast<size_t>(crop_chroma_height) * (tmp_stride_u + tmp_stride_v);
 
   uint8_t const* src_y =
       static_cast<uint8_t const*>(jni->GetDirectBufferAddress(j_src.obj()));
-  uint8_t const* src_uv = src_y + src_slice_height * src_stride_y;
+  RTC_CHECK(src_y);
+  uint8_t const* src_uv =
+      src_y +
+      checked_cast<int>(static_cast<int64_t>(src_slice_height) * src_stride_y);
 
   uint8_t* dst_y =
       static_cast<uint8_t*>(jni->GetDirectBufferAddress(j_dst_y.obj()));
@@ -60,14 +92,20 @@ static void JNI_NV12Buffer_CropAndScale(
       static_cast<uint8_t*>(jni->GetDirectBufferAddress(j_dst_u.obj()));
   uint8_t* dst_v =
       static_cast<uint8_t*>(jni->GetDirectBufferAddress(j_dst_v.obj()));
+  RTC_CHECK(dst_y);
+  RTC_CHECK(dst_u);
+  RTC_CHECK(dst_v);
 
   // Crop using pointer arithmetic.
-  src_y += crop_x + crop_y * src_stride_y;
-  src_uv += 2 * crop_chroma_x + crop_chroma_y * src_stride_uv;
+  src_y +=
+      checked_cast<int>(crop_x + static_cast<int64_t>(crop_y) * src_stride_y);
+  src_uv += checked_cast<int>(
+      2 * crop_chroma_x + static_cast<int64_t>(crop_chroma_y) * src_stride_uv);
 
   std::vector<uint8_t> tmp_buffer(tmp_size);
   uint8_t* tmp_u = tmp_buffer.data();
-  uint8_t* tmp_v = tmp_u + crop_chroma_height * tmp_stride_u;
+  uint8_t* tmp_v =
+      tmp_u + static_cast<size_t>(crop_chroma_height) * tmp_stride_u;
 
   libyuv::SplitUVPlane(src_uv, src_stride_uv, tmp_u, tmp_stride_u, tmp_v,
                        tmp_stride_v, crop_chroma_width, crop_chroma_height);
