@@ -514,8 +514,8 @@ class PeerConnection : public PeerConnectionInternal,
   // observer. Runs only once.
   void CompleteClose() RTC_RUN_ON(signaling_thread());
   // Stops the transceivers that aren't stopped yet and adds the tasks that
-  // complete stopping them to `worker_tasks`.
-  void StopTransceivers(ScopedOperationsBatcher& worker_tasks)
+  // complete stopping them to `tasks`.
+  void StopTransceivers(ScopedOperationsBatcher& tasks)
       RTC_RUN_ON(signaling_thread());
   JsepTransportController* InitializeTransportController_n(
       std::unique_ptr<JsepTransportController> controller,

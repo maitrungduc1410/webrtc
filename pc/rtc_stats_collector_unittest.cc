@@ -886,24 +886,20 @@ TEST_P(RTCStatsCollectorTest, StatsPreservedWhenChannelClearedConcurrently) {
   auto* transceiver = transceivers[0]->internal();
   EXPECT_TRUE(transceiver->HasChannel());
 
-  auto network_task = transceiver->GetClearChannelNetworkTask();
-  pc_->network_thread()->BlockingCall([&]() { std::move(network_task)(); });
-
-  auto delete_worker_task =
-      transceiver->GetDeleteChannelWorkerTask(/*stop_senders=*/false);
+  auto teardown_task = transceiver->GetTeardownChannelTask();
   // Now the state of the transceiver is that on the signaling thread,
   // there is no channel. However, the work of actually deleting the channels
-  // belongs to the worker thread task, which hasn't run yet.
+  // belongs to the network thread task, which hasn't run yet.
   // Let's post the execution of that task so that it ends up running
   // *after* the task that the `stats_collector` has queued up for
   // gathering the stats from the channel. The stats collector should
   // be able to get the stats safely even though technically the
   // transceiver by now, doesn't have a channel.
   EXPECT_FALSE(transceiver->HasChannel());
-  Event worker_task_done;
-  pc_->worker_thread()->PostTask([&]() {
-    std::move(delete_worker_task)();
-    worker_task_done.Set();
+  Event teardown_done;
+  pc_->network_thread()->PostTask([&]() {
+    std::move(teardown_task)();
+    teardown_done.Set();
   });
 
   main_thread_.Run();
@@ -912,7 +908,7 @@ TEST_P(RTCStatsCollectorTest, StatsPreservedWhenChannelClearedConcurrently) {
   auto inbound_rtps = report->GetStatsOfType<RTCInboundRtpStreamStats>();
   EXPECT_EQ(inbound_rtps.size(), 1u);
   // Wait for the cleanup task to complete.
-  worker_task_done.Wait(Event::kForever);
+  teardown_done.Wait(Event::kForever);
 }
 
 TEST_P(RTCStatsCollectorTest, ToJsonProducesParseableJson) {

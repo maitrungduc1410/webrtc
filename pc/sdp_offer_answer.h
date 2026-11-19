@@ -201,12 +201,11 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // See also `InternalDataChannelInit::fallback_ssl_role`.
   std::optional<SSLRole> GuessSslRole() const;
 
-  // Gathers tasks from all transceivers to tear down the state that
-  // belongs to the network and worker threads.
-  // The caller is responsible for invoking the callbacks on the correct threads
-  // in the order 1st network thread, 2nd worker thread.
-  void GetMediaChannelTeardownTasks(ScopedOperationsBatcher& network_tasks,
-                                    ScopedOperationsBatcher& worker_tasks);
+  // Gathers tasks from all transceivers to tear down their channels. The
+  // transceivers must already be stopped, so that their senders clear their
+  // send streams before the channels are deleted. The tasks must be executed
+  // on the network thread.
+  void GetMediaChannelTeardownTasks(ScopedOperationsBatcher& network_tasks);
 
   PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> local_streams();
   PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> remote_streams();
@@ -427,8 +426,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
           transceiver,
       const ContentInfo& content,
       const ContentGroup* bundle_group,
-      ScopedOperationsBatcher& network_teardown_tasks,
-      ScopedOperationsBatcher& worker_tasks,
+      ScopedOperationsBatcher& network_tasks,
       ScopedOperationsBatcher& network_init_tasks)
       RTC_RUN_ON(signaling_thread());
 

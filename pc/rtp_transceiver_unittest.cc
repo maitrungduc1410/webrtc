@@ -1163,11 +1163,7 @@ TEST_F(RtpTransceiverTestWithFakeCall,
   auto* fake_channel = static_cast<FakeVoiceMediaSendChannel*>(voice_channel);
   EXPECT_TRUE(fake_channel->options().audio_network_adaptor);
 
-  ScopedOperationsBatcher worker_tasks(context()->network_thread());
-  ScopedOperationsBatcher network_tasks(context()->network_thread());
-  network_tasks.Add(transceiver->GetClearChannelNetworkTask());
-  worker_tasks.Add(
-      transceiver->GetDeleteChannelWorkerTask(/*stop_senders=*/true));
+  transceiver->ClearChannel();
 }
 
 TEST_F(RtpTransceiverTestWithFakeCall, OnNetworkRouteChangedForwardsToChannel) {
@@ -1207,11 +1203,7 @@ TEST_F(RtpTransceiverTestWithFakeCall, OnNetworkRouteChangedForwardsToChannel) {
   EXPECT_EQ(100, fake_channel->last_network_route().last_sent_packet_id);
   EXPECT_EQ(28, fake_channel->transport_overhead_per_packet());
 
-  ScopedOperationsBatcher worker_tasks(context()->network_thread());
-  ScopedOperationsBatcher network_tasks(context()->network_thread());
-  network_tasks.Add(transceiver->GetClearChannelNetworkTask());
-  worker_tasks.Add(
-      transceiver->GetDeleteChannelWorkerTask(/*stop_senders=*/true));
+  transceiver->ClearChannel();
 }
 
 TEST_F(RtpTransceiverTestWithFakeCall,
@@ -1252,11 +1244,7 @@ TEST_F(RtpTransceiverTestWithFakeCall,
   EXPECT_EQ(100, fake_channel->last_network_route().last_sent_packet_id);
   EXPECT_EQ(28, fake_channel->transport_overhead_per_packet());
 
-  ScopedOperationsBatcher worker_tasks(context()->network_thread());
-  ScopedOperationsBatcher network_tasks(context()->network_thread());
-  network_tasks.Add(transceiver->GetClearChannelNetworkTask());
-  worker_tasks.Add(
-      transceiver->GetDeleteChannelWorkerTask(/*stop_senders=*/true));
+  transceiver->ClearChannel();
 }
 
 TEST_F(RtpTransceiverDoubleThreadTest,
@@ -1316,14 +1304,7 @@ TEST_F(RtpTransceiverDoubleThreadTest,
       [&]() { return fake_channel->transport_overhead_per_packet(); });
   EXPECT_EQ(28, overhead);
 
-  ScopedOperationsBatcher worker_tasks(context()->network_thread());
-  ScopedOperationsBatcher network_tasks(context()->network_thread());
-  network_tasks.Add(transceiver->GetClearChannelNetworkTask());
-  worker_tasks.Add(
-      transceiver->GetDeleteChannelWorkerTask(/*stop_senders=*/true));
-
-  RTC_CHECK(network_tasks.Run().ok());
-  RTC_CHECK(worker_tasks.Run().ok());
+  transceiver->ClearChannel();
 
   context()->network_thread()->BlockingCall([&]() { fake_dtls.reset(); });
 }

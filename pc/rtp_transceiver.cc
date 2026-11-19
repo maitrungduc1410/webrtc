@@ -644,12 +644,8 @@ RTCError RtpTransceiver::SetChannelForTest(
   return err;
 }
 
-absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
+absl::AnyInvocable<void() &&> RtpTransceiver::GetTeardownChannelTask() {
   RTC_DCHECK_RUN_ON(thread_);
-  // GetClearChannelNetworkTask must be called before GetDeleteChannelWorkerTask
-  // since that's where we clear the `channel_` pointer. Perhaps we should
-  // combine these into one function to avoid an ordering mistake?
-
   if (!channel_) {
     RTC_DCHECK(!signaling_thread_safety_ || !signaling_thread_safety_->alive());
     return nullptr;
@@ -658,41 +654,16 @@ absl::AnyInvocable<void() &&> RtpTransceiver::GetClearChannelNetworkTask() {
   signaling_thread_safety_->SetNotAlive();
   signaling_thread_safety_ = nullptr;
 
-  ChannelInterface* channel = channel_.get();
-  return [this, channel, flag = network_thread_safety_] {
-    RTC_DCHECK_RUN_ON(context()->network_thread());
-    flag->SetNotAlive();
-    channel->SetRtpTransport(nullptr);
-    ClearRtpTransportState();
-  };
-}
-
-absl::AnyInvocable<void() &&> RtpTransceiver::GetDeleteChannelWorkerTask(
-    bool stop_senders) {
-  RTC_DCHECK_RUN_ON(thread_);
-  RTC_DCHECK(!signaling_thread_safety_ || !signaling_thread_safety_->alive())
-      << "GetClearChannelNetworkTask() must be called first";
-
-  if (!channel_) {
-    return nullptr;
-  }
-
-  std::vector<absl::AnyInvocable<void() &&>> stop_sender_actions;
-  if (stop_senders) {
-    stop_sender_actions = DetachAndGetStopTasksForSenders(senders_);
-  }
-
   transport_name_ = std::nullopt;
 
   // Ensure that channel_ is not reachable via the transceiver, but is deleted
   // only after clearing the references in senders_ and receivers_.
-  return [this, channel = std::move(channel_), senders = senders_,
-          receivers = receivers_,
-          stop_sender_actions = std::move(stop_sender_actions)]() mutable {
+  return [this, channel = std::move(channel_), flag = network_thread_safety_,
+          senders = senders_, receivers = receivers_]() mutable {
     RTC_DCHECK_RUN_ON(context()->network_thread());
-    for (auto& task : stop_sender_actions) {
-      std::move(task)();
-    }
+    flag->SetNotAlive();
+    channel->SetRtpTransport(nullptr);
+    ClearRtpTransportState();
     ClearMediaChannelReferences();
     channel.reset();
   };
@@ -704,19 +675,8 @@ void RtpTransceiver::ClearChannel() {
     return;
   }
 
-  absl::AnyInvocable<void() &&> network_task = GetClearChannelNetworkTask();
-  absl::AnyInvocable<void() &&> worker_task =
-      GetDeleteChannelWorkerTask(/*stop_senders=*/false);
-  if (network_task || worker_task) {
-    context()->network_thread()->BlockingCall([&] {
-      if (network_task) {
-        std::move(network_task)();
-      }
-      if (worker_task) {
-        std::move(worker_task)();
-      }
-    });
-  }
+  absl::AnyInvocable<void() &&> task = GetTeardownChannelTask();
+  context()->network_thread()->BlockingCall([&] { std::move(task)(); });
 }
 
 // RTC_RUN_ON(context()->network_thread());
@@ -1456,9 +1416,8 @@ void RtpTransceiver::SetRtpTransportState(RtpTransportInternal* transport) {
   RTC_DCHECK(!rtp_transport_);
   rtp_transport_ = transport;
   if (rtp_transport_) {
-    // Safe to capture raw pointer to channel because we unsubscribe on the
-    // network thread (via GetClearChannelNetworkTask) before the channel is
-    // destroyed on the worker thread (via GetDeleteChannelWorkerTask).
+    // Safe to capture raw pointer to channel because the task returned by
+    // GetTeardownChannelTask() unsubscribes before it deletes the channel.
     // Capturing raw pointer avoids reading `channel_` member on the network
     // thread, which races with signaling thread moving it during teardown.
     rtp_transport_->SubscribeNetworkRouteChanged(

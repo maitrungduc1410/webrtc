@@ -589,26 +589,25 @@ PeerConnection::~PeerConnection() {
   data_channel_controller_.PrepareForShutdown();
 
   ScopedOperationsBatcher network_tasks(network_thread());
-  ScopedOperationsBatcher worker_tasks(worker_thread());
 
   // In case `Close()` wasn't called, stop the transceivers as it does. This
   // releases the media channels of transceivers that were never negotiated
   // before `call_` is destroyed, and stops the transceivers and senders that
   // the application may still reference.
-  StopTransceivers(worker_tasks);
+  StopTransceivers(network_tasks);
 
   // Stop transceivers before destroying the stats collector because
   // AudioRtpSender has a reference to the LegacyStatsCollector that it will
   // update when stopping. The BaseChannels will eventually be deleted below
-  // when all the network and worker tasks are executed.
-  sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
+  // when the network tasks are executed.
+  sdp_handler_->GetMediaChannelTeardownTasks(network_tasks);
 
   legacy_stats_.reset(nullptr);
   stats_collector_.CancelPendingRequestAndGetShutdownTasks(network_tasks);
   network_tasks.AddWithFinalizer(MakeCloseOnNetworkThreadTask());
 
-  // call_ must be destroyed on the worker thread.
-  worker_tasks.Add([this]() {
+  // Destroy `call_` last, since the channels and transports use it.
+  network_tasks.Add([this]() {
     RTC_DCHECK_RUN_ON(worker_thread());
     worker_thread_safety_->SetNotAlive();
     call_.reset();
@@ -616,7 +615,6 @@ PeerConnection::~PeerConnection() {
   });
 
   network_tasks.Run();
-  worker_tasks.Run();
 
   if (sdp_handler_) {
     sdp_handler_->ResetSessionDescFactory();
@@ -2003,40 +2001,34 @@ void PeerConnection::CompleteClose() {
 
   NoteUsageEvent(UsageEvent::CLOSE_CALLED);
 
-  ScopedOperationsBatcher worker_tasks(worker_thread());
-  StopTransceivers(worker_tasks);
-
   // Don't destroy BaseChannels until after stats has been cleaned up so that
   // the last stats request can still read from the channels.
-  // TODO(tommi): The voice/video channels will be partially uninitialized on
-  // the network thread (see `RtpTransceiver::ClearChannel`), partially on the
-  // worker thread (see `PushNewMediaChannelAndDeleteChannel`) and then
-  // eventually freed on the signaling thread.
-  // It would be good to combine those steps with the teardown steps here.
   {
     ScopedOperationsBatcher network_tasks(network_thread());
-    sdp_handler_->GetMediaChannelTeardownTasks(network_tasks, worker_tasks);
+    // Stop the transceivers in the same batch, before their channels are
+    // deleted, so that the senders can still clear their send streams.
+    StopTransceivers(network_tasks);
+    sdp_handler_->GetMediaChannelTeardownTasks(network_tasks);
     network_tasks.AddWithFinalizer(MakeCloseOnNetworkThreadTask());
+    // Destroy `call_` and stop the event log last, since the channels and the
+    // transport controller use them.
+    network_tasks.Add([this]() {
+      RTC_DCHECK_RUN_ON(worker_thread());
+      worker_thread_safety_->SetNotAlive();
+      call_.reset();
+      StopRtcEventLog_w();
+    });
   }
 
-  // The event log is used in the transport controller, which must be outlived
-  // by the former. CreateOffer by the peer connection is implemented
-  // asynchronously and if the peer connection is closed without resetting the
-  // WebRTC session description factory, the session description factory would
-  // call the transport controller.
+  // CreateOffer by the peer connection is implemented asynchronously and if
+  // the peer connection is closed without resetting the WebRTC session
+  // description factory, the session description factory would call the
+  // transport controller.
   sdp_handler_->ResetSessionDescFactory();
   if (ConfiguredForMedia()) {
     rtp_manager_->Close();
   }
 
-  worker_tasks.Add([this]() {
-    RTC_DCHECK_RUN_ON(worker_thread());
-    worker_thread_safety_->SetNotAlive();
-    call_.reset();
-    StopRtcEventLog_w();
-  });
-
-  worker_tasks.Run();
   ReportCloseUsageMetrics();
 
   // Signal shutdown to the sdp handler. This invalidates weak pointers for
@@ -2051,7 +2043,7 @@ void PeerConnection::CompleteClose() {
   usage_pattern_.ReportUsagePattern(std::exchange(observer_, nullptr));
 }
 
-void PeerConnection::StopTransceivers(ScopedOperationsBatcher& worker_tasks) {
+void PeerConnection::StopTransceivers(ScopedOperationsBatcher& tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   if (!ConfiguredForMedia()) {
     return;
@@ -2059,7 +2051,7 @@ void PeerConnection::StopTransceivers(ScopedOperationsBatcher& worker_tasks) {
   for (RtpTransceiver* transceiver :
        rtp_manager()->transceivers()->ListInternal()) {
     if (!transceiver->stopped()) {
-      worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+      tasks.Add(transceiver->GetStopTransceiverProcedure());
     }
   }
 }

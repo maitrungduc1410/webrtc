@@ -127,7 +127,7 @@ void MaybeHandleLocallyRejectedTransceiver(
     const SessionDescriptionInterface& new_session,
     const ContentInfo& new_content,
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
-    ScopedOperationsBatcher& worker_tasks) {
+    ScopedOperationsBatcher& network_tasks) {
   if (source != ContentSource::CS_LOCAL || !new_content.rejected) {
     return;
   }
@@ -139,7 +139,7 @@ void MaybeHandleLocallyRejectedTransceiver(
       // Unlike stop(), don't update the negotiation-needed flag: that could
       // run an observer callback while the description is being applied.
       // DoSetLocalDescription() updates the flag once it has been applied.
-      worker_tasks.Add(transceiver->internal()->GetStopSendingAndReceiving());
+      network_tasks.Add(transceiver->internal()->GetStopSendingAndReceiving());
     }
     RTC_DCHECK(transceiver->internal()->stopping());
   } else {
@@ -153,7 +153,7 @@ void MaybeHandleLocallyRejectedTransceiver(
     // is not already stopped, SDP munging has happened and we need to
     // ensure the transceiver is stopped.
     if (!transceiver->internal()->stopped()) {
-      worker_tasks.Add(transceiver->internal()->GetStopTransceiverProcedure());
+      network_tasks.Add(transceiver->internal()->GetStopTransceiverProcedure());
     }
     RTC_DCHECK(transceiver->internal()->stopped());
   }
@@ -2787,7 +2787,6 @@ bool SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
   std::vector<scoped_refptr<MediaStreamInterface>> added_streams;
   std::vector<scoped_refptr<MediaStreamInterface>> removed_streams;
   ScopedOperationsBatcher network_tasks(context_->network_thread());
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
   flat_map<std::string, DtlsTransportAndName> dtls_transports_by_mid =
       GetDtlsTransports(*transceivers(), transport_controller_s());
 
@@ -2880,7 +2879,7 @@ bool SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
     if (content->rejected && !transceiver->stopped()) {
       RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                        << " since the media section was rejected.";
-      worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+      network_tasks.Add(transceiver->GetStopTransceiverProcedure());
     }
     // If the local offer included Sframe but the remote answer does not,
     // stop the transceiver since Sframe cannot be downgraded.
@@ -2892,10 +2891,8 @@ bool SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
           !media_desc->sframe_enabled() && !transceiver->stopped()) {
         RTC_LOG(LS_INFO) << "Stopping transceiver for MID=" << content->mid()
                          << " since the remote answer does not include Sframe.";
-        network_tasks.Add(transceiver->GetClearChannelNetworkTask());
-        worker_tasks.Add(transceiver->GetDeleteChannelWorkerTask(
-            /*stop_senders=*/false));
-        worker_tasks.Add(transceiver->GetStopTransceiverProcedure());
+        network_tasks.Add(transceiver->GetTeardownChannelTask());
+        network_tasks.Add(transceiver->GetStopTransceiverProcedure());
       }
     }
     if (!content->rejected && !transceiver->stopped() &&
@@ -2903,18 +2900,16 @@ bool SdpOfferAnswerHandler::ApplyRemoteDescriptionUpdateTransceiverState(
       if (!media_desc->streams().empty() &&
           media_desc->streams()[0].has_ssrcs()) {
         uint32_t ssrc = media_desc->streams()[0].first_ssrc();
-        worker_tasks.Add(
+        network_tasks.Add(
             transceiver->receiver_internal()->GetSetupForMediaChannel(ssrc));
       } else {
-        worker_tasks.Add(transceiver->receiver_internal()
-                             ->GetSetupForUnsignaledMediaChannel());
+        network_tasks.Add(transceiver->receiver_internal()
+                              ->GetSetupForUnsignaledMediaChannel());
       }
     }
   }
 
   RTCError error = network_tasks.Run();
-  RTC_DCHECK(error.ok());
-  error = worker_tasks.Run();
   RTC_DCHECK(error.ok());
 
   if (auto* tracer = pc_->tracer()) {
@@ -4071,11 +4066,6 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   // Keep to-be-removed transceivers alive until after tasks for them have been
   // run.
   std::vector<RtpTransceiverProxyRefPtr> transceivers_to_remove;
-  // TODO(bugs.webrtc.org/558821261): Consider combining batchers targeting
-  // the network thread. Note: Combining them is currently not safe because
-  // worker tasks (such as channel deletion) depend on network tasks (clearing
-  // transport state on the network thread) having fully completed first.
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
   ScopedOperationsBatcher network_tasks(context_->network_thread());
 
   for (auto&& transceivers_stable_state_pair : transceivers()->StableStates()) {
@@ -4135,16 +4125,14 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
     // newly created (newly_created) or if remote streams were not set.
 
     RTC_DCHECK(transceiver->internal()->mid().has_value());
-    network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
     auto sender_internal = transceiver->internal()->sender_internal();
     // The channel the sender was configured against is about to go away.
     // Detach the sender from its send stream first, so that it returns to the
     // un-negotiated state instead of holding on to an ssrc that no longer
     // exists.
-    worker_tasks.AddWithFinalizer(
+    network_tasks.AddWithFinalizer(
         sender_internal->SetSsrcTask(0, /*layer_count=*/0));
-    worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
-        /*stop_senders=*/false));
+    network_tasks.Add(transceiver->internal()->GetTeardownChannelTask());
 
     if (signaling_state() == PeerConnectionInterface::kHaveRemoteOffer &&
         transceiver->receiver()) {
@@ -4154,7 +4142,7 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
       if (transceiver->internal()->reused_for_addtrack()) {
         transceiver->internal()->set_created_by_addtrack(true);
       } else {
-        worker_tasks.Add(
+        network_tasks.Add(
             transceiver->internal()->GetStopTransceiverProcedure());
         transceivers_to_remove.push_back(transceiver);
       }
@@ -4176,17 +4164,16 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   // Roll back the transports in the same batch, after the tasks above have
   // detached the channels from their transports. Rolling back destroys the
   // transports that are no longer used, which can include transports that
-  // those channels are attached to. GetDeleteChannelWorkerTask() has already
+  // those channels were attached to. GetTeardownChannelTask() has already
   // made the channels unreachable from their transceivers, so the rollback
-  // can't attach them to a transport again.
+  // can't attach them to a transport again. This is the only task that can
+  // fail, so it goes last to let the tasks above run regardless.
   network_tasks.AddWithFinalizer(transport_controller_s()->MakeRollbackTask());
 
   RTCError rollback_error = network_tasks.Run();
-  RTCError e = worker_tasks.Run();
-  RTC_DCHECK(e.ok());  // only void tasks queued.
 
-  // Remove rolled-back transceivers now that the network and worker tasks have
-  // completed, before invoking observer callbacks that may destroy `this`
+  // Remove rolled-back transceivers now that the network tasks have completed,
+  // before invoking observer callbacks that may destroy `this`
   // (`transceivers_to_remove` keeps the objects alive until Rollback returns).
   for (const auto& transceiver : transceivers_to_remove) {
     transceivers()->Remove(transceiver);
@@ -4804,18 +4791,12 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
-  // Thread safety requires specific execution order for tasks:
-  // - Construction: Worker tasks before Network tasks.
-  //   (Network depends on Worker setup).
-  // - Destruction: Network tasks before Worker tasks.
-  //   (Worker cleanup may depend on Network teardown).
-  // The batchers below are declared and executed to enforce these orders.
-  // TODO(bugs.webrtc.org/558821261): Consider combining batchers targeting
-  // the network thread. Note: Combining them is currently not safe due to
-  // ordering dependencies between network teardown, worker setup/cleanup, and
-  // network initialization.
-  ScopedOperationsBatcher network_teardown_tasks(context_->network_thread());
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
+  // `network_init_tasks` runs second since it attaches the new channels to
+  // their transports, and the channels are only constructed once
+  // `network_tasks` has run.
+  // TODO: bugs.webrtc.org/558821261 - Merge the batchers once CreateChannel()
+  // constructs the channel synchronously.
+  ScopedOperationsBatcher network_tasks(context_->network_thread());
   ScopedOperationsBatcher network_init_tasks(context_->network_thread());
   const ContentInfos& new_contents = new_session.description()->contents();
   struct TransceiverUpdate {
@@ -4885,22 +4866,19 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
         it != bundle_groups_by_mid.end() ? it->second : nullptr;
 
     UpdateTransceiverChannel(update.transceiver, update.content, bundle_group,
-                             network_teardown_tasks, worker_tasks,
-                             network_init_tasks);
+                             network_tasks, network_init_tasks);
     // Handle locally rejected content. This code path is only needed for apps
     // that SDP munge. Remote rejected content is handled in
     // ApplyRemoteDescriptionUpdateTransceiverState().
     // Do not use std::move here to ensure that the transceiver stays alive
     // in the `transceivers_to_update` vector until the end of this function.
-    // This guarantees that it outlives the execution of `worker_tasks.Run()`.
+    // This guarantees that it outlives the execution of `network_tasks.Run()`.
     MaybeHandleLocallyRejectedTransceiver(source, new_session, update.content,
-                                          update.transceiver, worker_tasks);
+                                          update.transceiver, network_tasks);
   }
 
-  RTCError error = network_teardown_tasks.Run();
-  RTC_DCHECK(error.ok());  // Teardown tasks cannot fail.
-  error = worker_tasks.Run();
-  RTC_DCHECK(error.ok());  // Cleanup and construction tasks cannot fail.
+  RTCError error = network_tasks.Run();
+  RTC_DCHECK(error.ok());  // Teardown and setup tasks cannot fail.
   return network_init_tasks.Run();
 }
 
@@ -5054,8 +5032,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
     const ContentInfo& content,
     const ContentGroup* bundle_group,
-    ScopedOperationsBatcher& network_teardown_tasks,
-    ScopedOperationsBatcher& worker_tasks,
+    ScopedOperationsBatcher& network_tasks,
     ScopedOperationsBatcher& network_init_tasks) {
   TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateTransceiverChannel");
   RTC_DCHECK(IsUnifiedPlan());
@@ -5063,10 +5040,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
   // A stopped transceiver must not have a channel.
   if (content.rejected || transceiver->internal()->stopped()) {
     if (transceiver->internal()->HasChannel()) {
-      network_teardown_tasks.Add(
-          transceiver->internal()->GetClearChannelNetworkTask());
-      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
-          /*stop_senders=*/false));
+      network_tasks.Add(transceiver->internal()->GetTeardownChannelTask());
     }
   } else {
     if (!transceiver->internal()->HasChannel()) {
@@ -5078,7 +5052,7 @@ void SdpOfferAnswerHandler::UpdateTransceiverChannel(
             RTC_DCHECK_RUN_ON(network_thread());
             return transport_controller_n()->GetRtpTransport(mid);
           },
-          worker_tasks, network_init_tasks);
+          network_tasks, network_init_tasks);
     }
   }
 }
@@ -6170,11 +6144,6 @@ void SdpOfferAnswerHandler::RemoveStoppedTransceivers() {
   // Batched channel teardown for removed transceivers. The tasks run at the
   // end of this function while `transceiver_list` still holds references.
   ScopedOperationsBatcher network_teardown_tasks(context_->network_thread());
-  // TODO(bugs.webrtc.org/558821261): Consider combining batchers targeting
-  // the network thread. Note: Combining them is currently not safe because
-  // worker tasks (such as channel deletion) depend on network tasks (clearing
-  // transport state on the network thread) having fully completed first.
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
   for (const auto& transceiver : transceiver_list) {
     // 3.2.10.1.1: If transceiver is stopped, associated with an m= section
     //             and the associated m= section is rejected in
@@ -6203,15 +6172,11 @@ void SdpOfferAnswerHandler::RemoveStoppedTransceivers() {
     // Make sure the channel is cleared before the transceiver is removed.
     if (transceiver->internal()->HasChannel()) {
       network_teardown_tasks.Add(
-          transceiver->internal()->GetClearChannelNetworkTask());
-      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
-          /*stop_senders=*/false));
+          transceiver->internal()->GetTeardownChannelTask());
     }
     transceivers()->Remove(transceiver);
   }
   RTCError error = network_teardown_tasks.Run();
-  RTC_DCHECK(error.ok());
-  error = worker_tasks.Run();
   RTC_DCHECK(error.ok());
 }
 
@@ -6479,8 +6444,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
 }
 
 void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
-    ScopedOperationsBatcher& network_tasks,
-    ScopedOperationsBatcher& worker_tasks) {
+    ScopedOperationsBatcher& network_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (!transceivers()) {
@@ -6488,17 +6452,14 @@ void SdpOfferAnswerHandler::GetMediaChannelTeardownTasks(
   }
   auto list = transceivers()->List();
   for (const auto& transceiver : list) {
+    RTC_DCHECK(transceiver->internal()->stopped());
     if (transceiver->media_type() == MediaType::VIDEO) {
-      network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
-      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
-          /*stop_senders=*/true));
+      network_tasks.Add(transceiver->internal()->GetTeardownChannelTask());
     }
   }
   for (const auto& transceiver : list) {
     if (transceiver->media_type() == MediaType::AUDIO) {
-      network_tasks.Add(transceiver->internal()->GetClearChannelNetworkTask());
-      worker_tasks.Add(transceiver->internal()->GetDeleteChannelWorkerTask(
-          /*stop_senders=*/true));
+      network_tasks.Add(transceiver->internal()->GetTeardownChannelTask());
     }
   }
 }
