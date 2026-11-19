@@ -1349,13 +1349,18 @@ void RtpVideoStreamReceiver2::ReceivePacket(
     return;
   }
 
-  const int times_nacked =
-      nack_module_ != nullptr
-          ? nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
-                                           rtp_packet.recovered())
-          : -1;
+  const int times_nacked = ReportPacketToNackModule(rtp_packet);
   InsertDepacketizedPacket(rtp_packet, *unwrapped_rtp_seq_num,
                            std::move(*parsed_payload), times_nacked);
+}
+
+int RtpVideoStreamReceiver2::ReportPacketToNackModule(
+    const RtpPacketReceived& rtp_packet) {
+  if (nack_module_ == nullptr) {
+    return -1;
+  }
+  return nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
+                                        rtp_packet.recovered());
 }
 
 void RtpVideoStreamReceiver2::InsertDepacketizedPacket(

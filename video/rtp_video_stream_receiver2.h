@@ -326,6 +326,10 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   // for the same packet both before and after RED decapsulation.
   void ReceivePacket(const RtpPacketReceived& rtp_packet)
       RTC_RUN_ON(network_queue_);
+  // Reports `rtp_packet` to the NACK module and returns the number of times it
+  // was NACKed, or -1 if NACK is not used.
+  int ReportPacketToNackModule(const RtpPacketReceived& rtp_packet)
+      RTC_RUN_ON(network_queue_);
   // Inserts the depacketized `rtp_packet` into the packet buffer, or stashes
   // it until its dependency descriptor can be parsed.
   void InsertDepacketizedPacket(
