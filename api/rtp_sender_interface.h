@@ -95,6 +95,13 @@ class RTC_EXPORT RtpSenderInterface : public RefCountInterface,
   virtual std::vector<RtpEncodingParameters> init_send_encodings() const = 0;
 
   virtual RtpParameters GetParameters() const = 0;
+  // Returns the current parameters without starting a new SetParameters()
+  // transaction (i.e. without updating `last_transaction_id_`). The returned
+  // RtpParameters does not carry a valid transaction_id and cannot be passed
+  // to SetParameters().
+  virtual RtpParameters GetParametersReadOnly() const {
+    return GetParameters();
+  }
   // Note that only a subset of the parameters can currently be changed. See
   // rtpparameters.h
   // The encodings are in increasing quality order for simulcast.

@@ -48,6 +48,7 @@ BYPASS_PROXY_CONSTMETHOD0(std::string, id)
 PROXY_CONSTMETHOD0(std::vector<std::string>, stream_ids)
 PROXY_CONSTMETHOD0(std::vector<RtpEncodingParameters>, init_send_encodings)
 PROXY_CONSTMETHOD0(RtpParameters, GetParameters)
+PROXY_CONSTMETHOD0(RtpParameters, GetParametersReadOnly)
 PROXY_METHOD1(RTCError, SetParameters, const RtpParameters&)
 PROXY_METHOD2(void,
               SetParametersAsync,

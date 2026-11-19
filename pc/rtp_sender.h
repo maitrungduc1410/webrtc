@@ -167,6 +167,7 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   MediaType media_type() const final { return media_type_; }
 
   RtpParameters GetParameters() const override;
+  RtpParameters GetParametersReadOnly() const override;
   RTCError SetParameters(const RtpParameters& parameters) override;
   void SetParametersAsync(const RtpParameters& parameters,
                           SetParametersCallback callback) override;

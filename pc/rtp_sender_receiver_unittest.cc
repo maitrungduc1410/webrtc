@@ -2597,6 +2597,38 @@ TEST_F(RtpSenderReceiverTest, GenerateKeyFrameWithVideo) {
   DestroyVideoRtpSender();
 }
 
+TEST_F(RtpSenderReceiverTest,
+       GetParametersReadOnlyDoesNotInvalidateTransaction) {
+  CreateVideoRtpSenderWithSimulcast({"0", "1"});
+
+  // Calling GetParametersReadOnly() does not start a SetParameters()
+  // transaction.
+  RtpParameters read_only_params = video_rtp_sender_->GetParametersReadOnly();
+  EXPECT_EQ(read_only_params.encodings.size(), 2u);
+  EXPECT_EQ(video_rtp_sender_->SetParameters(read_only_params).type(),
+            RTCErrorType::INVALID_STATE);
+
+  // Calling GetParametersReadOnly() between GetParameters() and SetParameters()
+  // does not invalidate the pending transaction.
+  RtpParameters params = video_rtp_sender_->GetParameters();
+  ASSERT_EQ(params.encodings.size(), 2u);
+  params.encodings[1].active = false;
+
+  RtpParameters snapshot = video_rtp_sender_->GetParametersReadOnly();
+  EXPECT_EQ(snapshot.encodings.size(), 2u);
+  EXPECT_TRUE(snapshot.encodings[1].active);
+
+  EXPECT_TRUE(video_rtp_sender_->SetParameters(params).ok());
+
+  // Subsequent GetParametersReadOnly() reflects the applied changes.
+  RtpParameters updated = video_rtp_sender_->GetParametersReadOnly();
+  ASSERT_EQ(updated.encodings.size(), 2u);
+  EXPECT_TRUE(updated.encodings[0].active);
+  EXPECT_FALSE(updated.encodings[1].active);
+
+  DestroyVideoRtpSender();
+}
+
 // Test that makes sure that a video track content hint translates to the proper
 // value for sources that are not screencast.
 TEST_F(RtpSenderReceiverTest, PropagatesVideoTrackContentHint) {

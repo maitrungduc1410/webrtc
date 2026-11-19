@@ -413,6 +413,11 @@ RtpParameters RtpSenderBase::GetParameters() const {
   return result;
 }
 
+RtpParameters RtpSenderBase::GetParametersReadOnly() const {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  return GetParametersInternal(/*with_all_layers=*/false);
+}
+
 std::optional<RTCError> RtpSenderBase::ValidateAndMaybeUpdateInitParameters(
     const RtpParameters& parameters) {
   if (UnimplementedRtpParameterHasValue(parameters)) {
