@@ -18,28 +18,51 @@
 #include "api/rtc_error.h"
 #include "api/scoped_refptr.h"
 #include "api/sframe/sframe_encryptor_interface.h"
+#include "api/sframe/sframe_types.h"
+#include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "modules/sframe/sframe_media_encryptor_interface.h"
 
 namespace webrtc {
 
-// Implements the public key management API on top of an encryptor that is
-// called on the calling thread, so `encryptor` must be thread-safe.
+// Implements the public key management API on top of an encryptor that is used
+// on `encryptor_queue`. Results are reported on `callback_queue`.
+// `callback_queue` and `encryptor_queue` must be non-null and outlive instances
+// of this class, and `callback_queue` must also outlive tasks pending on
+// `encryptor_queue`.
 class SframeEncryptorHandle : public SframeEncryptorInterface {
  public:
   static absl_nonnull scoped_refptr<SframeEncryptorHandle> Create(
+      TaskQueueBase* absl_nonnull callback_queue,
+      TaskQueueBase* absl_nonnull encryptor_queue,
       absl_nonnull scoped_refptr<SframeMediaEncryptorInterface> encryptor);
 
+  // Must be destroyed on `callback_queue`. Key updates that are still pending
+  // are applied, but their callbacks are dropped.
   ~SframeEncryptorHandle() override;
 
   // SframeEncryptorInterface implementation.
+  void SetEncryptionKey(uint64_t key_id,
+                        std::span<const uint8_t> key_material,
+                        absl_nonnull SframeKeyUpdateCallback callback) override;
+  // Calls `encryptor` on the calling thread, so `encryptor` must be
+  // thread-safe.
   RTCError SetEncryptionKey(uint64_t key_id,
                             std::span<const uint8_t> key_material) override;
 
  protected:
-  explicit SframeEncryptorHandle(
+  SframeEncryptorHandle(
+      TaskQueueBase* absl_nonnull callback_queue,
+      TaskQueueBase* absl_nonnull encryptor_queue,
       absl_nonnull scoped_refptr<SframeMediaEncryptorInterface> encryptor);
 
  private:
+  TaskQueueBase& callback_queue_;
+  TaskQueueBase& encryptor_queue_;
+
+  // Alive until the handle is destroyed; no callback runs after that.
+  const absl_nonnull scoped_refptr<PendingTaskSafetyFlag> callback_safety_;
+
   const absl_nonnull scoped_refptr<SframeMediaEncryptorInterface> encryptor_;
 };
 

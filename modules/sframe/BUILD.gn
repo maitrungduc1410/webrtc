@@ -189,7 +189,12 @@ rtc_library("sframe_encryptor_handle") {
     "../../api:make_ref_counted",
     "../../api:rtc_error",
     "../../api:scoped_refptr",
+    "../../api:sequence_checker",
     "../../api:sframe_encryptor_interface",
+    "../../api:sframe_types",
+    "../../api/task_queue",
+    "../../api/task_queue:pending_task_safety_flag",
+    "../../rtc_base:buffer",
     "../../rtc_base:checks",
     "//third_party/abseil-cpp/absl/base:nullability",
   ]
@@ -254,6 +259,11 @@ if (rtc_include_tests) {
       "../../api:make_ref_counted",
       "../../api:rtc_error",
       "../../api:scoped_refptr",
+      "../../api:sframe_types",
+      "../../api/task_queue",
+      "../../rtc_base:checks",
+      "../../rtc_base:task_queue_for_test",
+      "../../test:run_loop",
       "../../test:test_support",
     ]
   }

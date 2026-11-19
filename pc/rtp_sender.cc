@@ -1330,6 +1330,7 @@ RtpSenderBase::CreateSframeEncryptorOrError(
       }));
 
   return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorHandle::Create(
+      signaling_thread_, network_thread_,
       std::move(sframe_encryption_config.encryptor)));
 }
 

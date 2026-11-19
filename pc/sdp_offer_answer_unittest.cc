@@ -60,6 +60,7 @@
 #include "pc/test/integration_test_helpers.h"
 #include "pc/test/mock_peer_connection_observers.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
 #include "system_wrappers/include/metrics.h"
 #include "test/create_test_field_trials.h"
@@ -3145,8 +3146,11 @@ TEST_F(SdpOfferAnswerTest,
   auto caller = CreatePeerConnection();
 
   auto transceiver = caller->AddTransceiver(MediaType::AUDIO);
-  ASSERT_TRUE(
-      transceiver->sender()->CreateSframeEncryptorOrError(kEncryptorInit).ok());
+  RTCErrorOr<scoped_refptr<SframeEncryptorInterface>> first_encryptor =
+      transceiver->sender()->CreateSframeEncryptorOrError(kEncryptorInit);
+  ASSERT_TRUE(first_encryptor.ok());
+  // The encryptor must be released on the signaling thread.
+  SendTask(signaling_thread_.get(), [&] { first_encryptor.value() = nullptr; });
   caller->CreateOfferAndSetAsLocal();
   ASSERT_TRUE(caller->SetLocalDescription(caller->CreateRollback()));
 

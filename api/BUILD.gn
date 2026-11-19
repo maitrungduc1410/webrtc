@@ -279,6 +279,8 @@ rtc_library("sframe_encryptor_interface") {
     ":ref_count",
     ":rtc_error",
     ":sframe_types",
+    "../rtc_base:checks",
+    "//third_party/abseil-cpp/absl/base:nullability",
   ]
 }
 

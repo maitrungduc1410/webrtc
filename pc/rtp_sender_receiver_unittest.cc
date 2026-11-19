@@ -92,6 +92,7 @@
 #include "pc/video_track.h"
 #include "rtc_base/checks.h"  // IWYU pragma: keep
 #include "rtc_base/event.h"
+#include "rtc_base/system/ignore_warnings.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/unique_id_generator.h"
@@ -3128,10 +3129,15 @@ TEST_F(RtpSenderReceiverTest,
   auto result = video_rtp_sender_->CreateSframeEncryptorOrError(options);
   ASSERT_TRUE(result.ok());
 
-  const std::vector<uint8_t> key_material(16, 0xab);
-  EXPECT_TRUE(
-      result.value()->SetEncryptionKey(/*key_id=*/1, key_material).ok());
-  FlushWorker();
+  RTCError key_result = RTCError::InternalError("Not called");
+  result.value()->SetEncryptionKey(
+      /*key_id=*/1, std::vector<uint8_t>(16, 0xab),
+      [this, &key_result](RTCError error) {
+        key_result = std::move(error);
+        run_loop_.Quit();
+      });
+  run_loop_.Run();
+  EXPECT_TRUE(key_result.ok());
 
   ASSERT_TRUE(mock_channel_ptr->last_set_sframe_encryption_config_.has_value());
   scoped_refptr<SframeMediaEncryptorInterface> encryptor =
@@ -3152,7 +3158,8 @@ TEST_F(RtpSenderReceiverTest,
   });
 }
 
-TEST_F(RtpSenderReceiverTest, SframeEncryptorSetsKeyWhileNetworkThreadIsBusy) {
+TEST_F(RtpSenderReceiverTest,
+       SynchronousSframeKeyUpdateDoesNotWaitForNetworkThread) {
   CreateVideoRtpSenderWithSframe();
   RTCErrorOr<scoped_refptr<SframeEncryptorInterface>> result =
       video_rtp_sender_->CreateSframeEncryptorOrError(
@@ -3164,10 +3171,12 @@ TEST_F(RtpSenderReceiverTest, SframeEncryptorSetsKeyWhileNetworkThreadIsBusy) {
     key_set_while_busy = key_set.Wait(TimeDelta::Seconds(5));
   });
 
+  RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
   EXPECT_TRUE(
       result.value()
           ->SetEncryptionKey(/*key_id=*/1, std::vector<uint8_t>(16, 0xab))
           .ok());
+  RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
   key_set.Set();
   FlushWorker();
 
