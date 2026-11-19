@@ -49,6 +49,7 @@
 #include <stddef.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -235,18 +236,16 @@ struct StreamParams {
 struct StreamSelector {
   explicit StreamSelector(uint32_t ssrc) : ssrc(ssrc) {}
 
-  explicit StreamSelector(absl::string_view streamid)
-      : ssrc(0), streamid(streamid) {}
+  explicit StreamSelector(absl::string_view streamid) : streamid(streamid) {}
 
   bool Matches(const StreamParams& stream) const {
-    if (ssrc == 0) {
-      return stream.id == streamid;
-    } else {
-      return stream.has_ssrc(ssrc);
+    if (ssrc.has_value()) {
+      return stream.has_ssrc(*ssrc);
     }
+    return stream.id == streamid;
   }
 
-  uint32_t ssrc;
+  std::optional<uint32_t> ssrc;
   std::string streamid;
 };
 

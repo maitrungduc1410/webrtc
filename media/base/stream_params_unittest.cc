@@ -296,5 +296,25 @@ TEST(StreamParams, TestGenerateSsrcs_SimulcastLayersAndRtx) {
   EXPECT_TRUE(stream.has_ssrc_group(kFidSsrcGroupSemantics));
 }
 
+TEST(StreamParams, StreamSelectorMatchesSsrcZero) {
+  StreamParams sp_zero = StreamParams::CreateLegacy(0);
+  sp_zero.id = "stream_zero";
+
+  StreamParams sp_empty_id = StreamParams::CreateLegacy(1);
+  sp_empty_id.id = "";
+
+  StreamSelector ssrc_zero_selector(0u);
+  EXPECT_TRUE(ssrc_zero_selector.Matches(sp_zero));
+  EXPECT_FALSE(ssrc_zero_selector.Matches(sp_empty_id));
+
+  StreamSelector empty_id_selector("");
+  EXPECT_FALSE(empty_id_selector.Matches(sp_zero));
+  EXPECT_TRUE(empty_id_selector.Matches(sp_empty_id));
+
+  StreamSelector id_selector("stream_zero");
+  EXPECT_TRUE(id_selector.Matches(sp_zero));
+  EXPECT_FALSE(id_selector.Matches(sp_empty_id));
+}
+
 }  // namespace
 }  // namespace webrtc
