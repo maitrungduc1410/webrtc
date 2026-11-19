@@ -1349,14 +1349,24 @@ void RtpVideoStreamReceiver2::ReceivePacket(
     return;
   }
 
-  auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
-      rtp_packet, *unwrapped_rtp_seq_num, parsed_payload->video_header);
-  packet->video_payload = std::move(parsed_payload->video_payload);
-  packet->times_nacked =
+  const int times_nacked =
       nack_module_ != nullptr
           ? nack_module_->OnReceivedPacket(rtp_packet.SequenceNumber(),
                                            rtp_packet.recovered())
           : -1;
+  InsertDepacketizedPacket(rtp_packet, *unwrapped_rtp_seq_num,
+                           std::move(*parsed_payload), times_nacked);
+}
+
+void RtpVideoStreamReceiver2::InsertDepacketizedPacket(
+    const RtpPacketReceived& rtp_packet,
+    int64_t unwrapped_seq_num,
+    VideoRtpDepacketizer::ParsedRtpPayload parsed_payload,
+    int times_nacked) {
+  auto packet = std::make_unique<video_coding::PacketBuffer::Packet>(
+      rtp_packet, unwrapped_seq_num, parsed_payload.video_header);
+  packet->video_payload = std::move(parsed_payload.video_payload);
+  packet->times_nacked = times_nacked;
 
   // When the dependency descriptor is used and the descriptor fail to parse
   // then `OnReceivedPayloadData` may return true to signal the the packet

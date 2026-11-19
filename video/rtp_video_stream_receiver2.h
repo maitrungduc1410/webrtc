@@ -326,6 +326,13 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   // for the same packet both before and after RED decapsulation.
   void ReceivePacket(const RtpPacketReceived& rtp_packet)
       RTC_RUN_ON(network_queue_);
+  // Inserts the depacketized `rtp_packet` into the packet buffer, or stashes
+  // it until its dependency descriptor can be parsed.
+  void InsertDepacketizedPacket(
+      const RtpPacketReceived& rtp_packet,
+      int64_t unwrapped_seq_num,
+      VideoRtpDepacketizer::ParsedRtpPayload parsed_payload,
+      int times_nacked) RTC_RUN_ON(network_queue_);
 
   // Parses and handles RED headers.
   // This function assumes that it's being called from only one thread.
