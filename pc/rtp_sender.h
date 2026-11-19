@@ -321,7 +321,12 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   virtual std::string track_kind() const = 0;
 
   // Enable sending on the media channel.
-  virtual void SetSend() = 0;
+  void SetSend() RTC_RUN_ON(signaling_thread_);
+  // Reads the track state and returns a task that applies it to the media
+  // channel for `ssrc_`. The task runs on the network thread and returns false
+  // on failure.
+  virtual absl::AnyInvocable<bool() &&> GetSetSendTask()
+      RTC_RUN_ON(signaling_thread_) = 0;
   // Disable sending on the media channel.
   virtual void ClearSend() = 0;
   virtual void ClearSend_n(uint32_t ssrc) RTC_RUN_ON(network_thread_) = 0;
@@ -523,7 +528,8 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
                  std::vector<RtpEncodingParameters> init_send_encodings,
                  std::vector<Codec> send_codecs);
 
-  void SetSend() override;
+  absl::AnyInvocable<bool() &&> GetSetSendTask()
+      RTC_RUN_ON(signaling_thread_) override;
   void ClearSend() override;
   void ClearSend_n(uint32_t ssrc) RTC_RUN_ON(network_thread_) override;
 
@@ -603,7 +609,8 @@ class VideoRtpSender : public RtpSenderBase {
                  std::vector<std::string> stream_ids,
                  std::vector<Codec> send_codecs);
 
-  void SetSend() override;
+  absl::AnyInvocable<bool() &&> GetSetSendTask()
+      RTC_RUN_ON(signaling_thread_) override;
   void ClearSend() override;
   void ClearSend_n(uint32_t ssrc) RTC_RUN_ON(network_thread_) override;
 

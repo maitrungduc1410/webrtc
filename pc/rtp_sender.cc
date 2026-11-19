@@ -776,6 +776,25 @@ RtpSenderBase::MaybeCreateFactoryOverride() {
   return {std::move(video_encoder_factory), std::move(audio_encoder_factory)};
 }
 
+void RtpSenderBase::SetSend() {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  RTC_DCHECK(!stopped_);
+  absl::AnyInvocable<bool() &&> set_send = GetSetSendTask();
+  InvalidateCache();
+  std::optional<RtpParameters> parameters;
+  network_thread_->BlockingCall([&, ssrc = ssrc_] {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    if (std::move(set_send)()) {
+      // Setting the send state can change the parameters, e.g. the scalability
+      // mode. Read them back so that the cache stays populated.
+      parameters = media_channel_->GetRtpSendParameters(ssrc);
+    }
+  });
+  if (parameters.has_value()) {
+    UpdateCache(std::move(*parameters));
+  }
+}
+
 void RtpSenderBase::SetSsrc(uint32_t ssrc) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   TRACE_EVENT0("webrtc", "RtpSenderBase::SetSsrc");
@@ -933,6 +952,7 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
     uint32_t ssrc,
     size_t layer_count) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   if (stopped_ || ssrc == ssrc_) {
     return nullptr;
   }
@@ -956,22 +976,34 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
   InvalidateCache();
 
   // If we are already sending with a particular SSRC, stop sending.
+  std::optional<uint32_t> clear_send_ssrc;
   if (can_send_track()) {
-    ClearSend();
+    clear_send_ssrc = ssrc_;
     RemoveTrackFromStats();
   }
   ssrc_ = ssrc;
+  absl::AnyInvocable<bool() &&> set_send;
   if (can_send_track()) {
-    SetSend();
+    set_send = GetSetSendTask();
     AddTrackToStats();
   }
 
   auto [video_factory, audio_factory] = MaybeCreateFactoryOverride();
 
-  return [this, ssrc, video_encoder_factory_override = std::move(video_factory),
+  return [this, ssrc, clear_send_ssrc, set_send = std::move(set_send),
+          video_encoder_factory_override = std::move(video_factory),
           audio_encoder_factory_override = std::move(audio_factory)]() mutable
              -> ScopedOperationsBatcher::BatchTaskResult {
     RTC_DCHECK_RUN_ON(network_thread_);
+
+    // Done here rather than in blocking calls while the batch is built, to
+    // save a round trip to the network thread per call.
+    if (clear_send_ssrc.has_value()) {
+      ClearSend_n(*clear_send_ssrc);
+    }
+    if (set_send) {
+      std::move(set_send)();
+    }
 
     std::optional<RtpParameters> applied_parameters = ApplyInitParameters_n(
         ssrc != 0 ? std::make_optional(ssrc) : std::nullopt);
@@ -1462,48 +1494,34 @@ RTCError AudioRtpSender::GenerateKeyFrame(
          << "Generating key frames for audio is not supported.";
 }
 
-void AudioRtpSender::SetSend() {
+absl::AnyInvocable<bool() &&> AudioRtpSender::GetSetSendTask() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  RTC_DCHECK(!stopped_);
   RTC_DCHECK(can_send_track());
-  if (stopped_) {
-    return;
-  }
   // `track_->enabled()` hops to the signaling thread, so call it before we hop
   // to the network thread or else it will deadlock.
   bool track_enabled = track_->enabled();
-  const AudioOptions* options_ptr = nullptr;
+  std::optional<AudioOptions> options;
 #if !defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_WEBKIT_BUILD)
   // Stored source options (AEC, AGC, etc.) are already applied at the engine
   // level during CreateAudioSource. However, deferred stream-level options
   // (e.g., audio_network_adaptor, init_recording_on_send) are ignored by global
   // engine initialization and must be explicitly applied to the channel here.
-  AudioOptions options;
   if (track_enabled && audio_track()->GetSource() &&
       !audio_track()->GetSource()->remote()) {
     options = audio_track()->GetSource()->options();
-    options_ptr = &options;
   }
 #endif
-  InvalidateCache();
-  std::optional<RtpParameters> parameters;
-  bool success = network_thread_->BlockingCall([&, ssrc = ssrc_] {
+  return [this, ssrc = ssrc_, track_enabled, options = std::move(options)] {
     RTC_DCHECK_RUN_ON(network_thread_);
-    if (!media_channel_ ||
-        !voice_media_channel()->SetAudioSend(ssrc, track_enabled, options_ptr,
-                                             sink_adapter_.get())) {
+    if (media_channel_ == nullptr ||
+        !voice_media_channel()->SetAudioSend(
+            ssrc, track_enabled, options.has_value() ? &*options : nullptr,
+            sink_adapter_.get())) {
+      RTC_LOG(LS_ERROR) << "SetAudioSend: ssrc is incorrect: " << ssrc;
       return false;
     }
-    // Read the parameters back so that the cache stays populated.
-    parameters = media_channel_->GetRtpSendParameters(ssrc);
     return true;
-  });
-  if (parameters.has_value()) {
-    UpdateCache(std::move(*parameters));
-  }
-  if (!success) {
-    RTC_LOG(LS_ERROR) << "SetAudioSend: ssrc is incorrect: " << ssrc_;
-  }
+  };
 }
 
 void AudioRtpSender::ClearSend() {
@@ -1635,9 +1653,8 @@ RTCError VideoRtpSender::GenerateKeyFrame(
   return RTCError::OK();
 }
 
-void VideoRtpSender::SetSend() {
+absl::AnyInvocable<bool() &&> VideoRtpSender::GetSetSendTask() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  RTC_DCHECK(!stopped_);
   RTC_DCHECK(can_send_track());
   VideoOptions options;
   VideoTrackSourceInterface* source = video_track()->GetSource();
@@ -1658,24 +1675,14 @@ void VideoRtpSender::SetSend() {
       options.is_screencast = true;
       break;
   }
-  auto* video_track = static_cast<VideoTrackInterface*>(track_.get());
-  InvalidateCache();
-  std::optional<RtpParameters> parameters;
-  bool success = network_thread_->BlockingCall([&, ssrc = ssrc_] {
+  return [this, ssrc = ssrc_, options, video_track = video_track()] {
     RTC_DCHECK_RUN_ON(network_thread_);
-    if (!media_channel_ ||
-        !video_media_channel()->SetVideoSend(ssrc, &options, video_track)) {
-      return false;
-    }
-    // SetVideoSend() can change the parameters, e.g. the scalability mode.
-    // Read them back so that the cache stays populated.
-    parameters = media_channel_->GetRtpSendParameters(ssrc);
-    return true;
-  });
-  RTC_DCHECK(success);
-  if (parameters.has_value()) {
-    UpdateCache(std::move(*parameters));
-  }
+    bool success =
+        media_channel_ != nullptr &&
+        video_media_channel()->SetVideoSend(ssrc, &options, video_track.get());
+    RTC_DCHECK(success);
+    return success;
+  };
 }
 
 void VideoRtpSender::ClearSend() {
