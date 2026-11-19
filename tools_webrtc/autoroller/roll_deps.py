@@ -85,7 +85,7 @@ ANDROID_DEPS_END = r'=== ANDROID_DEPS Generated Code End ==='
 # Location of automically gathered android deps.
 ANDROID_DEPS_PATH = 'src/third_party/android_deps/'
 
-NOTIFY_EMAIL = 'webrtc-trooper@grotations.appspotmail.com'
+NOTIFY_EMAIL = 'libwebrtc@rotations.google.com'
 
 GCS_OBJECTS_ERROR = (
     'The number of objects in %s is different between '
