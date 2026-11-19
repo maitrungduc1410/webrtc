@@ -34,6 +34,7 @@
 #include "p2p/base/port.h"
 #include "pc/legacy_stats_collector_interface.h"
 #include "pc/peer_connection_internal.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/transport_stats.h"
 #include "rtc_base/network_constants.h"
 #include "rtc_base/ssl_certificate.h"
@@ -171,15 +172,12 @@ class LegacyStatsCollector : public LegacyStatsCollectorInterface {
 
   void ExtractDataInfo_n(StatsCollection* reports);
 
-  // Returns the `transport_names_by_mid` member from the SessionStats as
-  // gathered and used to populate the stats. Contains one synchronous hop
-  // to the network thread to get this information along with querying data
-  // channel stats at the same time and populating `reports_`.
-  std::map<std::string, std::string> ExtractSessionAndDataInfo();
-
-  void ExtractBweInfo();
-  void ExtractMediaInfo(
-      const std::map<std::string, std::string>& transport_names_by_mid);
+  // These prepare their inputs on the signaling thread and return a task for
+  // the network thread, which returns a task that updates `reports_` on the
+  // signaling thread.
+  ScopedOperationsBatcher::BatchTaskWithFinalizer ExtractSessionAndDataInfo();
+  ScopedOperationsBatcher::BatchTaskWithFinalizer ExtractBweInfo();
+  ScopedOperationsBatcher::BatchTaskWithFinalizer ExtractMediaInfo();
   void ExtractSenderInfo();
   StatsReport* GetReport(const StatsReport::StatsType& type,
                          const std::string& id,

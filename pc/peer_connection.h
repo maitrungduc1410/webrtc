@@ -723,6 +723,9 @@ class PeerConnection : public PeerConnectionInternal,
 
   std::unique_ptr<LegacyStatsCollector> legacy_stats_
       RTC_GUARDED_BY(signaling_thread());  // A pointer is passed to senders_
+  // Whether the legacy GetStats() has been called. Close() only updates the
+  // legacy stats if so.
+  bool legacy_stats_requested_ RTC_GUARDED_BY(signaling_thread()) = false;
   RTCStatsCollector stats_collector_ RTC_GUARDED_BY(signaling_thread());
 
   const std::string session_id_;

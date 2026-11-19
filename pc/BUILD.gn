@@ -1489,6 +1489,7 @@ rtc_library("legacy_stats_collector") {
     ":rtp_receiver_proxy",
     ":rtp_sender_proxy",
     ":rtp_transceiver",
+    ":scoped_operations_batcher",
     ":transport_stats",
     "../api:candidate",
     "../api:data_channel_interface",

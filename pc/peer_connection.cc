@@ -1316,9 +1316,11 @@ bool PeerConnection::GetStats(StatsObserver* observer,
   }
   RTC_LOG_THREAD_BLOCK_COUNT();
 
+  legacy_stats_requested_ = true;
   legacy_stats_->UpdateStats(level);
 
-  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(4);
+  // One per batched network task in UpdateStats(), if the batch yields.
+  RTC_DCHECK_BLOCK_COUNT_NO_MORE_THAN(3);
 
   // The LegacyStatsCollector is used to tell if a track is valid because it may
   // remember tracks that the PeerConnection previously removed.
@@ -1956,8 +1958,10 @@ void PeerConnection::Close() {
       tracer_->OnClose();
     }
     // Update stats here so that we have the most recent stats for tracks and
-    // streams before the channels are closed.
-    legacy_stats_->UpdateStats(kStatsOutputLevelStandard);
+    // streams before the channels are closed, if legacy stats are in use.
+    if (legacy_stats_requested_) {
+      legacy_stats_->UpdateStats(kStatsOutputLevelStandard);
+    }
     ice_connection_state_ = PeerConnectionInterface::kIceConnectionClosed;
     if (!RunWithObserver([&](auto observer) {
           RTC_DCHECK_RUN_ON(signaling_thread());

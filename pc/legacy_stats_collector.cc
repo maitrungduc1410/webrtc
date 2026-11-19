@@ -727,20 +727,15 @@ void LegacyStatsCollector::UpdateStats(
   cache_timestamp_ms_ = cache_now_ms;
   stats_gathering_started_ = static_cast<double>(utc_time_now_());
 
-  // TODO(tommi): ExtractSessionInfo now has a single hop to the network thread
-  // to fetch stats, then applies them on the signaling thread. See if we need
-  // to do this synchronously or if updating the stats without blocking is safe.
-  std::map<std::string, std::string> transport_names_by_mid =
-      ExtractSessionAndDataInfo();
-
-  // TODO(tommi): All of these hop over to the worker thread to fetch
-  // information.  We could post a task to run all of these and post
-  // the information back to the signaling thread where we can create and
-  // update stats reports.  That would also clean up the threading story a bit
-  // since we'd be creating/updating the stats report objects consistently on
-  // the same thread (this class has no locks right now).
-  ExtractBweInfo();
-  ExtractMediaInfo(transport_names_by_mid);
+  // TODO(tommi): The stats are collected in one batch of network thread work,
+  // then applied on the signaling thread. See if we need to do this
+  // synchronously or if updating the stats without blocking is safe.
+  {
+    ScopedOperationsBatcher network_tasks(pc_->network_thread());
+    network_tasks.AddWithFinalizer(ExtractSessionAndDataInfo());
+    network_tasks.AddWithFinalizer(ExtractBweInfo());
+    network_tasks.AddWithFinalizer(ExtractMediaInfo());
+  }
   ExtractSenderInfo();
   UpdateTrackReports();
 }
@@ -930,12 +925,11 @@ StatsReport* LegacyStatsCollector::AddCandidateReport(
   return report;
 }
 
-std::map<std::string, std::string>
+ScopedOperationsBatcher::BatchTaskWithFinalizer
 LegacyStatsCollector::ExtractSessionAndDataInfo() {
   TRACE_EVENT0("webrtc", "LegacyStatsCollector::ExtractSessionAndDataInfo");
   RTC_DCHECK_RUN_ON(pc_->signaling_thread());
 
-  StatsCollection::Container data_report_collection;
   auto transceivers = pc_->GetTransceiversInternal();
   std::vector<std::string> mids;
   for (const auto& transceiver : transceivers) {
@@ -944,20 +938,23 @@ LegacyStatsCollector::ExtractSessionAndDataInfo() {
     }
   }
 
-  SessionStats stats = pc_->network_thread()->BlockingCall(
-      [&, sctp_transport_name = pc_->sctp_transport_name(),
-       sctp_mid = pc_->sctp_mid()]() mutable {
-        StatsCollection data_reports;
-        ExtractDataInfo_n(&data_reports);
-        data_report_collection = data_reports.DetachCollection();
-        return ExtractSessionInfo_n(mids, std::move(sctp_transport_name),
-                                    std::move(sctp_mid));
-      });
+  return [this, mids = std::move(mids),
+          sctp_transport_name = pc_->sctp_transport_name(),
+          sctp_mid = pc_->sctp_mid()]() mutable
+             -> ScopedOperationsBatcher::BatchTaskResult {
+    StatsCollection data_reports;
+    ExtractDataInfo_n(&data_reports);
+    SessionStats stats = ExtractSessionInfo_n(
+        mids, std::move(sctp_transport_name), std::move(sctp_mid));
 
-  reports_.MergeCollection(std::move(data_report_collection));
-
-  ExtractSessionInfo_s(stats);
-  return std::move(stats.transport_names_by_mid);
+    return ScopedOperationsBatcher::FinalizerTask(
+        [this, data_report_collection = data_reports.DetachCollection(),
+         stats = std::move(stats)]() mutable {
+          RTC_DCHECK_RUN_ON(pc_->signaling_thread());
+          reports_.MergeCollection(std::move(data_report_collection));
+          ExtractSessionInfo_s(stats);
+        });
+  };
 }
 
 std::optional<std::string> LegacyStatsCollector::GetTransportName(
@@ -1119,17 +1116,12 @@ void LegacyStatsCollector::ExtractSessionInfo_s(SessionStats& session_stats) {
   }
 }
 
-void LegacyStatsCollector::ExtractBweInfo() {
+ScopedOperationsBatcher::BatchTaskWithFinalizer
+LegacyStatsCollector::ExtractBweInfo() {
   RTC_DCHECK_RUN_ON(pc_->signaling_thread());
 
   if (pc_->signaling_state() == PeerConnectionInterface::kClosed)
-    return;
-
-  Call::Stats call_stats = pc_->GetCallStats();
-  BandwidthEstimationInfo bwe_info;
-  bwe_info.available_send_bandwidth = call_stats.send_bandwidth_bps;
-  bwe_info.available_recv_bandwidth = call_stats.recv_bandwidth_bps;
-  bwe_info.bucket_delay = call_stats.pacer_delay_ms;
+    return nullptr;
 
   // Fill in target encoder bitrate, actual encoder bitrate, rtx bitrate, etc.
   // TODO(holmer): Also fill this in for audio.
@@ -1145,17 +1137,24 @@ void LegacyStatsCollector::ExtractBweInfo() {
     }
   }
 
-  if (!video_media_channels.empty()) {
-    pc_->worker_thread()->BlockingCall([&] {
-      for (const auto& channel : video_media_channels) {
-        channel->FillBitrateInfo(&bwe_info);
-      }
-    });
-  }
+  return [this, video_media_channels = std::move(video_media_channels)]()
+             -> ScopedOperationsBatcher::BatchTaskResult {
+    Call::Stats call_stats = pc_->GetCallStats();
+    BandwidthEstimationInfo bwe_info;
+    bwe_info.available_send_bandwidth = call_stats.send_bandwidth_bps;
+    bwe_info.available_recv_bandwidth = call_stats.recv_bandwidth_bps;
+    bwe_info.bucket_delay = call_stats.pacer_delay_ms;
+    for (const auto& channel : video_media_channels) {
+      channel->FillBitrateInfo(&bwe_info);
+    }
 
-  StatsReport::Id report_id(StatsReport::NewBandwidthEstimationId());
-  StatsReport* report = reports_.FindOrAddNew(report_id);
-  ExtractStats(bwe_info, stats_gathering_started_, report);
+    return ScopedOperationsBatcher::FinalizerTask([this, bwe_info] {
+      RTC_DCHECK_RUN_ON(pc_->signaling_thread());
+      StatsReport::Id report_id(StatsReport::NewBandwidthEstimationId());
+      StatsReport* report = reports_.FindOrAddNew(report_id);
+      ExtractStats(bwe_info, stats_gathering_started_, report);
+    });
+  };
 }
 
 namespace {
@@ -1288,8 +1287,8 @@ std::unique_ptr<ChannelStatsGatherer> CreateChannelStatsGatherer(
 
 }  // namespace
 
-void LegacyStatsCollector::ExtractMediaInfo(
-    const std::map<std::string, std::string>& transport_names_by_mid) {
+ScopedOperationsBatcher::BatchTaskWithFinalizer
+LegacyStatsCollector::ExtractMediaInfo() {
   RTC_DCHECK_RUN_ON(pc_->signaling_thread());
 
   std::vector<std::unique_ptr<ChannelStatsGatherer>> gatherers;
@@ -1321,7 +1320,8 @@ void LegacyStatsCollector::ExtractMediaInfo(
     }
   }
 
-  pc_->worker_thread()->BlockingCall([&] {
+  return [this, gatherers = std::move(gatherers)]() mutable
+             -> ScopedOperationsBatcher::BatchTaskResult {
     Thread::ScopedDisallowBlockingCalls no_blocking_calls;
     for (auto it = gatherers.begin(); it != gatherers.end();
          /* incremented manually */) {
@@ -1334,17 +1334,21 @@ void LegacyStatsCollector::ExtractMediaInfo(
       }
       ++it;
     }
-  });
 
-  Thread::ScopedDisallowBlockingCalls no_blocking_calls;
+    return ScopedOperationsBatcher::FinalizerTask(
+        [this, gatherers = std::move(gatherers)] {
+          RTC_DCHECK_RUN_ON(pc_->signaling_thread());
+          Thread::ScopedDisallowBlockingCalls no_blocking_calls;
 
-  bool has_remote_audio = false;
-  for (const auto& gatherer : gatherers) {
-    gatherer->ExtractStats(this);
-    has_remote_audio |= gatherer->HasRemoteAudio();
-  }
+          bool has_remote_audio = false;
+          for (const auto& gatherer : gatherers) {
+            gatherer->ExtractStats(this);
+            has_remote_audio |= gatherer->HasRemoteAudio();
+          }
 
-  UpdateStatsFromExistingLocalAudioTracks(has_remote_audio);
+          UpdateStatsFromExistingLocalAudioTracks(has_remote_audio);
+        });
+  };
 }
 
 void LegacyStatsCollector::ExtractSenderInfo() {
