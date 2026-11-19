@@ -289,10 +289,8 @@ PeerConnectionFactory::CreatePeerConnectionOrError(
   env_factory.Set(std::move(dependencies.trials));
 
   if (event_log_factory_ != nullptr) {
-    worker_thread()->BlockingCall([&] {
-      Environment env_for_rtc_event_log = env_factory.Create();
-      env_factory.Set(event_log_factory_->Create(env_for_rtc_event_log));
-    });
+    Environment env_for_rtc_event_log = env_factory.Create();
+    env_factory.Set(event_log_factory_->Create(env_for_rtc_event_log));
   }
 
   const Environment env = env_factory.Create();
