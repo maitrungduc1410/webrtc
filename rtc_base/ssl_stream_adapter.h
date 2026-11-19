@@ -11,9 +11,8 @@
 #ifndef RTC_BASE_SSL_STREAM_ADAPTER_H_
 #define RTC_BASE_SSL_STREAM_ADAPTER_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <set>
@@ -129,7 +128,7 @@ class SSLStreamAdapter : public StreamInterface {
   static std::unique_ptr<SSLStreamAdapter> Create(
       std::unique_ptr<StreamInterface> stream,
       absl::AnyInvocable<void(SSLHandshakeError)> handshake_error,
-      nullptr_t /*field_trials*/) {
+      std::nullptr_t /*field_trials*/) {
     return Create(std::move(stream), std::move(handshake_error));
   }
 
