@@ -20,9 +20,11 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "api/frame_transformer_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "api/units/time_delta.h"
@@ -195,15 +197,28 @@ RTPSenderVideoFrameTransformerDelegate::RTPSenderVideoFrameTransformerDelegate(
     scoped_refptr<FrameTransformerInterface> frame_transformer,
     uint32_t ssrc,
     std::string rid,
+    TaskQueueBase* absl_nonnull send_queue)
+    : sender_(sender),
+      frame_transformer_(std::move(frame_transformer)),
+      ssrc_(ssrc),
+      rid_(std::move(rid)),
+      transformation_queue_(*send_queue) {}
+
+RTPSenderVideoFrameTransformerDelegate::RTPSenderVideoFrameTransformerDelegate(
+    RTPVideoFrameSenderInterface* sender,
+    scoped_refptr<FrameTransformerInterface> frame_transformer,
+    uint32_t ssrc,
+    std::string rid,
     TaskQueueFactory* task_queue_factory,
     TaskQueueFactory::Priority transformation_queue_priority)
     : sender_(sender),
       frame_transformer_(std::move(frame_transformer)),
       ssrc_(ssrc),
       rid_(std::move(rid)),
-      transformation_queue_(
+      owned_transformation_queue_(
           task_queue_factory->CreateTaskQueue("VideoFrameTransformerQueue",
-                                              transformation_queue_priority)) {}
+                                              transformation_queue_priority)),
+      transformation_queue_(*owned_transformation_queue_) {}
 
 void RTPSenderVideoFrameTransformerDelegate::Init() {
   frame_transformer_->RegisterTransformedFrameSinkCallback(
@@ -243,9 +258,9 @@ void RTPSenderVideoFrameTransformerDelegate::OnTransformedFrame(
     return;
   }
   scoped_refptr<RTPSenderVideoFrameTransformerDelegate> delegate(this);
-  transformation_queue_->PostTask(
+  transformation_queue_.PostTask(
       [delegate = std::move(delegate), frame = std::move(frame)]() mutable {
-        RTC_DCHECK_RUN_ON(delegate->transformation_queue_.get());
+        RTC_DCHECK_RUN_ON(&delegate->transformation_queue_);
         delegate->SendVideo(std::move(frame));
       });
 }
@@ -262,7 +277,7 @@ void RTPSenderVideoFrameTransformerDelegate::StopShortCircuiting() {
 
 void RTPSenderVideoFrameTransformerDelegate::SendVideo(
     std::unique_ptr<TransformableFrameInterface> transformed_frame) const {
-  RTC_DCHECK_RUN_ON(transformation_queue_.get());
+  RTC_DCHECK_RUN_ON(&transformation_queue_);
   MutexLock lock(&sender_lock_);
   if (!sender_)
     return;

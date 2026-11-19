@@ -831,6 +831,7 @@ if (rtc_include_tests) {
         "../api:transport_api",
         "../api/crypto:options",
         "../api/environment",
+        "../api/task_queue",
         "../api/test/network_emulation",
         "../api/transport:bitrate_settings",
         "../api/transport/rtp:dependency_descriptor",

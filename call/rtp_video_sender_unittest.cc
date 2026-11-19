@@ -31,6 +31,7 @@
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/test/mock_frame_transformer.h"
 #include "api/test/network_emulation/network_emulation_interfaces.h"
 #include "api/transport/bitrate_settings.h"
@@ -300,6 +301,7 @@ class RtpVideoSenderTestFixture {
 
   RtpVideoSender* router() { return router_.get(); }
   MockTransport& transport() { return transport_; }
+  TaskQueueBase* transport_queue() { return time_controller_.GetMainThread(); }
   void AdvanceTime(TimeDelta delta) { time_controller_.AdvanceTime(delta); }
 
   void SetSending(bool sending) { router_->SetSending(sending); }
@@ -1556,6 +1558,99 @@ TEST(RtpVideoSenderTest, SimulcastSenderRegistersFrameTransformers) {
 
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1));
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc2));
+}
+
+namespace {
+
+class QueueRecordingEncodedImageBuffer : public EncodedImageBufferInterface {
+ public:
+  explicit QueueRecordingEncodedImageBuffer(TaskQueueBase** last_queue)
+      : last_queue_(last_queue) {}
+
+  const uint8_t* data() const override {
+    *last_queue_ = TaskQueueBase::Current();
+    return &payload_;
+  }
+  size_t size() const override { return 1; }
+
+ private:
+  TaskQueueBase** const last_queue_;
+  const uint8_t payload_ = 'a';
+};
+
+}  // namespace
+
+TEST(RtpVideoSenderTest, SendsTransformedFramesOnTransportQueue) {
+  auto transformer = make_ref_counted<NiceMock<MockFrameTransformer>>();
+  scoped_refptr<TransformedFrameCallback> callback;
+  EXPECT_CALL(*transformer, RegisterTransformedFrameSinkCallback(_, kSsrc1))
+      .WillOnce(SaveArg<0>(&callback));
+  std::unique_ptr<TransformableFrameInterface> transformed_frame;
+  EXPECT_CALL(*transformer, Transform)
+      .WillOnce([&](std::unique_ptr<TransformableFrameInterface> frame) {
+        transformed_frame = std::move(frame);
+      });
+
+  RtpVideoSenderTestFixture test({kSsrc1}, {}, kPayloadType, {},
+                                 /*frame_count_observer=*/nullptr, transformer);
+  ASSERT_THAT(callback, NotNull());
+  test.SetSending(true);
+  EXPECT_CALL(test.transport(), SendRtp).WillOnce(Return(true));
+
+  TaskQueueBase* send_queue = nullptr;
+  EncodedImage encoded_image;
+  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
+  encoded_image.SetEncodedData(
+      make_ref_counted<QueueRecordingEncodedImageBuffer>(&send_queue));
+  EXPECT_EQ(test.router()->OnEncodedImage(encoded_image, nullptr).error,
+            EncodedImageCallback::Result::OK);
+  ASSERT_THAT(transformed_frame, NotNull());
+  EXPECT_THAT(send_queue, IsNull());
+
+  callback->OnTransformedFrame(std::move(transformed_frame));
+  test.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_EQ(send_queue, test.transport_queue());
+
+  EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1))
+      .WillOnce([&] { callback = nullptr; });
+}
+
+TEST(RtpVideoSenderTest,
+     SendQueueKillSwitchSendsTransformedFramesOnSeparateQueue) {
+  auto transformer = make_ref_counted<NiceMock<MockFrameTransformer>>();
+  scoped_refptr<TransformedFrameCallback> callback;
+  EXPECT_CALL(*transformer, RegisterTransformedFrameSinkCallback(_, kSsrc1))
+      .WillOnce(SaveArg<0>(&callback));
+  std::unique_ptr<TransformableFrameInterface> transformed_frame;
+  EXPECT_CALL(*transformer, Transform)
+      .WillOnce([&](std::unique_ptr<TransformableFrameInterface> frame) {
+        transformed_frame = std::move(frame);
+      });
+
+  RtpVideoSenderTestFixture test(
+      {kSsrc1}, {}, kPayloadType, {}, /*frame_count_observer=*/nullptr,
+      transformer, "WebRTC-Video-FrameTransformer-SendQueue/Disabled/");
+  ASSERT_THAT(callback, NotNull());
+  test.SetSending(true);
+  EXPECT_CALL(test.transport(), SendRtp).WillOnce(Return(true));
+
+  TaskQueueBase* send_queue = nullptr;
+  EncodedImage encoded_image;
+  encoded_image.set_frame_type(VideoFrameType::kVideoFrameKey);
+  encoded_image.SetEncodedData(
+      make_ref_counted<QueueRecordingEncodedImageBuffer>(&send_queue));
+  EXPECT_EQ(test.router()->OnEncodedImage(encoded_image, nullptr).error,
+            EncodedImageCallback::Result::OK);
+  ASSERT_THAT(transformed_frame, NotNull());
+  EXPECT_THAT(send_queue, IsNull());
+
+  callback->OnTransformedFrame(std::move(transformed_frame));
+  test.AdvanceTime(TimeDelta::Millis(33));
+  EXPECT_THAT(send_queue, NotNull());
+  EXPECT_NE(send_queue, test.transport_queue());
+
+  EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1))
+      .WillOnce([&] { callback = nullptr; });
 }
 
 TEST(RtpVideoSenderTest, ReportsZeroBitratesBeforeFirstBitrateUpdate) {

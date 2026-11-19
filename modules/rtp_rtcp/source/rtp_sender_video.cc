@@ -32,6 +32,7 @@
 #include "api/make_ref_counted.h"
 #include "api/media_types.h"
 #include "api/rtc_error.h"
+#include "api/scoped_refptr.h"
 #include "api/sframe/sframe_types.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/transport/rtp/corruption_detection_message.h"
@@ -174,6 +175,29 @@ bool PacketWillLikelyBeRequestedForRestransmissionIfLost(
                : false);
 }
 
+scoped_refptr<RTPSenderVideoFrameTransformerDelegate>
+CreateFrameTransformerDelegate(RTPVideoFrameSenderInterface* sender,
+                               const RTPSenderVideo::Config& config) {
+  RTC_DCHECK(config.send_queue == nullptr ||
+             config.task_queue_factory == nullptr);
+  if (config.frame_transformer == nullptr) {
+    return nullptr;
+  }
+  if (config.send_queue != nullptr) {
+    return make_ref_counted<RTPSenderVideoFrameTransformerDelegate>(
+        sender, config.frame_transformer, config.rtp_sender->SSRC(),
+        config.rtp_sender->Rid(), config.send_queue);
+  }
+  // TODO: bugs.webrtc.org/42223727 - Remove once downstream users set
+  // `send_queue`.
+  return make_ref_counted<RTPSenderVideoFrameTransformerDelegate>(
+      sender, config.frame_transformer, config.rtp_sender->SSRC(),
+      config.rtp_sender->Rid(), config.task_queue_factory,
+      !config.field_trials->IsDisabled("WebRTC-MediaTaskQueuePriorities")
+          ? TaskQueueFactory::Priority::kVideo
+          : TaskQueueFactory::Priority::kNormal);
+}
+
 }  // namespace
 
 RTPSenderVideo::RTPSenderVideo(const Config& config)
@@ -201,18 +225,7 @@ RTPSenderVideo::RTPSenderVideo(const Config& config)
       raw_packetization_(config.raw_packetization),
       absolute_capture_time_sender_(config.clock),
       frame_transformer_delegate_(
-          config.frame_transformer
-              ? make_ref_counted<RTPSenderVideoFrameTransformerDelegate>(
-                    this,
-                    config.frame_transformer,
-                    rtp_sender_->SSRC(),
-                    rtp_sender_->Rid(),
-                    config.task_queue_factory,
-                    !config.field_trials->IsDisabled(
-                        "WebRTC-MediaTaskQueuePriorities")
-                        ? TaskQueueFactory::Priority::kVideo
-                        : TaskQueueFactory::Priority::kNormal)
-              : nullptr) {
+          CreateFrameTransformerDelegate(this, config)) {
   if (frame_transformer_delegate_)
     frame_transformer_delegate_->Init();
 }

@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "api/frame_transformer_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
@@ -72,12 +73,25 @@ class RTPVideoFrameSenderInterface {
 // the sender.
 class RTPSenderVideoFrameTransformerDelegate : public TransformedFrameCallback {
  public:
+  // Transformed frames are sent on `send_queue`, which is the queue that
+  // `sender` is used on.
   RTPSenderVideoFrameTransformerDelegate(
       RTPVideoFrameSenderInterface* sender,
       scoped_refptr<FrameTransformerInterface> frame_transformer,
       uint32_t ssrc,
       std::string rid,
-      TaskQueueFactory* send_transport_queue,
+      TaskQueueBase* absl_nonnull send_queue);
+
+  // Transformed frames are sent on a task queue that is created with
+  // `task_queue_factory`.
+  // TODO: bugs.webrtc.org/42223727 - Remove once all users of RTPSenderVideo
+  // set `RTPSenderVideo::Config::send_queue`.
+  RTPSenderVideoFrameTransformerDelegate(
+      RTPVideoFrameSenderInterface* sender,
+      scoped_refptr<FrameTransformerInterface> frame_transformer,
+      uint32_t ssrc,
+      std::string rid,
+      TaskQueueFactory* task_queue_factory,
       TaskQueueFactory::Priority transformation_queue_priority =
           TaskQueueFactory::Priority::kNormal);
 
@@ -93,14 +107,14 @@ class RTPSenderVideoFrameTransformerDelegate : public TransformedFrameCallback {
                       const std::vector<uint32_t>& csrcs = {});
 
   // Implements TransformedFrameCallback. Can be called on any thread. Posts
-  // the transformed frame to be sent on the `encoder_queue_`.
+  // the transformed frame to be sent on `transformation_queue_`.
   void OnTransformedFrame(
       std::unique_ptr<TransformableFrameInterface> frame) override;
 
   void StartShortCircuiting() override;
   void StopShortCircuiting() override;
 
-  // Delegates the call to RTPSendVideo::SendVideo on the `encoder_queue_`.
+  // Delegates the call to RTPSendVideo::SendVideo on `transformation_queue_`.
   void SendVideo(std::unique_ptr<TransformableFrameInterface> frame) const
       RTC_RUN_ON(transformation_queue_);
 
@@ -123,16 +137,17 @@ class RTPSenderVideoFrameTransformerDelegate : public TransformedFrameCallback {
   ~RTPSenderVideoFrameTransformerDelegate() override = default;
 
  private:
-  void EnsureEncoderQueueCreated();
-
   mutable Mutex sender_lock_;
   RTPVideoFrameSenderInterface* sender_ RTC_GUARDED_BY(sender_lock_);
   scoped_refptr<FrameTransformerInterface> frame_transformer_;
   const uint32_t ssrc_;
   const std::string rid_;
-  // Used when the encoded frames arrives without a current task queue. This can
-  // happen if a hardware encoder was used.
-  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> transformation_queue_;
+  // Only set when the delegate is created with a `TaskQueueFactory`.
+  // TODO: bugs.webrtc.org/42223727 - Remove together with that constructor.
+  const std::unique_ptr<TaskQueueBase, TaskQueueDeleter>
+      owned_transformation_queue_;
+  // The queue that transformed frames are sent on.
+  TaskQueueBase& transformation_queue_;
   bool short_circuit_ RTC_GUARDED_BY(sender_lock_) = false;
 };
 

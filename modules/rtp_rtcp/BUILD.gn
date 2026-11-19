@@ -1474,6 +1474,7 @@ if (rtc_include_tests) {
       "../../api:mock_frame_transformer",
       "../../api:mock_transformable_video_frame",
       "../../api:scoped_refptr",
+      "../../api/task_queue",
       "../../api/transport/rtp:dependency_descriptor",
       "../../api/units:time_delta",
       "../../api/units:timestamp",

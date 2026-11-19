@@ -23,6 +23,7 @@
 #include "api/frame_transformer_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sframe/sframe_types.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "api/units/data_rate.h"
@@ -91,6 +92,13 @@ class RTPSenderVideo : public RTPVideoFrameSenderInterface {
     std::optional<int> red_payload_type;
     const FieldTrialsView* field_trials = nullptr;
     scoped_refptr<FrameTransformerInterface> frame_transformer;
+    // The task queue that the RTPSenderVideo is used on. If set, frames
+    // transformed by `frame_transformer` are sent on this queue.
+    TaskQueueBase* send_queue = nullptr;
+    // Deprecated, set `send_queue` instead. Only used when `send_queue` isn't
+    // set, to create a queue that transformed frames are sent on.
+    // TODO: bugs.webrtc.org/42223727 - Remove once downstream users set
+    // `send_queue`.
     TaskQueueFactory* task_queue_factory = nullptr;
     bool raw_packetization = false;
     // Whether Sframe end-to-end encryption is required on this stream.

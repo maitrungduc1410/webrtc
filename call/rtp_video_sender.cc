@@ -276,6 +276,7 @@ void ConfigureRtpModule(const RtpConfig& rtp_config,
 
 std::vector<RtpStreamSender> CreateRtpStreamSenders(
     const Environment& env,
+    TaskQueueBase* absl_nonnull transport_queue,
     const RtpConfig& rtp_config,
     const RtpSenderObservers& observers,
     int rtcp_report_interval_ms,
@@ -383,7 +384,12 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
       video_config.fec_overhead_bytes = fec_generator->MaxPacketOverhead();
     }
     video_config.frame_transformer = frame_transformer;
-    video_config.task_queue_factory = &env.task_queue_factory();
+    if (!video_config.field_trials->IsDisabled(
+            "WebRTC-Video-FrameTransformer-SendQueue")) {
+      video_config.send_queue = transport_queue;
+    } else {
+      video_config.task_queue_factory = &env.task_queue_factory();
+    }
     video_config.raw_packetization = rtp_config.raw_payload;
 
     auto sender_video = std::make_unique<RTPSenderVideo>(video_config);
@@ -513,6 +519,7 @@ RtpVideoSender::RtpVideoSender(
       transport_queue_(*transport_queue),
       fec_controller_(std::move(fec_controller)),
       rtp_streams_(CreateRtpStreamSenders(env,
+                                          transport_queue,
                                           rtp_config,
                                           observers,
                                           rtcp_report_interval_ms,

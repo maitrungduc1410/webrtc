@@ -184,6 +184,7 @@ struct TestRtpSenderOptions {
   std::optional<int> red_payload_type;
   FrameEncryptorInterface* frame_encryptor = nullptr;
   scoped_refptr<FrameTransformerInterface> transformer;
+  TaskQueueBase* send_queue = nullptr;
 };
 
 class TestRtpSenderVideo : public RTPSenderVideo {
@@ -196,7 +197,10 @@ class TestRtpSenderVideo : public RTPSenderVideo {
           config.clock = &env.clock();
           config.rtp_sender = rtp_sender;
           config.field_trials = &env.field_trials();
-          config.task_queue_factory = &env.task_queue_factory();
+          config.send_queue = options.send_queue;
+          config.task_queue_factory = options.send_queue != nullptr
+                                          ? nullptr
+                                          : &env.task_queue_factory();
           config.raw_packetization = options.raw_packetization;
           config.frame_transformer = std::move(options.transformer);
           config.frame_encryptor = options.frame_encryptor;
@@ -2293,6 +2297,42 @@ TEST_F(RtpSenderVideoTest, OnTransformedFrameSendsVideo) {
   });
   time_controller_.AdvanceTime(TimeDelta::Zero());
   EXPECT_EQ(transport_.packets_sent(), 2);
+}
+
+TEST_F(RtpSenderVideoTest, OnTransformedFrameSendsVideoOnSendQueue) {
+  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> send_queue =
+      time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
+          "send_queue", TaskQueueFactory::Priority::kNormal);
+  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> transformer_queue =
+      time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
+          "transformer_queue", TaskQueueFactory::Priority::kNormal);
+  auto mock_frame_transformer =
+      make_ref_counted<NiceMock<MockFrameTransformer>>();
+  scoped_refptr<TransformedFrameCallback> callback;
+  EXPECT_CALL(*mock_frame_transformer, RegisterTransformedFrameSinkCallback)
+      .WillOnce(SaveArg<0>(&callback));
+  TestRtpSenderVideo rtp_sender_video = Create(
+      {.transformer = mock_frame_transformer, .send_queue = send_queue.get()});
+  ASSERT_TRUE(callback);
+
+  // Complete the transform on another queue, like an asynchronous transformer.
+  ON_CALL(*mock_frame_transformer, Transform)
+      .WillByDefault([&](std::unique_ptr<TransformableFrameInterface> frame) {
+        transformer_queue->PostTask(
+            [&callback, frame = std::move(frame)]() mutable {
+              callback->OnTransformedFrame(std::move(frame));
+            });
+      });
+  auto encoded_image = CreateDefaultEncodedImage();
+  RTPVideoHeader video_header;
+  video_header.frame_type = VideoFrameType::kVideoFrameKey;
+  send_queue->PostTask([&] {
+    rtp_sender_video.SendEncodedImage(kPayloadType, kType, kRtpTimestamp,
+                                      *encoded_image, video_header,
+                                      kDefaultExpectedRetransmissionTime);
+  });
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+  EXPECT_EQ(transport_.packets_sent(), 1);
 }
 
 TEST_F(RtpSenderVideoTest, TransformOverheadCorrectlyAccountedFor) {

@@ -24,6 +24,8 @@
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
 #include "api/scoped_refptr.h"
+#include "api/task_queue/task_queue_base.h"
+#include "api/task_queue/task_queue_factory.h"
 #include "api/test/mock_frame_transformer.h"
 #include "api/test/mock_transformable_video_frame.h"
 #include "api/transport/rtp/dependency_descriptor.h"
@@ -206,6 +208,33 @@ TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
   callback->OnTransformedFrame(std::move(frame));
 
   event.Wait(TimeDelta::Seconds(1));
+}
+
+TEST_F(RtpSenderVideoFrameTransformerDelegateTest,
+       OnTransformedFrameSendsVideoOnSendQueue) {
+  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> send_queue =
+      time_controller_.GetTaskQueueFactory()->CreateTaskQueue(
+          "send_queue", TaskQueueFactory::Priority::kNormal);
+  auto delegate = make_ref_counted<RTPSenderVideoFrameTransformerDelegate>(
+      &test_sender_, frame_transformer_,
+      /*ssrc=*/1111, /*rid=*/"rid", send_queue.get());
+
+  scoped_refptr<TransformedFrameCallback> callback;
+  EXPECT_CALL(*frame_transformer_, RegisterTransformedFrameSinkCallback)
+      .WillOnce(SaveArg<0>(&callback));
+  delegate->Init();
+  ASSERT_TRUE(callback);
+
+  std::unique_ptr<TransformableFrameInterface> frame =
+      GetTransformableFrame(delegate);
+  ASSERT_TRUE(frame);
+
+  EXPECT_CALL(test_sender_, SendVideoFrame).WillOnce(WithoutArgs([&] {
+    EXPECT_TRUE(send_queue->IsCurrent());
+    return true;
+  }));
+  callback->OnTransformedFrame(std::move(frame));
+  time_controller_.AdvanceTime(TimeDelta::Zero());
 }
 
 TEST_F(RtpSenderVideoFrameTransformerDelegateTest, CloneSenderVideoFrame) {
