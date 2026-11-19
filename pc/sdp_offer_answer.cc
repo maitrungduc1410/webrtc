@@ -57,6 +57,7 @@
 #include "api/uma_metrics.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "api/video/video_codec_constants.h"
+#include "call/call.h"
 #include "media/base/codec.h"
 #include "media/base/codec_comparators.h"
 #include "media/base/media_channel.h"
@@ -6003,11 +6004,6 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
       }
     }
 
-    RTCError error = batcher.Run();
-    if (!error.ok()) {
-      return error;
-    }
-
     // If local and remote are both set, we assume that it's safe to trigger
     // CCFB.
     if (IsRfc8888CongestionControlFeedbackEnabled(pc_->trials())) {
@@ -6053,13 +6049,14 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
 
         if (preferred_rtcp_cc_ack_type.has_value()) {
           if (preferred_rtcp_cc_ack_type == remote_preferred_rtcp_cc_ack_type) {
-            // The call and the congestion controller live on the network
-            // thread.
-            context_->network_thread()->PostTask(
-                [call = pc_->call_ptr(),
-                 preferred_rtcp_cc_ack_type = *preferred_rtcp_cc_ack_type] {
-                  call->SetPreferredRtcpCcAckType(preferred_rtcp_cc_ack_type);
-                });
+            Call* absl_nullable call = pc_->call_ptr();
+            if (call != nullptr) {
+              // The call and the congestion controller live on the network
+              // thread.
+              batcher.Add([call, preferred_rtcp_cc_ack_type] {
+                call->SetPreferredRtcpCcAckType(*preferred_rtcp_cc_ack_type);
+              });
+            }
           } else {
             RTC_LOG(LS_WARNING)
                 << "Inconsistent Congestion Control feedback types: "
@@ -6068,6 +6065,11 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
           }
         }
       }
+    }
+
+    RTCError error = batcher.Run();
+    if (!error.ok()) {
+      return error;
     }
   }
   // Need complete offer/answer with an SCTP m= section before starting SCTP,

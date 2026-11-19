@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
@@ -27,6 +28,7 @@
 #include "api/create_peerconnection_factory.h"
 #include "api/crypto/crypto_options.h"
 #include "api/jsep.h"
+#include "api/make_ref_counted.h"
 #include "api/media_types.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
@@ -34,6 +36,8 @@
 #include "api/rtp_transceiver_direction.h"
 #include "api/rtp_transceiver_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/set_local_description_observer_interface.h"
+#include "api/set_remote_description_observer_interface.h"
 #include "api/sframe/sframe_decryptor_interface.h"
 #include "api/sframe/sframe_encryptor_interface.h"
 #include "api/sframe/sframe_types.h"
@@ -108,6 +112,36 @@ void EnableSframeOnTransceiver(
   });
 }
 
+class CallbackSetLocalDescriptionObserver
+    : public SetLocalDescriptionObserverInterface {
+ public:
+  explicit CallbackSetLocalDescriptionObserver(
+      absl::AnyInvocable<void(RTCError) &&> callback)
+      : callback_(std::move(callback)) {}
+
+  void OnSetLocalDescriptionComplete(RTCError error) override {
+    std::move(callback_)(std::move(error));
+  }
+
+ private:
+  absl::AnyInvocable<void(RTCError) &&> callback_;
+};
+
+class CallbackSetRemoteDescriptionObserver
+    : public SetRemoteDescriptionObserverInterface {
+ public:
+  explicit CallbackSetRemoteDescriptionObserver(
+      absl::AnyInvocable<void(RTCError) &&> callback)
+      : callback_(std::move(callback)) {}
+
+  void OnSetRemoteDescriptionComplete(RTCError error) override {
+    std::move(callback_)(std::move(error));
+  }
+
+ private:
+  absl::AnyInvocable<void(RTCError) &&> callback_;
+};
+
 }  // namespace
 
 class SdpOfferAnswerTest : public ::testing::Test {
@@ -158,6 +192,48 @@ class SdpOfferAnswerTest : public ::testing::Test {
     observer->SetPeerConnectionInterface(result.value().get());
     return std::make_unique<PeerConnectionWrapper>(
         pc_factory_, result.MoveValue(), std::move(observer));
+  }
+
+  std::unique_ptr<PeerConnectionWrapper>
+  CreatePeerConnectionWithSharedNetworkAndSignalingThread(
+      Thread* shared_thread,
+      absl::string_view field_trials) {
+    scoped_refptr<PeerConnectionFactoryInterface> shared_thread_factory =
+        CreatePeerConnectionFactory(
+            /*network_thread=*/shared_thread,
+            /*signaling_thread=*/shared_thread,
+            FakeAudioCaptureModule::Create(),
+            CreateBuiltinAudioEncoderFactory(),
+            CreateBuiltinAudioDecoderFactory(),
+            std::make_unique<VideoEncoderFactoryTemplate<
+                LibvpxVp8EncoderTemplateAdapter,
+                LibvpxVp9EncoderTemplateAdapter, OpenH264EncoderTemplateAdapter,
+                LibaomAv1EncoderTemplateAdapter>>(),
+            std::make_unique<VideoDecoderFactoryTemplate<
+                LibvpxVp8DecoderTemplateAdapter,
+                LibvpxVp9DecoderTemplateAdapter, OpenH264DecoderTemplateAdapter,
+                Dav1dDecoderTemplateAdapter>>(),
+            /*audio_mixer=*/nullptr, /*audio_processing=*/nullptr,
+            /*audio_frame_processor=*/nullptr, CreateTestFieldTrialsPtr());
+    if (shared_thread_factory == nullptr) {
+      return nullptr;
+    }
+    std::unique_ptr<MockPeerConnectionObserver> observer =
+        std::make_unique<MockPeerConnectionObserver>();
+    PeerConnectionDependencies pc_deps(observer.get());
+    pc_deps.trials = CreateTestFieldTrialsPtr(field_trials);
+    RTCConfiguration config;
+    config.sdp_semantics = SdpSemantics::kUnifiedPlan;
+    RTCErrorOr<scoped_refptr<PeerConnectionInterface>> result =
+        shared_thread_factory->CreatePeerConnectionOrError(config,
+                                                           std::move(pc_deps));
+    if (!result.ok()) {
+      return nullptr;
+    }
+    observer->SetPeerConnectionInterface(result.value().get());
+    return std::make_unique<PeerConnectionWrapper>(
+        std::move(shared_thread_factory), result.MoveValue(),
+        std::move(observer));
   }
 
   std::optional<RtpCodecCapability> FindFirstSendCodecWithName(
@@ -2949,6 +3025,123 @@ TEST_F(SdpOfferAnswerTest, NegotiatesTransportCcWhenCcfbMissingInBothSections) {
     }
   }
   EXPECT_TRUE(found_transport_cc);
+}
+
+TEST_F(SdpOfferAnswerTest,
+       ClosingInSetLocalAnswerCallbackOnSharedThreadDoesNotCrash) {
+  std::unique_ptr<Thread> shared_thread = Thread::CreateWithSocketServer();
+  ASSERT_TRUE(shared_thread->Start());
+  std::unique_ptr<PeerConnectionWrapper> pc =
+      CreatePeerConnectionWithSharedNetworkAndSignalingThread(
+          shared_thread.get(),
+          "WebRTC-RFC8888CongestionControlFeedback/Enabled/");
+  ASSERT_THAT(pc, NotNull());
+
+  std::string sdp_offer =
+      "v=0\r\n"
+      "o=- 0 0 IN IP4 127.0.0.1\r\n"
+      "s=-\r\n"
+      "t=0 0\r\n"
+      "a=group:BUNDLE 0 1\r\n"
+      "a=ice-ufrag:TESTUFRAG\r\n"
+      "a=ice-pwd:ThisIsATestIcePasswordThatIsLongEnough\r\n"
+      "a=fingerprint:sha-256 "
+      "AD:52:52:E0:B1:37:34:21:0E:15:8E:B7:56:56:7B:B4:39:0E:6D:1C:F5:84:A7:EE:"
+      "B5:27:3E:30:B1:7D:69:42\r\n"
+      "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "a=mid:0\r\n"
+      "a=sendrecv\r\n"
+      "a=rtcp-mux\r\n"
+      "a=rtpmap:111 opus/48000/2\r\n"
+      "a=rtcp-fb:* ack ccfb\r\n"
+      "a=rtcp-fb:111 transport-cc\r\n"
+      "m=video 9 UDP/TLS/RTP/SAVPF 96\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "a=mid:1\r\n"
+      "a=sendrecv\r\n"
+      "a=rtcp-mux\r\n"
+      "a=rtpmap:96 VP8/90000\r\n"
+      "a=rtcp-fb:* ack ccfb\r\n"
+      "a=rtcp-fb:96 transport-cc\r\n";
+
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateSessionDescription(SdpType::kOffer, sdp_offer);
+  ASSERT_THAT(offer, NotNull());
+  ASSERT_TRUE(pc->SetRemoteDescription(std::move(offer)));
+
+  std::unique_ptr<SessionDescriptionInterface> answer = pc->CreateAnswer();
+  ASSERT_THAT(answer, NotNull());
+
+  bool callback_called = false;
+  RTCError sld_error;
+  scoped_refptr<CallbackSetLocalDescriptionObserver> sld_observer =
+      make_ref_counted<CallbackSetLocalDescriptionObserver>(
+          [&](RTCError error) {
+            callback_called = true;
+            sld_error = std::move(error);
+            pc->pc()->Close();
+          });
+
+  shared_thread->BlockingCall(
+      [&] { pc->pc()->SetLocalDescription(std::move(answer), sld_observer); });
+  // Drain any tasks posted to the shared network/signaling thread while
+  // applying the answer.
+  shared_thread->BlockingCall([] {});
+
+  EXPECT_TRUE(callback_called);
+  EXPECT_TRUE(sld_error.ok());
+  EXPECT_EQ(pc->signaling_state(), PeerConnectionInterface::kClosed);
+}
+
+TEST_F(SdpOfferAnswerTest,
+       ClosingInSetRemoteAnswerCallbackOnSharedThreadDoesNotCrash) {
+  std::unique_ptr<Thread> shared_thread = Thread::CreateWithSocketServer();
+  ASSERT_TRUE(shared_thread->Start());
+  std::unique_ptr<PeerConnectionWrapper> caller =
+      CreatePeerConnectionWithSharedNetworkAndSignalingThread(
+          shared_thread.get(),
+          "WebRTC-RFC8888CongestionControlFeedback/Enabled,offer:true/");
+  ASSERT_THAT(caller, NotNull());
+  std::unique_ptr<PeerConnectionWrapper> callee =
+      CreatePeerConnection("WebRTC-RFC8888CongestionControlFeedback/Enabled/");
+
+  caller->AddTransceiver(MediaType::AUDIO);
+  caller->AddTransceiver(MediaType::VIDEO);
+
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(offer, NotNull());
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      callee->CreateAnswerAndSetAsLocal();
+  ASSERT_THAT(answer, NotNull());
+  ASSERT_THAT(answer->description()->contents(), SizeIs(2));
+  for (const ContentInfo& content : answer->description()->contents()) {
+    EXPECT_TRUE(content.media_description()->rtcp_fb_ack_ccfb());
+  }
+
+  bool callback_called = false;
+  RTCError srd_error;
+  scoped_refptr<CallbackSetRemoteDescriptionObserver> srd_observer =
+      make_ref_counted<CallbackSetRemoteDescriptionObserver>(
+          [&](RTCError error) {
+            callback_called = true;
+            srd_error = std::move(error);
+            caller->pc()->Close();
+          });
+
+  shared_thread->BlockingCall([&] {
+    caller->pc()->SetRemoteDescription(std::move(answer), srd_observer);
+  });
+  // Drain any tasks posted to the shared network/signaling thread while
+  // applying the answer.
+  shared_thread->BlockingCall([] {});
+
+  EXPECT_TRUE(callback_called);
+  EXPECT_TRUE(srd_error.ok());
+  EXPECT_EQ(caller->signaling_state(), PeerConnectionInterface::kClosed);
 }
 
 TEST_F(SdpOfferAnswerTest, StopsTransceiverWhenAnswerLacksSframe) {
