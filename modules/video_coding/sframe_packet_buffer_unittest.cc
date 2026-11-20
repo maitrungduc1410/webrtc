@@ -20,10 +20,13 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/sframe_descriptor.h"
 #include "modules/rtp_rtcp/source/sframe_rtp_packet_received.h"
+#include "test/gmock.h"
 #include "test/gtest.h"
 
 namespace webrtc {
 namespace {
+
+using ::testing::ElementsAre;
 
 template <class... Ts>
 struct overloaded : Ts... {
@@ -63,6 +66,7 @@ class SFramePacketBufferTest : public ::testing::Test {
         SFramePacketBuffer::InsertResult::kNoFrame;
     SframeEncryptionLevel encryption_level = SframeEncryptionLevel::kFrame;
     std::vector<std::unique_ptr<RtpPacketReceived>> packets;
+    std::vector<int> times_nacked;
   };
 
   bool BufferCleared(SFramePacketBuffer::InsertResult r) {
@@ -70,13 +74,20 @@ class SFramePacketBufferTest : public ::testing::Test {
   }
 
   TestResult InsertInto(SFramePacketBuffer& buf,
-                        std::unique_ptr<SframeRtpPacketReceived> packet) {
-    auto insert_result = buf.InsertPacket(std::move(packet));
+                        std::unique_ptr<SframeRtpPacketReceived> packet,
+                        int times_nacked = 0) {
+    std::variant<SFramePacketBuffer::AssembledFrame,
+                 SFramePacketBuffer::InsertResult>
+        insert_result = buf.InsertPacket(std::move(packet), times_nacked);
     return std::visit(
         overloaded{
             [](SFramePacketBuffer::AssembledFrame& frame) -> TestResult {
-              return {.encryption_level = frame.encryption_level,
-                      .packets = std::move(frame.packets)};
+              TestResult result = {.encryption_level = frame.encryption_level};
+              for (SFramePacketBuffer::Packet& packet : frame.packets) {
+                result.packets.push_back(std::move(packet.rtp_packet));
+                result.times_nacked.push_back(packet.times_nacked);
+              }
+              return result;
             },
             [](SFramePacketBuffer::InsertResult& status) -> TestResult {
               return {.status = status};
@@ -121,6 +132,27 @@ TEST_F(SFramePacketBufferTest, ThreePacketFrame) {
   EXPECT_EQ(result.packets[0]->SequenceNumber(), 200);
   EXPECT_EQ(result.packets[1]->SequenceNumber(), 201);
   EXPECT_EQ(result.packets[2]->SequenceNumber(), 202);
+}
+
+TEST_F(SFramePacketBufferTest, PacketsKeepTheirTimesNacked) {
+  InsertInto(buffer_, MakePacket(100, kStart, kNotEnd), /*times_nacked=*/0);
+  InsertInto(buffer_, MakePacket(101, kNotStart, kNotEnd), /*times_nacked=*/2);
+  TestResult result =
+      InsertInto(buffer_, MakePacket(102, kNotStart, kEnd), /*times_nacked=*/1);
+
+  ASSERT_EQ(result.packets.size(), 3u);
+  EXPECT_THAT(result.times_nacked, ElementsAre(0, 2, 1));
+}
+
+TEST_F(SFramePacketBufferTest, DuplicateKeepsTimesNackedOfFirstPacket) {
+  InsertInto(buffer_, MakePacket(100, kStart, kNotEnd), /*times_nacked=*/0);
+  InsertInto(buffer_, MakePacket(101, kNotStart, kNotEnd), /*times_nacked=*/2);
+  InsertInto(buffer_, MakePacket(101, kNotStart, kNotEnd), /*times_nacked=*/0);
+  TestResult result =
+      InsertInto(buffer_, MakePacket(102, kNotStart, kEnd), /*times_nacked=*/0);
+
+  ASSERT_EQ(result.packets.size(), 3u);
+  EXPECT_THAT(result.times_nacked, ElementsAre(0, 2, 0));
 }
 
 TEST_F(SFramePacketBufferTest, TwoPacketFrameReversed) {
@@ -351,14 +383,21 @@ TEST_F(SFramePacketBufferTest, BufferClearedOnCollision) {
   SFramePacketBuffer small_buffer(4);
 
   // Fill all 4 slots with non-colliding packets.
-  small_buffer.InsertPacket(MakePacket(0, kStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(1, kNotStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(2, kNotStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(3, kNotStart, kNotEnd, 100));
+  small_buffer.InsertPacket(MakePacket(0, kStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(1, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(2, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(3, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
 
   // Insert packet that collides (seq 4 maps to slot 0 in size-4 buffer).
   // Should clear and re-insert.
-  auto result = small_buffer.InsertPacket(MakePacket(4, kStart, kEnd, 200));
+  std::variant<SFramePacketBuffer::AssembledFrame,
+               SFramePacketBuffer::InsertResult>
+      result = small_buffer.InsertPacket(MakePacket(4, kStart, kEnd, 200),
+                                         /*times_nacked=*/0);
   // Buffer cleared — caller should request a keyframe.
   ASSERT_TRUE(std::holds_alternative<SFramePacketBuffer::InsertResult>(result));
   EXPECT_EQ(std::get<SFramePacketBuffer::InsertResult>(result),
@@ -466,15 +505,20 @@ TEST_F(SFramePacketBufferTest, FreedSlotsReuseFullBuffer) {
   SFramePacketBuffer small_buffer(4);
 
   // Frame 1: 3 packets, assembles and frees slots.
-  small_buffer.InsertPacket(MakePacket(10, kStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(11, kNotStart, kNotEnd, 100));
+  small_buffer.InsertPacket(MakePacket(10, kStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(11, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
   auto r1 = InsertInto(small_buffer, MakePacket(12, kNotStart, kEnd, 100));
   ASSERT_EQ(r1.packets.size(), 3u);
 
   // Frame 2: fills all 4 slots using the freed space.
-  small_buffer.InsertPacket(MakePacket(13, kStart, kNotEnd, 200));
-  small_buffer.InsertPacket(MakePacket(14, kNotStart, kNotEnd, 200));
-  small_buffer.InsertPacket(MakePacket(15, kNotStart, kNotEnd, 200));
+  small_buffer.InsertPacket(MakePacket(13, kStart, kNotEnd, 200),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(14, kNotStart, kNotEnd, 200),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(15, kNotStart, kNotEnd, 200),
+                            /*times_nacked=*/0);
   auto r2 = InsertInto(small_buffer, MakePacket(16, kNotStart, kEnd, 200));
   ASSERT_EQ(r2.packets.size(), 4u);
   EXPECT_FALSE(BufferCleared(r2.status));
@@ -564,10 +608,14 @@ TEST_F(SFramePacketBufferTest, CollisionDuringMultiPacketFrameClearsBuffer) {
 TEST_F(SFramePacketBufferTest, BufferFullBeforeEndPacket) {
   // Small buffer: S and middle packets fill it, E arrives too late.
   SFramePacketBuffer small_buffer(4);
-  small_buffer.InsertPacket(MakePacket(0, kStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(1, kNotStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(2, kNotStart, kNotEnd, 100));
-  small_buffer.InsertPacket(MakePacket(3, kNotStart, kNotEnd, 100));
+  small_buffer.InsertPacket(MakePacket(0, kStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(1, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(2, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
+  small_buffer.InsertPacket(MakePacket(3, kNotStart, kNotEnd, 100),
+                            /*times_nacked=*/0);
   // Packet 4 (the end) collides with slot 0; buffer clears.
   auto result = InsertInto(small_buffer, MakePacket(4, kNotStart, kEnd, 100));
   // Buffer cleared — the frame is lost.

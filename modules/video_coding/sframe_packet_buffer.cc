@@ -38,7 +38,8 @@ SFramePacketBuffer::~SFramePacketBuffer() = default;
 std::variant<SFramePacketBuffer::AssembledFrame,
              SFramePacketBuffer::InsertResult>
 SFramePacketBuffer::InsertPacket(
-    std::unique_ptr<SframeRtpPacketReceived> packet) {
+    std::unique_ptr<SframeRtpPacketReceived> packet,
+    int times_nacked) {
   int64_t seq_num = seq_num_unwrapper_.Unwrap(packet->SequenceNumber());
   bool buffer_cleared = false;
 
@@ -64,7 +65,7 @@ SFramePacketBuffer::InsertPacket(
       break;
   }
 
-  buffer_[slot] = std::move(packet);
+  buffer_[slot] = {.packet = std::move(packet), .times_nacked = times_nacked};
 
   if (buffer_cleared) {
     return InsertResult::kBufferCleared;
@@ -82,11 +83,11 @@ std::pair<SFramePacketBuffer::SlotOutcome, size_t>
 SFramePacketBuffer::ResolveSlot(int64_t seq_num) {
   size_t idx = ToIdx(seq_num);
 
-  if (!buffer_[idx]) {
+  if (buffer_[idx].packet == nullptr) {
     return {SlotOutcome::kOk, idx};  // Empty slot.
   }
 
-  if (buffer_[idx]->SequenceNumber() == static_cast<uint16_t>(seq_num)) {
+  if (buffer_[idx].packet->SequenceNumber() == static_cast<uint16_t>(seq_num)) {
     return {SlotOutcome::kDuplicate, 0};  // Duplicate.
   }
 
@@ -119,17 +120,17 @@ std::optional<int64_t> SFramePacketBuffer::FindFrameStart(int64_t seq_num) {
     size_t idx = ToIdx(start);
 
     // Slot is empty — packet hasn't arrived yet.
-    if (!buffer_[idx]) {
+    if (buffer_[idx].packet == nullptr) {
       return std::nullopt;
     }
 
     // Slot holds a packet from a different sequence number (modulo aliasing).
-    if (buffer_[idx]->SequenceNumber() != static_cast<uint16_t>(start)) {
+    if (buffer_[idx].packet->SequenceNumber() != static_cast<uint16_t>(start)) {
       return std::nullopt;
     }
 
     // Reached the first packet of the frame (S-bit set).
-    if (buffer_[idx]->descriptor().start) {
+    if (buffer_[idx].packet->descriptor().start) {
       return start;
     }
 
@@ -152,17 +153,17 @@ std::optional<int64_t> SFramePacketBuffer::FindFrameEnd(int64_t seq_num,
     size_t idx = ToIdx(end);
 
     // Slot is empty — packet hasn't arrived yet.
-    if (!buffer_[idx]) {
+    if (buffer_[idx].packet == nullptr) {
       return std::nullopt;
     }
 
     // Slot holds a packet from a different sequence number (modulo aliasing).
-    if (buffer_[idx]->SequenceNumber() != static_cast<uint16_t>(end)) {
+    if (buffer_[idx].packet->SequenceNumber() != static_cast<uint16_t>(end)) {
       return std::nullopt;
     }
 
     // Reached the last packet of the frame (E-bit set).
-    if (buffer_[idx]->descriptor().end) {
+    if (buffer_[idx].packet->descriptor().end) {
       return end;
     }
 
@@ -181,7 +182,7 @@ SFramePacketBuffer::AssembleFrame(int64_t start, int64_t end) {
   const int64_t frame_size = end - start + 1;
 
   // Use the first packet as reference for consistency checks.
-  const SframeRtpPacketReceived& first_pkt = *buffer_[ToIdx(start)];
+  const SframeRtpPacketReceived& first_pkt = *buffer_[ToIdx(start)].packet;
   const SframeEncryptionLevel encryption_level =
       first_pkt.descriptor().encryption_level;
   const uint8_t pt = first_pkt.PayloadType();
@@ -191,7 +192,7 @@ SFramePacketBuffer::AssembleFrame(int64_t start, int64_t end) {
   // timestamp. A mismatch means corrupted or spurious packets slipped in.
   int64_t s = start;
   for (int64_t i = 0; i < frame_size; ++i, ++s) {
-    const SframeRtpPacketReceived& pkt = *buffer_[ToIdx(s)];
+    const SframeRtpPacketReceived& pkt = *buffer_[ToIdx(s)].packet;
     if (pkt.descriptor().encryption_level != encryption_level) {
       DropFrame("T-bit mismatch", pkt.SequenceNumber(), start, end);
       return std::nullopt;
@@ -216,8 +217,9 @@ SFramePacketBuffer::AssembleFrame(int64_t start, int64_t end) {
   s = start;
   for (int64_t i = 0; i < frame_size; ++i, ++s) {
     size_t idx = ToIdx(s);
-    result.packets.push_back(buffer_[idx]->TakePacket());
-    buffer_[idx].reset();
+    result.packets.push_back({.rtp_packet = buffer_[idx].packet->TakePacket(),
+                              .times_nacked = buffer_[idx].times_nacked});
+    buffer_[idx] = {};
   }
 
   return result;
@@ -247,9 +249,10 @@ void SFramePacketBuffer::ClearTo(uint16_t seq_num) {
   int64_t iterations = std::min(diff, static_cast<int64_t>(buffer_.size()));
   int64_t cur = *first_seq_num_;
   for (int64_t i = 0; i < iterations; ++i) {
-    auto& slot = buffer_[ToIdx(cur)];
-    if (slot && slot->SequenceNumber() == static_cast<uint16_t>(cur)) {
-      slot.reset();
+    BufferedPacket& slot = buffer_[ToIdx(cur)];
+    if (slot.packet != nullptr &&
+        slot.packet->SequenceNumber() == static_cast<uint16_t>(cur)) {
+      slot = {};
     }
     ++cur;
   }
@@ -260,8 +263,8 @@ void SFramePacketBuffer::ClearTo(uint16_t seq_num) {
 }
 
 void SFramePacketBuffer::Clear() {
-  for (auto& slot : buffer_) {
-    slot.reset();
+  for (BufferedPacket& slot : buffer_) {
+    slot = {};
   }
   first_seq_num_.reset();
   is_cleared_to_first_seq_num_ = false;
@@ -276,7 +279,7 @@ void SFramePacketBuffer::DropFrame(absl::string_view reason,
   const int64_t frame_size = end - start + 1;
   int64_t s = start;
   for (int64_t i = 0; i < frame_size; ++i, ++s) {
-    buffer_[ToIdx(s)].reset();
+    buffer_[ToIdx(s)] = {};
   }
 }
 

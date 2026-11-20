@@ -53,13 +53,20 @@ class SFramePacketBuffer {
     kBufferCleared,
   };
 
+  // A packet of an assembled frame.
+  struct Packet {
+    // The RTP packet, with its Sframe payload descriptor stripped.
+    std::unique_ptr<RtpPacketReceived> rtp_packet;
+    // As passed to InsertPacket().
+    int times_nacked = -1;
+  };
+
   struct AssembledFrame {
     // Encryption granularity from the SFrame descriptor T bit.
     SframeEncryptionLevel encryption_level = SframeEncryptionLevel::kFrame;
 
-    // The RTP packets forming the validated S->E run, in sequence-number
-    // order.
-    std::vector<std::unique_ptr<RtpPacketReceived>> packets;
+    // The packets forming the validated S->E run, in sequence-number order.
+    std::vector<Packet> packets;
   };
 
   explicit SFramePacketBuffer(size_t buffer_size = 2048);
@@ -68,8 +75,10 @@ class SFramePacketBuffer {
   // Insert an SFrame-depacketized RTP packet (descriptor already parsed and
   // stripped).  If this packet completes an S->E run, returns an
   // AssembledFrame.  Otherwise returns an InsertResult status.
+  // `times_nacked` is returned with the packet in the AssembledFrame.
   std::variant<AssembledFrame, InsertResult> InsertPacket(
-      std::unique_ptr<SframeRtpPacketReceived> packet);
+      std::unique_ptr<SframeRtpPacketReceived> packet,
+      int times_nacked);
 
   // Discard all packets up to and including `seq_num`.
   void ClearTo(uint16_t seq_num);
@@ -114,8 +123,13 @@ class SFramePacketBuffer {
     return static_cast<size_t>(seq_num) % buffer_.size();
   }
 
+  struct BufferedPacket {
+    std::unique_ptr<SframeRtpPacketReceived> packet;
+    int times_nacked = -1;
+  };
+
   // Circular buffer indexed by ToIdx(unwrapped_seq_num).
-  std::vector<std::unique_ptr<SframeRtpPacketReceived>> buffer_;
+  std::vector<BufferedPacket> buffer_;
 
   std::optional<int64_t> first_seq_num_;
 
