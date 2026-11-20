@@ -64,7 +64,6 @@
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/experiments/min_video_bitrate_experiment.h"
 #include "rtc_base/experiments/rate_control_settings.h"
-#include "rtc_base/experiments/rfc8888_congestion_control_feedback_experiment.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/task_utils/repeating_task.h"
@@ -89,20 +88,6 @@ constexpr double kScreenshareHysteresis = 1.35;
 
 constexpr int kMinDefaultAv1BitrateBps =
     15000;  // This value acts as an absolute minimum AV1 bitrate limit.
-
-// When send-side BWE is used a stricter 1.1x pacing factor is used, rather than
-// the 2.5x which is used with receive-side BWE. Provides a more careful
-// bandwidth rampup with less risk of overshoots causing adverse effects like
-// packet loss. Not used for receive side BWE, since there we lack the probing
-// feature and so may result in too slow initial rampup.
-constexpr double kStrictPacingMultiplier = 1.1;
-
-bool TransportSeqNumExtensionConfigured(const VideoSendStream::Config& config) {
-  const std::vector<RtpExtension>& extensions = config.rtp.extensions;
-  return absl::c_any_of(extensions, [](const RtpExtension& ext) {
-    return ext.uri == RtpExtension::kTransportSequenceNumberUri;
-  });
-}
 
 // Calculate max padding bitrate for a multi layer codec.
 int CalculateMaxPadBitrateBps(const std::vector<VideoStream>& streams,
@@ -214,26 +199,6 @@ std::optional<DataRate> CalculateMaxBitrate(const std::vector<T>& layers,
     return max_bitrate_sum;
   }
   return std::nullopt;
-}
-
-// Returns an optional that has value iff TransportSeqNumExtensionConfigured
-// is `true` for the given video send stream config.
-std::optional<float> GetConfiguredPacingFactor(
-    const VideoSendStream::Config& config,
-    VideoEncoderConfig::ContentType content_type,
-    const PacingConfig& default_pacing_config,
-    const FieldTrialsView& field_trials) {
-  if (!TransportSeqNumExtensionConfigured(config))
-    return std::nullopt;
-
-  std::optional<AlrExperimentSettings> alr_settings =
-      GetAlrSettings(field_trials, content_type);
-  if (alr_settings)
-    return alr_settings->pacing_factor;
-
-  return RateControlSettings(field_trials)
-      .GetPacingFactor()
-      .value_or(default_pacing_config.pacing_factor);
 }
 
 DataRate GetDefaultMinVideoBitrate(VideoCodecType codec_type) {
@@ -394,9 +359,8 @@ bool HasActiveEncodings(const VideoEncoderConfig& config) {
 }  // namespace
 
 PacingConfig::PacingConfig(const FieldTrialsView& field_trials)
-    : pacing_factor("factor", kStrictPacingMultiplier),
-      max_pacing_delay("max_delay", PacingController::kMaxExpectedQueueLength) {
-  ParseFieldTrial({&pacing_factor, &max_pacing_delay},
+    : max_pacing_delay("max_delay", PacingController::kMaxExpectedQueueLength) {
+  ParseFieldTrial({&max_pacing_delay},
                   field_trials.Lookup("WebRTC-Video-Pacing"));
 }
 PacingConfig::PacingConfig(const PacingConfig&) = default;
@@ -483,43 +447,17 @@ VideoSendStreamImpl::VideoSendStreamImpl(
   RTC_CHECK(
       AlrExperimentSettings::MaxOneFieldTrialEnabled(env_.field_trials()));
 
-  std::optional<bool> enable_alr_bw_probing;
+  std::optional<AlrExperimentSettings> alr_settings =
+      GetAlrSettings(env_.field_trials(), content_type_);
+  int queue_time_limit_ms = alr_settings
+                                ? alr_settings->max_paced_queue_time
+                                : pacing_config_.max_pacing_delay.Get().ms();
+  transport_->SetQueueTimeLimit(queue_time_limit_ms);
 
-  bool rfc8888_experiment_enabled =
-      IsRfc8888CongestionControlFeedbackEnabled(env_.field_trials());
-
-  // If send-side BWE, or RFC8888 congestion control feedback experiment is
-  // enabled, check if we should apply updated probing and pacing settings.
-  std::optional<float> pacing_factor_override = GetConfiguredPacingFactor(
-      config_, content_type_, pacing_config_, env_.field_trials());
-  if (pacing_factor_override.has_value() || rfc8888_experiment_enabled) {
-    std::optional<AlrExperimentSettings> alr_settings =
-        GetAlrSettings(env_.field_trials(), content_type_);
-    int queue_time_limit_ms;
-    if (alr_settings) {
-      enable_alr_bw_probing = true;
-      queue_time_limit_ms = alr_settings->max_paced_queue_time;
-    } else {
-      enable_alr_bw_probing =
-          RateControlSettings(env_.field_trials()).UseAlrProbing();
-      queue_time_limit_ms = pacing_config_.max_pacing_delay.Get().ms();
-    }
-
-    transport_->SetQueueTimeLimit(queue_time_limit_ms);
-    if (!rfc8888_experiment_enabled) {
-      // In the RFC8888 experiment, the pacing factor is decided exclusively in
-      // the congestion controller, and SetPacingFactor is not allowed.
-      transport_->SetPacingFactor(*pacing_factor_override);
-    }
-  }
-
-  if (config_.periodic_alr_bandwidth_probing) {
-    enable_alr_bw_probing = config_.periodic_alr_bandwidth_probing;
-  }
-
-  if (enable_alr_bw_probing) {
-    transport->EnablePeriodicAlrProbing(*enable_alr_bw_probing);
-  }
+  bool enable_alr_bw_probing =
+      config_.periodic_alr_bandwidth_probing || alr_settings.has_value() ||
+      RateControlSettings(env_.field_trials()).UseAlrProbing();
+  transport_->EnablePeriodicAlrProbing(enable_alr_bw_probing);
 
   // Only request rotation at the source when we positively know that the
   // remote side doesn't support the rotation extension. This allows us to

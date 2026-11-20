@@ -14,32 +14,18 @@
 
 #include "api/field_trials_view.h"
 
-// RFC 8888 congestion control feedback is enabled by default in Chromium
-// builds.
-#if defined(WEBRTC_CHROMIUM_BUILD)
-#define RTC_RFC8888_ENABLED_BY_DEFAULT 1
-#else
-#define RTC_RFC8888_ENABLED_BY_DEFAULT 0
-#endif
-
 namespace webrtc {
 
 bool IsRfc8888CongestionControlFeedbackEnabled(
     const FieldTrialsView& field_trials) {
-#if RTC_RFC8888_ENABLED_BY_DEFAULT
   return !field_trials.IsDisabled(kRfc8888CongestionControlFeedbackFieldTrial);
-#else
-  return field_trials.IsEnabled(kRfc8888CongestionControlFeedbackFieldTrial);
-#endif
 }
 
 std::string Rfc8888CongestionControlFeedbackFieldTrialString(
     const FieldTrialsView& field_trials) {
-#if RTC_RFC8888_ENABLED_BY_DEFAULT
   if (field_trials.IsDisabled(kRfc8888CongestionControlFeedbackFieldTrial)) {
     return "";
   }
-#endif
   return field_trials.Lookup(kRfc8888CongestionControlFeedbackFieldTrial);
 }
 

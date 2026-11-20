@@ -23,12 +23,8 @@ inline constexpr absl::string_view kRfc8888CongestionControlFeedbackFieldTrial =
 
 // Returns true if support for RFC 8888 congestion control feedback is enabled.
 //
-// In Chromium builds, support is enabled unless the field trial
+// Support is enabled by default unless the field trial
 // "WebRTC-RFC8888CongestionControlFeedback" is explicitly set to "Disabled".
-// In all other builds, support is disabled unless the field trial is explicitly
-// set to "Enabled". In other words, a field trial that is neither "Enabled" nor
-// "Disabled" (e.g. unset, or only carrying parameters such as
-// "force_send:true") means enabled in Chromium and disabled elsewhere.
 //
 // Note that this only controls whether RFC 8888 feedback is supported (i.e.
 // accepted in an offer, negotiated, and acted upon). Whether RFC 8888 feedback
@@ -40,10 +36,7 @@ bool IsRfc8888CongestionControlFeedbackEnabled(
 // Returns the value of the "WebRTC-RFC8888CongestionControlFeedback" field
 // trial, for parsing parameters such as "force_send" or "feedback_fraction".
 //
-// Where the feature is not enabled by default (see above) this is identical to
-// `FieldTrialsView::Lookup()`: parameters are honored regardless of whether the
-// trial is "Enabled" or "Disabled". Where the feature is enabled by default, an
-// empty string is returned if the trial is explicitly "Disabled", so that
+// Returns an empty string if the trial is explicitly "Disabled", so that
 // parameters cannot re-activate parts of the feature when it has been turned
 // off.
 std::string Rfc8888CongestionControlFeedbackFieldTrialString(

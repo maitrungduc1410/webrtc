@@ -99,7 +99,6 @@ class RtpTransportControllerSend final
   void ReconfigureBandwidthEstimation(
       const BandwidthEstimationSettings& settings) override;
 
-  void SetPacingFactor(float pacing_factor) override;
   void SetQueueTimeLimit(int limit_ms) override;
   StreamFeedbackProvider* GetStreamFeedbackProvider() override;
   void RegisterTargetTransferRateObserver(

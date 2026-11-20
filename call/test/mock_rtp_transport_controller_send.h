@@ -79,7 +79,6 @@ class MockRtpTransportControllerSend
               ReconfigureBandwidthEstimation,
               (const BandwidthEstimationSettings&),
               (override));
-  MOCK_METHOD(void, SetPacingFactor, (float), (override));
   MOCK_METHOD(void, SetQueueTimeLimit, (int), (override));
   MOCK_METHOD(StreamFeedbackProvider*,
               GetStreamFeedbackProvider,

@@ -126,7 +126,6 @@ class RtpTransportControllerSendInterface {
   virtual void ReconfigureBandwidthEstimation(
       const BandwidthEstimationSettings& settings) = 0;
 
-  virtual void SetPacingFactor(float pacing_factor) = 0;
   virtual void SetQueueTimeLimit(int limit_ms) = 0;
 
   virtual StreamFeedbackProvider* GetStreamFeedbackProvider() = 0;

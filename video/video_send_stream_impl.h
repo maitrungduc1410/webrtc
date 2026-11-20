@@ -73,7 +73,6 @@ struct PacingConfig {
   PacingConfig(const PacingConfig&);
   PacingConfig& operator=(const PacingConfig&) = default;
   ~PacingConfig();
-  FieldTrialParameter<double> pacing_factor;
   FieldTrialParameter<TimeDelta> max_pacing_delay;
 };
 

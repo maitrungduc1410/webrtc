@@ -17,14 +17,6 @@
 namespace webrtc {
 namespace {
 
-// Must match the condition in
-// rfc8888_congestion_control_feedback_experiment.cc.
-#if defined(WEBRTC_CHROMIUM_BUILD)
-constexpr bool kEnabledByDefault = true;
-#else
-constexpr bool kEnabledByDefault = false;
-#endif
-
 TEST(Rfc8888CongestionControlFeedbackExperimentTest, EnabledWhenEnabled) {
   FieldTrials field_trials =
       CreateTestFieldTrials("WebRTC-RFC8888CongestionControlFeedback/Enabled/");
@@ -46,16 +38,13 @@ TEST(Rfc8888CongestionControlFeedbackExperimentTest, DisabledWhenDisabled) {
   FieldTrials field_trials = CreateTestFieldTrials(
       "WebRTC-RFC8888CongestionControlFeedback/Disabled,force_send:true/");
   EXPECT_FALSE(IsRfc8888CongestionControlFeedbackEnabled(field_trials));
-  // Outside Chromium, parameters are honored regardless of the Enabled/Disabled
-  // prefix. In Chromium, an explicit "Disabled" also discards the parameters.
-  EXPECT_EQ(Rfc8888CongestionControlFeedbackFieldTrialString(field_trials),
-            kEnabledByDefault ? "" : "Disabled,force_send:true");
+  // An explicit "Disabled" also discards the parameters.
+  EXPECT_EQ(Rfc8888CongestionControlFeedbackFieldTrialString(field_trials), "");
 }
 
 TEST(Rfc8888CongestionControlFeedbackExperimentTest, DefaultWhenUnset) {
   FieldTrials field_trials = CreateTestFieldTrials();
-  EXPECT_EQ(IsRfc8888CongestionControlFeedbackEnabled(field_trials),
-            kEnabledByDefault);
+  EXPECT_TRUE(IsRfc8888CongestionControlFeedbackEnabled(field_trials));
   EXPECT_EQ(Rfc8888CongestionControlFeedbackFieldTrialString(field_trials), "");
 }
 
@@ -64,8 +53,7 @@ TEST(Rfc8888CongestionControlFeedbackExperimentTest,
   // A trial that only carries parameters is neither "Enabled" nor "Disabled".
   FieldTrials field_trials = CreateTestFieldTrials(
       "WebRTC-RFC8888CongestionControlFeedback/force_send:true/");
-  EXPECT_EQ(IsRfc8888CongestionControlFeedbackEnabled(field_trials),
-            kEnabledByDefault);
+  EXPECT_TRUE(IsRfc8888CongestionControlFeedbackEnabled(field_trials));
   // Parameters are always honored in this case.
   EXPECT_EQ(Rfc8888CongestionControlFeedbackFieldTrialString(field_trials),
             "force_send:true");
