@@ -335,6 +335,18 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   // inserts the frame according to its Sframe encryption level.
   void InsertSframePacket(const RtpPacketReceived& rtp_packet, int times_nacked)
       RTC_RUN_ON(network_queue_);
+  // Decrypts each packet of a per-packet Sframe frame and inserts the
+  // plaintext into the packet buffer. Drops the whole frame if any packet
+  // fails to decrypt or to parse.
+  void InsertPerPacketSframeFrame(SFramePacketBuffer::AssembledFrame frame)
+      RTC_RUN_ON(network_queue_);
+  // Returns whether `rtp_packet` starts a key frame according to its dependency
+  // descriptor or its generic frame descriptor.
+  bool StartsKeyFrame(const RtpPacketReceived& rtp_packet) const
+      RTC_RUN_ON(network_queue_);
+  // Requests a key frame after a per-packet Sframe frame has been dropped, at
+  // most once per `max_wait_for_keyframe_`.
+  void RequestKeyFrameForDroppedSframeFrame() RTC_RUN_ON(network_queue_);
   // Reports `rtp_packet` to the NACK module and returns the number of times it
   // was NACKed, or -1 if NACK is not used.
   int ReportPacketToNackModule(const RtpPacketReceived& rtp_packet)
@@ -505,6 +517,8 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
       RTC_GUARDED_BY(network_queue_) = false;
   TimeDelta max_wait_for_keyframe_ RTC_GUARDED_BY(network_queue_);
   Timestamp next_keyframe_request_for_seq_num_discontinuity_
+      RTC_GUARDED_BY(network_queue_) = Timestamp::MinusInfinity();
+  Timestamp next_keyframe_request_for_dropped_sframe_frame_
       RTC_GUARDED_BY(network_queue_) = Timestamp::MinusInfinity();
 
   struct StashedPacket {

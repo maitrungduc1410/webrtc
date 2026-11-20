@@ -1418,9 +1418,7 @@ void RtpVideoStreamReceiver2::InsertSframePacket(
 
                    switch (frame.encryption_level) {
                      case SframeEncryptionLevel::kPacket:
-                       // TODO(bugs.webrtc.org/479862368): Decrypt each packet
-                       // of the frame and insert the plaintext into the packet
-                       // buffer.
+                       InsertPerPacketSframeFrame(std::move(frame));
                        break;
                      case SframeEncryptionLevel::kFrame:
                        // TODO(bugs.webrtc.org/479862368): Insert per-frame
@@ -1431,6 +1429,108 @@ void RtpVideoStreamReceiver2::InsertSframePacket(
                  }),
              sframe_packet_buffer_->InsertPacket(sframe_packet.MoveValue(),
                                                  times_nacked));
+}
+
+void RtpVideoStreamReceiver2::InsertPerPacketSframeFrame(
+    SFramePacketBuffer::AssembledFrame frame) {
+  // The Sframe packet buffer has checked that all the packets of the frame
+  // have the same payload type.
+  const uint8_t payload_type = frame.packets.front().rtp_packet->PayloadType();
+  const auto type_it = payload_type_map_.find(payload_type);
+  if (type_it == payload_type_map_.end()) {
+    return;
+  }
+
+  const SframeVideoReceiveDelegate::FrameInfo frame_info = {
+      .codec =
+          GetCodecFromPayloadType(payload_type).value_or(kVideoCodecGeneric),
+      .is_key_frame = StartsKeyFrame(*frame.packets.front().rtp_packet)};
+
+  // Each packet carries its own ciphertext. The whole frame is dropped if any
+  // of them fails to decrypt or to parse, so all of them are decrypted and
+  // parsed before the first one is inserted.
+  for (SFramePacketBuffer::Packet& frame_packet : frame.packets) {
+    frame_packet.rtp_packet = sframe_delegate_->DecryptPacket(
+        std::move(frame_packet.rtp_packet), frame_info);
+    if (frame_packet.rtp_packet == nullptr) {
+      RequestKeyFrameForDroppedSframeFrame();
+      return;
+    }
+  }
+
+  std::vector<VideoRtpDepacketizer::ParsedRtpPayload> parsed_payloads;
+  parsed_payloads.reserve(frame.packets.size());
+  for (const SFramePacketBuffer::Packet& frame_packet : frame.packets) {
+    const RtpPacketReceived& rtp_packet = *frame_packet.rtp_packet;
+
+    std::optional<VideoRtpDepacketizer::ParsedRtpPayload> parsed_payload =
+        type_it->second->Parse(rtp_packet.PayloadBuffer());
+    if (parsed_payload == std::nullopt) {
+      RTC_LOG(LS_WARNING) << "Failed to parse decrypted Sframe payload for "
+                          << "ssrc: " << rtp_packet.Ssrc()
+                          << ", timestamp: " << rtp_packet.Timestamp();
+      RequestKeyFrameForDroppedSframeFrame();
+      return;
+    }
+
+    parsed_payloads.push_back(*std::move(parsed_payload));
+  }
+
+  for (size_t i = 0; i < frame.packets.size(); ++i) {
+    const RtpPacketReceived& rtp_packet = *frame.packets[i].rtp_packet;
+    VideoRtpDepacketizer::ParsedRtpPayload& parsed_payload = parsed_payloads[i];
+
+    std::optional<int64_t> unwrapped_rtp_seq_num =
+        UnwrapSequenceNumberOrRecover(rtp_packet, &parsed_payload.video_header);
+    if (!unwrapped_rtp_seq_num.has_value()) {
+      continue;
+    }
+
+    // The packet was reported to the NACK module on arrival.
+    InsertDepacketizedPacket(rtp_packet, *unwrapped_rtp_seq_num,
+                             std::move(parsed_payload),
+                             frame.packets[i].times_nacked);
+  }
+}
+
+bool RtpVideoStreamReceiver2::StartsKeyFrame(
+    const RtpPacketReceived& rtp_packet) const {
+  // A key frame attaches the structure to its dependency descriptor. Without
+  // the stream's structure, only a descriptor with an attached structure is
+  // parsed.
+  if (rtp_packet.HasExtension<RtpDependencyDescriptorExtension>()) {
+    DependencyDescriptor dependency_descriptor;
+    return rtp_packet.GetExtension<RtpDependencyDescriptorExtension>(
+               /*structure=*/nullptr, &dependency_descriptor) &&
+           dependency_descriptor.first_packet_in_frame &&
+           dependency_descriptor.attached_structure != nullptr;
+  }
+
+  // A key frame has no dependencies in its generic frame descriptor.
+  RtpGenericFrameDescriptor generic_frame_descriptor;
+  if (rtp_packet.GetExtension<RtpGenericFrameDescriptorExtension00>(
+          &generic_frame_descriptor)) {
+    return generic_frame_descriptor.FirstPacketInSubFrame() &&
+           generic_frame_descriptor.FrameDependenciesDiffs().empty();
+  }
+
+  return false;
+}
+
+void RtpVideoStreamReceiver2::RequestKeyFrameForDroppedSframeFrame() {
+  // The frames that depend on the dropped frame can't be decoded until the next
+  // key frame, and no retransmission brings it back, as its packets were all
+  // received. Frames keep failing to decrypt while the Sframe decryption key is
+  // missing or wrong, so requests are rate limited.
+  const Timestamp now = env_.clock().CurrentTime();
+  if (now < next_keyframe_request_for_dropped_sframe_frame_) {
+    return;
+  }
+
+  // The request replaces the NACKs buffered for the packet being received.
+  rtcp_feedback_buffer_.RequestKeyFrame();
+  next_keyframe_request_for_dropped_sframe_frame_ =
+      now + max_wait_for_keyframe_;
 }
 
 int RtpVideoStreamReceiver2::ReportPacketToNackModule(
