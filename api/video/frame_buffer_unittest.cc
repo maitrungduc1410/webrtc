@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "api/field_trials.h"
@@ -261,6 +262,101 @@ TEST(FrameBuffer3Test, ReturnFullTemporalUnitKSVC) {
       test::FakeFrameBuilder().Time(20).Id(4).Refs({3}).AsLast().Build()));
   EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
               ElementsAre(FrameWithId(4)));
+}
+
+TEST(FrameBuffer3Test, InterLayerPredictionWithinTemporalUnit) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  FrameBuffer buffer(/*max_frame_slots=*/10, /*max_decode_history=*/100,
+                     field_trials);
+  // Two spatial layers with inter-layer prediction (L2T1). S1 of the first
+  // temporal unit arrives last.
+  EXPECT_TRUE(
+      buffer.InsertFrame(test::FakeFrameBuilder().Time(10).Id(1).Build()));
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(20).Id(3).Refs({1}).Build()));
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(20).Id(4).Refs({2, 3}).AsLast().Build()));
+  EXPECT_FALSE(buffer.DecodableTemporalUnitsInfo().has_value());
+
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(10).Id(2).Refs({1}).AsLast().Build()));
+  // Frame 3 references frame 1 of the previous temporal unit, which is not
+  // decoded yet, so only the first temporal unit is decodable.
+  ASSERT_TRUE(buffer.DecodableTemporalUnitsInfo().has_value());
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->next_rtp_timestamp, Eq(10U));
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->last_rtp_timestamp, Eq(10U));
+
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+              ElementsAre(FrameWithId(1), FrameWithId(2)));
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+              ElementsAre(FrameWithId(3), FrameWithId(4)));
+}
+
+TEST(FrameBuffer3Test, LastFrameMidTemporalUnitEndsDecodableTemporalUnit) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  FrameBuffer buffer(/*max_frame_slots=*/10, /*max_decode_history=*/100,
+                     field_trials);
+  // Frame 2 is flagged as last in the temporal unit, but frame 3 with the same
+  // timestamp follows it.
+  EXPECT_TRUE(
+      buffer.InsertFrame(test::FakeFrameBuilder().Time(10).Id(1).Build()));
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(10).Id(2).Refs({1}).AsLast().Build()));
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(10).Id(3).Refs({2}).AsLast().Build()));
+  ASSERT_TRUE(buffer.DecodableTemporalUnitsInfo().has_value());
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->next_rtp_timestamp, Eq(10U));
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->last_rtp_timestamp, Eq(10U));
+
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+              ElementsAre(FrameWithId(1), FrameWithId(2)));
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+              ElementsAre(FrameWithId(3)));
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(), IsEmpty());
+}
+
+TEST(FrameBuffer3Test, UndecodableFrameBlocksLaterLastFramesInTemporalUnit) {
+  FieldTrials field_trials = CreateTestFieldTrials();
+  FrameBuffer buffer(/*max_frame_slots=*/10, /*max_decode_history=*/100,
+                     field_trials);
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(10).Id(1).AsLast().Build()));
+  // Frame 2 references undecoded frame 1 from another temporal unit, so the
+  // temporal unit at time 20 must stay undecodable even at frame 3.
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(20).Id(2).Refs({1}).AsLast().Build()));
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(20).Id(3).AsLast().Build()));
+  ASSERT_TRUE(buffer.DecodableTemporalUnitsInfo().has_value());
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->next_rtp_timestamp, Eq(10U));
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->last_rtp_timestamp, Eq(10U));
+
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+              ElementsAre(FrameWithId(1)));
+  ASSERT_TRUE(buffer.DecodableTemporalUnitsInfo().has_value());
+  EXPECT_THAT(buffer.DecodableTemporalUnitsInfo()->next_rtp_timestamp, Eq(20U));
+}
+
+// Many same-timestamp frames all marked as last in the temporal unit must not
+// cause cubic work per insert.
+TEST(FrameBuffer3Test, ManyLastFramesInSameTemporalUnit) {
+  // Same as kMaxFramesBuffered in video_stream_buffer_controller.cc.
+  constexpr int kNumFrames = 800;
+  FieldTrials field_trials = CreateTestFieldTrials();
+  FrameBuffer buffer(/*max_frame_slots=*/kNumFrames,
+                     /*max_decode_history=*/100, field_trials);
+  EXPECT_TRUE(buffer.InsertFrame(
+      test::FakeFrameBuilder().Time(10).Id(0).AsLast().Build()));
+  for (int64_t i = 1; i < kNumFrames; ++i) {
+    auto frame =
+        test::FakeFrameBuilder().Time(10).Id(i).Refs({i - 1}).AsLast().Build();
+    EXPECT_TRUE(buffer.InsertFrame(std::move(frame)));
+  }
+  for (int64_t i = 0; i < kNumFrames; ++i) {
+    ASSERT_THAT(buffer.ExtractNextDecodableTemporalUnit(),
+                ElementsAre(FrameWithId(i)));
+  }
+  EXPECT_THAT(buffer.ExtractNextDecodableTemporalUnit(), IsEmpty());
 }
 
 TEST(FrameBuffer3Test, InterleavedStream) {

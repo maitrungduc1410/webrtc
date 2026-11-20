@@ -19,10 +19,10 @@
 #include <span>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
 #include "api/field_trials_view.h"
 #include "api/video/encoded_frame.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/sequence_number_util.h"
 
@@ -231,46 +231,45 @@ void FrameBuffer::FindNextAndLastDecodableTemporalUnit() {
   }
 
   FrameIterator first_frame_it = frames_.begin();
-  FrameIterator last_frame_it = frames_.begin();
-  absl::InlinedVector<int64_t, 4> frames_in_temporal_unit;
+  // A frame can only reference earlier frames, so whether the temporal unit is
+  // decodable so far can be tracked incrementally.
+  bool temporal_unit_decodable = true;
   uint32_t last_decodable_temporal_unit_timestamp;
-  for (auto frame_it = frames_.begin(); frame_it != frames_.end();) {
+  for (auto frame_it = frames_.begin(); frame_it != frames_.end(); ++frame_it) {
     if (GetFrameId(frame_it) > *last_continuous_temporal_unit_frame_id_) {
       break;
     }
 
     if (GetTimestamp(frame_it) != GetTimestamp(first_frame_it)) {
-      frames_in_temporal_unit.clear();
       first_frame_it = frame_it;
+      temporal_unit_decodable = true;
     }
 
-    frames_in_temporal_unit.push_back(GetFrameId(frame_it));
-
-    last_frame_it = frame_it++;
-
-    if (IsLastFrameInTemporalUnit(last_frame_it)) {
-      bool temporal_unit_decodable = true;
-      for (auto it = first_frame_it; it != frame_it && temporal_unit_decodable;
-           ++it) {
-        for (int64_t reference : GetReferences(it)) {
-          if (!decoded_frame_history_.WasDecoded(reference) &&
-              !absl::c_linear_search(frames_in_temporal_unit, reference)) {
-            // A frame in the temporal unit has a non-decoded reference outside
-            // the temporal unit, so it's not yet ready to be decoded.
-            temporal_unit_decodable = false;
-            break;
-          }
+    if (temporal_unit_decodable) {
+      for (int64_t reference : GetReferences(frame_it)) {
+        RTC_DCHECK_LT(reference, GetFrameId(frame_it));
+        // References always point to lower frame ids (see ValidReferences()),
+        // and every buffered frame from `first_frame_it` up to `frame_it`
+        // belongs to the current temporal unit.
+        bool reference_in_temporal_unit =
+            reference >= GetFrameId(first_frame_it) &&
+            frames_.contains(reference);
+        if (!reference_in_temporal_unit &&
+            !decoded_frame_history_.WasDecoded(reference)) {
+          // A frame in the temporal unit has a non-decoded reference outside
+          // the temporal unit, so it's not yet ready to be decoded.
+          temporal_unit_decodable = false;
+          break;
         }
       }
+    }
 
-      if (temporal_unit_decodable) {
-        if (!next_decodable_temporal_unit_) {
-          next_decodable_temporal_unit_ = {.first_frame = first_frame_it,
-                                           .last_frame = last_frame_it};
-        }
-
-        last_decodable_temporal_unit_timestamp = GetTimestamp(first_frame_it);
+    if (IsLastFrameInTemporalUnit(frame_it) && temporal_unit_decodable) {
+      if (!next_decodable_temporal_unit_) {
+        next_decodable_temporal_unit_ = {.first_frame = first_frame_it,
+                                         .last_frame = frame_it};
       }
+      last_decodable_temporal_unit_timestamp = GetTimestamp(first_frame_it);
     }
   }
 
