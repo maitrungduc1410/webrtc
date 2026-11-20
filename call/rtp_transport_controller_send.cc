@@ -369,9 +369,9 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
   // and thus RTT may have changed. Always log the route change and ensure the
   // feedback adapter only reports packets sent on the new route since ECN
   // support may be different.
-  bool is_controller_supporting_ecn = rfc_8888_feedback_negotiated_ &&
-                                      controller_ &&
-                                      controller_->SupportsEcnAdaptation();
+  bool is_controller_supporting_ecn =
+      preferred_rtcp_cc_ack_type_ == RtcpFeedbackType::CCFB && controller_ &&
+      controller_->SupportsEcnAdaptation();
   if (!restart_bwe && !is_controller_supporting_ecn) {
     // Nothing changed - no need to notify the controller.
     return;
@@ -600,14 +600,15 @@ void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
   RTC_DCHECK_RUN_ON(network_thread_);
   RTC_DCHECK(preferred_rtcp_cc_ack_type == RtcpFeedbackType::CCFB ||
              preferred_rtcp_cc_ack_type == RtcpFeedbackType::TRANSPORT_CC);
-  rfc_8888_feedback_negotiated_ =
+  preferred_rtcp_cc_ack_type_ = preferred_rtcp_cc_ack_type;
+  bool rfc_8888_feedback_negotiated =
       preferred_rtcp_cc_ack_type == RtcpFeedbackType::CCFB;
   RTC_LOG_F(LS_INFO) << "Assume "
-                     << (rfc_8888_feedback_negotiated_ ? "RFC 8888" : "TWCC")
+                     << (rfc_8888_feedback_negotiated ? "RFC 8888" : "TWCC")
                      << " feedback.";
   packet_router_.SetGenerateTransportSequenceNumbers(
-      rfc_8888_feedback_negotiated_);
-  ect1_policy_.SetFeedbackSupportsEcn(rfc_8888_feedback_negotiated_);
+      rfc_8888_feedback_negotiated);
+  ect1_policy_.SetFeedbackSupportsEcn(rfc_8888_feedback_negotiated);
   packet_router_.SetSendPacketsAsEct1(ect1_policy_.ShouldSendEct1());
   // TODO: bugs.webrtc.org/447037083 - Remove method
   // IncludeOverheadInPacedSender once once support for
@@ -620,7 +621,7 @@ void RtpTransportControllerSend::SetPreferredRtcpCcAckType(
 std::optional<int>
 RtpTransportControllerSend::ReceivedCongestionControlFeedbackCount() const {
   RTC_DCHECK_RUN_ON(network_thread_);
-  if (!rfc_8888_feedback_negotiated_) {
+  if (preferred_rtcp_cc_ack_type_ != RtcpFeedbackType::CCFB) {
     return std::nullopt;
   }
   return feedback_count_;
@@ -635,7 +636,7 @@ RtpTransportControllerSend::GetCongestionControlFeedbackStatsPerSsrc() const {
 std::optional<int>
 RtpTransportControllerSend::ReceivedTransportCcFeedbackCount() const {
   RTC_DCHECK_RUN_ON(network_thread_);
-  if (rfc_8888_feedback_negotiated_) {
+  if (preferred_rtcp_cc_ack_type_ == RtcpFeedbackType::CCFB) {
     return std::nullopt;
   }
   return transport_cc_feedback_count_;
@@ -761,8 +762,8 @@ void RtpTransportControllerSend::MaybeCreateControllers() {
     process_interval_ = controller_factory_override_->GetProcessInterval();
   } else {
     RTC_LOG(LS_INFO) << "Creating Goog CC Factory.";
-    GoogCcNetworkControllerFactory factory(GoogCcFactoryConfig(
-        {.rfc_8888_feedback_negotiated = rfc_8888_feedback_negotiated_}));
+    GoogCcNetworkControllerFactory factory(
+        {.feedback_type = preferred_rtcp_cc_ack_type_});
     controller_ = factory.Create(initial_config_);
     process_interval_ = factory.GetProcessInterval();
   }

@@ -239,7 +239,8 @@ class RtpTransportControllerSend final
 
   DataSize congestion_window_size_ RTC_GUARDED_BY(network_thread_);
   bool is_congested_ RTC_GUARDED_BY(network_thread_);
-  bool rfc_8888_feedback_negotiated_ = false;
+  std::optional<RtcpFeedbackType> preferred_rtcp_cc_ack_type_
+      RTC_GUARDED_BY(network_thread_);
   Ect1Policy ect1_policy_ RTC_GUARDED_BY(network_thread_);
   // Count of feedback messages received.
   int feedback_count_ RTC_GUARDED_BY(network_thread_) = 0;

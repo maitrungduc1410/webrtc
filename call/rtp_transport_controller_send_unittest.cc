@@ -17,6 +17,9 @@
 
 #include "api/rtp_parameters.h"
 #include "api/transport/ecn_marking.h"
+#include "api/transport/network_control.h"
+#include "api/transport/network_types.h"
+#include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/congestion_controller/rtp/congestion_controller_feedback_stats.h"
@@ -36,6 +39,11 @@ using ::testing::Eq;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
+
+class FakeTargetTransferRateObserver : public TargetTransferRateObserver {
+ public:
+  void OnTargetTransferRate(TargetTransferRate) override {}
+};
 
 constexpr uint32_t kSsrc = 0x554c;
 
@@ -300,6 +308,51 @@ TEST(RtpTransportControllerSendTest,
   EXPECT_EQ(transport.GetCongestionControlFeedbackStatsPerSsrc()[kSsrc]
                 .num_packets_reported_as_lost,
             1);
+}
+
+TEST(RtpTransportControllerSendTest,
+     UsesSendSideBwePacingFactorWhenTwccNegotiatedBeforeControllerCreated) {
+  test::RunLoop main_thread;
+  FakeTargetTransferRateObserver observer;
+  RtpTransportControllerSend transport(
+      {.env = CreateTestEnvironment(),
+       .network_thread = main_thread.task_queue()});
+
+  transport.SetPreferredRtcpCcAckType(RtcpFeedbackType::TRANSPORT_CC);
+  transport.RegisterTargetTransferRateObserver(&observer);
+  transport.OnNetworkAvailability(true);
+
+  ASSERT_NE(transport.GetNetworkController(), nullptr);
+  constexpr DataRate kTargetRate = DataRate::KilobitsPerSec(400);
+  TargetRateConstraints constraints;
+  constraints.at_time = Timestamp::Seconds(1);
+  constraints.starting_rate = kTargetRate;
+  NetworkControlUpdate update =
+      transport.GetNetworkController()->OnTargetRateConstraints(constraints);
+  ASSERT_TRUE(update.pacer_config.has_value());
+  EXPECT_EQ(update.pacer_config->data_rate(), kTargetRate * 1.1f);
+}
+
+TEST(RtpTransportControllerSendTest,
+     UsesDefaultPacingFactorWhenFeedbackFormatUnknownAtControllerCreation) {
+  test::RunLoop main_thread;
+  FakeTargetTransferRateObserver observer;
+  RtpTransportControllerSend transport(
+      {.env = CreateTestEnvironment(),
+       .network_thread = main_thread.task_queue()});
+
+  transport.RegisterTargetTransferRateObserver(&observer);
+  transport.OnNetworkAvailability(true);
+
+  ASSERT_NE(transport.GetNetworkController(), nullptr);
+  constexpr DataRate kTargetRate = DataRate::KilobitsPerSec(400);
+  TargetRateConstraints constraints;
+  constraints.at_time = Timestamp::Seconds(1);
+  constraints.starting_rate = kTargetRate;
+  NetworkControlUpdate update =
+      transport.GetNetworkController()->OnTargetRateConstraints(constraints);
+  ASSERT_TRUE(update.pacer_config.has_value());
+  EXPECT_EQ(update.pacer_config->data_rate(), kTargetRate * 2.5f);
 }
 
 }  // namespace

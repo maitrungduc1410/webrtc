@@ -799,6 +799,8 @@ if (rtc_include_tests) {
         ":rtp_sender",
         "../api:rtp_parameters",
         "../api/transport:ecn_marking",
+        "../api/transport:network_control",
+        "../api/units:data_rate",
         "../api/units:time_delta",
         "../api/units:timestamp",
         "../modules/congestion_controller/rtp:congestion_controller_feedback_stats",

@@ -20,6 +20,7 @@
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
 #include "api/field_trials.h"
+#include "api/rtp_parameters.h"
 #include "api/test/network_emulation/create_cross_traffic.h"
 #include "api/test/network_emulation/cross_traffic.h"
 #include "api/transport/goog_cc_factory.h"
@@ -317,6 +318,40 @@ TEST(GoogCcNetworkControllerTest, ChangeDefaultPacingFactorAfterFirstFeedback) {
   EXPECT_LT(update.pacer_config->data_rate(),
             (kInitialBitrate + DataRate::KilobitsPerSec(5)) *
                 kDefaultPacingRateSendSideBwe);
+}
+
+TEST(GoogCcNetworkControllerTest,
+     UsesSendSideBwePacingFactorFromStartWhenTwccFeedbackConfigured) {
+  NetworkControllerTestFixture fixture(
+      GoogCcFactoryConfig{.feedback_type = RtcpFeedbackType::TRANSPORT_CC});
+  std::unique_ptr<NetworkControllerInterface> controller =
+      fixture.CreateController();
+
+  NetworkControlUpdate update = controller->OnNetworkAvailability(
+      {.at_time = Timestamp::Millis(123456), .network_available = true});
+  update =
+      controller->OnProcessInterval({.at_time = Timestamp::Millis(123456)});
+
+  ASSERT_TRUE(update.pacer_config.has_value());
+  EXPECT_EQ(update.pacer_config->data_rate(),
+            kInitialBitrate * kDefaultPacingRateSendSideBwe);
+}
+
+TEST(GoogCcNetworkControllerTest,
+     UsesDefaultPacingFactorWhenRembFeedbackConfigured) {
+  NetworkControllerTestFixture fixture(
+      GoogCcFactoryConfig{.feedback_type = RtcpFeedbackType::REMB});
+  std::unique_ptr<NetworkControllerInterface> controller =
+      fixture.CreateController();
+
+  NetworkControlUpdate update = controller->OnNetworkAvailability(
+      {.at_time = Timestamp::Millis(123456), .network_available = true});
+  update =
+      controller->OnProcessInterval({.at_time = Timestamp::Millis(123456)});
+
+  ASSERT_TRUE(update.pacer_config.has_value());
+  EXPECT_EQ(update.pacer_config->data_rate(),
+            kInitialBitrate * kDefaultPacingRate);
 }
 
 TEST(GoogCcNetworkControllerTest, RespectsConfiguredPacingFactor) {

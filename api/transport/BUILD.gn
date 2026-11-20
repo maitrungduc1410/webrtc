@@ -80,10 +80,12 @@ rtc_library("goog_cc") {
     ":network_control",
     "..:field_trials_view",
     "..:network_state_predictor_api",
+    "..:rtp_parameters",
     "../../modules/congestion_controller/goog_cc",
     "../../modules/congestion_controller/scream:scream_network_controller",
     "../../rtc_base:logging",
     "../../rtc_base/experiments:field_trial_parser",
+    "../../rtc_base/system:ignore_warnings",
     "../../rtc_base/system:rtc_export",
     "../units:time_delta",
   ]

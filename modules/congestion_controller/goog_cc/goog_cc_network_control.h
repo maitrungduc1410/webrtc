@@ -20,6 +20,7 @@
 
 #include "api/environment/environment.h"
 #include "api/network_state_predictor.h"
+#include "api/rtp_parameters.h"
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
@@ -41,6 +42,7 @@ namespace webrtc {
 struct GoogCcConfig {
   std::unique_ptr<NetworkStateEstimator> network_state_estimator = nullptr;
   std::unique_ptr<NetworkStatePredictor> network_state_predictor = nullptr;
+  std::optional<RtcpFeedbackType> feedback_type;
 };
 
 class GoogCcNetworkController : public NetworkControllerInterface {
@@ -127,6 +129,7 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   std::optional<uint8_t> last_estimated_fraction_loss_ = 0;
   TimeDelta last_estimated_round_trip_time_ = TimeDelta::PlusInfinity();
 
+  const bool has_packet_feedback_;
   std::optional<double> pacing_factor_;
   TimeDelta pacing_time_window_;
   DataRate min_total_allocated_bitrate_;

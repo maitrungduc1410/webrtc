@@ -24,6 +24,7 @@ rtc_library("goog_cc") {
     ":send_side_bwe",
     "../../../api:field_trials_view",
     "../../../api:network_state_predictor_api",
+    "../../../api:rtp_parameters",
     "../../../api/environment",
     "../../../api/transport:bandwidth_usage",
     "../../../api/transport:network_control",
@@ -328,6 +329,7 @@ if (rtc_include_tests) {
       deps = [
         ":delay_based_bwe_unittest_helper",
         "../../../api:field_trials",
+        "../../../api:rtp_parameters",
         "../../../api/environment",
         "../../../api/test/network_emulation",
         "../../../api/test/network_emulation:create_cross_traffic",

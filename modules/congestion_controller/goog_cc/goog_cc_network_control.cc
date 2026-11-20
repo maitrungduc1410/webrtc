@@ -21,6 +21,7 @@
 #include "absl/strings/string_view.h"
 #include "api/environment/environment.h"
 #include "api/field_trials_view.h"
+#include "api/rtp_parameters.h"
 #include "api/transport/bandwidth_usage.h"
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
@@ -128,6 +129,9 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
       last_loss_based_target_rate_(*config.constraints.starting_rate),
       last_pushback_target_rate_(last_loss_based_target_rate_),
       last_loss_base_state_(LossBasedState::kDelayBasedEstimate),
+      has_packet_feedback_(
+          goog_cc_config.feedback_type == RtcpFeedbackType::CCFB ||
+          goog_cc_config.feedback_type == RtcpFeedbackType::TRANSPORT_CC),
       pacing_factor_(config.stream_based_config.pacing_factor),
       pacing_time_window_(config.default_pacing_time_window),
       min_total_allocated_bitrate_(
@@ -661,9 +665,10 @@ PacerConfig GoogCcNetworkController::GetPacingRates(Timestamp at_time) const {
   // because we don't want to build queues in the pacer when pushback occurs.
   DataRate pacing_rate =
       std::max(min_total_allocated_bitrate_, last_loss_based_target_rate_) *
-      pacing_factor_.value_or(first_transport_feedback_received_
-                                  ? kDefaultPaceMultiplierWithSendSideBwe
-                                  : kDefaultPaceMultiplier);
+      pacing_factor_.value_or(
+          (has_packet_feedback_ || first_transport_feedback_received_)
+              ? kDefaultPaceMultiplierWithSendSideBwe
+              : kDefaultPaceMultiplier);
   if (limit_pacingfactor_by_upper_link_capacity_estimate_ && estimate_ &&
       estimate_->link_capacity_upper.IsFinite() &&
       pacing_rate > estimate_->link_capacity_upper) {

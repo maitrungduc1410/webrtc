@@ -12,8 +12,10 @@
 #define API_TRANSPORT_GOOG_CC_FACTORY_H_
 
 #include <memory>
+#include <optional>
 
 #include "api/network_state_predictor.h"
+#include "api/rtp_parameters.h"
 #include "api/transport/network_control.h"
 #include "api/units/time_delta.h"
 #include "rtc_base/system/rtc_export.h"
@@ -21,7 +23,13 @@
 namespace webrtc {
 
 struct GoogCcFactoryConfig {
+  // TODO(bugs.webrtc.org/447037083): Remove once downstream has migrated to
+  // `feedback_type`.
+  [[deprecated("Use feedback_type instead")]]
   bool rfc_8888_feedback_negotiated = false;
+  // Negotiated RTCP feedback type for congestion control (e.g.
+  // RtcpFeedbackType::TRANSPORT_CC or RtcpFeedbackType::CCFB), if known.
+  std::optional<RtcpFeedbackType> feedback_type;
   std::unique_ptr<NetworkStateEstimatorFactory> network_state_estimator_factory;
   NetworkStatePredictorFactoryInterface* network_state_predictor_factory =
       nullptr;

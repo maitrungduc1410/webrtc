@@ -12,16 +12,19 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "api/field_trials_view.h"
+#include "api/rtp_parameters.h"
 #include "api/transport/network_control.h"
 #include "api/units/time_delta.h"
 #include "modules/congestion_controller/goog_cc/goog_cc_network_control.h"
 #include "modules/congestion_controller/scream/scream_network_controller.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/system/ignore_warnings.h"
 
 namespace webrtc {
 
@@ -69,12 +72,20 @@ GoogCcNetworkControllerFactory::Create(NetworkControllerConfig config) {
         factory_config_.network_state_predictor_factory
             ->CreateNetworkStatePredictor();
   }
+  std::optional<RtcpFeedbackType> feedback_type = factory_config_.feedback_type;
+  RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
+  if (!feedback_type.has_value() &&
+      factory_config_.rfc_8888_feedback_negotiated) {
+    feedback_type = RtcpFeedbackType::CCFB;
+  }
+  RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
   Mode mode = ParseMode(config.env.field_trials());
   if (mode == Mode::kScreamWithTwccOrRfc8888 ||
       (mode == Mode::kScreamWithRfc8888 &&
-       factory_config_.rfc_8888_feedback_negotiated)) {
+       feedback_type == RtcpFeedbackType::CCFB)) {
     return std::make_unique<ScreamNetworkController>(config);
   }
+  goog_cc_config.feedback_type = feedback_type;
   return std::make_unique<GoogCcNetworkController>(config,
                                                    std::move(goog_cc_config));
 }
