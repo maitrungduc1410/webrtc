@@ -36,6 +36,8 @@ library.
 
 - `absl::NoDestructor`
 
+- `absl::Overload`
+
 - `absl::WrapUnique`
 
 - `absl::string_view` (preferred over std::string_view, see

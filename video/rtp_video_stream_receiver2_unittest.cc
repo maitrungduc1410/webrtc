@@ -43,6 +43,7 @@
 #include "api/video/video_frame_type.h"
 #include "api/video/video_timing.h"
 #include "call/rtp_packet_sink_interface.h"
+#include "call/sframe_options.h"
 #include "call/test/mock_rtp_packet_sink_interface.h"
 #include "call/video_receive_stream.h"
 #include "common_video/h264/h264_common.h"
@@ -60,9 +61,11 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "modules/rtp_rtcp/source/rtp_video_header.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
 #include "modules/sframe/mock_sframe_media_decryptor.h"
 #include "modules/sframe/sframe_decrypt_error_reporter.h"
 #include "modules/sframe/sframe_decryption_config.h"
+#include "modules/sframe/sframe_media_decryptor_interface.h"
 #include "modules/video_coding/codecs/h264/include/h264_globals.h"
 #include "modules/video_coding/codecs/vp8/include/vp8_globals.h"
 #include "modules/video_coding/codecs/vp9/include/vp9_globals.h"
@@ -86,6 +89,7 @@ using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
+using ::testing::NiceMock;
 using ::testing::SizeIs;
 using ::testing::Values;
 
@@ -200,6 +204,33 @@ RtpPacketReceived CreateGenericKeyFramePacket(
   rtp_packet.SetMarker(true);
   rtp_packet.SetPayload(payload);
   return rtp_packet;
+}
+
+// Returns a packet whose payload is the Sframe `descriptor` followed by
+// `ciphertext`. The marker bit is set on the last packet of the frame.
+RtpPacketReceived CreateSframePacket(uint16_t sequence_number,
+                                     const SframeDescriptor& descriptor,
+                                     std::span<const uint8_t> ciphertext) {
+  std::vector<uint8_t> payload = {BuildSframeDescriptorByte(
+      descriptor.start, descriptor.end, descriptor.encryption_level)};
+  payload.insert(payload.end(), ciphertext.begin(), ciphertext.end());
+
+  RtpPacketReceived rtp_packet;
+  rtp_packet.SetPayloadType(kPayloadType);
+  rtp_packet.SetSequenceNumber(sequence_number);
+  rtp_packet.SetMarker(descriptor.end);
+  rtp_packet.SetPayload(payload);
+  return rtp_packet;
+}
+
+SframeReceiveOptions RequiredSframeOptions(
+    scoped_refptr<SframeMediaDecryptorInterface> decryptor,
+    SframeDecryptErrorCallback error_callback = [](SframeDecryptError) {}) {
+  return {.required = true,
+          .decryption_config = SframeDecryptionConfig{
+              .decryptor = std::move(decryptor),
+              .error_reporter = SframeDecryptErrorReporter::Create(
+                  std::move(error_callback))}};
 }
 
 }  // namespace
@@ -751,6 +782,92 @@ TEST_F(RtpVideoStreamReceiver2Test,
 
   EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
   rtp_video_stream_receiver_->OnRtpPacket(CreateGenericKeyFramePacket());
+}
+
+TEST_F(RtpVideoStreamReceiver2Test,
+       RequestsKeyFrameWhenSframeFrameFailsValidation) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      make_ref_counted<NiceMock<MockSframeMediaDecryptor>>();
+  rtp_video_stream_receiver_->StartReceive();
+  rtp_video_stream_receiver_->UpdateSframeOptions(
+      RequiredSframeOptions(decryptor));
+
+  // The packets of the frame have different T bits.
+  const uint8_t kFirstPayload[] = {0x03, 1, 2};
+  const uint8_t kLastPayload[] = {0x01, 3, 4};
+  EXPECT_CALL(*decryptor, Decrypt).Times(0);
+  EXPECT_CALL(mock_on_complete_frame_callback_, DoOnCompleteFrame).Times(0);
+
+  rtp_video_stream_receiver_->OnRtpPacket(CreateSframePacket(
+      /*sequence_number=*/1,
+      {.start = true, .encryption_level = SframeEncryptionLevel::kPacket},
+      kFirstPayload));
+  rtp_video_stream_receiver_->OnRtpPacket(CreateSframePacket(
+      /*sequence_number=*/2,
+      {.end = true, .encryption_level = SframeEncryptionLevel::kFrame},
+      kLastPayload));
+
+  EXPECT_EQ(rtcp_packet_parser_.pli()->num_packets(), 1);
+}
+
+TEST_F(RtpVideoStreamReceiver2Test, ReportsSframePacketsToNackOnArrival) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      make_ref_counted<NiceMock<MockSframeMediaDecryptor>>();
+  rtp_video_stream_receiver_->SetNackHistory(TimeDelta::Seconds(1));
+  rtp_video_stream_receiver_->StartReceive();
+  rtp_video_stream_receiver_->UpdateSframeOptions(
+      RequiredSframeOptions(decryptor));
+
+  // Packets 1, 2 and 4 wait in the Sframe packet buffer for packet 3, so only
+  // packet 3 is NACKed.
+  const uint8_t kFirstPayload[] = {0x03, 1};
+  const uint8_t kMiddlePayload[] = {0x01, 2};
+  const uint8_t kLastPayload[] = {0x01, 4};
+
+  rtp_video_stream_receiver_->OnRtpPacket(CreateSframePacket(
+      /*sequence_number=*/1,
+      {.start = true, .encryption_level = SframeEncryptionLevel::kPacket},
+      kFirstPayload));
+  rtp_video_stream_receiver_->OnRtpPacket(CreateSframePacket(
+      /*sequence_number=*/2,
+      {.encryption_level = SframeEncryptionLevel::kPacket}, kMiddlePayload));
+  rtp_video_stream_receiver_->OnRtpPacket(CreateSframePacket(
+      /*sequence_number=*/4,
+      {.end = true, .encryption_level = SframeEncryptionLevel::kPacket},
+      kLastPayload));
+
+  EXPECT_EQ(rtcp_packet_parser_.nack()->num_packets(), 1);
+  EXPECT_THAT(rtcp_packet_parser_.nack()->packet_ids(), ElementsAre(3));
+}
+
+TEST_F(RtpVideoStreamReceiver2Test,
+       ReportsSframePacketsReceivedWithoutDecryptorToNack) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      make_ref_counted<NiceMock<MockSframeMediaDecryptor>>();
+  rtp_video_stream_receiver_->SetNackHistory(TimeDelta::Seconds(1));
+  rtp_video_stream_receiver_->StartReceive();
+  rtp_video_stream_receiver_->UpdateSframeOptions(
+      RequiredSframeOptions(decryptor));
+
+  const uint8_t kPayload[] = {1, 2};
+  const SframeDescriptor kDescriptor = {
+      .start = true,
+      .end = true,
+      .encryption_level = SframeEncryptionLevel::kPacket};
+  rtp_video_stream_receiver_->OnRtpPacket(
+      CreateSframePacket(/*sequence_number=*/1, kDescriptor, kPayload));
+
+  // Packet 2 is dropped, as there is no decryptor when it arrives.
+  rtp_video_stream_receiver_->UpdateSframeOptions({.required = true});
+  rtp_video_stream_receiver_->OnRtpPacket(
+      CreateSframePacket(/*sequence_number=*/2, kDescriptor, kPayload));
+
+  rtp_video_stream_receiver_->UpdateSframeOptions(
+      RequiredSframeOptions(decryptor));
+  rtp_video_stream_receiver_->OnRtpPacket(
+      CreateSframePacket(/*sequence_number=*/3, kDescriptor, kPayload));
+
+  EXPECT_EQ(rtcp_packet_parser_.nack()->num_packets(), 0);
 }
 
 TEST_F(RtpVideoStreamReceiver2Test,

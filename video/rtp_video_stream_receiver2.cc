@@ -20,16 +20,19 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/overload.h"
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/environment/environment.h"
 #include "api/field_trials_view.h"
 #include "api/frame_transformer_interface.h"
 #include "api/make_ref_counted.h"
+#include "api/rtc_error.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_packet_info.h"
 #include "api/rtp_packet_infos.h"
@@ -67,6 +70,7 @@
 #include "modules/rtp_rtcp/source/corruption_detection_extension.h"
 #include "modules/rtp_rtcp/source/create_video_rtp_depacketizer.h"
 #include "modules/rtp_rtcp/source/frame_object.h"
+#include "modules/rtp_rtcp/source/rtp_depacketizer_sframe.h"
 #include "modules/rtp_rtcp/source/rtp_dependency_descriptor_extension.h"
 #include "modules/rtp_rtcp/source/rtp_generic_frame_descriptor.h"
 #include "modules/rtp_rtcp/source/rtp_generic_frame_descriptor_extension.h"
@@ -76,6 +80,8 @@
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
 #include "modules/rtp_rtcp/source/rtp_video_header.h"
 #include "modules/rtp_rtcp/source/rtp_video_stream_receiver_frame_transformer_delegate.h"
+#include "modules/rtp_rtcp/source/sframe_descriptor.h"
+#include "modules/rtp_rtcp/source/sframe_rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/ulpfec_receiver.h"
 #include "modules/rtp_rtcp/source/video_rtp_depacketizer.h"
 #include "modules/rtp_rtcp/source/video_rtp_depacketizer_raw.h"
@@ -85,6 +91,7 @@
 #include "modules/video_coding/nack_requester.h"
 #include "modules/video_coding/packet_buffer.h"
 #include "modules/video_coding/rtp_frame_reference_finder.h"
+#include "modules/video_coding/sframe_packet_buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/experiments/field_trial_parser.h"
@@ -353,6 +360,9 @@ RtpVideoStreamReceiver2::RtpVideoStreamReceiver2(
   }
 
   sframe_required_by_negotiation_ = config_.rtp.sframe_options.required;
+  if (sframe_required_by_negotiation_) {
+    sframe_packet_buffer_ = std::make_unique<SFramePacketBuffer>();
+  }
   if (config_.rtp.sframe_options.decryption_config.has_value()) {
     sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
         *config_.rtp.sframe_options.decryption_config, config_.rtp.remote_ssrc);
@@ -674,6 +684,9 @@ std::optional<int64_t> RtpVideoStreamReceiver2::UnwrapSequenceNumberOrRecover(
 
     // Drop state from the previous epoch and anchor at the recovery keyframe.
     packet_buffer_.Clear();
+    if (sframe_packet_buffer_ != nullptr) {
+      sframe_packet_buffer_->Clear();
+    }
     reference_finder_ = std::make_unique<RtpFrameReferenceFinder>(
         &env_.field_trials(),
         last_completed_picture_id_ + std::numeric_limits<uint16_t>::max());
@@ -1146,6 +1159,9 @@ void RtpVideoStreamReceiver2::UpdateSframeOptions(
     const SframeReceiveOptions& options) {
   RTC_DCHECK_RUN_ON(network_queue_);
   sframe_required_by_negotiation_ = options.required;
+  if (sframe_required_by_negotiation_ && sframe_packet_buffer_ == nullptr) {
+    sframe_packet_buffer_ = std::make_unique<SFramePacketBuffer>();
+  }
   if (options.decryption_config.has_value()) {
     sframe_delegate_ = std::make_unique<SframeVideoReceiveDelegate>(
         *options.decryption_config, config_.rtp.remote_ssrc);
@@ -1330,7 +1346,7 @@ void RtpVideoStreamReceiver2::ReceivePacket(
   }
 
   if (sframe_required_by_negotiation_) {
-    // TODO(bugs.webrtc.org/479862368): Wire up the Sframe decryptor.
+    ReceiveSframePacket(rtp_packet);
     return;
   }
 
@@ -1352,6 +1368,69 @@ void RtpVideoStreamReceiver2::ReceivePacket(
   const int times_nacked = ReportPacketToNackModule(rtp_packet);
   InsertDepacketizedPacket(rtp_packet, *unwrapped_rtp_seq_num,
                            std::move(*parsed_payload), times_nacked);
+}
+
+void RtpVideoStreamReceiver2::ReceiveSframePacket(
+    const RtpPacketReceived& rtp_packet) {
+  // The NACK module learns about the packet on arrival, also when the packet is
+  // dropped or waits in the Sframe packet buffer for the rest of its frame.
+  const int times_nacked = ReportPacketToNackModule(rtp_packet);
+  InsertSframePacket(rtp_packet, times_nacked);
+
+  // A key frame request, if any, replaces the buffered NACKs.
+  rtcp_feedback_buffer_.SendBufferedRtcpFeedback();
+}
+
+void RtpVideoStreamReceiver2::InsertSframePacket(
+    const RtpPacketReceived& rtp_packet,
+    int times_nacked) {
+  RTC_DCHECK(sframe_packet_buffer_ != nullptr);
+
+  if (sframe_delegate_ == nullptr) {
+    // Sframe is required, but no decryptor has been created yet.
+    return;
+  }
+
+  RTCErrorOr<std::unique_ptr<SframeRtpPacketReceived>> sframe_packet =
+      ParseSframeRtpPacketOrError(rtp_packet);
+  if (!sframe_packet.ok()) {
+    RTC_LOG(LS_WARNING) << "Dropping RTP packet: "
+                        << sframe_packet.error().message()
+                        << ", ssrc: " << rtp_packet.Ssrc();
+    return;
+  }
+
+  std::visit(absl::Overload(
+                 [&](SFramePacketBuffer::InsertResult result) {
+                   RTC_DCHECK_RUN_ON(network_queue_);
+
+                   switch (result) {
+                     case SFramePacketBuffer::InsertResult::kNoFrame:
+                       break;
+                     case SFramePacketBuffer::InsertResult::kBufferCleared:
+                     case SFramePacketBuffer::InsertResult::kFrameDropped:
+                       rtcp_feedback_buffer_.RequestKeyFrame();
+                       break;
+                   }
+                 },
+                 [&](SFramePacketBuffer::AssembledFrame frame) {
+                   RTC_DCHECK_RUN_ON(network_queue_);
+
+                   switch (frame.encryption_level) {
+                     case SframeEncryptionLevel::kPacket:
+                       // TODO(bugs.webrtc.org/479862368): Decrypt each packet
+                       // of the frame and insert the plaintext into the packet
+                       // buffer.
+                       break;
+                     case SframeEncryptionLevel::kFrame:
+                       // TODO(bugs.webrtc.org/479862368): Insert per-frame
+                       // media and decrypt it once the packet buffer has
+                       // assembled the frame.
+                       break;
+                   }
+                 }),
+             sframe_packet_buffer_->InsertPacket(sframe_packet.MoveValue(),
+                                                 times_nacked));
 }
 
 int RtpVideoStreamReceiver2::ReportPacketToNackModule(
@@ -1549,6 +1628,9 @@ void RtpVideoStreamReceiver2::FrameDecoded(int64_t picture_id) {
                                      ++ts_it);
   }
   packet_buffer_.ClearTo(unwrapped_seq_num);
+  if (sframe_packet_buffer_ != nullptr) {
+    sframe_packet_buffer_->ClearTo(seq_num);
+  }
   reference_finder_->ClearTo(seq_num, rtp_timestamp);
 }
 

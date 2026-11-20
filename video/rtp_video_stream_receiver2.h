@@ -63,6 +63,7 @@
 #include "modules/video_coding/nack_requester.h"
 #include "modules/video_coding/packet_buffer.h"
 #include "modules/video_coding/rtp_frame_reference_finder.h"
+#include "modules/video_coding/sframe_packet_buffer.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_unwrapper.h"
@@ -326,6 +327,14 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   // for the same packet both before and after RED decapsulation.
   void ReceivePacket(const RtpPacketReceived& rtp_packet)
       RTC_RUN_ON(network_queue_);
+  // Reports an Sframe packet to the NACK module, inserts it with
+  // InsertSframePacket() and sends the resulting RTCP feedback.
+  void ReceiveSframePacket(const RtpPacketReceived& rtp_packet)
+      RTC_RUN_ON(network_queue_);
+  // Buffers an Sframe packet until the S->E run of its frame is complete, then
+  // inserts the frame according to its Sframe encryption level.
+  void InsertSframePacket(const RtpPacketReceived& rtp_packet, int times_nacked)
+      RTC_RUN_ON(network_queue_);
   // Reports `rtp_packet` to the NACK module and returns the number of times it
   // was NACKed, or -1 if NACK is not used.
   int ReportPacketToNackModule(const RtpPacketReceived& rtp_packet)
@@ -400,6 +409,10 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   video_coding::PacketBuffer packet_buffer_ RTC_GUARDED_BY(network_queue_);
   bool sframe_required_by_negotiation_ RTC_GUARDED_BY(network_queue_) = false;
   std::unique_ptr<SframeVideoReceiveDelegate> sframe_delegate_
+      RTC_GUARDED_BY(network_queue_);
+  // Collects the S->E runs of the Sframe packets ahead of decryption. Set
+  // while Sframe is required.
+  std::unique_ptr<SFramePacketBuffer> sframe_packet_buffer_
       RTC_GUARDED_BY(network_queue_);
   // h26x_packet_buffer_ is applicable to H.264 and H.265. For H.265 it is
   // always used but for H.264 it is only used if WebRTC-Video-H26xPacketBuffer

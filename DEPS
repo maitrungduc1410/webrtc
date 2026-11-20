@@ -1225,6 +1225,7 @@ include_rules = [
   "+absl/crc",
   "+absl/functional/any_invocable.h",
   "+absl/functional/bind_front.h",
+  "+absl/functional/overload.h",
   "+absl/memory/memory.h",
   "+absl/numeric/bits.h",
   "+absl/strings/ascii.h",
