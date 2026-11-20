@@ -24,6 +24,7 @@
 #include <spa/utils/type.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -203,17 +204,29 @@ void PipeWireNode::OnNodeParam(void* data,
 
       fract = static_cast<spa_fraction*>(SPA_POD_BODY(val));
 
-      if (choice == SPA_CHOICE_None && n_items >= 1) {
-        cap.maxFPS = 1.0 * fract[0].num / fract[0].denom;
+      if (choice == SPA_CHOICE_None && n_items >= 1 && fract[0].denom) {
+        cap.maxFPS = std::ceil(1.0 * fract[0].num / fract[0].denom);
+        cap.maxFPSNumerator = fract[0].num;
+        cap.maxFPSDenominator = fract[0].denom;
       } else if (choice == SPA_CHOICE_Enum && n_items >= 2) {
+        double max_fps = 0.0;
         for (uint32_t i = 1; i < n_items; i++) {
-          cap.maxFPS = std::max(
-              static_cast<int32_t>(1.0 * fract[i].num / fract[i].denom),
-              cap.maxFPS);
+          if (!fract[i].denom) {
+            continue;
+          }
+          const double fps = 1.0 * fract[i].num / fract[i].denom;
+          if (fps > max_fps || !cap.maxFPSDenominator) {
+            max_fps = fps;
+            cap.maxFPSNumerator = fract[i].num;
+            cap.maxFPSDenominator = fract[i].denom;
+          }
         }
+        cap.maxFPS = static_cast<int32_t>(std::ceil(max_fps));
       } else if (choice == SPA_CHOICE_Range && n_items >= 2 &&
-                 fract[1].num > 0) {
-        cap.maxFPS = 1.0 * fract[1].num / fract[1].denom;
+                 fract[1].num > 0 && fract[1].denom) {
+        cap.maxFPS = std::ceil(1.0 * fract[1].num / fract[1].denom);
+        cap.maxFPSNumerator = fract[1].num;
+        cap.maxFPSDenominator = fract[1].denom;
       }
     }
   }

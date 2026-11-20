@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -137,7 +138,7 @@ static spa_pod* BuildFormat(spa_pod_builder* builder,
                             VideoType video_type,
                             uint32_t width,
                             uint32_t height,
-                            float frame_rate) {
+                            spa_fraction frame_rate) {
   spa_pod_frame frame;
 
   const uint32_t media_subtype = video_type == VideoType::kMJPEG
@@ -163,11 +164,9 @@ static spa_pod* BuildFormat(spa_pod_builder* builder,
                       SPA_POD_Rectangle(&resolution), 0);
 
   // Framerate can be also set to 0 to be unspecified
-  if (frame_rate) {
-    spa_fraction framerate =
-        spa_fraction{.num = static_cast<uint32_t>(frame_rate), .denom = 1};
+  if (frame_rate.num) {
     spa_pod_builder_add(builder, SPA_FORMAT_VIDEO_framerate,
-                        SPA_POD_Fraction(&framerate), 0);
+                        SPA_POD_Fraction(&frame_rate), 0);
   } else {
     // Default to some reasonable values
     spa_fraction preferred_frame_rate =
@@ -237,7 +236,14 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
   std::vector<const spa_pod*> params;
   uint32_t width = capability.width;
   uint32_t height = capability.height;
-  uint32_t frame_rate = capability.maxFPS;
+  spa_fraction frame_rate = {.num = static_cast<uint32_t>(capability.maxFPS),
+                             .denom = 1};
+  if (capability.maxFPSNumerator && capability.maxFPSDenominator) {
+    RTC_DCHECK(capability.maxFPS == std::ceil(1.0 * capability.maxFPSNumerator /
+                                              capability.maxFPSDenominator));
+    frame_rate = {.num = capability.maxFPSNumerator,
+                  .denom = capability.maxFPSDenominator};
+  }
   VideoType video_type = capability.videoType;
 
   params.push_back(
@@ -311,13 +317,18 @@ void VideoCaptureModulePipeWire::OnStreamParamChanged(
     that->OnFormatChanged(format);
 }
 
-static int32_t MaxFPSFromFractions(const spa_fraction& framerate,
-                                   const spa_fraction& max_framerate) {
-  if (framerate.num && framerate.denom)
-    return framerate.num / framerate.denom;
-  if (max_framerate.num && max_framerate.denom)
-    return max_framerate.num / max_framerate.denom;
-  return 30;
+static void SetMaxFPSFromFractions(const spa_fraction& framerate,
+                                   const spa_fraction& max_framerate,
+                                   VideoCaptureCapability& capability) {
+  spa_fraction selected = {.num = 30, .denom = 1};
+  if (framerate.num && framerate.denom) {
+    selected = framerate;
+  } else if (max_framerate.num && max_framerate.denom) {
+    selected = max_framerate;
+  }
+  capability.maxFPS = std::ceil(1.0 * selected.num / selected.denom);
+  capability.maxFPSNumerator = selected.num;
+  capability.maxFPSDenominator = selected.denom;
 }
 
 RTC_NO_SANITIZE("cfi-icall")
@@ -338,8 +349,8 @@ void VideoCaptureModulePipeWire::OnFormatChanged(const struct spa_pod* format) {
       configured_capability_.width = f.size.width;
       configured_capability_.height = f.size.height;
       configured_capability_.videoType = PipeWireRawFormatToVideoType(f.format);
-      configured_capability_.maxFPS =
-          MaxFPSFromFractions(f.framerate, f.max_framerate);
+      SetMaxFPSFromFractions(f.framerate, f.max_framerate,
+                             configured_capability_);
       break;
     }
     case SPA_MEDIA_SUBTYPE_mjpg: {
@@ -348,8 +359,8 @@ void VideoCaptureModulePipeWire::OnFormatChanged(const struct spa_pod* format) {
       configured_capability_.width = f.size.width;
       configured_capability_.height = f.size.height;
       configured_capability_.videoType = VideoType::kMJPEG;
-      configured_capability_.maxFPS =
-          MaxFPSFromFractions(f.framerate, f.max_framerate);
+      SetMaxFPSFromFractions(f.framerate, f.max_framerate,
+                             configured_capability_);
       break;
     }
     default:

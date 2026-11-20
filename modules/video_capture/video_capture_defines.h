@@ -27,6 +27,8 @@ struct VideoCaptureCapability {
   int32_t width;
   int32_t height;
   int32_t maxFPS;
+  uint32_t maxFPSNumerator;
+  uint32_t maxFPSDenominator;
   VideoType videoType;
   bool interlaced;
 
@@ -34,6 +36,8 @@ struct VideoCaptureCapability {
     width = 0;
     height = 0;
     maxFPS = 0;
+    maxFPSNumerator = 0;
+    maxFPSDenominator = 0;
     videoType = VideoType::kUnknown;
     interlaced = false;
   }
@@ -43,6 +47,9 @@ struct VideoCaptureCapability {
     if (height != other.height)
       return true;
     if (maxFPS != other.maxFPS)
+      return true;
+    if (maxFPSNumerator != other.maxFPSNumerator ||
+        maxFPSDenominator != other.maxFPSDenominator)
       return true;
     if (videoType != other.videoType)
       return true;
