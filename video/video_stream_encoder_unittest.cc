@@ -3914,6 +3914,82 @@ TEST_F(VideoStreamEncoderTest, StatsTracksQualityAdaptationStats) {
   video_stream_encoder_->Stop();
 }
 
+TEST_F(VideoStreamEncoderTest, Vp9InternalQualityScalerUpdatesAdaptationStats) {
+  fake_encoder_.SetQualityScaling(false);
+  ResetEncoder("VP9", /*num_streams=*/1, /*num_temporal_layers=*/1,
+               /*num_spatial_layers=*/1, /*screenshare=*/false);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(CreateFrame(1, nullptr));
+  WaitForEncodedFrame(1);
+  EXPECT_FALSE(stats_proxy_->GetStats().bw_limited_resolution);
+
+  CodecSpecificInfo codec_info;
+  codec_info.codecType = kVideoCodecVP9;
+  EncodedImage encoded_image;
+  encoded_image._encodedWidth = codec_width_ / 2;
+  encoded_image._encodedHeight = codec_height_ / 2;
+  fake_encoder_.InjectEncodedImage(encoded_image, &codec_info);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+  EXPECT_TRUE(stats_proxy_->GetStats().bw_limited_resolution);
+
+  encoded_image._encodedWidth = codec_width_;
+  encoded_image._encodedHeight = codec_height_;
+  fake_encoder_.InjectEncodedImage(encoded_image, &codec_info);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+  EXPECT_FALSE(stats_proxy_->GetStats().bw_limited_resolution);
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       Vp9InternalQualityScalerIgnoredWhenQualityScalingEnabled) {
+  fake_encoder_.SetQualityScaling(true);
+  ResetEncoder("VP9", /*num_streams=*/1, /*num_temporal_layers=*/1,
+               /*num_spatial_layers=*/1, /*screenshare=*/false);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(CreateFrame(1, nullptr));
+  WaitForEncodedFrame(1);
+
+  CodecSpecificInfo codec_info;
+  codec_info.codecType = kVideoCodecVP9;
+  EncodedImage encoded_image;
+  encoded_image._encodedWidth = codec_width_ / 2;
+  encoded_image._encodedHeight = codec_height_ / 2;
+  fake_encoder_.InjectEncodedImage(encoded_image, &codec_info);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+  EXPECT_FALSE(stats_proxy_->GetStats().bw_limited_resolution);
+
+  video_stream_encoder_->Stop();
+}
+
+TEST_F(VideoStreamEncoderTest,
+       Vp9InternalQualityScalerIgnoredForHardwareEncoder) {
+  fake_encoder_.SetQualityScaling(false);
+  fake_encoder_.SetIsHardwareAccelerated(true);
+  ResetEncoder("VP9", /*num_streams=*/1, /*num_temporal_layers=*/1,
+               /*num_spatial_layers=*/1, /*screenshare=*/false);
+  video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
+      kTargetBitrate, kTargetBitrate, 0, 0, 0);
+
+  video_source_.IncomingCapturedFrame(CreateFrame(1, nullptr));
+  WaitForEncodedFrame(1);
+
+  CodecSpecificInfo codec_info;
+  codec_info.codecType = kVideoCodecVP9;
+  EncodedImage encoded_image;
+  encoded_image._encodedWidth = codec_width_ / 2;
+  encoded_image._encodedHeight = codec_height_ / 2;
+  fake_encoder_.InjectEncodedImage(encoded_image, &codec_info);
+  video_stream_encoder_->WaitUntilTaskQueueIsIdle();
+  EXPECT_FALSE(stats_proxy_->GetStats().bw_limited_resolution);
+
+  video_stream_encoder_->Stop();
+}
+
 TEST_F(VideoStreamEncoderTest, StatsTracksCpuAdaptationStats) {
   video_stream_encoder_->OnBitrateUpdatedAndWaitForManagedResources(
       kTargetBitrate, kTargetBitrate, 0, 0, 0);

@@ -2347,12 +2347,14 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
           }
         }
 
-        // Currently, the internal quality scaler is used for VP9 instead of the
-        // webrtc qp scaler (in the no-svc case or if only a single spatial
-        // layer is encoded). It has to be explicitly detected and reported to
+        // If the internal quality scaler is used for software VP9 instead of
+        // the WebRTC QP scaler (in the no-svc case or if only a single spatial
+        // layer is encoded), it has to be explicitly detected and reported to
         // adaptation metrics.
-        if (!send_codec_.IsMixedCodec() &&
-            codec_type == VideoCodecType::kVideoCodecVP9 &&
+        if (codec_type == VideoCodecType::kVideoCodecVP9 &&
+            !encoder_info_.scaling_settings.thresholds.has_value() &&
+            !encoder_info_.is_hardware_accelerated &&
+            !send_codec_.IsMixedCodec() &&
             send_codec_.VP9()->automaticResizeOn) {
           unsigned int expected_width = send_codec_.width;
           unsigned int expected_height = send_codec_.height;
