@@ -447,7 +447,9 @@ TEST_F(SFramePacketBufferTest, InterleavedFramesAssembleIndependently) {
 TEST_F(SFramePacketBufferTest, FrameAfterDroppedFrameStillAssembles) {
   // Frame 1 with timestamp mismatch -> dropped.
   Insert(100, kStart, kNotEnd, /*timestamp=*/1000);
-  Insert(101, kNotStart, kEnd, /*timestamp=*/9999);  // mismatch
+  EXPECT_EQ(
+      Insert(101, kNotStart, kEnd, /*timestamp=*/9999).status,  // mismatch
+      SFramePacketBuffer::InsertResult::kFrameDropped);
 
   // Frame 2 is valid.
   auto result = Insert(102, kStart, kEnd, /*timestamp=*/2000);
@@ -580,6 +582,7 @@ TEST_F(SFramePacketBufferTest, TBitMismatchInMiddlePacketDropsFrame) {
   auto result =
       Insert(102, kNotStart, kEnd, 1000, 96, SframeEncryptionLevel::kFrame);
   EXPECT_TRUE(result.packets.empty());
+  EXPECT_EQ(result.status, SFramePacketBuffer::InsertResult::kFrameDropped);
   // All slots must be freed — re-inserting a fresh frame at same seqs works.
   auto r2 = Insert(100, kStart, kEnd, /*timestamp=*/5000);
   ASSERT_EQ(r2.packets.size(), 1u);

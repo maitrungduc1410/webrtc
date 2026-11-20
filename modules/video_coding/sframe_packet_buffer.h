@@ -51,6 +51,9 @@ class SFramePacketBuffer {
     // Buffer was full and had to be cleared. Caller should request a
     // keyframe. Any partially assembled state is discarded.
     kBufferCleared,
+    // The packet completed an S->E run that failed validation, so the frame
+    // was dropped.
+    kFrameDropped,
   };
 
   // A packet of an assembled frame.
@@ -89,7 +92,7 @@ class SFramePacketBuffer {
  private:
   // Check whether the newly inserted packet at `seq_num` completes an S->E
   // run. Walks backward from `seq_num` to find S=1, then forward to find E=1.
-  std::optional<AssembledFrame> FindFrame(int64_t seq_num);
+  std::variant<AssembledFrame, InsertResult> FindFrame(int64_t seq_num);
 
   // Walk backward from `seq_num` to find the S=1 packet (start of frame).
   std::optional<int64_t> FindFrameStart(int64_t seq_num);

@@ -72,11 +72,7 @@ SFramePacketBuffer::InsertPacket(
   }
 
   // Check whether this insertion completes a frame.
-  if (std::optional<AssembledFrame> frame = FindFrame(seq_num)) {
-    return std::move(*frame);
-  }
-
-  return InsertResult::kNoFrame;
+  return FindFrame(seq_num);
 }
 
 std::pair<SFramePacketBuffer::SlotOutcome, size_t>
@@ -95,22 +91,28 @@ SFramePacketBuffer::ResolveSlot(int64_t seq_num) {
   return {SlotOutcome::kFull, 0};
 }
 
-std::optional<SFramePacketBuffer::AssembledFrame> SFramePacketBuffer::FindFrame(
-    int64_t seq_num) {
+std::variant<SFramePacketBuffer::AssembledFrame,
+             SFramePacketBuffer::InsertResult>
+SFramePacketBuffer::FindFrame(int64_t seq_num) {
   // Walk backward to find the S=1 (start-of-frame) packet.
   std::optional<int64_t> start = FindFrameStart(seq_num);
   if (!start) {
-    return std::nullopt;
+    return InsertResult::kNoFrame;
   }
 
   // Walk forward to find the E=1 (end-of-frame) packet.
   std::optional<int64_t> end = FindFrameEnd(seq_num, *start);
   if (!end) {
-    return std::nullopt;
+    return InsertResult::kNoFrame;
   }
 
   // Validate consistency and extract the complete frame.
-  return AssembleFrame(*start, *end);
+  std::optional<AssembledFrame> frame = AssembleFrame(*start, *end);
+  if (!frame.has_value()) {
+    return InsertResult::kFrameDropped;
+  }
+
+  return *std::move(frame);
 }
 
 std::optional<int64_t> SFramePacketBuffer::FindFrameStart(int64_t seq_num) {
