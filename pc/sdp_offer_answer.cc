@@ -4792,13 +4792,7 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
     }
   }
 
-  // `network_init_tasks` runs second since it attaches the new channels to
-  // their transports, and the channels are only constructed once
-  // `network_tasks` has run.
-  // TODO: bugs.webrtc.org/558821261 - Merge the batchers once CreateChannel()
-  // constructs the channel synchronously.
   ScopedOperationsBatcher network_tasks(context_->network_thread());
-  ScopedOperationsBatcher network_init_tasks(context_->network_thread());
   const ContentInfos& new_contents = new_session.description()->contents();
   struct TransceiverUpdate {
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver;
@@ -4862,12 +4856,13 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
   }
 
   for (TransceiverUpdate& update : transceivers_to_update) {
-    auto it = bundle_groups_by_mid.find(update.content.mid());
-    const ContentGroup* bundle_group =
-        it != bundle_groups_by_mid.end() ? it->second : nullptr;
-
-    UpdateTransceiverChannel(update.transceiver, update.content, bundle_group,
-                             network_tasks, network_init_tasks);
+    // A stopped transceiver must not have a channel.
+    if ((update.content.rejected ||
+         update.transceiver->internal()->stopped()) &&
+        update.transceiver->internal()->HasChannel()) {
+      network_tasks.Add(
+          update.transceiver->internal()->GetTeardownChannelTask());
+    }
     // Handle locally rejected content. This code path is only needed for apps
     // that SDP munge. Remote rejected content is handled in
     // ApplyRemoteDescriptionUpdateTransceiverState().
@@ -4878,9 +4873,18 @@ RTCError SdpOfferAnswerHandler::UpdateTransceiversAndDataChannels(
                                           update.transceiver, network_tasks);
   }
 
-  RTCError error = network_tasks.Run();
-  RTC_DCHECK(error.ok());  // Teardown and setup tasks cannot fail.
-  return network_init_tasks.Run();
+  // Create channels after the teardown and stop tasks have been added. Those
+  // tasks must all run, while attaching a new channel to its transport can
+  // fail, and the batch stops at the first error.
+  for (TransceiverUpdate& update : transceivers_to_update) {
+    auto it = bundle_groups_by_mid.find(update.content.mid());
+    const ContentGroup* bundle_group =
+        it != bundle_groups_by_mid.end() ? it->second : nullptr;
+    MaybeCreateTransceiverChannel(update.transceiver, update.content,
+                                  bundle_group, network_tasks);
+  }
+
+  return network_tasks.Run();
 }
 
 RTCErrorOr<scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>>
@@ -5029,33 +5033,28 @@ SdpOfferAnswerHandler::AssociateTransceiver(
   return std::move(transceiver);
 }
 
-void SdpOfferAnswerHandler::UpdateTransceiverChannel(
+void SdpOfferAnswerHandler::MaybeCreateTransceiverChannel(
     scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>> transceiver,
     const ContentInfo& content,
     const ContentGroup* bundle_group,
-    ScopedOperationsBatcher& network_tasks,
-    ScopedOperationsBatcher& network_init_tasks) {
-  TRACE_EVENT0("webrtc", "SdpOfferAnswerHandler::UpdateTransceiverChannel");
+    ScopedOperationsBatcher& network_tasks) {
+  TRACE_EVENT0("webrtc",
+               "SdpOfferAnswerHandler::MaybeCreateTransceiverChannel");
   RTC_DCHECK(IsUnifiedPlan());
   RTC_DCHECK(transceiver);
-  // A stopped transceiver must not have a channel.
-  if (content.rejected || transceiver->internal()->stopped()) {
-    if (transceiver->internal()->HasChannel()) {
-      network_tasks.Add(transceiver->internal()->GetTeardownChannelTask());
-    }
-  } else {
-    if (!transceiver->internal()->HasChannel()) {
-      transceiver->internal()->CreateChannel(
-          content.mid(), pc_->call_ptr(), pc_->configuration()->media_config,
-          pc_->SrtpRequired(), pc_->GetCryptoOptions(),
-          video_bitrate_allocator_factory_.get(),
-          [mid = content.mid(), this]() {
-            RTC_DCHECK_RUN_ON(network_thread());
-            return transport_controller_n()->GetRtpTransport(mid);
-          },
-          network_tasks, network_init_tasks);
-    }
+  if (content.rejected || transceiver->internal()->stopped() ||
+      transceiver->internal()->HasChannel()) {
+    return;
   }
+  transceiver->internal()->CreateChannel(
+      content.mid(), pc_->call_ptr(), pc_->configuration()->media_config,
+      pc_->SrtpRequired(), pc_->GetCryptoOptions(),
+      video_bitrate_allocator_factory_.get(),
+      [mid = content.mid(), this]() {
+        RTC_DCHECK_RUN_ON(network_thread());
+        return transport_controller_n()->GetRtpTransport(mid);
+      },
+      network_tasks);
 }
 
 RTCError SdpOfferAnswerHandler::UpdateDataChannelTransport(
@@ -6395,12 +6394,6 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
   // at this point.
   RTC_DCHECK_RUN_ON(signaling_thread());
 
-  // TODO(bugs.webrtc.org/558821261): Consider combining batchers targeting
-  // the network thread. Note: Combining them is currently not safe because
-  // worker_tasks creates the channel via a finalizer on the signaling thread
-  // that must complete before network_tasks (which expects channel_ to exist)
-  // runs.
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
   ScopedOperationsBatcher network_tasks(network_thread());
 
   const ContentInfo* voice = GetFirstAudioContent(&desc);
@@ -6414,7 +6407,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
           RTC_DCHECK_RUN_ON(network_thread());
           return transport_controller_n()->GetRtpTransport(mid);
         },
-        worker_tasks, network_tasks);
+        network_tasks);
   }
 
   const ContentInfo* video = GetFirstVideoContent(&desc);
@@ -6428,7 +6421,7 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
           RTC_DCHECK_RUN_ON(network_thread());
           return transport_controller_n()->GetRtpTransport(mid);
         },
-        worker_tasks, network_tasks);
+        network_tasks);
   }
 
   const ContentInfo* data = GetFirstDataContent(&desc);
@@ -6438,10 +6431,6 @@ RTCError SdpOfferAnswerHandler::CreateChannels(const SessionDescription& desc) {
                          << "Failed to create data channel.");
   }
 
-  RTCError error = worker_tasks.Run();
-  if (!error.ok()) {
-    return error;
-  }
   return network_tasks.Run();
 }
 

@@ -473,7 +473,6 @@ void RtpTransceiver::CreateChannel(
     CryptoOptions crypto_options,
     VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
     absl::AnyInvocable<RtpTransportInternal*() &&> transport_lookup,
-    ScopedOperationsBatcher& worker_tasks,
     ScopedOperationsBatcher& network_tasks) {
   RTC_DCHECK_RUN_ON(thread_);
   RTC_DCHECK(!channel_);
@@ -544,45 +543,25 @@ void RtpTransceiver::CreateChannel(
     needs_set_media_channels = true;
   }
 
-  auto construct_channel =
-      [this, srtp_required, crypto_options, callbacks = std::move(callbacks)](
-          std::unique_ptr<MediaSendChannelInterface> send,
-          std::unique_ptr<MediaReceiveChannelInterface> receive) mutable {
-        RTC_DCHECK_RUN_ON(thread_);
-        RTC_DCHECK(mid_.has_value());
-        channel_ = std::make_unique<BaseChannel>(
-            context()->network_thread(), context()->signaling_thread(),
-            std::move(send), std::move(receive), *mid_, media_type(),
-            srtp_required, crypto_options, context()->ssrc_generator(),
-            std::move(callbacks));
-        transport_name_ = std::nullopt;
-      };
-
-  if (needs_set_media_channels) {
-    worker_tasks.AddWithFinalizer(
-        [this, media_send_channel = std::move(media_send_channel),
-         media_receive_channel = std::move(media_receive_channel),
-         construct_channel = std::move(construct_channel)]() mutable
-            -> ScopedOperationsBatcher::BatchTaskResult {
-          RTC_DCHECK_RUN_ON(context()->network_thread());
-          SetMediaChannels(media_send_channel.get(),
-                           media_receive_channel.get());
-          return ScopedOperationsBatcher::FinalizerTask(
-              [send = std::move(media_send_channel),
-               recv = std::move(media_receive_channel),
-               construct_channel = std::move(construct_channel)]() mutable {
-                construct_channel(std::move(send), std::move(recv));
-              });
-        });
-  } else {
-    construct_channel(std::move(media_send_channel),
-                      std::move(media_receive_channel));
-  }
+  channel_ = std::make_unique<BaseChannel>(
+      context()->network_thread(), context()->signaling_thread(),
+      std::move(media_send_channel), std::move(media_receive_channel), *mid_,
+      media_type(), srtp_required, crypto_options, context()->ssrc_generator(),
+      std::move(callbacks));
+  transport_name_ = std::nullopt;
 
   network_tasks.AddWithFinalizer(
-      [this, transport_lookup = std::move(transport_lookup)]() mutable
+      [this, needs_set_media_channels,
+       transport_lookup = std::move(transport_lookup)]() mutable
           -> ScopedOperationsBatcher::BatchTaskResult {
         RTC_DCHECK_RUN_ON(context()->network_thread());
+        // The constructor already set the media channels it created on the
+        // senders and receivers. Media channels created by CreateChannel() are
+        // set here, before the channel is attached to its transport.
+        if (needs_set_media_channels) {
+          SetMediaChannels(channel_->media_send_channel(),
+                           channel_->media_receive_channel());
+        }
         auto result = InitializeOnNetworkThread(std::move(transport_lookup));
         if (!result.ok()) {
           return result.MoveError();

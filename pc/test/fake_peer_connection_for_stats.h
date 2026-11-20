@@ -656,18 +656,13 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
                              const std::string& transport_name) {
     RtpTransceiver* transceiver = GetTransceiverForMid(media_type, mid);
     UpdateJsepTransportController(mid, transport_name);
-    ScopedOperationsBatcher worker_tasks(worker_thread_);
     ScopedOperationsBatcher network_tasks(network_thread_);
     transceiver->CreateChannel(
         mid, /*call_ptr=*/nullptr, MediaConfig(), kDefaultSrtpRequired,
         CryptoOptions(), /*video_bitrate_allocator_factory=*/nullptr,
         [this, mid]() { return transport_controller_->GetRtpTransport(mid); },
-        worker_tasks, network_tasks);
-    // The network tasks need the channel that the worker tasks create, so run
-    // the worker tasks first, like SdpOfferAnswerHandler does.
-    RTCError error = worker_tasks.Run();
-    RTC_DCHECK(error.ok());
-    error = network_tasks.Run();
+        network_tasks);
+    RTCError error = network_tasks.Run();
     RTC_CHECK(error.ok()) << error.message();
     auto dtls_transport = transport_controller_->LookupDtlsTransportByMid(mid);
     if (!dtls_transport) {

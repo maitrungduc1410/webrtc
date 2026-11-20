@@ -161,9 +161,9 @@ class RtpTransceiver : public RtpTransceiverInterface {
   RtpTransceiver(RtpTransceiver&&) = delete;
   RtpTransceiver& operator=(RtpTransceiver&&) = delete;
 
-  // Creates the Voice/VideoChannel and sets it.
-  // Note: Tasks added to `worker_tasks` must be executed before tasks added to
-  // `network_batcher`.
+  // Creates the Voice/VideoChannel and sets it. Adds a task to `network_tasks`
+  // that attaches the channel to its transport. That task can fail, which stops
+  // the batch, so add it after tasks that must run regardless.
   void CreateChannel(
       absl::string_view mid,
       Call* call_ptr,
@@ -172,7 +172,6 @@ class RtpTransceiver : public RtpTransceiverInterface {
       CryptoOptions crypto_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       absl::AnyInvocable<RtpTransportInternal*() &&> transport_lookup,
-      ScopedOperationsBatcher& worker_tasks,
       ScopedOperationsBatcher& network_tasks);
 
   // Sets the Voice/VideoChannel. The caller must pass in the correct channel

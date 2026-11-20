@@ -103,15 +103,10 @@ scoped_refptr<RtpTransceiver> CreateAudioTransceiverWithChannel(
       CryptoOptions(), nullptr, std::vector<RtpHeaderExtensionCapability>(),
       false, std::vector<SimulcastLayer>(), [] {});
 
-  ScopedOperationsBatcher worker_tasks(context->network_thread());
   ScopedOperationsBatcher network_tasks(context->network_thread());
   transceiver->CreateChannel("0", call, MediaConfig(), false, CryptoOptions(),
-                             nullptr, std::move(transport_lookup), worker_tasks,
+                             nullptr, std::move(transport_lookup),
                              network_tasks);
-
-  // CreateChannel does not schedule any worker tasks when the transceiver is
-  // constructed with pre-allocated channels, so `worker_tasks` should be empty.
-  RTC_CHECK(worker_tasks.IsEmpty());
   RTC_CHECK(network_tasks.Run().ok());
 
   return transceiver;
@@ -133,15 +128,10 @@ scoped_refptr<RtpTransceiver> CreateVideoTransceiverWithChannel(
       CryptoOptions(), nullptr, std::vector<RtpHeaderExtensionCapability>(),
       false, std::vector<SimulcastLayer>(), [] {});
 
-  ScopedOperationsBatcher worker_tasks(context->network_thread());
   ScopedOperationsBatcher network_tasks(context->network_thread());
   transceiver->CreateChannel("0", call, MediaConfig(), false, CryptoOptions(),
-                             nullptr, std::move(transport_lookup), worker_tasks,
+                             nullptr, std::move(transport_lookup),
                              network_tasks);
-
-  // CreateChannel does not schedule any worker tasks when the transceiver is
-  // constructed with pre-allocated channels, so `worker_tasks` should be empty.
-  RTC_CHECK(worker_tasks.IsEmpty());
   RTC_CHECK(network_tasks.Run().ok());
 
   return transceiver;

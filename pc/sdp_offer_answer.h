@@ -419,16 +419,14 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
       const RtpTransceiver* transceiver,
       const SessionDescriptionInterface* sdesc) const;
 
-  // Either creates or destroys the transceiver's BaseChannel according to the
-  // given media section.
-  void UpdateTransceiverChannel(
+  // Creates the transceiver's BaseChannel unless the media section is
+  // rejected, the transceiver is stopped or it already has a channel.
+  void MaybeCreateTransceiverChannel(
       scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>
           transceiver,
       const ContentInfo& content,
       const ContentGroup* bundle_group,
-      ScopedOperationsBatcher& network_tasks,
-      ScopedOperationsBatcher& network_init_tasks)
-      RTC_RUN_ON(signaling_thread());
+      ScopedOperationsBatcher& network_tasks) RTC_RUN_ON(signaling_thread());
 
   // Either creates or destroys the local data channel according to the given
   // media section.
