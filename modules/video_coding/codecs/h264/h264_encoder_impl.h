@@ -36,17 +36,28 @@
 #include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder.h"
 #include "common_video/h264/h264_bitstream_parser.h"
-#include "modules/video_coding/codecs/h264/include/h264.h"
 #include "modules/video_coding/codecs/h264/include/h264_globals.h"
 #include "modules/video_coding/svc/scalable_video_controller.h"
 #include "modules/video_coding/utility/frame_sampler.h"
+
+#if defined(WEBRTC_USE_RUST_OPENH264)
+#include "absl/base/nullability.h"
+#endif
+
+#ifdef RUST_OPENH264_BUILD
+#include "third_party/openh264rs/codec_api.h"  // nogncheck
+#define H264EncoderImpl H264RsEncoderImpl
+#else
 #include "third_party/openh264/src/codec/api/wels/codec_app_def.h"
+#endif
 
 #if defined(WEBRTC_WIN) && !defined(__clang__)
 #error "See: bugs.webrtc.org/9213#c13."
 #endif
 
+#ifndef RUST_OPENH264_BUILD
 class ISVCEncoder;
+#endif
 
 namespace webrtc {
 
@@ -68,7 +79,9 @@ class H264EncoderImpl : public VideoEncoder {
     void SetStreamState(bool send_stream);
   };
 
-  H264EncoderImpl(const Environment& env, H264EncoderSettings settings);
+  explicit H264EncoderImpl(const Environment& env,
+                           H264PacketizationMode packetization_mode =
+                               H264PacketizationMode::NonInterleaved);
 
   ~H264EncoderImpl() override;
 
@@ -137,6 +150,12 @@ class H264EncoderImpl : public VideoEncoder {
   // Determine whether the frame should be sampled for PSNR.
   FrameSampler psnr_frame_sampler_;
 };
+
+#if defined(WEBRTC_USE_RUST_OPENH264)
+absl_nonnull std::unique_ptr<VideoEncoder> CreateH264RsEncoder(
+    const Environment& env,
+    H264PacketizationMode packetization_mode);
+#endif
 
 }  // namespace webrtc
 

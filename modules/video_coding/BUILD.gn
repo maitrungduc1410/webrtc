@@ -429,6 +429,46 @@ rtc_library("encoder_speed_controller_impl") {
   ]
 }
 
+if (rtc_use_h264 && rtc_use_rust_openh264) {
+  rtc_library("webrtc_h264rs") {
+    visibility = [ ":*" ]
+    sources = [
+      "codecs/h264/h264_encoder_impl.cc",
+      "codecs/h264/h264_encoder_impl.h",
+    ]
+    defines = [ "RUST_OPENH264_BUILD" ]
+    deps = [
+      ":codec_globals_headers",
+      ":frame_sampler",
+      ":video_codec_interface",
+      ":video_coding_utility",
+      "../../api:scoped_refptr",
+      "../../api/environment",
+      "../../api/units:data_rate",
+      "../../api/units:time_delta",
+      "../../api/video:encoded_image",
+      "../../api/video:video_bitrate_allocation",
+      "../../api/video:video_bitrate_allocator",
+      "../../api/video:video_codec_constants",
+      "../../api/video:video_frame",
+      "../../api/video:video_frame_type",
+      "../../api/video:video_rtp_headers",
+      "../../api/video_codecs:scalability_mode",
+      "../../api/video_codecs:video_codecs_api",
+      "../../common_video",
+      "../../rtc_base:checks",
+      "../../rtc_base:logging",
+      "../../system_wrappers:metrics",
+      "svc:scalability_structures",
+      "svc:scalable_video_controller",
+      "//third_party/abseil-cpp/absl/base:nullability",
+      "//third_party/abseil-cpp/absl/container:inlined_vector",
+      "//third_party/libyuv",
+      "//third_party/openh264rs",
+    ]
+  }
+}
+
 rtc_library("webrtc_h264") {
   visibility = [ "*" ]
   sources = [
@@ -448,6 +488,7 @@ rtc_library("webrtc_h264") {
     ":frame_sampler",
     ":video_codec_interface",
     ":video_coding_utility",
+    "../../api:field_trials_view",
     "../../api:scoped_refptr",
     "../../api/environment",
     "../../api/units:data_rate",
@@ -484,6 +525,9 @@ rtc_library("webrtc_h264") {
       configs += [ ":openh264" ]
     } else {
       deps += [ "//third_party/openh264:encoder" ]
+    }
+    if (rtc_use_rust_openh264) {
+      deps += [ ":webrtc_h264rs" ]
     }
   }
 }
@@ -1115,6 +1159,7 @@ if (rtc_include_tests) {
         "../../api:make_ref_counted",
         "../../api:mock_video_encoder",
         "../../api:scoped_refptr",
+        "../../api/video:video_codec_constants",
         "../../api/video:video_frame",
         "../../api/video_codecs:video_codecs_api",
         "../../test:create_test_environment",

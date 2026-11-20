@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -45,7 +46,6 @@
 #include "common_video/h264/h264_common.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/video_coding/codecs/h264/h264_encoder_impl.h"
-#include "modules/video_coding/codecs/h264/include/h264.h"
 #include "modules/video_coding/codecs/h264/include/h264_globals.h"
 #include "modules/video_coding/codecs/interface/common_constants.h"
 #include "modules/video_coding/include/video_codec_interface.h"
@@ -58,14 +58,22 @@
 #include "rtc_base/logging.h"
 #include "system_wrappers/include/metrics.h"
 #include "third_party/libyuv/include/libyuv/scale.h"
+
+#ifdef RUST_OPENH264_BUILD
+#include "absl/base/nullability.h"
+#else
 #include "third_party/openh264/src/codec/api/wels/codec_api.h"
 #include "third_party/openh264/src/codec/api/wels/codec_app_def.h"
 #include "third_party/openh264/src/codec/api/wels/codec_def.h"
-#include "third_party/openh264/src/codec/api/wels/codec_ver.h"
+#endif
 
 namespace webrtc {
 
 namespace {
+
+#ifndef RUST_OPENH264_BUILD
+using c_void = void;
+#endif
 
 const bool kOpenH264EncoderDetailedLogging = false;
 
@@ -120,7 +128,8 @@ VideoFrameType ConvertToVideoFrameType(EVideoFrameType type) {
     case videoFrameTypeInvalid:
       break;
   }
-  RTC_DCHECK_NOTREACHED() << "Unexpected/invalid frame type: " << type;
+  RTC_DCHECK_NOTREACHED() << "Unexpected/invalid frame type: "
+                          << static_cast<int>(type);
   return VideoFrameType::kEmptyFrame;
 }
 
@@ -194,9 +203,9 @@ static void RtpFragmentize(EncodedImage* encoded_image, SFrameBSInfo* info) {
 }
 
 H264EncoderImpl::H264EncoderImpl(const Environment& env,
-                                 H264EncoderSettings settings)
+                                 H264PacketizationMode packetization_mode)
     : env_(env),
-      packetization_mode_(settings.packetization_mode),
+      packetization_mode_(packetization_mode),
       max_payload_size_(0),
       number_of_cores_(0),
       encoded_image_callback_(nullptr),
@@ -279,7 +288,7 @@ int32_t H264EncoderImpl::InitEncode(const VideoCodec* inst,
 
   for (int i = 0, idx = number_of_streams - 1; i < number_of_streams;
        ++i, --idx) {
-    ISVCEncoder* openh264_encoder;
+    ISVCEncoder* openh264_encoder = nullptr;
     // Create encoder.
     if (WelsCreateSVCEncoder(&openh264_encoder) != 0) {
       // Failed to create encoder.
@@ -291,8 +300,9 @@ int32_t H264EncoderImpl::InitEncode(const VideoCodec* inst,
     }
     RTC_DCHECK(openh264_encoder);
     if (kOpenH264EncoderDetailedLogging) {
-      int trace_level = WELS_LOG_DETAIL;
-      openh264_encoder->SetOption(ENCODER_OPTION_TRACE_LEVEL, &trace_level);
+      int trace_level = static_cast<int>(WELS_LOG_DETAIL);
+      openh264_encoder->SetOption(ENCODER_OPTION_TRACE_LEVEL,
+                                  reinterpret_cast<c_void*>(&trace_level));
     }
     // else WELS_LOG_DEFAULT is used by default.
 
@@ -333,7 +343,8 @@ int32_t H264EncoderImpl::InitEncode(const VideoCodec* inst,
     }
     // TODO(pbos): Base init params on these values before submitting.
     int video_format = EVideoFormatType::videoFormatI420;
-    openh264_encoder->SetOption(ENCODER_OPTION_DATAFORMAT, &video_format);
+    openh264_encoder->SetOption(ENCODER_OPTION_DATAFORMAT,
+                                reinterpret_cast<c_void*>(&video_format));
 
     // Initialize encoded image. Default buffer size: size of unencoded data.
 
@@ -424,13 +435,14 @@ void H264EncoderImpl::SetRates(const RateControlParameters& parameters) {
       configurations_[i].SetStreamState(true);
 
       // Update h264 encoder.
-      SBitrateInfo target_bitrate;
-      memset(&target_bitrate, 0, sizeof(SBitrateInfo));
-      target_bitrate.iLayer = SPATIAL_LAYER_ALL,
+      SBitrateInfo target_bitrate = {};
+      target_bitrate.iLayer = SPATIAL_LAYER_ALL;
       target_bitrate.iBitrate = configurations_[i].target_bps;
-      encoders_[i]->SetOption(ENCODER_OPTION_BITRATE, &target_bitrate);
-      encoders_[i]->SetOption(ENCODER_OPTION_FRAME_RATE,
-                              &configurations_[i].max_frame_rate);
+      encoders_[i]->SetOption(ENCODER_OPTION_BITRATE,
+                              reinterpret_cast<c_void*>(&target_bitrate));
+      encoders_[i]->SetOption(
+          ENCODER_OPTION_FRAME_RATE,
+          reinterpret_cast<c_void*>(&configurations_[i].max_frame_rate));
     } else {
       configurations_[i].SetStreamState(false);
     }
@@ -450,7 +462,7 @@ void H264EncoderImpl::SetComplexity(
             ? VideoCodecComplexity::kComplexityNormal
             : complexity_by_spatial_layer[std::min(
                   stream_idx, complexity_by_spatial_layer.size() - 1)];
-    int32_t complexity_mode = LOW_COMPLEXITY;
+    ECOMPLEXITY_MODE complexity_mode = LOW_COMPLEXITY;
     switch (complexity) {
       case VideoCodecComplexity::kComplexityLow:
       case VideoCodecComplexity::kComplexityNormal:
@@ -464,7 +476,9 @@ void H264EncoderImpl::SetComplexity(
         complexity_mode = HIGH_COMPLEXITY;
         break;
     }
-    encoders_[i]->SetOption(ENCODER_OPTION_COMPLEXITY, &complexity_mode);
+    int32_t complexity_option = static_cast<int32_t>(complexity_mode);
+    encoders_[i]->SetOption(ENCODER_OPTION_COMPLEXITY,
+                            reinterpret_cast<c_void*>(&complexity_option));
   }
 }
 
@@ -475,8 +489,9 @@ std::optional<ECOMPLEXITY_MODE> H264EncoderImpl::ComplexityModeForTesting(
   }
   size_t encoder_idx = encoders_.size() - 1 - stream_idx;
   int32_t complexity_mode = 0;
-  if (encoders_[encoder_idx]->GetOption(ENCODER_OPTION_COMPLEXITY,
-                                        &complexity_mode) != 0) {
+  if (encoders_[encoder_idx]->GetOption(
+          ENCODER_OPTION_COMPLEXITY,
+          reinterpret_cast<c_void*>(&complexity_mode)) != 0) {
     return std::nullopt;
   }
   return static_cast<ECOMPLEXITY_MODE>(complexity_mode);
@@ -607,12 +622,11 @@ int32_t H264EncoderImpl::Encode(
       // API doc says ForceIntraFrame(false) does nothing, but calling this
       // function forces a key frame regardless of the `bIDR` argument's value.
       // (If every frame is a key frame we get lag/delays.)
-      encoders_[i]->ForceIntraFrame(true);
+      encoders_[i]->ForceIntraFrame(true, /*iLayerId=*/-1);
       configurations_[i].key_frame_request = false;
     }
     // EncodeFrame output.
-    SFrameBSInfo info;
-    memset(&info, 0, sizeof(SFrameBSInfo));
+    SFrameBSInfo info = {};
 
     std::vector<ScalableVideoController::LayerFrameConfig> layer_frames;
     if (svc_controllers_[i]) {
@@ -787,8 +801,9 @@ SEncParamExt H264EncoderImpl::CreateEncoderParams(size_t i) const {
     // theoretically use all available reference buffers.
     encoder_params.iNumRefFrame = encoder_params.iTemporalLayerNum - 1;
   }
-  RTC_LOG(LS_INFO) << "OpenH264 version is " << OPENH264_MAJOR << "."
-                   << OPENH264_MINOR;
+  OpenH264Version version = WelsGetCodecVersion();
+  RTC_LOG(LS_INFO) << "OpenH264 version is " << version.uMajor << "."
+                   << version.uMinor;
   switch (packetization_mode_) {
     case H264PacketizationMode::SingleNalUnit:
       // Limit the size of the packets produced.
@@ -832,7 +847,11 @@ void H264EncoderImpl::ReportError() {
 VideoEncoder::EncoderInfo H264EncoderImpl::GetEncoderInfo() const {
   EncoderInfo info;
   info.supports_native_handle = false;
+#ifdef RUST_OPENH264_BUILD
+  info.implementation_name = "OpenH264rs";
+#else
   info.implementation_name = "OpenH264";
+#endif
   info.scaling_settings =
       VideoEncoder::ScalingSettings(kLowH264QpThreshold, kHighH264QpThreshold);
   if (!configurations_.empty()) {
@@ -852,6 +871,25 @@ void H264EncoderImpl::LayerConfig::SetStreamState(bool send_stream) {
   }
   sending = send_stream;
 }
+
+// When OpenH264rs is enabled, this file is compiled twice:
+// 1. Without `RUST_OPENH264_BUILD` (in `:webrtc_h264`): builds Cisco's C++
+//    `H264EncoderImpl`.
+// 2. With `RUST_OPENH264_BUILD` (in `:webrtc_h264rs`): `h264_encoder_impl.h`
+//    includes `third_party/openh264rs/codec_api.h` and `#define`s
+//    `H264EncoderImpl` to `H264RsEncoderImpl`, and this file defines
+//    `CreateH264RsEncoder()` to instantiate it.
+//
+// `CreateH264Encoder()` in `h264.cc` checks the `WebRTC-RustOpenH264Encoding`
+// field trial at runtime to return `H264RsEncoderImpl` when enabled, or fall
+// back to Cisco's C++ `H264EncoderImpl` otherwise.
+#ifdef RUST_OPENH264_BUILD
+absl_nonnull std::unique_ptr<VideoEncoder> CreateH264RsEncoder(
+    const Environment& env,
+    H264PacketizationMode packetization_mode) {
+  return std::make_unique<H264EncoderImpl>(env, packetization_mode);
+}
+#endif
 
 }  // namespace webrtc
 

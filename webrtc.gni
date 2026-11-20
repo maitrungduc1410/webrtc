@@ -338,6 +338,15 @@ declare_args() {
   # uploaded to the Chrome Perf Dashboard. When false, perf results are only
   # printed to stdout and ChromePerfDashboardMetricsExporter::Export() fails.
   rtc_use_catapult_histograms = rtc_enable_protobuf
+
+  # Enable the Rust port of OpenH264 (`//third_party/openh264rs`) alongside
+  # Cisco's C++ OpenH264 encoder in Chromium builds.
+  if (build_with_chromium) {
+    rtc_use_rust_openh264 = media_use_rust_openh264 && rtc_use_h264 &&
+                            rtc_rust && !rtc_system_openh264
+  } else {
+    rtc_use_rust_openh264 = false
+  }
 }
 
 # Make it possible to provide custom locations for some libraries (move these

@@ -20,6 +20,7 @@
 #include "api/test/frame_generator_interface.h"
 #include "api/test/mock_video_encoder.h"
 #include "api/video/i420_buffer.h"
+#include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
@@ -58,7 +59,7 @@ void SetDefaultSettings(VideoCodec* codec_settings) {
 }
 
 TEST(H264EncoderImplTest, CanInitializeWithDefaultParameters) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK,
@@ -68,9 +69,8 @@ TEST(H264EncoderImplTest, CanInitializeWithDefaultParameters) {
 }
 
 TEST(H264EncoderImplTest, CanInitializeWithNonInterleavedModeExplicitly) {
-  H264EncoderImpl encoder(
-      CreateTestEnvironment(),
-      {.packetization_mode = H264PacketizationMode::NonInterleaved});
+  H264EncoderImpl encoder(CreateTestEnvironment(),
+                          H264PacketizationMode::NonInterleaved);
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK,
@@ -80,9 +80,8 @@ TEST(H264EncoderImplTest, CanInitializeWithNonInterleavedModeExplicitly) {
 }
 
 TEST(H264EncoderImplTest, CanInitializeWithSingleNalUnitModeExplicitly) {
-  H264EncoderImpl encoder(
-      CreateTestEnvironment(),
-      {.packetization_mode = H264PacketizationMode::SingleNalUnit});
+  H264EncoderImpl encoder(CreateTestEnvironment(),
+                          H264PacketizationMode::SingleNalUnit);
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK,
@@ -92,7 +91,7 @@ TEST(H264EncoderImplTest, CanInitializeWithSingleNalUnitModeExplicitly) {
 }
 
 TEST(H264EncoderImplTest, OnFrameDropped) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   // Set a very low bitrate to force frame drops.
@@ -140,7 +139,7 @@ TEST(H264EncoderImplTest, OnFrameDropped) {
 }
 
 TEST(H264EncoderImplTest, RejectsI420FramesWithUnequalChromaStrides) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   MockEncodedImageCallback callback;
@@ -165,7 +164,7 @@ TEST(H264EncoderImplTest, RejectsI420FramesWithUnequalChromaStrides) {
 }
 
 TEST(H264EncoderImplTest, RejectsNativeFramesWithUnequalChromaStrides) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   MockEncodedImageCallback callback;
@@ -202,7 +201,7 @@ TEST(H264EncoderImplTest, RejectsNativeFramesWithUnequalChromaStrides) {
 }
 
 TEST(H264EncoderImplTest, RejectsTooLargeResolution) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
 
@@ -221,7 +220,7 @@ TEST(H264EncoderImplTest, RejectsTooLargeResolution) {
 }
 
 TEST(H264EncoderImplTest, RejectsSkewedAspectRatioWidth) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
 
@@ -240,7 +239,7 @@ TEST(H264EncoderImplTest, RejectsSkewedAspectRatioWidth) {
 }
 
 TEST(H264EncoderImplTest, RejectsSkewedAspectRatioHeight) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
 
@@ -259,7 +258,7 @@ TEST(H264EncoderImplTest, RejectsSkewedAspectRatioHeight) {
 }
 
 TEST(H264EncoderImplTest, SetComplexity) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   ASSERT_EQ(WEBRTC_VIDEO_CODEC_OK,
@@ -295,7 +294,7 @@ TEST(H264EncoderImplTest, SetComplexity) {
 }
 
 TEST(H264EncoderImplTest, SetComplexitySimulcast) {
-  H264EncoderImpl encoder(CreateTestEnvironment(), {});
+  H264EncoderImpl encoder(CreateTestEnvironment());
   VideoCodec codec_settings;
   SetDefaultSettings(&codec_settings);
   codec_settings.numberOfSimulcastStreams = 3;

@@ -30,6 +30,9 @@
 #include "rtc_base/trace_event.h"
 
 #if defined(WEBRTC_USE_H264)
+#if defined(WEBRTC_USE_RUST_OPENH264)
+#include "api/field_trials_view.h"
+#endif
 #include "modules/video_coding/codecs/h264/h264_decoder_impl.h"
 #include "modules/video_coding/codecs/h264/h264_encoder_impl.h"
 #endif
@@ -143,8 +146,14 @@ absl_nonnull std::unique_ptr<VideoEncoder> CreateH264Encoder(
     [[maybe_unused]] H264EncoderSettings settings) {
 #if defined(WEBRTC_USE_H264)
   RTC_CHECK(g_rtc_use_h264);
+#if defined(WEBRTC_USE_RUST_OPENH264)
+  if (env.field_trials().IsEnabled("WebRTC-RustOpenH264Encoding")) {
+    RTC_LOG(LS_INFO) << "Creating H264RsEncoderImpl.";
+    return CreateH264RsEncoder(env, settings.packetization_mode);
+  }
+#endif
   RTC_LOG(LS_INFO) << "Creating H264EncoderImpl.";
-  return std::make_unique<H264EncoderImpl>(env, settings);
+  return std::make_unique<H264EncoderImpl>(env, settings.packetization_mode);
 #else
   RTC_CHECK_NOTREACHED();
 #endif
