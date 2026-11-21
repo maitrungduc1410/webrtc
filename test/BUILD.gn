@@ -812,6 +812,44 @@ if (rtc_include_tests) {
       }
     }
 
+    rtc_cc_test("configurable_frame_size_decoder_unittest") {
+      sources = [ "configurable_frame_size_decoder_unittest.cc" ]
+      deps = [
+        ":fake_video_codecs",
+        ":test_support",
+        "../api:scoped_refptr",
+        "../api/units:time_delta",
+        "../api/units:timestamp",
+        "../api/video:encoded_image",
+        "../api/video:video_frame",
+        "../api/video:video_frame_type",
+        "../api/video_codecs:video_codecs_api",
+        "../modules/video_coding:video_codec_interface",
+      ]
+    }
+
+    rtc_cc_test("configurable_frame_size_encoder_unittest") {
+      sources = [ "configurable_frame_size_encoder_unittest.cc" ]
+      deps = [
+        ":create_test_environment",
+        ":fake_video_codecs",
+        ":test_support",
+        "../api:scoped_refptr",
+        "../api/environment",
+        "../api/units:data_rate",
+        "../api/units:time_delta",
+        "../api/units:timestamp",
+        "../api/video:encoded_image",
+        "../api/video:video_bitrate_allocation",
+        "../api/video:video_frame",
+        "../api/video:video_frame_type",
+        "../api/video:video_rtp_headers",
+        "../api/video_codecs:video_codecs_api",
+        "../modules/video_coding:video_codec_interface",
+        "time_controller",
+      ]
+    }
+
     rtc_cc_test("fake_vp8_encoder_unittest") {
       sources = [ "fake_vp8_encoder_unittest.cc" ]
       deps = [
@@ -1331,6 +1369,8 @@ if (rtc_include_tests) {
     rtc_test_suite("test_support_unittests") {
       tests = [
         ":call_config_utils_unittest",
+        ":configurable_frame_size_decoder_unittest",
+        ":configurable_frame_size_encoder_unittest",
         ":create_test_field_trials_unittest",
         ":direct_transport_unittest",
         ":fake_vp8_encoder_unittest",
@@ -1559,6 +1599,8 @@ rtc_library("fake_video_codecs") {
   allow_poison = [ "software_video_codecs" ]
   visibility = [ "*" ]
   sources = [
+    "configurable_frame_size_decoder.cc",
+    "configurable_frame_size_decoder.h",
     "configurable_frame_size_encoder.cc",
     "configurable_frame_size_encoder.h",
     "fake_decoder.cc",
@@ -1576,8 +1618,11 @@ rtc_library("fake_video_codecs") {
     "../api:sequence_checker",
     "../api/environment",
     "../api/task_queue",
+    "../api/units:data_rate",
     "../api/units:time_delta",
+    "../api/units:timestamp",
     "../api/video:encoded_image",
+    "../api/video:render_resolution",
     "../api/video:video_bitrate_allocation",
     "../api/video:video_codec_constants",
     "../api/video:video_frame",
@@ -1588,13 +1633,16 @@ rtc_library("fake_video_codecs") {
     "../modules/video_coding:codec_globals_headers",
     "../modules/video_coding:video_codec_interface",
     "../modules/video_coding:video_coding_utility",
+    "../rtc_base:byte_order",
     "../rtc_base:checks",
     "../rtc_base:criticalsection",
     "../rtc_base:macromagic",
     "../rtc_base:threading",
     "../rtc_base:timeutils",
     "../rtc_base/synchronization:mutex",
+    "../rtc_base/system:no_unique_address",
     "../system_wrappers",
+    "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/strings:string_view",
   ]
 }

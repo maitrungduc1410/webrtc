@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
 #include "api/audio_options.h"
 #include "api/create_modular_peer_connection_factory.h"
@@ -42,23 +41,16 @@
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
 #include "api/video/video_source_interface.h"
-#include "api/video_codecs/scalability_mode.h"
-#include "api/video_codecs/sdp_video_format.h"
-#include "api/video_codecs/video_decoder.h"
-#include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_decoder_factory_template.h"
 #include "api/video_codecs/video_decoder_factory_template_dav1d_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_libvpx_vp8_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_libvpx_vp9_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_open_h264_adapter.h"
-#include "api/video_codecs/video_encoder.h"
-#include "api/video_codecs/video_encoder_factory.h"
 #include "api/video_codecs/video_encoder_factory_template.h"
 #include "api/video_codecs/video_encoder_factory_template_libaom_av1_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_libvpx_vp8_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_libvpx_vp9_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_open_h264_adapter.h"
-#include "media/base/media_constants.h"
 #include "modules/audio_device/include/test_audio_device.h"
 #include "p2p/base/port_allocator.h"
 #include "pc/test/frame_generator_capturer_video_track_source.h"
@@ -67,8 +59,6 @@
 #include "rtc_base/thread.h"
 #include "test/create_frame_generator_capturer.h"
 #include "test/create_test_environment.h"
-#include "test/fake_decoder.h"
-#include "test/fake_vp8_encoder.h"
 #include "test/frame_generator_capturer.h"
 #include "test/logging/log_writer.h"
 
@@ -206,33 +196,6 @@ class LambdaSetRemoteDescriptionObserver
  private:
   std::function<void(RTCError)> on_complete_;
 };
-
-class FakeVideoEncoderFactory : public VideoEncoderFactory {
- public:
-  std::vector<SdpVideoFormat> GetSupportedFormats() const override {
-    const absl::InlinedVector<ScalabilityMode, kScalabilityModeCount>
-        kSupportedScalabilityModes = {ScalabilityMode::kL1T1,
-                                      ScalabilityMode::kL1T2,
-                                      ScalabilityMode::kL1T3};
-    return {SdpVideoFormat(kVp8CodecName, {}, kSupportedScalabilityModes)};
-  }
-  std::unique_ptr<VideoEncoder> Create(const Environment& env,
-                                       const SdpVideoFormat& format) override {
-    RTC_CHECK_EQ(format.name, "VP8");
-    return std::make_unique<FakeVp8Encoder>(env);
-  }
-};
-
-class FakeVideoDecoderFactory : public VideoDecoderFactory {
- public:
-  std::vector<SdpVideoFormat> GetSupportedFormats() const override {
-    return {SdpVideoFormat::VP8()};
-  }
-  std::unique_ptr<VideoDecoder> Create(const Environment& env,
-                                       const SdpVideoFormat& format) override {
-    return std::make_unique<FakeDecoder>();
-  }
-};
 }  // namespace
 
 PeerScenarioClient::PeerScenarioClient(
@@ -292,16 +255,17 @@ PeerScenarioClient::PeerScenarioClient(
           config.audio.sample_rate, config.audio.channels),
       TestAudioDeviceModule::CreateDiscardRenderer(config.audio.sample_rate));
 
-  if (config.video.use_fake_codecs) {
-    pcf_deps.video_encoder_factory =
-        std::make_unique<FakeVideoEncoderFactory>();
-    pcf_deps.video_decoder_factory =
-        std::make_unique<FakeVideoDecoderFactory>();
+  if (config.video.encoder_factory_builder) {
+    pcf_deps.video_encoder_factory = config.video.encoder_factory_builder();
   } else {
     pcf_deps.video_encoder_factory =
         std::make_unique<VideoEncoderFactoryTemplate<
             LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
             OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
+  }
+  if (config.video.decoder_factory_builder) {
+    pcf_deps.video_decoder_factory = config.video.decoder_factory_builder();
+  } else {
     pcf_deps.video_decoder_factory =
         std::make_unique<VideoDecoderFactoryTemplate<
             LibvpxVp8DecoderTemplateAdapter, LibvpxVp9DecoderTemplateAdapter,

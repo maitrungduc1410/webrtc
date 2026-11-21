@@ -35,6 +35,8 @@
 #include "api/test/network_emulation_manager.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_sink_interface.h"
+#include "api/video_codecs/video_decoder_factory.h"
+#include "api/video_codecs/video_encoder_factory.h"
 #include "pc/test/frame_generator_capturer_video_track_source.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_annotations.h"
@@ -103,7 +105,12 @@ class PeerScenarioClient {
       std::optional<PulsedNoise> pulsed_noise = PulsedNoise();
     } audio;
     struct Video {
-      bool use_fake_codecs = false;
+      // If set, used to create the video encoder and decoder factories.
+      // Otherwise the factories support VP8, VP9, H264 and AV1.
+      std::function<std::unique_ptr<VideoEncoderFactory>()>
+          encoder_factory_builder;
+      std::function<std::unique_ptr<VideoDecoderFactory>()>
+          decoder_factory_builder;
     } video;
     // The created endpoints can be accessed using the map key as `index` in
     // PeerScenarioClient::endpoint(index).
