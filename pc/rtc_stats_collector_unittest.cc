@@ -3819,9 +3819,10 @@ TEST_P(RTCStatsCollectorTest,
   // thread because the test base uses the current thread for all three, which
   // bypasses the thread hop and avoids the
   // RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS check.
-  auto worker_thread = Thread::Create();
-  worker_thread->Start();
-  pc_ = make_ref_counted<FakePeerConnectionForStats>(env_, worker_thread.get());
+  auto network_thread = Thread::Create();
+  network_thread->Start();
+  pc_ =
+      make_ref_counted<FakePeerConnectionForStats>(env_, network_thread.get());
   SetStatsTimestampWithEnvironmentClock(GetParam());
   // Create a track and a real sender to ensure we test the actual blocking
   // behavior in RtpSenderBase::GetParametersInternal.
@@ -3832,18 +3833,19 @@ TEST_P(RTCStatsCollectorTest,
       webrtc::AudioOptions(), pc_->network_thread());
 
   scoped_refptr<AudioRtpSender> sender = AudioRtpSender::Create(
-      env_, pc_->signaling_thread(), pc_->worker_thread(), "sender_id",
+      env_, pc_->signaling_thread(), pc_->network_thread(), "sender_id",
       /*stats=*/nullptr, /*set_streams_observer=*/nullptr,
       /*enable_sframe_at_owner=*/nullptr,
       /*media_channel=*/nullptr);
 
   {
-    ScopedOperationsBatcher worker_tasks(pc_->worker_thread());
-    worker_tasks.Add([&]() {
+    ScopedOperationsBatcher network_tasks(pc_->network_thread());
+    network_tasks.Add([&]() {
       fake_media_channel->AddSendStream(StreamParams::CreateLegacy(1234));
       sender->SetMediaChannel(fake_media_channel.get());
     });
-    worker_tasks.AddWithFinalizer(sender->SetSsrcTask(1234, /*layer_count=*/1));
+    network_tasks.AddWithFinalizer(
+        sender->SetSsrcTask(1234, /*layer_count=*/1));
   }
   sender->SetTrack(track.get());
 

@@ -346,7 +346,6 @@ class MockPeerConnectionInternal : public PeerConnectionInternal {
 
   // PeerConnectionInternal
   MOCK_METHOD(Thread*, network_thread, (), (const, override));
-  MOCK_METHOD(Thread*, worker_thread, (), (const, override));
   MOCK_METHOD(bool, initial_offerer, (), (const, override));
   MOCK_METHOD(
       std::vector<

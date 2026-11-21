@@ -359,7 +359,6 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
       Thread* network_thread = Thread::Current())
       : FakePeerConnectionBase(env),
         network_thread_(network_thread),
-        worker_thread_(network_thread_),
         signaling_thread_(Thread::Current()),
         // TODO(hta): remove separate thread variables and use context.
         dependencies_(MakeDependencies(signaling_thread_, network_thread_)),
@@ -436,7 +435,7 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
             RtpSenderProxyWithInternal<RtpSenderInternal>::Create(
                 signaling_thread_, std::move(sender)),
             RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
-                signaling_thread_, worker_thread_, std::move(receiver)),
+                signaling_thread_, network_thread_, std::move(receiver)),
             context_.get(), &codec_lookup_helper_,
             /*HeaderExtensionsToNegotiate=*/
             std::vector<RtpHeaderExtensionCapability>(),
@@ -562,8 +561,6 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
   // PeerConnectionInternal overrides.
 
   Thread* network_thread() const override { return network_thread_; }
-
-  Thread* worker_thread() const override { return worker_thread_; }
 
   JsepTransportController* transport_controller_n() override {
     return transport_controller_.get();
@@ -764,7 +761,6 @@ class FakePeerConnectionForStats : public FakePeerConnectionBase,
   }
 
   Thread* const network_thread_;
-  Thread* const worker_thread_;
   Thread* const signaling_thread_;
   ScopedTaskSafety signaling_safety_;
 

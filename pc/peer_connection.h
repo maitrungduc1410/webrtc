@@ -280,7 +280,6 @@ class PeerConnection : public PeerConnectionInternal,
   }
 
   Thread* network_thread() const final { return context_->network_thread(); }
-  Thread* worker_thread() const final { return context_->network_thread(); }
 
   std::string session_id() const override { return session_id_; }
 
@@ -636,7 +635,7 @@ class PeerConnection : public PeerConnectionInternal,
 
   void SetSctpTransportName(std::string sctp_transport_name);
 
-  MediaEngineInterface* media_engine() const RTC_RUN_ON(worker_thread());
+  MediaEngineInterface* media_engine() const RTC_RUN_ON(network_thread());
 
   absl::AnyInvocable<void(const CopyOnWriteBuffer& packet,
                           int64_t packet_time_us) const>
@@ -697,11 +696,11 @@ class PeerConnection : public PeerConnectionInternal,
   const std::unique_ptr<SSLCertificateVerifier> tls_cert_verifier_
       RTC_GUARDED_BY(network_thread());
 
-  // The unique_ptr belongs to the worker thread, but the Call object manages
+  // The unique_ptr belongs to the network thread, but the Call object manages
   // its own thread safety.
-  std::unique_ptr<Call> call_ RTC_GUARDED_BY(worker_thread());
+  std::unique_ptr<Call> call_ RTC_GUARDED_BY(network_thread());
   std::unique_ptr<ConnectionContext::MediaEngineReference> media_engine_ref_
-      RTC_GUARDED_BY(worker_thread());
+      RTC_GUARDED_BY(network_thread());
   ScopedTaskSafety signaling_thread_safety_;
   scoped_refptr<PendingTaskSafetyFlag> network_thread_safety_;
 

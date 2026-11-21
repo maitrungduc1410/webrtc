@@ -269,7 +269,7 @@ class PeerConnectionRtpTestUnifiedPlan : public PeerConnectionRtpBaseTest {
         ADD_FAILURE() << "No media channel for sender " << sender.id();
         return RtpParameters();
       }
-      return pc->GetInternalPeerConnection()->worker_thread()->BlockingCall(
+      return pc->GetInternalPeerConnection()->network_thread()->BlockingCall(
           [&] { return media_channel->GetRtpSendParameters(ssrc); });
     }
     ADD_FAILURE() << "No transceiver for sender " << sender.id();
@@ -2439,10 +2439,10 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   auto* media_channel = transceiver_internal->media_send_channel();
   ASSERT_TRUE(media_channel != nullptr);
 
-  auto* worker_thread = caller->GetInternalPeerConnection()->worker_thread();
-  ASSERT_TRUE(worker_thread != nullptr);
+  auto* network_thread = caller->GetInternalPeerConnection()->network_thread();
+  ASSERT_TRUE(network_thread != nullptr);
 
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     // Simulate VideoStreamEncoder calling RequestEncoderSwitch after getting
     // the format from the EncoderSelector.
     auto* video_send_channel = static_cast<webrtc::WebRtcVideoSendChannel*>(
@@ -2488,10 +2488,10 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan, SendParamsCorrectWhenEncoderFallback) {
   auto* media_channel = transceiver_internal->media_send_channel();
   ASSERT_TRUE(media_channel != nullptr);
 
-  auto* worker_thread = caller->GetInternalPeerConnection()->worker_thread();
-  ASSERT_TRUE(worker_thread != nullptr);
+  auto* network_thread = caller->GetInternalPeerConnection()->network_thread();
+  ASSERT_TRUE(network_thread != nullptr);
 
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     // Simulate an encoder fallback on the worker thread.
     auto* video_send_channel = static_cast<webrtc::WebRtcVideoSendChannel*>(
         media_channel->AsVideoSendChannel());
@@ -2534,13 +2534,13 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   ASSERT_TRUE(transceiver_internal != nullptr);
   auto* media_channel = transceiver_internal->media_send_channel();
   ASSERT_TRUE(media_channel != nullptr);
-  auto* worker_thread = caller->GetInternalPeerConnection()->worker_thread();
-  ASSERT_TRUE(worker_thread != nullptr);
+  auto* network_thread = caller->GetInternalPeerConnection()->network_thread();
+  ASSERT_TRUE(network_thread != nullptr);
   auto* video_send_channel = static_cast<webrtc::WebRtcVideoSendChannel*>(
       media_channel->AsVideoSendChannel());
 
   std::optional<Codec> initial_send_codec;
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     initial_send_codec = video_send_channel->GetSendCodec();
     video_send_channel->RequestEncoderSwitch(std::nullopt,
                                              /*allow_default_fallback=*/true);
@@ -2550,7 +2550,7 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   run_loop_.Flush();
 
   std::optional<Codec> fallback_send_codec;
-  worker_thread->BlockingCall(
+  network_thread->BlockingCall(
       [&] { fallback_send_codec = video_send_channel->GetSendCodec(); });
   ASSERT_TRUE(fallback_send_codec.has_value());
   EXPECT_NE(*fallback_send_codec, *initial_send_codec);
@@ -2569,7 +2569,7 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   EXPECT_EQ(updated_parameters.encodings[0].max_bitrate_bps, 500000);
   EXPECT_EQ(updated_parameters.codecs, parameters.codecs);
 
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     EXPECT_EQ(video_send_channel->GetSendCodec(), fallback_send_codec);
   });
 }
@@ -2598,13 +2598,13 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   ASSERT_TRUE(transceiver_internal != nullptr);
   auto* media_channel = transceiver_internal->media_send_channel();
   ASSERT_TRUE(media_channel != nullptr);
-  auto* worker_thread = caller->GetInternalPeerConnection()->worker_thread();
-  ASSERT_TRUE(worker_thread != nullptr);
+  auto* network_thread = caller->GetInternalPeerConnection()->network_thread();
+  ASSERT_TRUE(network_thread != nullptr);
   auto* video_send_channel = static_cast<webrtc::WebRtcVideoSendChannel*>(
       media_channel->AsVideoSendChannel());
 
   std::optional<Codec> initial_send_codec;
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     initial_send_codec = video_send_channel->GetSendCodec();
     video_send_channel->RequestEncoderSwitch(std::nullopt,
                                              /*allow_default_fallback=*/true);
@@ -2614,7 +2614,7 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   run_loop_.Flush();
 
   std::optional<Codec> fallback_send_codec;
-  worker_thread->BlockingCall(
+  network_thread->BlockingCall(
       [&] { fallback_send_codec = video_send_channel->GetSendCodec(); });
   ASSERT_TRUE(fallback_send_codec.has_value());
   EXPECT_NE(*fallback_send_codec, *initial_send_codec);
@@ -2639,7 +2639,7 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   EXPECT_EQ(updated_parameters.encodings[0].max_bitrate_bps, 500000);
   EXPECT_EQ(updated_parameters.codecs, parameters.codecs);
 
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     EXPECT_EQ(video_send_channel->GetSendCodec(), fallback_send_codec);
   });
 }
@@ -2689,10 +2689,10 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   ASSERT_FALSE(transceivers.empty());
   auto* media_channel = transceivers[0]->internal()->media_send_channel();
   ASSERT_TRUE(media_channel != nullptr);
-  auto* worker_thread = caller->GetInternalPeerConnection()->worker_thread();
-  ASSERT_TRUE(worker_thread != nullptr);
+  auto* network_thread = caller->GetInternalPeerConnection()->network_thread();
+  ASSERT_TRUE(network_thread != nullptr);
 
-  worker_thread->BlockingCall([&] {
+  network_thread->BlockingCall([&] {
     auto* video_send_channel = static_cast<webrtc::WebRtcVideoSendChannel*>(
         media_channel->AsVideoSendChannel());
     video_send_channel->RequestEncoderSwitch(SdpVideoFormat("VP8"),
@@ -2704,7 +2704,7 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   // encoder switch callback invalidates the cache on the signaling thread
   // before posting ApplyEncoderSwitch() to the worker thread, the signaling
   // thread must not observe stale cached parameters.
-  worker_thread->BlockingCall([] {});
+  network_thread->BlockingCall([] {});
   EXPECT_EQ(sender->GetParameters(),
             GetMediaChannelParameters(caller.get(), *sender));
 

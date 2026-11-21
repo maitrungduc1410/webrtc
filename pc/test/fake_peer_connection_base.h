@@ -303,7 +303,6 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
   // PeerConnectionInternal implementation.
 
   Thread* network_thread() const override { return nullptr; }
-  Thread* worker_thread() const override { return nullptr; }
   Thread* signaling_thread() const override { return nullptr; }
 
   std::string session_id() const override { return ""; }

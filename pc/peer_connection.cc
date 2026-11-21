@@ -605,7 +605,7 @@ PeerConnection::~PeerConnection() {
 
   // Destroy `call_` last, since the channels and transports use it.
   network_tasks.Add([this]() {
-    RTC_DCHECK_RUN_ON(worker_thread());
+    RTC_DCHECK_RUN_ON(network_thread());
     call_.reset();
     media_engine_ref_.reset();
   });
@@ -752,8 +752,7 @@ PeerConnection::InitializeNetworkThread(
         port_allocator_->GetPooledIceCredentials();
     // Taken here rather than in a separate blocking call to save a round trip
     // to the network thread.
-    if (call_ptr_ && context_->is_configured_for_media()) {
-      RTC_DCHECK_RUN_ON(worker_thread());
+    if (call_ && context_->is_configured_for_media()) {
       media_engine_ref_ =
           std::make_unique<ConnectionContext::MediaEngineReference>(context_);
     }
@@ -778,8 +777,8 @@ PeerConnection::MakeCloseOnNetworkThreadTask() {
       // port_allocator_ and transport_controller_ live on the network thread
       // and must be destroyed there.
       TeardownDataChannelTransport_n(RTCError::OK());
-      if (call_ptr_) {
-        call_ptr_->DisconnectFromNetworkThread();
+      if (call_) {
+        call_->DisconnectFromNetworkThread();
       }
       port_allocator_->DiscardCandidatePool();
 
@@ -1232,7 +1231,7 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
 
   if (kind == MediaStreamTrackInterface::kAudioKind) {
     auto audio_sender = AudioRtpSender::Create(
-        env_, signaling_thread(), worker_thread(), CreateRandomUuid(),
+        env_, signaling_thread(), network_thread(), CreateRandomUuid(),
         legacy_stats_.get(), nullptr,
         /*enable_sframe_at_owner=*/nullptr,
         rtp_manager()->voice_media_send_channel(), stream_ids,
@@ -1244,7 +1243,7 @@ scoped_refptr<RtpSenderInterface> PeerConnection::CreateSender(
         new_sender);
   } else if (kind == MediaStreamTrackInterface::kVideoKind) {
     auto video_sender = VideoRtpSender::Create(
-        env_, signaling_thread(), worker_thread(), CreateRandomUuid(), nullptr,
+        env_, signaling_thread(), network_thread(), CreateRandomUuid(), nullptr,
         /*enable_sframe_at_owner=*/nullptr,
         rtp_manager()->video_media_send_channel(),
         /*init_send_encodings=*/{}, /*simulcast_rejected=*/false,
@@ -1755,7 +1754,7 @@ bool PeerConnection::RemoveIceCandidate(const IceCandidate* candidate) {
 }
 
 RTCError PeerConnection::SetBitrate(const BitrateSettings& bitrate) {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
 
   if (!call_) {
     return RTC_LOG_ERROR(RTCError(RTCErrorType::INVALID_STATE)
@@ -1800,7 +1799,7 @@ void PeerConnection::ReconfigureBandwidthEstimation(
     const BandwidthEstimationSettings& settings) {
   network_thread()->PostTask(
       SafeTask(network_thread_safety_, [this, settings]() {
-        RTC_DCHECK_RUN_ON(worker_thread());
+        RTC_DCHECK_RUN_ON(network_thread());
         // There is no Call without media.
         if (call_) {
           call_->GetTransportControllerSend()->ReconfigureBandwidthEstimation(
@@ -1811,20 +1810,20 @@ void PeerConnection::ReconfigureBandwidthEstimation(
 
 void PeerConnection::SetAudioPlayout(bool playout) {
   RTC_DCHECK(ConfiguredForMedia());
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   auto audio_state = media_engine()->voice().GetAudioState();
   audio_state->SetPlayout(playout);
 }
 
 void PeerConnection::SetAudioRecording(bool recording) {
   RTC_DCHECK(ConfiguredForMedia());
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   auto audio_state = media_engine()->voice().GetAudioState();
   audio_state->SetRecording(recording);
 }
 
 void PeerConnection::AddAdaptationResource(scoped_refptr<Resource> resource) {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   if (!call_) {
     // The PeerConnection has been closed.
     return;
@@ -1999,7 +1998,7 @@ void PeerConnection::CompleteClose() {
     // Destroy `call_` last, since the channels and the transport controller
     // use it.
     network_tasks.Add([this]() {
-      RTC_DCHECK_RUN_ON(worker_thread());
+      RTC_DCHECK_RUN_ON(network_thread());
       call_.reset();
     });
   }
@@ -2553,7 +2552,7 @@ void PeerConnection::SetSctpTransportName(std::string sctp_transport_name) {
   ClearStatsCache();
 }
 
-// RTC_RUN_ON(worker_thread())
+// RTC_RUN_ON(network_thread())
 MediaEngineInterface* PeerConnection::media_engine() const {
   RTC_DCHECK(media_engine_ref_);
   return media_engine_ref_->media_engine();
@@ -2765,7 +2764,7 @@ bool PeerConnection::GetLocalCandidateMediaIndex(absl::string_view content_name,
 }
 
 Call::Stats PeerConnection::GetCallStats() {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
   if (call_) {
     return call_->GetStats();
@@ -2775,7 +2774,7 @@ Call::Stats PeerConnection::GetCallStats() {
 }
 
 std::optional<AudioDeviceModule::Stats> PeerConnection::GetAudioDeviceStats() {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   if (context_->is_configured_for_media()) {
     return media_engine()->voice().GetAudioDeviceStats();
   }
@@ -3273,15 +3272,15 @@ void PeerConnection::RequestUsagePatternReportForTesting() {
 }
 
 int PeerConnection::FeedbackAccordingToRfc8888CountForTesting() const {
-  return worker_thread()->BlockingCall([this]() {
-    RTC_DCHECK_RUN_ON(worker_thread());
+  return network_thread()->BlockingCall([this]() {
+    RTC_DCHECK_RUN_ON(network_thread());
     return call_->FeedbackAccordingToRfc8888Count().value_or(0);
   });
 }
 
 int PeerConnection::FeedbackAccordingToTransportCcCountForTesting() const {
-  return worker_thread()->BlockingCall([this]() {
-    RTC_DCHECK_RUN_ON(worker_thread());
+  return network_thread()->BlockingCall([this]() {
+    RTC_DCHECK_RUN_ON(network_thread());
     return call_->FeedbackAccordingToTransportCcCount().value_or(0);
   });
 }
@@ -3291,7 +3290,7 @@ absl::AnyInvocable<void(const CopyOnWriteBuffer& packet, int64_t packet_time_us)
 PeerConnection::InitializeRtcpCallback() {
   return [this](const CopyOnWriteBuffer& packet, int64_t /*packet_time_us*/) {
     RTC_DCHECK_RUN_ON(network_thread());
-    call_ptr_->Receiver()->DeliverRtcpPacket(packet);
+    call_->Receiver()->DeliverRtcpPacket(packet);
   };
 }
 
@@ -3302,7 +3301,7 @@ PeerConnection::InitializeUnDemuxablePacketHandler() {
     // Deliver the packet anyway to Call to allow Call to do BWE.
     // Even if there is no media receiver, the packet has still
     // been received on the network and has been correctly parsed.
-    call_ptr_->Receiver()->DeliverRtpPacket(
+    call_->Receiver()->DeliverRtpPacket(
         MediaType::ANY, parsed_packet,
         /*undemuxable_packet_handler=*/
         [](const RtpPacketReceived& packet) { return false; });

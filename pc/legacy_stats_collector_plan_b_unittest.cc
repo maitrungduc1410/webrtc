@@ -77,7 +77,7 @@ class FakePlanBPeerConnectionForStats : public FakePeerConnectionForStats {
       scoped_refptr<RtpReceiverInternal> receiver) {
     auto receiver_proxy =
         RtpReceiverProxyWithInternal<RtpReceiverInternal>::Create(
-            signaling_thread(), worker_thread(), receiver);
+            signaling_thread(), network_thread(), receiver);
     GetOrCreateTransceiver(receiver->media_type())
         ->internal()
         ->AddReceiverPlanB(receiver_proxy);
