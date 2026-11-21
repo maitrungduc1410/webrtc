@@ -3729,6 +3729,16 @@ TEST_P(PeerConnectionInterfaceTest, SetBitrateCurrentNegativeFails) {
   EXPECT_FALSE(pc_->SetBitrate(bitrate).ok());
 }
 
+// SetBitrate() runs on the network thread. Calling it there must not need the
+// signaling thread, which is blocked on the network thread in this test.
+TEST_P(PeerConnectionInterfaceTest, SetBitrateOnNetworkThreadSucceeds) {
+  CreatePeerConnection();
+  BitrateSettings bitrate;
+  bitrate.start_bitrate_bps = 100000;
+  EXPECT_TRUE(network_thread_->BlockingCall(
+      [&] { return pc_->SetBitrate(bitrate).ok(); }));
+}
+
 TEST_P(PeerConnectionInterfaceTest, SetBitrateMaxLessThanCurrentFails) {
   CreatePeerConnection();
   BitrateSettings bitrate;

@@ -174,12 +174,12 @@ PROXY_METHOD2(void,
                   RTCError,
                   absl::AnyInvocable<void() &&>) &&>)
 PROXY_METHOD1(bool, RemoveIceCandidate, const IceCandidate*)
-PROXY_METHOD1(RTCError, SetBitrate, const BitrateSettings&)
-PROXY_METHOD1(void,
-              ReconfigureBandwidthEstimation,
-              const BandwidthEstimationSettings&)
-PROXY_METHOD1(void, SetAudioPlayout, bool)
-PROXY_METHOD1(void, SetAudioRecording, bool)
+PROXY_SECONDARY_METHOD1(RTCError, SetBitrate, const BitrateSettings&)
+BYPASS_PROXY_METHOD1(void,
+                     ReconfigureBandwidthEstimation,
+                     const BandwidthEstimationSettings&)
+PROXY_SECONDARY_METHOD1(void, SetAudioPlayout, bool)
+PROXY_SECONDARY_METHOD1(void, SetAudioRecording, bool)
 // This method will be invoked on the network thread. See
 // PeerConnectionFactory::CreatePeerConnectionOrError for more details.
 PROXY_SECONDARY_METHOD1(scoped_refptr<DtlsTransportInterface>,
@@ -195,16 +195,16 @@ PROXY_METHOD0(IceConnectionState, standardized_ice_connection_state)
 PROXY_METHOD0(PeerConnectionState, peer_connection_state)
 PROXY_METHOD0(IceGatheringState, ice_gathering_state)
 PROXY_METHOD0(std::optional<bool>, can_trickle_ice_candidates)
-PROXY_METHOD1(void, AddAdaptationResource, scoped_refptr<Resource>)
+PROXY_SECONDARY_METHOD1(void, AddAdaptationResource, scoped_refptr<Resource>)
 PROXY_METHOD2(bool,
               StartRtcEventLog,
               std::unique_ptr<RtcEventLogOutput>,
               int64_t)
 PROXY_METHOD1(bool, StartRtcEventLog, std::unique_ptr<RtcEventLogOutput>)
 PROXY_METHOD0(void, StopRtcEventLog)
-PROXY_METHOD1(void,
-              SetDataChannelEventObserver,
-              std::unique_ptr<DataChannelEventObserverInterface>)
+BYPASS_PROXY_METHOD1(void,
+                     SetDataChannelEventObserver,
+                     std::unique_ptr<DataChannelEventObserverInterface>)
 PROXY_METHOD0(void, Close)
 
 BYPASS_PROXY_CONSTMETHOD0(Thread*, signaling_thread)

@@ -1755,9 +1755,6 @@ bool PeerConnection::RemoveIceCandidate(const IceCandidate* candidate) {
 }
 
 RTCError PeerConnection::SetBitrate(const BitrateSettings& bitrate) {
-  if (!worker_thread()->IsCurrent()) {
-    return worker_thread()->BlockingCall([&]() { return SetBitrate(bitrate); });
-  }
   RTC_DCHECK_RUN_ON(worker_thread());
 
   if (!call_) {
@@ -1814,11 +1811,6 @@ void PeerConnection::ReconfigureBandwidthEstimation(
 
 void PeerConnection::SetAudioPlayout(bool playout) {
   RTC_DCHECK(ConfiguredForMedia());
-  if (!worker_thread()->IsCurrent()) {
-    worker_thread()->BlockingCall(
-        [this, playout] { SetAudioPlayout(playout); });
-    return;
-  }
   RTC_DCHECK_RUN_ON(worker_thread());
   auto audio_state = media_engine()->voice().GetAudioState();
   audio_state->SetPlayout(playout);
@@ -1826,21 +1818,12 @@ void PeerConnection::SetAudioPlayout(bool playout) {
 
 void PeerConnection::SetAudioRecording(bool recording) {
   RTC_DCHECK(ConfiguredForMedia());
-  if (!worker_thread()->IsCurrent()) {
-    worker_thread()->BlockingCall(
-        [this, recording] { SetAudioRecording(recording); });
-    return;
-  }
   RTC_DCHECK_RUN_ON(worker_thread());
   auto audio_state = media_engine()->voice().GetAudioState();
   audio_state->SetRecording(recording);
 }
 
 void PeerConnection::AddAdaptationResource(scoped_refptr<Resource> resource) {
-  if (!worker_thread()->IsCurrent()) {
-    return worker_thread()->BlockingCall(
-        [this, resource]() { return AddAdaptationResource(resource); });
-  }
   RTC_DCHECK_RUN_ON(worker_thread());
   if (!call_) {
     // The PeerConnection has been closed.
@@ -2782,9 +2765,6 @@ bool PeerConnection::GetLocalCandidateMediaIndex(absl::string_view content_name,
 }
 
 Call::Stats PeerConnection::GetCallStats() {
-  if (!worker_thread()->IsCurrent()) {
-    return worker_thread()->BlockingCall([this] { return GetCallStats(); });
-  }
   RTC_DCHECK_RUN_ON(worker_thread());
   Thread::ScopedDisallowBlockingCalls no_blocking_calls;
   if (call_) {
