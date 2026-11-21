@@ -434,7 +434,8 @@ class PeerConnection : public PeerConnectionInternal,
   // Synchronously calls SctpTransport::Start() on the network thread for
   // `sctp_mid()` if set. Called as part of pushing down the media descriptions
   // after a complete offer/answer.
-  RTCError StartSctpTransport(const SctpOptions& options) override;
+  void StartSctpTransport(const SctpOptions& options,
+                          ScopedOperationsBatcher& network_tasks) override;
 
   // Returns the CryptoOptions set as RTCConfiguration.crypto_options for this
   // PeerConnection.

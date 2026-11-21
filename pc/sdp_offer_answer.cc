@@ -5942,12 +5942,12 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
       (source == CS_LOCAL ? local_description() : remote_description());
   RTC_DCHECK(sdesc);
 
-  if (ConfiguredForMedia()) {
-    // Batch up operations for the network thread.
-    ScopedOperationsBatcher batcher(context_->network_thread());
+  // Batch up operations for the network thread.
+  ScopedOperationsBatcher batcher(context_->network_thread());
 
-    // Note: This may perform a BlockingCall over to the network thread, which
-    // we'll also do in a loop below.
+  if (ConfiguredForMedia()) {
+    // Adds the payload type demuxing update first, so that the transports have
+    // it before the channels get their new content.
     UpdatePayloadTypeDemuxingState(source, bundle_groups_by_mid, batcher);
 
     // Push down the new SDP media section for each audio/video transceiver.
@@ -6065,11 +6065,6 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
         }
       }
     }
-
-    RTCError error = batcher.Run();
-    if (!error.ok()) {
-      return error;
-    }
   }
   // Need complete offer/answer with an SCTP m= section before starting SCTP,
   // according to https://tools.ietf.org/html/draft-ietf-mmusic-sctp-sdp-19
@@ -6089,20 +6084,19 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
             std::min(local_sctp_description->max_message_size(),
                      remote_sctp_description->max_message_size());
       }
-      RTCError error = pc_->StartSctpTransport(
+      // Added last, since starting SCTP can fail, which stops the batch.
+      pc_->StartSctpTransport(
           {.local_port = local_sctp_description->port(),
            .remote_port = remote_sctp_description->port(),
            .max_message_size = max_message_size,
            .max_sctp_streams = max_sctp_streams_,
            .local_init = local_sctp_description->sctp_init(),
-           .remote_init = remote_sctp_description->sctp_init()});
-      if (!error.ok()) {
-        return error;
-      }
+           .remote_init = remote_sctp_description->sctp_init()},
+          batcher);
     }
   }
 
-  return RTCError::OK();
+  return batcher.Run();
 }
 
 RTCError SdpOfferAnswerHandler::PushdownTransportDescription(
@@ -6542,7 +6536,7 @@ SdpOfferAnswerHandler::GetMediaDescriptionOptionsForRejectedData(
 void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     ContentSource source,
     const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid,
-    ScopedOperationsBatcher& worker_tasks) {
+    ScopedOperationsBatcher& network_tasks) {
   TRACE_EVENT0("webrtc",
                "SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState");
   RTC_DCHECK_RUN_ON(signaling_thread());
@@ -6641,8 +6635,8 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
                                         mid_header_extension_missing_video ||
                                         pt_demuxing_has_been_used_video_;
 
-  // Gather all updates ahead of time so that all transports can be updated in a
-  // single BlockingCall; necessary due to thread guards.
+  // Gather all updates ahead of time so that one network task can update all
+  // transports.
   flat_map<std::string, bool> transports_to_update;
   for (RtpTransceiver* transceiver : transceivers()->ListInternal()) {
     const ContentInfo* content =
@@ -6695,7 +6689,8 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
     return;
   }
 
-  context_->network_thread()->BlockingCall([&]() {
+  network_tasks.Add([this, transports_to_update]() {
+    RTC_DCHECK_RUN_ON(network_thread());
     JsepTransportController* transport_controller =
         pc_->transport_controller_n();
     for (const auto& [mid, pt_demux_enabled] : transports_to_update) {
@@ -6727,7 +6722,7 @@ void SdpOfferAnswerHandler::UpdatePayloadTypeDemuxingState(
         // Ideally we'd remove only the streams that were matched based on
         // payload type alone, but currently there is no straightforward way to
         // identify those streams.
-        worker_tasks.Add(receive_channel->GetResetUnsignaledRecvStreamTask());
+        network_tasks.Add(receive_channel->GetResetUnsignaledRecvStreamTask());
       }
     }
   }

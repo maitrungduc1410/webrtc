@@ -616,7 +616,7 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   void UpdatePayloadTypeDemuxingState(
       ContentSource source,
       const flat_map<std::string, const ContentGroup*>& bundle_groups_by_mid,
-      ScopedOperationsBatcher& worker_tasks);
+      ScopedOperationsBatcher& network_tasks);
 
   // Updates the error state, signaling if necessary.
   void SetSessionError(SessionError error, const std::string& error_desc);

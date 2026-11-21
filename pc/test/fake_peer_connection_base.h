@@ -409,9 +409,8 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
       bool fire_callback = true) override {
     return RTCError(RTCErrorType::INTERNAL_ERROR, "");
   }
-  RTCError StartSctpTransport(const SctpOptions& options) override {
-    return RTCError::OK();
-  }
+  void StartSctpTransport(const SctpOptions& options,
+                          ScopedOperationsBatcher& network_tasks) override {}
 
   void AddRemoteCandidate(absl::string_view mid,
                           const Candidate& candidate) override {}

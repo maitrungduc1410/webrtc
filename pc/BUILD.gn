@@ -995,6 +995,7 @@ rtc_source_set("peer_connection_internal") {
     ":peer_connection_message_handler",
     ":rtp_transceiver",
     ":rtp_transmission_manager",
+    ":scoped_operations_batcher",
     ":session_description",
     ":transport_stats",
     ":usage_pattern",

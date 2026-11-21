@@ -43,6 +43,7 @@
 #include "pc/peer_connection_message_handler.h"
 #include "pc/rtp_transceiver.h"
 #include "pc/rtp_transmission_manager.h"
+#include "pc/scoped_operations_batcher.h"
 #include "pc/session_description.h"
 #include "pc/transport_stats.h"
 #include "pc/usage_pattern.h"
@@ -133,10 +134,12 @@ class PeerConnectionSdpMethods {
       scoped_refptr<MediaStreamTrackInterface> track,
       const RtpTransceiverInit& init,
       bool fire_callback = true) = 0;
-  // Synchronously calls SctpTransport::Start() on the network thread for
-  // `sctp_mid()` if set. Called as part of pushing down the media descriptions
-  // after a complete offer/answer.
-  virtual RTCError StartSctpTransport(const SctpOptions& options) = 0;
+  // Adds a task to `network_tasks` that calls SctpTransport::Start() for
+  // `sctp_mid()`, which must be set. The task fails, which stops the batch, if
+  // the transport doesn't start. Called as part of pushing down the media
+  // descriptions after a complete offer/answer.
+  virtual void StartSctpTransport(const SctpOptions& options,
+                                  ScopedOperationsBatcher& network_tasks) = 0;
 
   // Asynchronously adds a remote candidate on the network thread.
   virtual void AddRemoteCandidate(absl::string_view mid,

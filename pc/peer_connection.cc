@@ -3223,20 +3223,25 @@ void PeerConnection::RunWithMaybeNullObserver(
   std::move(task)(observer_);
 }
 
-RTCError PeerConnection::StartSctpTransport(const SctpOptions& options) {
+void PeerConnection::StartSctpTransport(
+    const SctpOptions& options,
+    ScopedOperationsBatcher& network_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(sctp_mid_s_);
 
-  return network_thread()->BlockingCall([this, mid = *sctp_mid_s_, options] {
-    scoped_refptr<SctpTransport> sctp_transport =
-        transport_controller_n()->GetSctpTransport(mid);
-    RTC_DCHECK(sctp_transport);
-    if (!sctp_transport || !sctp_transport->Start(options)) {
-      return RTC_LOG_ERROR(RTCError(RTCErrorType::INVALID_MODIFICATION)
-                           << "Failed to start SCTP transport.");
-    }
-    return RTCError::OK();
-  });
+  network_tasks.AddWithFinalizer(
+      [this, mid = *sctp_mid_s_,
+       options]() -> ScopedOperationsBatcher::BatchTaskResult {
+        RTC_DCHECK_RUN_ON(network_thread());
+        scoped_refptr<SctpTransport> sctp_transport =
+            transport_controller_n()->GetSctpTransport(mid);
+        RTC_DCHECK(sctp_transport);
+        if (!sctp_transport || !sctp_transport->Start(options)) {
+          return RTC_LOG_ERROR(RTCError(RTCErrorType::INVALID_MODIFICATION)
+                               << "Failed to start SCTP transport.");
+        }
+        return ScopedOperationsBatcher::BatchTaskResult();
+      });
 }
 
 CryptoOptions PeerConnection::GetCryptoOptions() {

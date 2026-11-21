@@ -329,7 +329,10 @@ class MockPeerConnectionInternal : public PeerConnectionInternal {
                const RtpTransceiverInit&,
                bool),
               (override));
-  MOCK_METHOD(RTCError, StartSctpTransport, (const SctpOptions&), (override));
+  MOCK_METHOD(void,
+              StartSctpTransport,
+              (const SctpOptions&, ScopedOperationsBatcher&),
+              (override));
   MOCK_METHOD(void,
               AddRemoteCandidate,
               (absl::string_view, const webrtc::Candidate&),
