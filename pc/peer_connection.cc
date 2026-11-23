@@ -2096,6 +2096,7 @@ void PeerConnection::SetConnectionState(
   if (IsClosed())
     return;
   connection_state_ = new_state;
+  ClearStatsCache();
   if (tracer_) {
     tracer_->OnConnectionStateChanged(new_state);
   }

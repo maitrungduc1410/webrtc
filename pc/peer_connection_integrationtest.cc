@@ -2874,6 +2874,47 @@ TEST_P(PeerConnectionIntegrationTestWithFakeClock,
 
 #endif  // !defined(THREAD_SANITIZER)
 
+TEST_P(PeerConnectionIntegrationTest,
+       ConnectionStateChangeFlushesGetStatsCache) {
+  ASSERT_TRUE(CreatePeerConnectionWrappers());
+  caller()->AddAudioTrack();
+
+  // Non-trickle, so that no candidate flushes the caller's cache.
+  auto caller_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  caller()->pc()->SetLocalDescription(caller()->CreateOfferAndWait(),
+                                      caller_observer);
+  ASSERT_TRUE(WaitUntil([&] { return caller()->IceGatheringStateComplete(); }));
+  std::string offer_sdp;
+  ASSERT_TRUE(caller()->pc()->local_description()->ToString(&offer_sdp));
+  ASSERT_TRUE(callee()->SetRemoteDescription(
+      CreateSessionDescription(SdpType::kOffer, offer_sdp)));
+
+  auto callee_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  callee()->pc()->SetLocalDescription(callee()->CreateAnswerForTest(),
+                                      callee_observer);
+  ASSERT_TRUE(WaitUntil([&] { return callee()->IceGatheringStateComplete(); }));
+  std::string answer_sdp;
+  ASSERT_TRUE(callee()->pc()->local_description()->ToString(&answer_sdp));
+  ASSERT_TRUE(caller()->SetRemoteDescription(
+      CreateSessionDescription(SdpType::kAnswer, answer_sdp)));
+
+  ASSERT_THAT(caller()->NewGetStats(), NotNull());
+  ASSERT_TRUE(WaitUntil([&] {
+    return caller()->pc()->peer_connection_state() ==
+           PeerConnectionInterface::PeerConnectionState::kConnected;
+  }));
+
+  scoped_refptr<const RTCStatsReport> report = caller()->NewGetStats();
+  ASSERT_THAT(report, NotNull());
+  auto transport_stats = report->GetStatsOfType<RTCTransportStats>();
+  ASSERT_THAT(transport_stats, SizeIs(1));
+  EXPECT_EQ(transport_stats[0]->dtls_state, "connected");
+  EXPECT_TRUE(transport_stats[0]->remote_certificate_id.has_value());
+  EXPECT_TRUE(transport_stats[0]->srtp_cipher.has_value());
+  EXPECT_TRUE(transport_stats[0]->tls_version.has_value());
+  EXPECT_EQ(transport_stats[0]->dtls_role, "server");
+}
+
 // Verify that a TurnCustomizer passed in through RTCConfiguration
 // is actually used by the underlying TURN candidate pair.
 // Note that turnport_unittest.cc contains more detailed, lower-level tests.
