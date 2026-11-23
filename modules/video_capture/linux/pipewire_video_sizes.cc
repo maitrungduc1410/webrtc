@@ -82,7 +82,8 @@ static std::vector<spa_rectangle> SizesInRange(const spa_rectangle& def,
 std::vector<spa_rectangle> GetPipeWireVideoSizes(const spa_pod* value) {
   uint32_t n_items, choice;
   spa_pod* val = spa_pod_get_values(value, &n_items, &choice);
-  if (val->type != SPA_TYPE_Rectangle || val->size < sizeof(spa_rectangle)) {
+  // The values are read as an array of spa_rectangle.
+  if (val->type != SPA_TYPE_Rectangle || val->size != sizeof(spa_rectangle)) {
     return {};
   }
   const auto* rect = static_cast<const spa_rectangle*>(SPA_POD_BODY(val));

@@ -35,6 +35,37 @@ using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
+// A value followed by padding, so that each value of a choice built from it
+// takes twice the size of the value.
+template <typename T>
+struct Padded {
+  T value;
+  T padding;
+};
+
+// Builds in |data| a format whose property |key| is a choice of padded values
+// of |type|.
+template <typename T>
+const spa_pod* BuildPaddedChoice(std::array<uint8_t, 4096>& data,
+                                 uint32_t key,
+                                 uint32_t type,
+                                 uint32_t choice,
+                                 std::initializer_list<Padded<T>> values) {
+  spa_pod_builder builder =
+      SPA_POD_BUILDER_INIT(data.data(), static_cast<uint32_t>(data.size()));
+  spa_pod_frame object, frame;
+  spa_pod_builder_push_object(&builder, &object, SPA_TYPE_OBJECT_Format,
+                              SPA_PARAM_EnumFormat);
+  spa_pod_builder_prop(&builder, key, 0);
+  spa_pod_builder_push_choice(&builder, &frame, choice, 0);
+  spa_pod_builder_child(&builder, sizeof(Padded<T>), type);
+  for (const Padded<T>& value : values) {
+    spa_pod_builder_raw(&builder, &value, sizeof(value));
+  }
+  spa_pod_builder_pop(&builder, &frame);
+  return static_cast<const spa_pod*>(spa_pod_builder_pop(&builder, &object));
+}
+
 class PipeWireVideoSizesTest : public ::testing::Test {
  protected:
   void SetChoice(uint32_t choice, std::initializer_list<Size> sizes) {
@@ -188,6 +219,19 @@ TEST_F(PipeWireVideoSizesTest, IgnoresDefaultOutsideRange) {
 TEST_F(PipeWireVideoSizesTest, RejectsNonRectangleValue) {
   const spa_pod_int integer = {{sizeof(int32_t), SPA_TYPE_Int}, 640};
   EXPECT_THAT(GetPipeWireVideoSizes(&integer.pod), IsEmpty());
+}
+
+TEST_F(PipeWireVideoSizesTest, RejectsValuesOfAnotherSize) {
+  // Read as an array of spa_rectangle, the alternatives of these values would
+  // be 320x240, the padding of the first value, and 1280x720, the first
+  // alternative, while 1920x1080 would be lost.
+  format_ = BuildPaddedChoice<spa_rectangle>(
+      data_, SPA_FORMAT_VIDEO_size, SPA_TYPE_Rectangle, SPA_CHOICE_Enum,
+      {{{640, 480}, {320, 240}},
+       {{1280, 720}, {160, 120}},
+       {{1920, 1080}, {0, 0}}});
+  ASSERT_NE(format_, nullptr);
+  EXPECT_THAT(Sizes(), IsEmpty());
 }
 
 }  // namespace
