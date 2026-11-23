@@ -10624,6 +10624,77 @@ TEST_F(WebRtcVideoChannelBaseTest, EncoderSelectorSwitchCodec) {
   send_channel_->SetEncoderSelector(kSsrc, nullptr);
 }
 
+class TrackingVideoEncoderFactory : public FakeWebRtcVideoEncoderFactory {
+ public:
+  explicit TrackingVideoEncoderFactory(bool* factory_alive)
+      : factory_alive_(factory_alive) {
+    AddSupportedVideoCodecType("VP8");
+  }
+  ~TrackingVideoEncoderFactory() override {
+    // All encoders created by this factory (and the VideoSendStream owning
+    // them) must be destroyed before the factory itself is destroyed.
+    EXPECT_TRUE(encoders().empty());
+    *factory_alive_ = false;
+  }
+
+ private:
+  bool* const factory_alive_;
+};
+
+TEST_F(WebRtcVideoChannelBaseTest,
+       ResetEncoderFactoryOverrideDestroysStreamBeforeFactory) {
+  EXPECT_TRUE(SetDefaultCodec());
+  EXPECT_TRUE(SetSend(true));
+
+  bool factory_alive = true;
+  auto override_factory =
+      std::make_unique<TrackingVideoEncoderFactory>(&factory_alive);
+  TrackingVideoEncoderFactory* override_factory_ptr = override_factory.get();
+  ASSERT_TRUE(send_channel_->SetEncoderFactoryOverride(
+      kSsrc, std::move(override_factory)));
+
+  SendFrame();
+  ASSERT_GT(override_factory_ptr->GetNumCreatedEncoders(), 0);
+  ASSERT_FALSE(override_factory_ptr->encoders().empty());
+
+  send_channel_->ResetEncoderFactoryOverride(kSsrc);
+  EXPECT_FALSE(factory_alive);
+}
+
+TEST_F(WebRtcVideoChannelBaseTest,
+       SetEncoderFactoryOverrideReplacementDestroysStreamBeforeOldFactory) {
+  EXPECT_TRUE(SetDefaultCodec());
+  EXPECT_TRUE(SetSend(true));
+
+  bool first_factory_alive = true;
+  auto first_factory =
+      std::make_unique<TrackingVideoEncoderFactory>(&first_factory_alive);
+  TrackingVideoEncoderFactory* first_factory_ptr = first_factory.get();
+  ASSERT_TRUE(send_channel_->SetEncoderFactoryOverride(
+      kSsrc, std::move(first_factory)));
+
+  SendFrame();
+  ASSERT_GT(first_factory_ptr->GetNumCreatedEncoders(), 0);
+  ASSERT_FALSE(first_factory_ptr->encoders().empty());
+
+  bool second_factory_alive = true;
+  auto second_factory =
+      std::make_unique<TrackingVideoEncoderFactory>(&second_factory_alive);
+  TrackingVideoEncoderFactory* second_factory_ptr = second_factory.get();
+  ASSERT_TRUE(send_channel_->SetEncoderFactoryOverride(
+      kSsrc, std::move(second_factory)));
+
+  EXPECT_FALSE(first_factory_alive);
+  EXPECT_TRUE(second_factory_alive);
+
+  SendFrame();
+  ASSERT_GT(second_factory_ptr->GetNumCreatedEncoders(), 0);
+  ASSERT_FALSE(second_factory_ptr->encoders().empty());
+
+  send_channel_->ResetEncoderFactoryOverride(kSsrc);
+  EXPECT_FALSE(second_factory_alive);
+}
+
 TEST_F(WebRtcVideoChannelTest, ScaleResolutionDownToSinglecast) {
   VideoSenderParameters parameters;
   FakeVideoSendStream* stream = AddSendStream();

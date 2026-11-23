@@ -2349,7 +2349,10 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetEncoderFactoryOverride(
     absl_nonnull std::unique_ptr<VideoEncoderFactory> encoder_factory) {
   RTC_DCHECK_RUN_ON(&thread_checker_);
 
-  encoder_factory_override_ = std::move(encoder_factory);
+  // Keep any previous override alive until RecreateWebRtcStream() has
+  // destroyed the old VideoSendStream, which holds a raw pointer to it.
+  std::unique_ptr<VideoEncoderFactory> old_encoder_factory =
+      std::exchange(encoder_factory_override_, std::move(encoder_factory));
 
   if (stream_) {
     RTC_LOG(LS_INFO)
@@ -2366,7 +2369,10 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::
   if (!encoder_factory_override_) {
     return;
   }
-  encoder_factory_override_ = nullptr;
+  // Keep the override alive until RecreateWebRtcStream() has destroyed the old
+  // VideoSendStream, which holds a raw pointer to it.
+  std::unique_ptr<VideoEncoderFactory> old_encoder_factory =
+      std::exchange(encoder_factory_override_, nullptr);
 
   if (stream_) {
     RTC_LOG(LS_INFO)
@@ -2825,9 +2831,11 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::RecreateWebRtcStream() {
   VideoSendStream::Config config = parameters_.config.Copy();
 
   if (encoder_factory_override_) {
-    // Passing the raw ptr is safe since it has the same lifetime as this
-    // object. The pointer will be stored in VideoSendStreamImpl and
-    // VideoStreamEncoder.
+    // Passing the raw ptr is safe since the factory outlives `stream_`
+    // (~WebRtcVideoSendStream, SetEncoderFactoryOverride, and
+    // ResetEncoderFactoryOverride all destroy the old `stream_` before
+    // destroying the factory). The pointer will be stored in
+    // VideoSendStreamImpl and VideoStreamEncoder.
     config.encoder_settings.encoder_factory = encoder_factory_override_.get();
   }  // default factory is used if no override is set.
 
