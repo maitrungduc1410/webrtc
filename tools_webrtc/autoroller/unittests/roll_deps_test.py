@@ -85,13 +85,6 @@ class NullCmd:
         return None, None
 
 
-class MockIsExistingDir:
-    """Pretends that all paths are valid directories."""
-
-    def __call__(self, *args, **kwargs):
-        return True
-
-
 class TestRollChromiumRevision(unittest.TestCase):
 
     def setUp(self):
@@ -136,10 +129,9 @@ class TestRollChromiumRevision(unittest.TestCase):
 
         changed_deps = CalculateChangedDeps(webrtc_deps, new_cr_deps)
         with mock.patch('roll_deps._RunCommand', NullCmd()):
-            with mock.patch('roll_deps._IsExistingDir', MockIsExistingDir()):
-                UpdateDepsFile(self._webrtc_depsfile_android,
-                               NO_CHROMIUM_REVISION_UPDATE, changed_deps,
-                               new_cr_contents)
+            UpdateDepsFile(self._webrtc_depsfile_android,
+                           NO_CHROMIUM_REVISION_UPDATE, changed_deps,
+                           new_cr_contents)
 
         with open(self._webrtc_depsfile_android, 'rb') as deps_file:
             updated_contents = deps_file.read().decode('utf-8')
@@ -226,10 +218,8 @@ class TestRollChromiumRevision(unittest.TestCase):
         ]
         self.fake.AddExpectation(setdep_cmd, _ignores=['working_dir'])
         with mock.patch('roll_deps._RunCommand', self.fake):
-            with mock.patch('roll_deps._IsExistingDir', MockIsExistingDir()):
-                UpdateDepsFile(self._webrtc_depsfile,
-                               NO_CHROMIUM_REVISION_UPDATE, changed_deps,
-                               new_cr_contents)
+            UpdateDepsFile(self._webrtc_depsfile, NO_CHROMIUM_REVISION_UPDATE,
+                           changed_deps, new_cr_contents)
 
     def testGetMatchingDepsEntriesReturnsPathInSimpleCase(self):
         entries = GetMatchingDepsEntries(DEPS_ENTRIES, 'src/testing/gtest')

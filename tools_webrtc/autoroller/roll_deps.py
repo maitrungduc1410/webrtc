@@ -77,7 +77,6 @@ ROLL_BRANCH_NAME = 'roll_chromium_revision'
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CHECKOUT_ROOT_DIR = FindRootPath()
-GCLIENT_ROOT_DIR = os.path.realpath(os.path.join(CHECKOUT_ROOT_DIR, os.pardir))
 
 # Copied from tools/android/roll/android_deps/.../BuildConfigGenerator.groovy.
 ANDROID_DEPS_START = r'=== ANDROID_DEPS Generated Code Start ==='
@@ -202,12 +201,6 @@ def _RunCommand(command,
                       err_output)
         sys.exit(p.returncode)
     return std_output, err_output
-
-
-def _IsExistingDir(path):
-    """Returns True if `path` exists and is a dir.
-    """
-    return os.path.isdir(path)
 
 
 def _GetBranches():
@@ -645,15 +638,6 @@ def UpdateDepsFile(deps_filename, rev_update, changed_deps, new_cr_content):
         # ChangedVersionEntry types are already been processed.
         if isinstance(dep, ChangedVersionEntry):
             continue
-        local_dep_dir = os.path.join(GCLIENT_ROOT_DIR, dep.path)
-        if not _IsExistingDir(local_dep_dir):
-            raise RollError(
-                'Cannot find local directory %s. Either run\n'
-                'gclient sync --deps=all\n'
-                'or make sure the .gclient file for your solution contains all '
-                'platforms in the target_os list, i.e.\n'
-                'target_os = ["android", "unix", "mac", "ios", "win"];\n'
-                'Then run "gclient sync" again.' % local_dep_dir)
         if isinstance(dep, ChangedCipdPackage):
             update = '%s:%s@%s' % (dep.path, dep.package, dep.new_version)
         elif isinstance(dep, ChangedGcsPackage):

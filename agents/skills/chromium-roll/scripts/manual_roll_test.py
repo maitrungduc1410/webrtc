@@ -178,24 +178,21 @@ class HelpersTest(unittest.TestCase):
         self.assertTrue(entry.endswith("'dep_type': 'cipd',\n  },"))
         self.assertIsNone(manual_roll.raw_entry(content, 'src/missing'))
 
-    def test_setdep_on_edits_deps_file_without_checkout(self):
+    def test_setdep_on_passes_deps_file(self):
         calls = []
 
         def record(command, **_):
             calls.append(command)
 
         run_command = roll_deps._RunCommand
-        is_existing_dir = roll_deps._IsExistingDir
         roll_deps._RunCommand = record
         try:
             with manual_roll._setdep_on('/path/DEPS'):
                 roll_deps._RunCommand(['gclient', 'setdep', '-r', 'a@b'])
                 roll_deps._RunCommand(['git', 'ls-remote', 'url', 'HEAD'])
-                self.assertTrue(roll_deps._IsExistingDir('/does/not/exist'))
             self.assertIs(roll_deps._RunCommand, record)
         finally:
             roll_deps._RunCommand = run_command
-        self.assertIs(roll_deps._IsExistingDir, is_existing_dir)
         self.assertEqual(calls, [
             ['gclient', 'setdep', '-r', 'a@b', '--deps-file', '/path/DEPS'],
             ['git', 'ls-remote', 'url', 'HEAD'],

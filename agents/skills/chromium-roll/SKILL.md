@@ -156,9 +156,6 @@ It prints `object_name,sha256sum,size_bytes,generation`.
   commit that gitiles only serves minutes later, with a 404 meanwhile.
   `diagnose` pins through gitiles instead.
 - `urllib` waits forever by default; the script uses timeouts and retries.
-- `roll_deps.UpdateDepsFile` fails for deps that aren't checked out locally,
-  e.g. Android deps on a Mac. `gclient setdep` only edits DEPS, so `apply` skips
-  that check.
 - The missing deps check only reads the GN files of `//build/config` and
   `//build/android`. If the CQ fails with
   `"../../third_party/<path>", needed by ..., missing and no known rule to make it`,

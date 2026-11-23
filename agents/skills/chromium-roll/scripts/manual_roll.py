@@ -365,16 +365,12 @@ def cat(args):
 
 @contextlib.contextmanager
 def _setdep_on(deps_file):
-    """Makes roll_deps.UpdateDepsFile work on `deps_file` on any host.
+    """Points `gclient setdep` in roll_deps.UpdateDepsFile at `deps_file`.
 
-    UpdateDepsFile requires every changed dep to be checked out, which isn't
-    the case e.g. for Android deps on a Mac. `gclient setdep` only edits the
-    DEPS file, so that check is skipped. `gclient setdep` is also pointed at
-    `deps_file`, which may be a copy of the checkout's DEPS.
+    `deps_file` may be a copy of the checkout's DEPS rather than the default.
     """
     # pylint: disable=protected-access
     run_command = roll_deps._RunCommand
-    is_existing_dir = roll_deps._IsExistingDir
 
     def run(command, *args, **kwargs):
         if command[:2] == ['gclient', 'setdep']:
@@ -382,12 +378,10 @@ def _setdep_on(deps_file):
         return run_command(command, *args, **kwargs)
 
     roll_deps._RunCommand = run
-    roll_deps._IsExistingDir = lambda path: True
     try:
         yield
     finally:
         roll_deps._RunCommand = run_command
-        roll_deps._IsExistingDir = is_existing_dir
 
 
 def apply_roll(args):
