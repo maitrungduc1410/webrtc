@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <numbers>
 #include <span>
 
@@ -117,37 +118,32 @@ void FilterCore(std::span<const float, kFilterSize> filter,
   constexpr int kMaxInShift = (kStride - 1);
   RTC_DCHECK_GE(in_shift, 0);
   RTC_DCHECK_LE(in_shift, kMaxInShift);
-  std::fill(out.begin(), out.end(), 0.f);
 
-  for (int k = 0; k < in_shift; ++k) {
-    for (int i = 0, j = kMemorySize + k - in_shift; i < kFilterSize;
-         ++i, j -= kStride) {
-      out[k] += state[j] * filter[i];
-    }
-  }
+  // Output sample k is the sum over i of
+  // filter[i] * x[k - in_shift - i * kStride], where x is `in` preceded by the
+  // kMemorySize samples held in `state`. Keeping x in one buffer, offset by
+  // `in_shift`, bounds every index below by compile-time constants.
+  std::array<float, kMemorySize + ThreeBandFilterBank::kSplitBandSize>
+      extended_in;
+  auto in_start = std::ranges::copy(state, extended_in.begin());
+  std::ranges::copy(in, in_start.out);
+  constexpr int kShiftedInSize = extended_in.size() - kMaxInShift;
+  std::span<const float, kShiftedInSize> shifted_in =
+      std::span<const float>(extended_in)
+          .subspan(kMaxInShift - in_shift)
+          .first<kShiftedInSize>();
 
-  for (int k = in_shift, shift = 0; k < kFilterSize * kStride; ++k, ++shift) {
-    RTC_DCHECK_GE(shift, 0);
-    const int loop_limit = std::min(kFilterSize, 1 + (shift >> kStrideLog2));
-    for (int i = 0, j = shift; i < loop_limit; ++i, j -= kStride) {
-      out[k] += in[j] * filter[i];
+  for (size_t k = 0; k < out.size(); ++k) {
+    float sum = 0.f;
+    for (size_t i = 0; i < filter.size(); ++i) {
+      sum +=
+          shifted_in[k + kMemorySize - kMaxInShift - i * kStride] * filter[i];
     }
-    for (int i = loop_limit, j = kMemorySize + shift - loop_limit * kStride;
-         i < kFilterSize; ++i, j -= kStride) {
-      out[k] += state[j] * filter[i];
-    }
-  }
-
-  for (int k = kFilterSize * kStride, shift = kFilterSize * kStride - in_shift;
-       k < ThreeBandFilterBank::kSplitBandSize; ++k, ++shift) {
-    for (int i = 0, j = shift; i < kFilterSize; ++i, j -= kStride) {
-      out[k] += in[j] * filter[i];
-    }
+    out[k] = sum;
   }
 
   // Update current state.
-  std::copy(in.begin() + ThreeBandFilterBank::kSplitBandSize - kMemorySize,
-            in.end(), state.begin());
+  std::ranges::copy(in.last<kMemorySize>(), state.begin());
 }
 
 }  // namespace
