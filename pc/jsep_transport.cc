@@ -426,7 +426,7 @@ RTCError JsepTransport::NegotiateAndSetDtlsParameters(
       local_description_->transport_desc.identity_fingerprint.get();
   SSLFingerprint* remote_fp =
       remote_description_->transport_desc.identity_fingerprint.get();
-  if (remote_fp && local_fp) {
+  if (remote_fp != nullptr && local_fp != nullptr) {
     remote_fingerprint = std::make_unique<SSLFingerprint>(*remote_fp);
     RTCError error =
         NegotiateDtlsRole(local_description_type,
@@ -436,10 +436,17 @@ RTCError JsepTransport::NegotiateAndSetDtlsParameters(
     if (!error.ok()) {
       return error;
     }
-  } else if (local_fp && (local_description_type == SdpType::kAnswer)) {
+  } else if (local_fp != nullptr) {
     return RTCError(
         RTCErrorType::INVALID_PARAMETER,
-        "Local fingerprint supplied when caller didn't offer DTLS.");
+        local_description_type == SdpType::kOffer
+            ? "Remote description missing DTLS fingerprint."
+            : "Local fingerprint supplied when caller didn't offer DTLS.");
+  } else if (remote_fp != nullptr) {
+    return RTCError(
+        RTCErrorType::INVALID_PARAMETER,
+        "Remote fingerprint supplied when local description has no DTLS "
+        "fingerprint.");
   } else {
     // We are not doing DTLS
     remote_fingerprint =

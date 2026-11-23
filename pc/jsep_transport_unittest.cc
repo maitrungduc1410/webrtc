@@ -22,12 +22,16 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
+#include "absl/memory/memory.h"
+#include "absl/strings/string_view.h"
 #include "api/candidate.h"
 #include "api/crypto/crypto_options.h"
 #include "api/environment/environment.h"
 #include "api/ice_transport_interface.h"
 #include "api/jsep.h"
 #include "api/make_ref_counted.h"
+#include "api/rtc_error.h"
 #include "api/rtp_header_extension_id.h"
 #include "api/scoped_refptr.h"
 #include "call/rtp_demuxer.h"
@@ -101,6 +105,70 @@ scoped_refptr<IceTransportInterface> CreateIceTransport(
   return make_ref_counted<FakeIceTransport>(std::move(internal));
 }
 
+struct JsepTransportTestOptions {
+  bool rtcp_mux_enabled = true;
+  scoped_refptr<RTCCertificate> certificate;
+  absl::AnyInvocable<void()> rtcp_mux_active_callback = [] {};
+};
+
+JsepTransport MakeJsepTransport(const Environment& env,
+                                JsepTransportTestOptions options = {}) {
+  auto ice_internal = std::make_unique<FakeIceTransportInternal>(
+      env, kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
+  auto ice = CreateIceTransport(std::move(ice_internal));
+  auto rtp_dtls_transport = std::make_unique<FakeDtlsTransport>(ice);
+  if (options.certificate != nullptr) {
+    rtp_dtls_transport->SetLocalCertificate(options.certificate);
+  }
+
+  std::unique_ptr<FakeIceTransportInternal> rtcp_ice_internal;
+  std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
+  scoped_refptr<IceTransportInterface> rtcp_ice;
+  if (!options.rtcp_mux_enabled) {
+    rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
+        env, kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
+    rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
+    rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
+  }
+
+  DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
+
+  auto rtp_transport = std::make_unique<DtlsSrtpTransport>(
+      options.rtcp_mux_enabled, env.field_trials());
+  rtp_transport->SetDtlsTransportsOwned(std::move(rtp_dtls_transport),
+                                        std::move(rtcp_dtls_transport));
+
+  scoped_refptr<DtlsTransport> rtp_dtls_transport_wrapper =
+      make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
+
+  return JsepTransport(
+      /*local_certificate=*/options.certificate, std::move(rtp_transport),
+      std::move(rtp_dtls_transport_wrapper),
+      /*sctp_transport=*/nullptr, std::move(options.rtcp_mux_active_callback),
+      /*cryptex_policy=*/CryptoOptions::Srtp::CryptexPolicy::kDisabled);
+}
+
+struct JsepTransportDescriptionOptions {
+  bool rtcp_mux_enabled = true;
+  absl::string_view ufrag = kIceUfrag1;
+  absl::string_view pwd = kIcePwd1;
+  scoped_refptr<RTCCertificate> certificate;
+  ConnectionRole role = CONNECTIONROLE_NONE;
+};
+
+JsepTransportDescription MakeDescription(
+    JsepTransportDescriptionOptions options = {}) {
+  JsepTransportDescription description;
+  description.rtcp_mux_enabled = options.rtcp_mux_enabled;
+  description.transport_desc = TransportDescription(
+      {}, options.ufrag, options.pwd, ICEMODE_FULL, options.role, nullptr);
+  if (options.certificate != nullptr) {
+    description.transport_desc.identity_fingerprint =
+        SSLFingerprint::CreateFromCertificate(*options.certificate);
+  }
+  return description;
+}
+
 class JsepTransport2Test : public ::testing::Test {
  protected:
   std::unique_ptr<SrtpTransport> CreateSdesTransport(
@@ -116,69 +184,30 @@ class JsepTransport2Test : public ::testing::Test {
     return srtp_transport;
   }
 
-  std::unique_ptr<DtlsSrtpTransport> CreateDtlsSrtpTransport(
-      std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport,
-      std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport) {
-    auto dtls_srtp_transport = std::make_unique<DtlsSrtpTransport>(
-        rtcp_dtls_transport == nullptr, env_.field_trials());
-    dtls_srtp_transport->SetDtlsTransportsOwned(std::move(rtp_dtls_transport),
-                                                std::move(rtcp_dtls_transport));
-    return dtls_srtp_transport;
-  }
-
   // Create a new JsepTransport with a FakeDtlsTransport and a
   // FakeIceTransportInternal.
   std::unique_ptr<JsepTransport> CreateJsepTransport2(bool rtcp_mux_enabled) {
-    auto ice_internal = std::make_unique<FakeIceTransportInternal>(
-        env_, kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
-    auto ice = CreateIceTransport(std::move(ice_internal));
-    auto rtp_dtls_transport = std::make_unique<FakeDtlsTransport>(ice);
-
-    std::unique_ptr<FakeIceTransportInternal> rtcp_ice_internal;
-    std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
-    scoped_refptr<IceTransportInterface> rtcp_ice;
-    if (!rtcp_mux_enabled) {
-      rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
-          env_, kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
-      rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
-      rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
-    }
-
-    DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
-    std::unique_ptr<RtpTransport> rtp_transport = CreateDtlsSrtpTransport(
-        std::move(rtp_dtls_transport), std::move(rtcp_dtls_transport));
-
-    scoped_refptr<DtlsTransport> rtp_dtls_transport_wrapper =
-        make_ref_counted<DtlsTransport>(rtp_dtls_transport_ptr);
-
-    auto jsep_transport = std::make_unique<JsepTransport>(
-        /*local_certificate=*/nullptr, std::move(rtp_transport),
-        std::move(rtp_dtls_transport_wrapper),
-        /*sctp_transport=*/nullptr,
-        /*rtcp_mux_active_callback=*/[&]() { OnRtcpMuxActive(); },
-        /*cryptex_policy=*/CryptoOptions::Srtp::CryptexPolicy::kDisabled);
-
     signal_rtcp_mux_active_received_ = false;
-    return jsep_transport;
+    // JsepTransport is not movable. To construct it as unique_ptr from
+    // the value, use raw new and rely on guaranteed copy eilision.
+    return absl::WrapUnique(new JsepTransport(
+        MakeJsepTransport(env_, {.rtcp_mux_enabled = rtcp_mux_enabled,
+                                 .rtcp_mux_active_callback = [&]() {
+                                   signal_rtcp_mux_active_received_ = true;
+                                 }})));
   }
 
   JsepTransportDescription MakeJsepTransportDescription(
       bool rtcp_mux_enabled,
-      const char* ufrag,
-      const char* pwd,
+      absl::string_view ufrag,
+      absl::string_view pwd,
       const scoped_refptr<RTCCertificate>& cert,
       ConnectionRole role = CONNECTIONROLE_NONE) {
-    JsepTransportDescription jsep_description;
-    jsep_description.rtcp_mux_enabled = rtcp_mux_enabled;
-
-    std::unique_ptr<SSLFingerprint> fingerprint;
-    if (cert) {
-      fingerprint = SSLFingerprint::CreateFromCertificate(*cert);
-    }
-    jsep_description.transport_desc =
-        TransportDescription(std::vector<std::string>(), ufrag, pwd,
-                             ICEMODE_FULL, role, fingerprint.get());
-    return jsep_description;
+    return MakeDescription({.rtcp_mux_enabled = rtcp_mux_enabled,
+                            .ufrag = ufrag,
+                            .pwd = pwd,
+                            .certificate = cert,
+                            .role = role});
   }
 
   Candidate CreateCandidate(int component) {
@@ -189,8 +218,6 @@ class JsepTransport2Test : public ::testing::Test {
     c.set_priority(1);
     return c;
   }
-
-  void OnRtcpMuxActive() { signal_rtcp_mux_active_received_ = true; }
 
   test::RunLoop main_thread_;
   const Environment env_ = CreateTestEnvironment();
@@ -1687,6 +1714,190 @@ TEST_F(JsepTransport2Test, SetIceParametersWithRenomination) {
   EXPECT_EQ(kIceUfrag2, fake_ice_transport->remote_ice_parameters()->ufrag);
   EXPECT_EQ(kIcePwd2, fake_ice_transport->remote_ice_parameters()->pwd);
   EXPECT_TRUE(fake_ice_transport->remote_ice_parameters()->renomination);
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsLocalPrAnswerWithFingerprintWhenRemoteOfferHasNone) {
+  scoped_refptr<RTCCertificate> local_cert =
+      RTCCertificate::Create(SSLIdentity::Create("local", KT_DEFAULT));
+  JsepTransport jsep_transport =
+      MakeJsepTransport(env_, {.certificate = local_cert});
+
+  JsepTransportDescription remote_offer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription local_answer = MakeDescription(
+      {.certificate = local_cert, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_answer, SdpType::kPrAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+  EXPECT_TRUE(jsep_transport.rtp_dtls_transport()->IsDtlsActive());
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsLocalAnswerWithFingerprintWhenRemoteOfferHasNone) {
+  scoped_refptr<RTCCertificate> local_cert =
+      RTCCertificate::Create(SSLIdentity::Create("local", KT_DEFAULT));
+  JsepTransport jsep_transport =
+      MakeJsepTransport(env_, {.certificate = local_cert});
+
+  JsepTransportDescription remote_offer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription local_answer = MakeDescription(
+      {.certificate = local_cert, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_answer, SdpType::kAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+  EXPECT_TRUE(jsep_transport.rtp_dtls_transport()->IsDtlsActive());
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsRemotePrAnswerWithoutFingerprintWhenLocalOfferHasOne) {
+  scoped_refptr<RTCCertificate> local_cert =
+      RTCCertificate::Create(SSLIdentity::Create("local", KT_DEFAULT));
+  JsepTransport jsep_transport =
+      MakeJsepTransport(env_, {.certificate = local_cert});
+
+  JsepTransportDescription local_offer = MakeDescription(
+      {.certificate = local_cert, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription remote_answer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_answer, SdpType::kPrAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+  EXPECT_TRUE(jsep_transport.rtp_dtls_transport()->IsDtlsActive());
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsRemoteAnswerWithoutFingerprintWhenLocalOfferHasOne) {
+  scoped_refptr<RTCCertificate> local_cert =
+      RTCCertificate::Create(SSLIdentity::Create("local", KT_DEFAULT));
+  JsepTransport jsep_transport =
+      MakeJsepTransport(env_, {.certificate = local_cert});
+
+  JsepTransportDescription local_offer = MakeDescription(
+      {.certificate = local_cert, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription remote_answer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_answer, SdpType::kAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+  EXPECT_TRUE(jsep_transport.rtp_dtls_transport()->IsDtlsActive());
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsLocalPrAnswerWithoutFingerprintWhenRemoteOfferHasOne) {
+  scoped_refptr<RTCCertificate> remote_cert =
+      RTCCertificate::Create(SSLIdentity::Create("remote", KT_DEFAULT));
+  JsepTransport jsep_transport = MakeJsepTransport(env_);
+
+  JsepTransportDescription remote_offer = MakeDescription(
+      {.certificate = remote_cert, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription local_answer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_answer, SdpType::kPrAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsLocalAnswerWithoutFingerprintWhenRemoteOfferHasOne) {
+  scoped_refptr<RTCCertificate> remote_cert =
+      RTCCertificate::Create(SSLIdentity::Create("remote", KT_DEFAULT));
+  JsepTransport jsep_transport = MakeJsepTransport(env_);
+
+  JsepTransportDescription remote_offer = MakeDescription(
+      {.certificate = remote_cert, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription local_answer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_answer, SdpType::kAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsRemotePrAnswerWithFingerprintWhenLocalOfferHasNone) {
+  scoped_refptr<RTCCertificate> remote_cert =
+      RTCCertificate::Create(SSLIdentity::Create("remote", KT_DEFAULT));
+  JsepTransport jsep_transport = MakeJsepTransport(env_);
+
+  JsepTransportDescription local_offer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription remote_answer = MakeDescription(
+      {.certificate = remote_cert, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_answer, SdpType::kPrAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
+}
+
+TEST_F(JsepTransport2Test,
+       RejectsRemoteAnswerWithFingerprintWhenLocalOfferHasNone) {
+  scoped_refptr<RTCCertificate> remote_cert =
+      RTCCertificate::Create(SSLIdentity::Create("remote", KT_DEFAULT));
+  JsepTransport jsep_transport = MakeJsepTransport(env_);
+
+  JsepTransportDescription local_offer =
+      MakeDescription({.certificate = nullptr, .role = CONNECTIONROLE_ACTPASS});
+  JsepTransportDescription remote_answer = MakeDescription(
+      {.certificate = remote_cert, .role = CONNECTIONROLE_ACTIVE});
+
+  ASSERT_TRUE(
+      jsep_transport
+          .SetLocalJsepTransportDescription(local_offer, SdpType::kOffer)
+          .ok());
+  EXPECT_EQ(
+      jsep_transport
+          .SetRemoteJsepTransportDescription(remote_answer, SdpType::kAnswer)
+          .type(),
+      RTCErrorType::INVALID_PARAMETER);
 }
 
 }  // namespace

@@ -115,7 +115,9 @@ using ::testing::ByMove;
 using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::Field;
+using ::testing::Ge;
 using ::testing::Gt;
+using ::testing::HasSubstr;
 using ::testing::InSequence;
 using ::testing::IsTrue;
 using ::testing::MockFunction;
@@ -5701,6 +5703,101 @@ TEST_P(PeerConnectionIntegrationTest,
   // prAnswer, and RFC 8843 says you can't remove an m= section from a BUNDLE
   // group once it's been established.
   ASSERT_FALSE(caller()->SetRemoteDescription(std::move(final_answer)));
+}
+
+// Verifies that a local BUNDLE-declining prAnswer is rejected when the remote
+// offer omitted a DTLS fingerprint for the standalone SCTP data channel
+// section, preventing a downgrade to unencrypted SCTP.
+TEST_P(PeerConnectionIntegrationTest,
+       RejectLocalPrAnswerWithoutRemoteFingerprintForUnbundledDataChannel) {
+  RTCConfiguration config;
+  config.bundle_policy = PeerConnectionInterface::kBundlePolicyBalanced;
+  // Munging allowed: kBundle (33)
+  SetFieldTrials("Callee", "WebRTC-NoSdpMangleAllowForTesting/Enabled,33/");
+  ASSERT_TRUE(CreatePeerConnectionWrappersWithConfig(config, config));
+  ConnectFakeSignaling();
+
+  // 1. Initial negotiation without BUNDLE so video and SCTP have separate
+  // transports.
+  callee()->SetGeneratedSdpMunger(
+      [](std::unique_ptr<SessionDescriptionInterface>& desc) {
+        desc->description()->RemoveGroupByName(GROUP_TYPE_BUNDLE);
+      });
+
+  caller()->AddVideoTrack();
+  caller()->CreateDataChannel();
+  caller()->CreateAndSetAndSignalOffer();
+  ASSERT_TRUE(WaitUntil([&] { return SignalingStateStable(); }));
+  ASSERT_TRUE(WaitUntil([&] { return DtlsConnected(); }));
+  ASSERT_TRUE(WaitUntil([&] { return callee()->data_observer() != nullptr; }));
+
+  // 2. Re-offer from caller with BUNDLE, but with the data section's DTLS
+  // fingerprint stripped.
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      caller()->CreateOfferAndWait();
+  ASSERT_THAT(reoffer, NotNull());
+  SessionDescription* reoffer_desc = reoffer->description();
+  ASSERT_THAT(reoffer_desc->GetGroupByName(GROUP_TYPE_BUNDLE), NotNull());
+  ASSERT_THAT(reoffer_desc->contents(), SizeIs(Ge(2)));
+  TransportInfo* data_transport_info =
+      reoffer_desc->GetTransportInfoByName(reoffer_desc->contents()[1].mid());
+  ASSERT_THAT(data_transport_info, NotNull());
+  data_transport_info->description.identity_fingerprint.reset();
+
+  ASSERT_TRUE(callee()->SetRemoteDescription(std::move(reoffer)));
+
+  // 3. Callee creates an answer, declines BUNDLE, and applies it as a local
+  // prAnswer.
+  auto answer_observer =
+      make_ref_counted<MockCreateSessionDescriptionObserver>();
+  callee()->pc()->CreateAnswer(answer_observer.get(), {});
+  ASSERT_TRUE(WaitUntil([&] { return answer_observer->called(); }));
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      answer_observer->MoveDescription();
+  ASSERT_THAT(answer, NotNull());
+
+  answer->description()->RemoveGroupByName(GROUP_TYPE_BUNDLE);
+  // Restore the local DTLS fingerprint on the unbundled data section so it
+  // passes VerifyCrypto and reaches
+  // JsepTransport::NegotiateAndSetDtlsParameters.
+  const TransportInfo* first_transport_info =
+      answer->description()->GetTransportInfoByName(
+          answer->description()->contents()[0].mid());
+  TransportInfo* answer_data_transport_info =
+      answer->description()->GetTransportInfoByName(
+          answer->description()->contents()[1].mid());
+  ASSERT_THAT(first_transport_info, NotNull());
+  ASSERT_THAT(first_transport_info->description.identity_fingerprint,
+              NotNull());
+  ASSERT_THAT(answer_data_transport_info, NotNull());
+  answer_data_transport_info->description.identity_fingerprint =
+      std::make_unique<SSLFingerprint>(
+          *first_transport_info->description.identity_fingerprint);
+
+  std::string sdp = answer->ToString();
+  ASSERT_FALSE(sdp.empty());
+  std::unique_ptr<SessionDescriptionInterface> pr_answer =
+      CreateSessionDescription(SdpType::kPrAnswer, sdp);
+  ASSERT_THAT(pr_answer, NotNull());
+
+  auto sld_observer = make_ref_counted<FakeSetLocalDescriptionObserver>();
+  callee()->pc()->SetLocalDescription(std::move(pr_answer), sld_observer);
+  ASSERT_TRUE(WaitUntil([&] { return sld_observer->called(); }));
+  EXPECT_FALSE(sld_observer->error().ok());
+  EXPECT_THAT(
+      sld_observer->error().message(),
+      HasSubstr("Local fingerprint supplied when caller didn't offer DTLS."));
+
+  // DTLS must remain active on the data channel transport.
+  SendTask(network_thread(), [&] {
+    scoped_refptr<SctpTransportInterface> sctp_transport =
+        callee()->pc()->GetSctpTransport();
+    ASSERT_THAT(sctp_transport, NotNull());
+    EXPECT_TRUE(static_cast<SctpTransport&>(*sctp_transport)
+                    .internal()
+                    ->dtls_transport()
+                    ->IsDtlsActive());
+  });
 }
 
 #endif  // WEBRTC_HAVE_SCTP

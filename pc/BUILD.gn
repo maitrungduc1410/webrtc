@@ -2744,6 +2744,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api:ice_transport_interface",
       "../api:jsep",
       "../api:make_ref_counted",
+      "../api:rtc_error",
       "../api:rtp_header_extension_id",
       "../api:scoped_refptr",
       "../api/crypto:options",
@@ -2769,6 +2770,9 @@ if (rtc_include_tests && !build_with_chromium) {
       "../test:create_test_environment",
       "../test:run_loop",
       "../test:test_support",
+      "//third_party/abseil-cpp/absl/functional:any_invocable",
+      "//third_party/abseil-cpp/absl/memory",
+      "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }
 
