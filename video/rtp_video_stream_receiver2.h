@@ -308,6 +308,9 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   StashResult OnReceivedPayloadData(
       const RtpPacketReceived& rtp_packet,
       absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet>& packet);
+  ParseGenericDependenciesResult ParsePacketHeaderExtensions(
+      const RtpPacketReceived& rtp_packet,
+      video_coding::PacketBuffer::Packet& packet) RTC_RUN_ON(network_queue_);
 
   // Returns nullopt for packets dropped during sequence number recovery.
   // `video_header` is null for padding and FEC packets.

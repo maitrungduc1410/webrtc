@@ -742,13 +742,11 @@ void RtpVideoStreamReceiver2::UpdateNewestMediaSeqNumAndTimestamp(
   }
 }
 
-RtpVideoStreamReceiver2::StashResult
-RtpVideoStreamReceiver2::OnReceivedPayloadData(
+RtpVideoStreamReceiver2::ParseGenericDependenciesResult
+RtpVideoStreamReceiver2::ParsePacketHeaderExtensions(
     const RtpPacketReceived& rtp_packet,
-    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet>& packet) {
-  RTC_DCHECK_RUN_ON(network_queue_);
-
-  RtpPacketInfo& packet_info = packet->rtp_packet_info;
+    video_coding::PacketBuffer::Packet& packet) {
+  RtpPacketInfo& packet_info = packet.rtp_packet_info;
   packet_info.set_receive_time(env_.clock().CurrentTime());
 
   // Try to extrapolate absolute capture time if it is missing.
@@ -767,7 +765,7 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
                 packet_info.absolute_capture_time()
                     ->estimated_capture_clock_offset)));
   }
-  RTPVideoHeader& video_header = packet->video_header;
+  RTPVideoHeader& video_header = packet.video_header;
   video_header.rotation = kVideoRotation_0;
   video_header.content_type = VideoContentType::UNSPECIFIED;
   video_header.video_timing.flags = VideoSendTiming::kInvalid;
@@ -796,8 +794,10 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
       ParseGenericDependenciesExtension(rtp_packet, &video_header);
 
   if (generic_descriptor_state == kStashPacket) {
-    return StashResult::kStash;
-  } else if (generic_descriptor_state == kDropPacket) {
+    return kStashPacket;
+  }
+
+  if (generic_descriptor_state == kDropPacket) {
     Timestamp now = env_.clock().CurrentTime();
     if (now - last_logged_failed_to_parse_dd_ > TimeDelta::Seconds(1)) {
       last_logged_failed_to_parse_dd_ = now;
@@ -813,7 +813,7 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
       next_keyframe_request_for_missing_video_structure_ =
           now + TimeDelta::Seconds(1);
     }
-    return StashResult::kIgnore;
+    return kDropPacket;
   }
 
   // Extensions that should only be transmitted in the last packet of a frame.
@@ -852,6 +852,25 @@ RtpVideoStreamReceiver2::OnReceivedPayloadData(
   }
   video_header.video_frame_tracking_id =
       rtp_packet.GetExtension<VideoFrameTrackingIdExtension>();
+
+  return generic_descriptor_state;
+}
+
+RtpVideoStreamReceiver2::StashResult
+RtpVideoStreamReceiver2::OnReceivedPayloadData(
+    const RtpPacketReceived& rtp_packet,
+    absl_nonnull std::unique_ptr<video_coding::PacketBuffer::Packet>& packet) {
+  RTC_DCHECK_RUN_ON(network_queue_);
+
+  const ParseGenericDependenciesResult generic_descriptor_state =
+      ParsePacketHeaderExtensions(rtp_packet, *packet);
+  if (generic_descriptor_state == kStashPacket) {
+    return StashResult::kStash;
+  }
+
+  if (generic_descriptor_state == kDropPacket) {
+    return StashResult::kIgnore;
+  }
 
   if (packet->video_payload.empty()) {
     NotifyReceiverOfEmptyPacket(packet->seq_num(),
