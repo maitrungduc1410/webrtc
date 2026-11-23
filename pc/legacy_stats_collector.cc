@@ -527,7 +527,10 @@ void ExtractStatsFromList(
     StatsReport::Direction direction,
     const std::map<uint32_t, std::string>& track_id_by_ssrc) {
   for (const auto& d : data) {
-    uint32_t ssrc = d.ssrc();
+    if (!d.connected()) {
+      continue;
+    }
+    uint32_t ssrc = *d.ssrc();
     std::string track_id = GetTrackIdBySsrc(ssrc, direction, track_id_by_ssrc);
     // Each track can have stats for both local and remote objects.
     // TODO(hta): Handle the case of multiple SSRCs per object.

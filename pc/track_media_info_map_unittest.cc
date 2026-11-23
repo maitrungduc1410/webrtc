@@ -370,4 +370,16 @@ TEST_F(TrackMediaInfoMapTest, GetReceiverTrackIdBySsrc) {
   EXPECT_EQ(std::nullopt, map.GetReceiverTrackIdBySsrc(2, MediaType::AUDIO));
 }
 
+TEST_F(TrackMediaInfoMapTest, SsrcZeroLookupFunction) {
+  AddRtpSenderWithSsrcs({0}, local_audio_track_.get());
+  AddRtpSenderWithSsrcs({0}, local_video_track_.get());
+  // Also add unconnected senders (empty SSRC list) to verify they are skipped
+  // and do not collide with SSRC 0.
+  AddRtpSenderWithSsrcs({}, local_audio_track_.get());
+  AddRtpSenderWithSsrcs({}, local_video_track_.get());
+  TrackMediaInfoMap map = InitializeMap();
+  EXPECT_TRUE(map.GetVoiceSenderInfoBySsrc(0));
+  EXPECT_TRUE(map.GetVideoSenderInfoBySsrc(0));
+}
+
 }  // namespace webrtc

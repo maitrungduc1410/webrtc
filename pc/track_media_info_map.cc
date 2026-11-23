@@ -110,12 +110,13 @@ flat_map<uint32_t, const VoiceSenderInfo*> GetVoiceSenderInfos(
     return result;
   }
   for (auto& sender_info : voice_media_info->senders) {
-    if (sender_info.ssrc() == 0) {
+    std::optional<uint32_t> ssrc = sender_info.ssrc();
+    if (!ssrc.has_value()) {
       continue;
     }
-    RTC_CHECK(result.find(sender_info.ssrc()) == result.end())
-        << "Duplicate voice sender SSRC: " << sender_info.ssrc();
-    result[sender_info.ssrc()] = &sender_info;
+    RTC_CHECK(result.find(*ssrc) == result.end())
+        << "Duplicate voice sender SSRC: " << *ssrc;
+    result[*ssrc] = &sender_info;
   }
   return result;
 }
@@ -127,12 +128,13 @@ flat_map<uint32_t, const VideoSenderInfo*> GetVideoSenderInfos(
     return result;
   }
   for (auto& sender_info : video_media_info->aggregated_senders) {
-    if (sender_info.ssrc() == 0) {
+    std::optional<uint32_t> ssrc = sender_info.ssrc();
+    if (!ssrc.has_value()) {
       continue;
     }
-    RTC_DCHECK(result.find(sender_info.ssrc()) == result.end())
-        << "Duplicate video sender SSRC: " << sender_info.ssrc();
-    result[sender_info.ssrc()] = &sender_info;
+    RTC_DCHECK(result.find(*ssrc) == result.end())
+        << "Duplicate video sender SSRC: " << *ssrc;
+    result[*ssrc] = &sender_info;
   }
   return result;
 }
