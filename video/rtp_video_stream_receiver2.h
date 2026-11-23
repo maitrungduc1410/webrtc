@@ -37,6 +37,7 @@
 #include "api/video/color_space.h"
 #include "api/video/corruption_detection/frame_instrumentation_data_reader.h"
 #include "api/video/encoded_frame.h"
+#include "api/video/encoded_image.h"
 #include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "call/rtp_packet_sink_interface.h"
@@ -373,6 +374,10 @@ class RtpVideoStreamReceiver2 : public RecoveredPacketReceiver,
   void InsertSpsPpsIntoTracker(uint8_t payload_type) RTC_RUN_ON(network_queue_);
   void OnInsertedPacket(video_coding::PacketBuffer::InsertResult result)
       RTC_RUN_ON(network_queue_);
+  std::unique_ptr<RtpFrameObject> CreateRtpFrameObject(
+      std::span<const std::unique_ptr<video_coding::PacketBuffer::Packet>>
+          packets,
+      scoped_refptr<EncodedImageBuffer> bitstream) RTC_RUN_ON(network_queue_);
   ParseGenericDependenciesResult ParseGenericDependenciesExtension(
       const RtpPacketReceived& rtp_packet,
       RTPVideoHeader* video_header) RTC_RUN_ON(network_queue_);

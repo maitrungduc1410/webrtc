@@ -985,90 +985,47 @@ bool RtpVideoStreamReceiver2::IsDecryptable() const {
 void RtpVideoStreamReceiver2::OnInsertedPacket(
     video_coding::PacketBuffer::InsertResult result) {
   RTC_DCHECK_RUN_ON(network_queue_);
-  video_coding::PacketBuffer::Packet* first_packet = nullptr;
-  int max_nack_count;
-  Timestamp min_recv_time = Timestamp::PlusInfinity();
-  Timestamp max_recv_time = Timestamp::MinusInfinity();
-  std::optional<int64_t> absolute_capture_time_ms;
-  std::vector<std::span<const uint8_t>> payloads;
-  RtpPacketInfos::vector_type packet_infos;
-
-  bool skip_frame = false;
-  for (auto& packet : result.packets) {
-    if (skip_frame && !packet->is_first_packet_in_frame()) {
+  size_t first_packet_index = 0;
+  for (size_t i = 0; i < result.packets.size(); ++i) {
+    const video_coding::PacketBuffer::Packet& packet = *result.packets[i];
+    if (packet.is_first_packet_in_frame()) {
+      first_packet_index = i;
+    }
+    if (!packet.is_last_packet_in_frame()) {
       continue;
     }
-    skip_frame = false;
 
-    const RtpPacketInfo& packet_info = packet->rtp_packet_info;
-    if (packet->is_first_packet_in_frame()) {
-      payloads.clear();
-      packet_infos.clear();
-      first_packet = packet.get();
-      max_nack_count = packet->times_nacked;
-      min_recv_time = packet_info.receive_time();
-      max_recv_time = packet_info.receive_time();
-      if (env_.field_trials().IsEnabled("WebRTC-UseAbsCapTimeForG2gMetric") &&
-          packet_info.absolute_capture_time().has_value() &&
-          packet_info.local_capture_clock_offset().has_value()) {
-        absolute_capture_time_ms =
-            NtpTime(
-                packet_info.absolute_capture_time()->absolute_capture_timestamp)
-                .ToMs() +
-            packet_info.local_capture_clock_offset()->ms();
-      }
-    } else {
-      max_nack_count = std::max(max_nack_count, packet->times_nacked);
-      min_recv_time = std::min(min_recv_time, packet_info.receive_time());
-      max_recv_time = std::max(max_recv_time, packet_info.receive_time());
+    std::span<const std::unique_ptr<video_coding::PacketBuffer::Packet>>
+        frame_packets =
+            std::span(result.packets)
+                .subspan(first_packet_index, i + 1 - first_packet_index);
+    const video_coding::PacketBuffer::Packet& first_packet =
+        *frame_packets.front();
+    auto depacketizer_it = payload_type_map_.find(first_packet.payload_type);
+    // May happen if buffered packets are being drained for a payload type
+    // that was removed during codec reconfiguration.
+    if (depacketizer_it == payload_type_map_.end() ||
+        !depacketizer_it->second) {
+      RTC_LOG(LS_WARNING) << "Missing depacketizer for payload type "
+                          << static_cast<int>(first_packet.payload_type);
+      continue;
     }
-    payloads.emplace_back(packet->video_payload);
-    packet_infos.push_back(packet_info);
 
-    packet->video_header.absolute_capture_time =
-        packet_info.absolute_capture_time();
-    if (packet->is_last_packet_in_frame()) {
-      auto depacketizer_it = payload_type_map_.find(first_packet->payload_type);
-      // May happen if buffered packets are being drained for a payload type
-      // that was removed during codec reconfiguration.
-      if (depacketizer_it == payload_type_map_.end() ||
-          !depacketizer_it->second) {
-        RTC_LOG(LS_WARNING) << "Missing depacketizer for payload type "
-                            << static_cast<int>(first_packet->payload_type);
-        continue;
-      }
-
-      scoped_refptr<EncodedImageBuffer> bitstream =
-          depacketizer_it->second->AssembleFrame(payloads);
-      if (!bitstream) {
-        // Failed to assemble a frame. Discard and continue.
-        continue;
-      }
-
-      const video_coding::PacketBuffer::Packet& last_packet = *packet;
-      OnAssembledFrame(std::make_unique<RtpFrameObject>(
-          static_cast<uint16_t>(first_packet->seq_num()),  //
-          static_cast<uint16_t>(last_packet.seq_num()),    //
-          last_packet.marker_bit,                          //
-          max_nack_count,                                  //
-          min_recv_time,                                   //
-          max_recv_time,                                   //
-          first_packet->timestamp,                         //
-          absolute_capture_time_ms.has_value()
-              ? *absolute_capture_time_ms
-              : ntp_estimator_.Estimate(first_packet->timestamp),  //
-          last_packet.video_header.video_timing,                   //
-          first_packet->payload_type,                              //
-          first_packet->codec(),                                   //
-          last_packet.video_header.rotation,                       //
-          last_packet.video_header.content_type,                   //
-          first_packet->video_header,                              //
-          last_packet.video_header.color_space,                    //
-          last_packet.video_header.frame_instrumentation_data,     //
-          RtpPacketInfos(std::move(packet_infos)),                 //
-          std::move(bitstream)));
-      packet_infos.clear();
+    std::vector<std::span<const uint8_t>> payloads;
+    payloads.reserve(frame_packets.size());
+    for (const std::unique_ptr<video_coding::PacketBuffer::Packet>&
+             frame_packet : frame_packets) {
+      payloads.emplace_back(frame_packet->video_payload);
     }
+
+    scoped_refptr<EncodedImageBuffer> bitstream =
+        depacketizer_it->second->AssembleFrame(payloads);
+    if (!bitstream) {
+      // Failed to assemble a frame. Discard and continue.
+      continue;
+    }
+
+    OnAssembledFrame(CreateRtpFrameObject(frame_packets, std::move(bitstream)));
   }
   if (result.buffer_cleared) {
     last_received_rtp_system_time_.reset();
@@ -1076,6 +1033,65 @@ void RtpVideoStreamReceiver2::OnInsertedPacket(
     last_received_keyframe_rtp_timestamp_.reset();
     RequestKeyFrame();
   }
+}
+
+std::unique_ptr<RtpFrameObject> RtpVideoStreamReceiver2::CreateRtpFrameObject(
+    std::span<const std::unique_ptr<video_coding::PacketBuffer::Packet>>
+        packets,
+    scoped_refptr<EncodedImageBuffer> bitstream) {
+  RTC_DCHECK(!packets.empty());
+  const video_coding::PacketBuffer::Packet& first_packet = *packets.front();
+  const video_coding::PacketBuffer::Packet& last_packet = *packets.back();
+
+  int max_nack_count = first_packet.times_nacked;
+  Timestamp min_recv_time = first_packet.rtp_packet_info.receive_time();
+  Timestamp max_recv_time = min_recv_time;
+  RtpPacketInfos::vector_type packet_infos;
+  packet_infos.reserve(packets.size());
+  for (const std::unique_ptr<video_coding::PacketBuffer::Packet>& packet :
+       packets) {
+    const RtpPacketInfo& packet_info = packet->rtp_packet_info;
+    max_nack_count = std::max(max_nack_count, packet->times_nacked);
+    min_recv_time = std::min(min_recv_time, packet_info.receive_time());
+    max_recv_time = std::max(max_recv_time, packet_info.receive_time());
+    packet_infos.push_back(packet_info);
+    packet->video_header.absolute_capture_time =
+        packet_info.absolute_capture_time();
+  }
+
+  std::optional<int64_t> absolute_capture_time_ms;
+  const RtpPacketInfo& first_packet_info = first_packet.rtp_packet_info;
+  if (env_.field_trials().IsEnabled("WebRTC-UseAbsCapTimeForG2gMetric") &&
+      first_packet_info.absolute_capture_time().has_value() &&
+      first_packet_info.local_capture_clock_offset().has_value()) {
+    absolute_capture_time_ms =
+        NtpTime(first_packet_info.absolute_capture_time()
+                    ->absolute_capture_timestamp)
+            .ToMs() +
+        first_packet_info.local_capture_clock_offset()->ms();
+  }
+
+  return std::make_unique<RtpFrameObject>(
+      static_cast<uint16_t>(first_packet.seq_num()),  //
+      static_cast<uint16_t>(last_packet.seq_num()),   //
+      last_packet.marker_bit,                         //
+      max_nack_count,                                 //
+      min_recv_time,                                  //
+      max_recv_time,                                  //
+      first_packet.timestamp,                         //
+      absolute_capture_time_ms.has_value()
+          ? *absolute_capture_time_ms
+          : ntp_estimator_.Estimate(first_packet.timestamp),  //
+      last_packet.video_header.video_timing,                  //
+      first_packet.payload_type,                              //
+      first_packet.codec(),                                   //
+      last_packet.video_header.rotation,                      //
+      last_packet.video_header.content_type,                  //
+      first_packet.video_header,                              //
+      last_packet.video_header.color_space,                   //
+      last_packet.video_header.frame_instrumentation_data,    //
+      RtpPacketInfos(std::move(packet_infos)),                //
+      std::move(bitstream));
 }
 
 void RtpVideoStreamReceiver2::OnAssembledFrame(
