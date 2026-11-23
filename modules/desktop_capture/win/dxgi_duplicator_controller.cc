@@ -59,6 +59,40 @@ bool IsConsoleSession() {
   return WTSGetActiveConsoleSessionId() == GetCurrentSessionId();
 }
 
+// GetThreadDpiAwarenessContext() and SetThreadDpiAwarenessContext() were
+// introduced in Windows 10 version 1607 (Redstone 1 / Build 14393). Look them
+// up dynamically via GetProcAddress() rather than importing them directly,
+// because direct calls emit user32.dll import/delay-load entries that fail with
+// ERROR_PROC_NOT_FOUND on early Windows 10 builds (1507 / 1511).
+// TODO(crbug.com/585429680): Call these APIs directly once Windows 10 versions
+// prior to 1607 (Redstone 1) are no longer supported.
+FARPROC LoadUser32Function(const char* function_name) {
+  static HMODULE const handle =
+      ::LoadLibraryExW(L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  return handle ? ::GetProcAddress(handle, function_name) : nullptr;
+}
+
+DPI_AWARENESS_CONTEXT GetThreadDpiAwarenessContextIfAvailable() {
+  static auto const get_thread_dpi_awareness_context =
+      reinterpret_cast<decltype(&::GetThreadDpiAwarenessContext)>(
+          LoadUser32Function("GetThreadDpiAwarenessContext"));
+  return get_thread_dpi_awareness_context ? get_thread_dpi_awareness_context()
+                                          : nullptr;
+}
+
+void SetThreadDpiAwarenessContextIfAvailable(
+    DPI_AWARENESS_CONTEXT dpi_context) {
+  if (!dpi_context) {
+    return;
+  }
+  static auto const set_thread_dpi_awareness_context =
+      reinterpret_cast<decltype(&::SetThreadDpiAwarenessContext)>(
+          LoadUser32Function("SetThreadDpiAwarenessContext"));
+  if (set_thread_dpi_awareness_context) {
+    set_thread_dpi_awareness_context(dpi_context);
+  }
+}
+
 }  // namespace
 
 // static
@@ -279,7 +313,7 @@ bool DxgiDuplicatorController::DoInitialize() {
   // capture thread. Propagate the caller's thread desktop and per-thread DPI
   // awareness context so DXGI/GDI enumeration matches the caller thread.
   HDESK caller_desktop = ::GetThreadDesktop(::GetCurrentThreadId());
-  DPI_AWARENESS_CONTEXT dpi_context = ::GetThreadDpiAwarenessContext();
+  DPI_AWARENESS_CONTEXT dpi_context = GetThreadDpiAwarenessContextIfAvailable();
   bool result = false;
   PlatformThread init_thread = PlatformThread::SpawnJoinable(
       [this, caller_desktop, dpi_context,
@@ -287,9 +321,7 @@ bool DxgiDuplicatorController::DoInitialize() {
         if (caller_desktop) {
           ::SetThreadDesktop(caller_desktop);
         }
-        if (dpi_context) {
-          ::SetThreadDpiAwarenessContext(dpi_context);
-        }
+        SetThreadDpiAwarenessContextIfAvailable(dpi_context);
         result = DoInitializeOnWorkerThread();
       },
       "DxgiInitThread");
