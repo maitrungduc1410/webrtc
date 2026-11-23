@@ -85,7 +85,6 @@ EXPECT_TRUE(integer_value); // BAD: implicit conversion
 ```cpp {.good}
 using ::testing::NotNull;
 
-EXPECT_NE(pointer, nullptr);
 EXPECT_THAT(pointer, NotNull());
 EXPECT_NE(integer_value, 0);
 ```
@@ -94,6 +93,28 @@ See [the relevant Abseil tips](https://abseil.io/tips/141) for details.
 
 Note that `using` at the beginning of the file is
 [recommended in gmock](https://google.github.io/googletest/gmock_cook_book.html).
+
+### Use `NotNull()` for pointer checks
+
+Check pointers with the `NotNull()` and `IsNull()` matchers rather than
+comparing with `nullptr`. Use `ASSERT_THAT` when the test dereferences the
+pointer afterwards.
+
+```cpp {.bad}
+ASSERT_NE(answer, nullptr);
+EXPECT_EQ(group, nullptr);
+```
+
+```cpp {.good}
+using ::testing::IsNull;
+using ::testing::NotNull;
+
+ASSERT_THAT(answer, NotNull());
+EXPECT_THAT(group, IsNull());
+```
+
+When changing a test, also convert the pointer checks in the code you touch and
+its surrounding context. Leave the rest of the file alone.
 
 ### Prefer `EXPECT_THAT` for complex evaluations
 
@@ -216,13 +237,14 @@ Some of the available frameworks:
   evaluation (e.g., bandwidth estimation, congestion control).
 - **`PeerScenario`** (`test/peer_scenario`): Best for **signaling and
   PeerConnection API** level tests that require multiple threads and a simulated
-  network but want to stay lightweight. **`PCLF** (`api/test/pclf`) is a
-  framework for full integration tests.
-- \*\*`IntegrationTestHelpers` (`pc/test/integration_test_helpers`) is an older
+  network but want to stay lightweight.
+- **`PCLF`** (`api/test/pclf`) is a framework for full integration tests.
+- **`IntegrationTestHelpers`** (`pc/test/integration_test_helpers`) is an older
   set of tools that is heavily used for PeerConnection-related unit testing.
 
-Other frameworks for more specialized purposes also exist. <--! Question: Should
-we recommend one over the others? -->
+Other frameworks for more specialized purposes also exist.
+
+<!-- Question: Should we recommend one over the others? -->
 
 ### Mocking
 
