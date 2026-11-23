@@ -156,6 +156,7 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
 
  protected:
   friend class VideoStreamEncoderFrameCadenceRestrictionTest;
+  friend class VideoStreamEncoderOwner;
 
   void OnVideoSourceRestrictionsUpdated(
       VideoSourceRestrictions restrictions,
@@ -494,6 +495,92 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
   std::deque<PreparingFrame> pending_mapped_frames_;
 
   std::atomic<bool> is_stopped_ = false;
+};
+
+class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
+                                public VideoSourceRestrictionsListener {
+ public:
+  using BitrateAllocationCallbackType =
+      VideoStreamEncoder::BitrateAllocationCallbackType;
+  using AdaptationInjectionsForTest =
+      VideoStreamEncoder::AdaptationInjectionsForTest;
+
+  static std::unique_ptr<VideoStreamEncoderOwner> Create(
+      const Environment& env,
+      uint32_t number_of_cores,
+      VideoStreamEncoderObserver* encoder_stats_observer,
+      VideoStreamEncoderSettings settings,
+      std::unique_ptr<OveruseFrameDetector> overuse_detector,
+      std::unique_ptr<FrameCadenceAdapterInterface> frame_cadence_adapter,
+      std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue,
+      BitrateAllocationCallbackType allocation_cb_type,
+      scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
+          encoder_selector = nullptr,
+      EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
+      AdaptationInjectionsForTest adaptation_injections_for_test = {});
+
+  VideoStreamEncoderOwner(
+      const Environment& env,
+      uint32_t number_of_cores,
+      VideoStreamEncoderObserver* encoder_stats_observer,
+      VideoStreamEncoderSettings settings,
+      std::unique_ptr<OveruseFrameDetector> overuse_detector,
+      std::unique_ptr<FrameCadenceAdapterInterface> frame_cadence_adapter,
+      std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue,
+      BitrateAllocationCallbackType allocation_cb_type,
+      scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
+          encoder_selector = nullptr,
+      EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
+      AdaptationInjectionsForTest adaptation_injections_for_test = {});
+  ~VideoStreamEncoderOwner() override;
+
+  VideoStreamEncoderOwner(const VideoStreamEncoderOwner&) = delete;
+  VideoStreamEncoderOwner& operator=(const VideoStreamEncoderOwner&) = delete;
+
+  void AddAdaptationResource(scoped_refptr<Resource> resource) override;
+
+  void SetSource(VideoSourceInterface<VideoFrame>* source,
+                 const DegradationPreference& degradation_preference) override;
+
+  void SetSink(EncoderSink* sink, bool rotation_applied) override;
+
+  void SetStartBitrate(int start_bitrate_bps) override;
+
+  void SetFecControllerOverride(
+      FecControllerOverride* fec_controller_override) override;
+
+  void ConfigureEncoder(VideoEncoderConfig config,
+                        size_t max_data_payload_length) override;
+  void ConfigureEncoder(VideoEncoderConfig config,
+                        size_t max_data_payload_length,
+                        SetParametersCallback callback) override;
+
+  void Stop() override;
+
+  void SendKeyFrame(const std::vector<VideoFrameType>& layers = {}) override;
+
+  void OnBitrateUpdated(DataRate target_bitrate,
+                        DataRate link_allocation,
+                        uint8_t fraction_lost,
+                        int64_t round_trip_time_ms,
+                        double cwnd_reduce_ratio) override;
+
+  DataRate UpdateTargetBitrate(DataRate target_bitrate,
+                               double cwnd_reduce_ratio);
+
+  void OnFramePrepared(size_t frame_identifier);
+
+ protected:
+  friend class VideoStreamEncoderFrameCadenceRestrictionTest;
+
+  void OnVideoSourceRestrictionsUpdated(
+      VideoSourceRestrictions restrictions,
+      const VideoAdaptationCounters& adaptation_counters,
+      scoped_refptr<Resource> reason,
+      const VideoSourceRestrictions& unfiltered_restrictions) override;
+
+ private:
+  std::unique_ptr<VideoStreamEncoder> impl_;
 };
 
 }  // namespace webrtc

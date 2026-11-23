@@ -273,7 +273,7 @@ size_t CalculateMaxHeaderSize(const RtpConfig& config) {
   return header_size;
 }
 
-VideoStreamEncoder::BitrateAllocationCallbackType
+VideoStreamEncoderOwner::BitrateAllocationCallbackType
 GetBitrateAllocationCallbackType(const VideoSendStream::Config& config,
                                  const FieldTrialsView& field_trials) {
   if (RtpExtension::FindHeaderExtensionByUri(
@@ -281,10 +281,10 @@ GetBitrateAllocationCallbackType(const VideoSendStream::Config& config,
           config.crypto_options.srtp.enable_encrypted_rtp_header_extensions
               ? RtpExtension::Filter::kPreferEncryptedExtension
               : RtpExtension::Filter::kDiscardEncryptedExtension)) {
-    return VideoStreamEncoder::BitrateAllocationCallbackType::
+    return VideoStreamEncoderOwner::BitrateAllocationCallbackType::
         kVideoLayersAllocation;
   }
-  return VideoStreamEncoder::BitrateAllocationCallbackType::kNone;
+  return VideoStreamEncoderOwner::BitrateAllocationCallbackType::kNone;
 }
 
 RtpSenderFrameEncryptionConfig CreateFrameEncryptionConfig(
@@ -316,7 +316,7 @@ std::unique_ptr<VideoStreamEncoderInterface> CreateVideoStreamEncoder(
     int num_cpu_cores,
     SendStatisticsProxy* stats_proxy,
     VideoStreamEncoderSettings encoder_settings,
-    VideoStreamEncoder::BitrateAllocationCallbackType
+    VideoStreamEncoderOwner::BitrateAllocationCallbackType
         bitrate_allocation_callback_type,
     Metronome* metronome,
     scoped_refptr<VideoEncoderFactory::EncoderSelectorInterface>
@@ -329,7 +329,7 @@ std::unique_ptr<VideoStreamEncoderInterface> CreateVideoStreamEncoder(
               ? TaskQueueFactory::Priority::kVideo
               : TaskQueueFactory::Priority::kNormal);
   TaskQueueBase* encoder_queue_ptr = encoder_queue.get();
-  return std::make_unique<VideoStreamEncoder>(
+  return VideoStreamEncoderOwner::Create(
       env, num_cpu_cores, stats_proxy, std::move(encoder_settings),
       std::make_unique<OveruseFrameDetector>(env, stats_proxy),
       FrameCadenceAdapterInterface::Create(
