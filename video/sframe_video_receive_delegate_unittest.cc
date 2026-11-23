@@ -24,22 +24,28 @@
 #include "api/make_ref_counted.h"
 #include "api/rtp_header_extension_id.h"
 #include "api/rtp_headers.h"
+#include "api/rtp_packet_infos.h"
 #include "api/scoped_refptr.h"
 #include "api/sframe/sframe_decryptor_interface.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "api/video/encoded_image.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_content_type.h"
 #include "api/video/video_frame_metadata.h"
 #include "api/video/video_frame_type.h"
 #include "api/video/video_rotation.h"
+#include "api/video/video_timing.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
+#include "modules/rtp_rtcp/source/frame_object.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/rtp_video_header.h"
 #include "modules/sframe/mock_sframe_media_decryptor.h"
 #include "modules/sframe/sframe_decrypt_error_reporter.h"
 #include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_media_decryptor_interface.h"
+#include "modules/video_coding/codecs/vp8/include/vp8_globals.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -103,6 +109,26 @@ std::unique_ptr<RtpPacketReceived> CreatePacket(
       VideoContentType::SCREENSHARE);
   packet->SetPayload(payload);
   return packet;
+}
+
+std::unique_ptr<RtpFrameObject> CreateFrame(
+    std::span<const uint8_t> bitstream) {
+  RTPVideoHeader video_header;
+  video_header.codec = kVideoCodecVP8;
+  video_header.frame_type = VideoFrameType::kVideoFrameKey;
+  video_header.absolute_capture_time = kAbsoluteCaptureTime;
+  video_header.video_type_header.emplace<RTPVideoHeaderVP8>()
+      .InitRTPVideoHeaderVP8();
+  return std::make_unique<RtpFrameObject>(
+      /*first_seq_num=*/1, /*last_seq_num=*/2, /*markerBit=*/true,
+      /*times_nacked=*/0, /*first_packet_received_time=*/Timestamp::Millis(4),
+      /*last_packet_received_time=*/Timestamp::Millis(5),
+      /*rtp_timestamp=*/9000,
+      /*ntp_time_ms=*/7, VideoSendTiming(), kPayloadType, kVideoCodecVP8,
+      kVideoRotation_0, VideoContentType::UNSPECIFIED, video_header,
+      /*color_space=*/std::nullopt, /*frame_instrumentation_data=*/std::nullopt,
+      RtpPacketInfos(),
+      EncodedImageBuffer::Create(bitstream.data(), bitstream.size()));
 }
 
 scoped_refptr<NiceMock<MockSframeMediaDecryptor>> CreateDecryptor() {
@@ -276,6 +302,52 @@ TEST(SframeVideoReceiveDelegateTest, ReportedPacketOfKeyFrameIsKeyFrame) {
   EXPECT_EQ(frame.Metadata().GetFrameType(), VideoFrameType::kVideoFrameKey);
 }
 
+TEST(SframeVideoReceiveDelegateTest, DecryptFrameReplacesBitstream) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      CreateDecryptor();
+  std::vector<SframeDecryptError> errors;
+  SframeVideoReceiveDelegate delegate(CreateConfig(decryptor, errors), kSsrc);
+  EXPECT_CALL(*decryptor, Decrypt(ElementsAreArray(kCiphertext), _, _))
+      .WillOnce(DecryptToPlaintext);
+
+  std::unique_ptr<RtpFrameObject> frame =
+      delegate.DecryptFrame(CreateFrame(kCiphertext));
+
+  ASSERT_THAT(frame, NotNull());
+  EXPECT_THAT(std::span(*frame), ElementsAreArray(kPlaintext));
+  EXPECT_THAT(errors, IsEmpty());
+}
+
+TEST(SframeVideoReceiveDelegateTest, FailedFrameIsDroppedAndReported) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      CreateDecryptor();
+  std::vector<SframeDecryptError> errors;
+  SframeVideoReceiveDelegate delegate(CreateConfig(decryptor, errors), kSsrc);
+  EXPECT_CALL(*decryptor, Decrypt)
+      .WillOnce(Return(SframeDecryptFailure::Syntax()));
+
+  EXPECT_THAT(delegate.DecryptFrame(CreateFrame(kCiphertext)), IsNull());
+
+  ASSERT_THAT(errors, SizeIs(1));
+  EXPECT_EQ(errors[0].error_type, SframeDecryptErrorType::kSyntax);
+  ASSERT_THAT(errors[0].frame, NotNull());
+  const auto& reported =
+      static_cast<const TransformableVideoFrameInterface&>(*errors[0].frame);
+  EXPECT_THAT(reported.GetData(), ElementsAreArray(kCiphertext));
+  EXPECT_EQ(reported.GetSsrc(), kSsrc);
+  EXPECT_EQ(reported.GetPayloadType(), kPayloadType);
+  EXPECT_EQ(reported.GetMimeType(), "video/VP8");
+  EXPECT_TRUE(reported.IsKeyFrame());
+  EXPECT_EQ(reported.ReceiveTime(), Timestamp::Millis(5));
+  EXPECT_EQ(reported.CaptureTime(), kCaptureTime);
+  EXPECT_EQ(reported.SenderCaptureTimeOffset(), kCaptureClockOffset);
+
+  const VideoFrameMetadata metadata = reported.Metadata();
+  EXPECT_EQ(metadata.GetSsrc(), kSsrc);
+  EXPECT_EQ(metadata.GetCodec(), kVideoCodecVP8);
+  EXPECT_EQ(metadata.GetFrameType(), VideoFrameType::kVideoFrameKey);
+}
+
 TEST(SframeVideoReceiveDelegateTest, RepeatedFailureIsReportedOnce) {
   scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
       CreateDecryptor();
@@ -309,6 +381,24 @@ TEST(SframeVideoReceiveDelegateTest, FailureAfterSuccessIsReportedAgain) {
               NotNull());
   EXPECT_THAT(delegate.DecryptPacket(CreatePacket(kCiphertext), kVp8Frame),
               IsNull());
+
+  EXPECT_THAT(errors, SizeIs(2));
+}
+
+TEST(SframeVideoReceiveDelegateTest,
+     FrameFailureAfterFrameSuccessIsReportedAgain) {
+  scoped_refptr<NiceMock<MockSframeMediaDecryptor>> decryptor =
+      CreateDecryptor();
+  std::vector<SframeDecryptError> errors;
+  SframeVideoReceiveDelegate delegate(CreateConfig(decryptor, errors), kSsrc);
+  EXPECT_CALL(*decryptor, Decrypt)
+      .WillOnce(Return(SframeDecryptFailure::Authentication()))
+      .WillOnce(DecryptToPlaintext)
+      .WillOnce(Return(SframeDecryptFailure::Authentication()));
+
+  ASSERT_THAT(delegate.DecryptFrame(CreateFrame(kCiphertext)), IsNull());
+  ASSERT_THAT(delegate.DecryptFrame(CreateFrame(kCiphertext)), NotNull());
+  EXPECT_THAT(delegate.DecryptFrame(CreateFrame(kCiphertext)), IsNull());
 
   EXPECT_THAT(errors, SizeIs(2));
 }

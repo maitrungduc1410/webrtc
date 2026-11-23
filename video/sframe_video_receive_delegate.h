@@ -18,6 +18,7 @@
 #include "absl/base/nullability.h"
 #include "api/scoped_refptr.h"
 #include "api/video/video_codec_type.h"
+#include "modules/rtp_rtcp/source/frame_object.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/sframe/sframe_decrypt_error_reporter.h"
 #include "modules/sframe/sframe_decryption_config.h"
@@ -26,8 +27,10 @@
 namespace webrtc {
 
 // Decrypts the Sframe media of one video receive stream and reports the
-// failures to the application. In per-packet mode (T=1) each packet is
-// decrypted before depacketization.
+// failures to the application. Which of the two entry points applies is decided
+// by the Sframe wire mode: per-packet mode (T=1) decrypts each packet before
+// depacketization, per-frame mode (T=0) decrypts the frame once it is
+// reassembled.
 //
 // The decryptor and the error reporter in `config` hold all the crypto and
 // reporting state, and are shared with the other receive streams of the same
@@ -52,6 +55,11 @@ class SframeVideoReceiveDelegate {
   absl_nullable std::unique_ptr<RtpPacketReceived> DecryptPacket(
       absl_nonnull std::unique_ptr<RtpPacketReceived> packet,
       const FrameInfo& frame_info);
+
+  // Returns `frame` with its bitstream replaced by the plaintext, or nullptr if
+  // it did not decrypt, in which case the frame is dropped.
+  absl_nullable std::unique_ptr<RtpFrameObject> DecryptFrame(
+      absl_nonnull std::unique_ptr<RtpFrameObject> frame);
 
  private:
   const absl_nonnull scoped_refptr<SframeMediaDecryptorInterface> decryptor_;

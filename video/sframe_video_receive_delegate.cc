@@ -21,20 +21,24 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/functional/overload.h"
 #include "api/frame_transformer_interface.h"
 #include "api/payload_type.h"
 #include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "api/video/encoded_image.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_content_type.h"
 #include "api/video/video_frame_metadata.h"
 #include "api/video/video_frame_type.h"
 #include "api/video/video_rotation.h"
 #include "api/video_codecs/video_codec.h"
+#include "modules/rtp_rtcp/source/frame_object.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/rtp_video_header.h"
 #include "modules/sframe/sframe_decrypt_error_reporter.h"
 #include "modules/sframe/sframe_decryption_config.h"
 #include "modules/sframe/sframe_media_decryptor_interface.h"
@@ -49,6 +53,21 @@ namespace webrtc {
 // is detached from the receive pipeline, which drops the media.
 class SframeEncryptedVideoFrame : public TransformableVideoFrameInterface {
  public:
+  SframeEncryptedVideoFrame(const RtpFrameObject& frame, uint32_t ssrc)
+      : TransformableVideoFrameInterface(Passkey()),
+        data_(frame),
+        metadata_(frame.GetRtpVideoHeader().GetAsMetadata()),
+        payload_type_(frame.PayloadType()),
+        codec_(frame.codec_type()),
+        rtp_timestamp_(frame.RtpTimestamp()),
+        is_key_frame_(frame.IsKey()),
+        receive_time_(frame.ReceivedTimestamp()),
+        absolute_capture_time_(
+            frame.GetRtpVideoHeader().absolute_capture_time) {
+    metadata_.SetSsrc(ssrc);
+    metadata_.SetCsrcs(frame.Csrcs());
+  }
+
   // Reported before depacketization, so what the codec payload descriptor
   // would carry - resolution, dependencies - is still unknown and stays at its
   // default. Only the RTP header and `frame_info` are available.
@@ -183,6 +202,31 @@ SframeVideoReceiveDelegate::DecryptPacket(
   packet->SetPayload(std::span(packet_plaintext_).first(plaintext_size));
   error_reporter_->ReportSuccess();
   return packet;
+}
+
+absl_nullable std::unique_ptr<RtpFrameObject>
+SframeVideoReceiveDelegate::DecryptFrame(
+    absl_nonnull std::unique_ptr<RtpFrameObject> frame) {
+  scoped_refptr<EncodedImageBuffer> plaintext = EncodedImageBuffer::Create(
+      decryptor_->GetMaxPlaintextByteSize(frame->size()));
+
+  return std::visit(
+      absl::Overload(
+          [&](SframeDecryptFailure failure) -> std::unique_ptr<RtpFrameObject> {
+            error_reporter_->ReportError(
+                {.error_type = failure.type,
+                 .key_id = failure.key_id,
+                 .frame = std::make_unique<SframeEncryptedVideoFrame>(*frame,
+                                                                      ssrc_)});
+            return nullptr;
+          },
+          [&](SframeDecryptSuccess success) -> std::unique_ptr<RtpFrameObject> {
+            plaintext->Realloc(success.bytes_written);
+            frame->SetEncodedData(std::move(plaintext));
+            error_reporter_->ReportSuccess();
+            return std::move(frame);
+          }),
+      decryptor_->Decrypt(*frame, /*additional_data=*/{}, *plaintext));
 }
 
 }  // namespace webrtc
