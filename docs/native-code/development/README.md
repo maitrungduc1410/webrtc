@@ -26,11 +26,15 @@ NOTICE: During your first sync, you'll have to accept the license agreement of
 the Google Play Services SDK.
 
 The checkout size is large due the use of the Chromium build toolchain and many
-dependencies. Estimated size:
+dependencies. Some old estimates:
 
 - Linux: 6.4 GB.
 - Linux (with Android): 16 GB (of which ~8 GB is Android SDK+NDK images).
 - Mac (with iOS support): 5.6GB
+
+The total disk space requirement for the code, the third party dependencies and
+the build directory (simple Linux debug build, no Android) is around 41 Gbytes
+(as of November 2026).
 
 If you don't need the git history (e.g. for bots, CI or building a release),
 pass `--no-history` to `fetch` to do shallow clones of `src` and all its
