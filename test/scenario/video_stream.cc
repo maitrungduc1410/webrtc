@@ -583,8 +583,9 @@ ReceiveVideoStream::ReceiveVideoStream(CallClient* receiver,
     }
     receiver_->ssrc_media_types_[recv_config.rtp.remote_ssrc] =
         MediaType::VIDEO;
-    if (config.stream.use_rtx)
-      receiver_->ssrc_media_types_[recv_config.rtp.rtx_ssrc] = MediaType::VIDEO;
+    if (config.stream.use_rtx && recv_config.rtp.rtx_ssrc.has_value())
+      receiver_->ssrc_media_types_[*recv_config.rtp.rtx_ssrc] =
+          MediaType::VIDEO;
     receiver_->SendTask([this, &recv_config] {
       receive_streams_.push_back(
           receiver_->call_->CreateVideoReceiveStream(std::move(recv_config)));

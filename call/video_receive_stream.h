@@ -253,7 +253,7 @@ class VideoReceiveStreamInterface : public MediaReceiveStreamInterface {
       int red_payload_type = -1;
 
       // SSRC for retransmissions.
-      uint32_t rtx_ssrc = 0;
+      std::optional<uint32_t> rtx_ssrc;
 
       // Set if the stream is protected using FlexFEC.
       bool protected_by_flexfec = false;

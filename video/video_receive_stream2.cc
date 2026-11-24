@@ -337,9 +337,9 @@ void VideoReceiveStream2::RegisterWithTransport(
   // Register with RtpStreamReceiverController.
   media_receiver_ = receiver_controller->CreateReceiver(
       remote_ssrc(), &rtp_video_stream_receiver_);
-  if (rtx_ssrc() && rtx_receive_stream_ != nullptr) {
+  if (rtx_ssrc().has_value() && rtx_receive_stream_ != nullptr) {
     rtx_receiver_ = receiver_controller->CreateReceiver(
-        rtx_ssrc(), rtx_receive_stream_.get());
+        *rtx_ssrc(), rtx_receive_stream_.get());
   }
 }
 
@@ -710,9 +710,9 @@ VideoReceiveStreamInterface::Stats VideoReceiveStream2::GetStats() const {
     stats.rtp_stats = statistician->GetStats();
     stats.total_bitrate_bps = statistician->BitrateReceived();
   }
-  if (rtx_ssrc()) {
+  if (rtx_ssrc().has_value()) {
     StreamStatistician* rtx_statistician =
-        rtp_receive_statistics_->GetStatistician(rtx_ssrc());
+        rtp_receive_statistics_->GetStatistician(*rtx_ssrc());
     if (rtx_statistician) {
       stats.total_bitrate_bps += rtx_statistician->BitrateReceived();
       stats.rtx_rtp_stats = rtx_statistician->GetStats();
@@ -755,9 +755,9 @@ void VideoReceiveStream2::UpdateHistograms() {
     fraction_lost = statistician->GetFractionLostInPercent();
     rtp_stats = statistician->GetReceiveStreamDataCounters();
   }
-  if (rtx_ssrc()) {
+  if (rtx_ssrc().has_value()) {
     StreamStatistician* rtx_statistician =
-        rtp_receive_statistics_->GetStatistician(rtx_ssrc());
+        rtp_receive_statistics_->GetStatistician(*rtx_ssrc());
     if (rtx_statistician) {
       StreamDataCounters rtx_stats =
           rtx_statistician->GetReceiveStreamDataCounters();
@@ -1344,7 +1344,7 @@ void VideoReceiveStream2::UpdateRtxSsrc(uint32_t ssrc) {
   rtx_receiver_.reset();
   updated_rtx_ssrc_ = ssrc;
   rtx_receiver_ = receiver_controller_->CreateReceiver(
-      rtx_ssrc(), rtx_receive_stream_.get());
+      *rtx_ssrc(), rtx_receive_stream_.get());
 }
 
 }  // namespace internal

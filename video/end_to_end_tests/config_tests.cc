@@ -9,6 +9,7 @@
  */
 
 #include <map>
+#include <optional>
 #include <vector>
 
 #include "api/crypto/crypto_options.h"
@@ -77,7 +78,7 @@ TEST_F(ConfigEndToEndTest, VerifyDefaultVideoReceiveConfigParameters) {
   EXPECT_FALSE(
       default_receive_config.rtp.rtcp_xr.receiver_reference_time_report)
       << "RTCP XR settings require rtcp-xr to be negotiated.";
-  EXPECT_EQ(0U, default_receive_config.rtp.rtx_ssrc)
+  EXPECT_EQ(std::nullopt, default_receive_config.rtp.rtx_ssrc)
       << "Enabling RTX requires ssrc-group: FID negotiation";
   EXPECT_TRUE(default_receive_config.rtp.rtx_associated_payload_types.empty())
       << "Enabling RTX requires rtpmap: rtx negotiation.";

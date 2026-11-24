@@ -112,7 +112,7 @@ std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
     const VideoReceiveStreamInterface::Config& config) {
   auto rtclog_config = std::make_unique<rtclog::StreamConfig>();
   rtclog_config->remote_ssrc = config.rtp.remote_ssrc;
-  rtclog_config->rtx_ssrc = config.rtp.rtx_ssrc;
+  rtclog_config->rtx_ssrc = config.rtp.rtx_ssrc.value_or(0);
   rtclog_config->rtcp_mode = config.rtp.rtcp_mode;
 
   for (const auto& d : config.decoders) {

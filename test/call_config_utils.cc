@@ -55,7 +55,9 @@ VideoReceiveStreamInterface::Config ParseVideoReceiveStreamJsonConfig(
       json["rtp"]["ulpfec_payload_type"].asInt64();
   receive_config.rtp.red_payload_type =
       json["rtp"]["red_payload_type"].asInt64();
-  receive_config.rtp.rtx_ssrc = json["rtp"]["rtx_ssrc"].asInt64();
+  if (json["rtp"].isMember("rtx_ssrc")) {
+    receive_config.rtp.rtx_ssrc = json["rtp"]["rtx_ssrc"].asInt64();
+  }
 
   for (const auto& pl_json : json["rtp"]["rtx_payload_types"]) {
     std::vector<std::string> members = pl_json.getMemberNames();
@@ -93,7 +95,9 @@ Json::Value GenerateVideoReceiveStreamJsonConfig(
   rtp_json["nack"]["rtp_history_ms"] = config.rtp.nack.rtp_history_ms;
   rtp_json["ulpfec_payload_type"] = config.rtp.ulpfec_payload_type;
   rtp_json["red_payload_type"] = config.rtp.red_payload_type;
-  rtp_json["rtx_ssrc"] = config.rtp.rtx_ssrc;
+  if (config.rtp.rtx_ssrc.has_value()) {
+    rtp_json["rtx_ssrc"] = *config.rtp.rtx_ssrc;
+  }
   rtp_json["rtx_payload_types"] = Json::Value(Json::arrayValue);
 
   for (auto& kv : config.rtp.rtx_associated_payload_types) {

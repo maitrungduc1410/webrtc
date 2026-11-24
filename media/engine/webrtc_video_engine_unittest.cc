@@ -3446,7 +3446,14 @@ TEST_F(WebRtcVideoChannelTest, RecvStreamNoRtx) {
   // Setup one channel without an associated RTX stream.
   StreamParams params = StreamParams::CreateLegacy(kSsrcs1[0]);
   FakeVideoReceiveStream* recv_stream = AddRecvStream(params);
-  ASSERT_EQ(0U, recv_stream->GetConfig().rtp.rtx_ssrc);
+  ASSERT_EQ(std::nullopt, recv_stream->GetConfig().rtp.rtx_ssrc);
+}
+
+TEST_F(WebRtcVideoChannelTest, RecvStreamWithRtxSsrcZero) {
+  StreamParams params = StreamParams::CreateLegacy(kSsrcs1[0]);
+  params.AddFidSsrc(kSsrcs1[0], 0);
+  FakeVideoReceiveStream* recv_stream = AddRecvStream(params);
+  EXPECT_EQ(0u, recv_stream->GetConfig().rtp.rtx_ssrc);
 }
 
 // Test propagation of extmap allow mixed setting.
@@ -7241,7 +7248,7 @@ TEST_F(WebRtcVideoChannelTest, DefaultReceiveStreamReconfiguresToUseRtx) {
   ASSERT_EQ(1u, fake_call_->GetVideoReceiveStreams().size())
       << "No default receive stream created.";
   FakeVideoReceiveStream* recv_stream = fake_call_->GetVideoReceiveStreams()[0];
-  EXPECT_EQ(0u, recv_stream->GetConfig().rtp.rtx_ssrc)
+  EXPECT_EQ(std::nullopt, recv_stream->GetConfig().rtp.rtx_ssrc)
       << "Default receive stream should not have configured RTX";
 
   EXPECT_TRUE(receive_channel_->AddRecvStream(

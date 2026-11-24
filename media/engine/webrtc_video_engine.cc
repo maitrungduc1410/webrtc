@@ -3245,7 +3245,10 @@ void WebRtcVideoReceiveChannel::ConfigureReceiverRtp(
 
   config->rtp.remote_ssrc = ssrc;
 
-  sp.GetFidSsrc(ssrc, &config->rtp.rtx_ssrc);
+  uint32_t rtx_ssrc;
+  if (sp.GetFidSsrc(ssrc, &rtx_ssrc)) {
+    config->rtp.rtx_ssrc = rtx_ssrc;
+  }
 
   // TODO(brandtr): Generalize when we add support for multistream protection.
   flexfec_config->payload_type = recv_flexfec_payload_type_;

@@ -1814,6 +1814,28 @@ TEST_P(VideoReceiveStream2Test,
   video_receive_stream_->Stop();
 }
 
+TEST_P(VideoReceiveStream2Test, RegistersAndTracksStatsForRtxSsrcZero) {
+  constexpr int kRtxPayloadType = 96;
+  config_.rtp.rtx_ssrc = 0;
+  config_.rtp.rtx_associated_payload_types[kRtxPayloadType] = kH264PayloadType;
+  RecreateReceiveStream();
+
+  EXPECT_EQ(video_receive_stream_->rtx_ssrc(), 0u);
+
+  RtpPacketReceived rtx_packet;
+  rtx_packet.SetSsrc(0);
+  rtx_packet.SetPayloadType(kRtxPayloadType);
+  rtx_packet.SetSequenceNumber(1);
+  rtx_packet.SetTimestamp(1000);
+  constexpr uint8_t kRtxPayload[] = {0, 1, 0, 0};
+  rtx_packet.SetPayload(kRtxPayload);
+  EXPECT_TRUE(rtp_stream_receiver_controller_.OnRtpPacket(rtx_packet));
+
+  VideoReceiveStreamInterface::Stats stats = video_receive_stream_->GetStats();
+  ASSERT_TRUE(stats.rtx_rtp_stats.has_value());
+  EXPECT_EQ(stats.rtx_rtp_stats->packet_counter.packets, 1u);
+}
+
 INSTANTIATE_TEST_SUITE_P(VideoReceiveStream2Test,
                          VideoReceiveStream2Test,
                          testing::Bool(),

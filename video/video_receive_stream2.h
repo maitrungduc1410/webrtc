@@ -145,9 +145,10 @@ class VideoReceiveStream2
   // object's lifetime.
   uint32_t remote_ssrc() const { return remote_ssrc_; }
   // RTX ssrc can be updated.
-  uint32_t rtx_ssrc() const {
+  std::optional<uint32_t> rtx_ssrc() const {
     RTC_DCHECK_RUN_ON(&network_sequence_checker_);
-    return updated_rtx_ssrc_.value_or(config_.rtp.rtx_ssrc);
+    return updated_rtx_ssrc_.has_value() ? updated_rtx_ssrc_
+                                         : config_.rtp.rtx_ssrc;
   }
 
   void SignalNetworkState(NetworkState state);

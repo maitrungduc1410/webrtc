@@ -170,7 +170,9 @@ std::string VideoReceiveStreamInterface::Config::Rtp::ToString() const {
   ss << ", nack: {rtp_history_ms: " << nack.rtp_history_ms << "}";
   ss << ", ulpfec_payload_type: " << ulpfec_payload_type;
   ss << ", red_type: " << red_payload_type;
-  ss << ", rtx_ssrc: " << rtx_ssrc;
+  if (rtx_ssrc.has_value()) {
+    ss << ", rtx_ssrc: " << *rtx_ssrc;
+  }
   ss << ", rtx_payload_types: {";
   for (auto& kv : rtx_associated_payload_types) {
     ss << kv.first << " (pt) -> " << kv.second << " (apt), ";
