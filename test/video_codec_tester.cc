@@ -53,6 +53,7 @@
 #include "api/video/resolution.h"
 #include "api/video/video_bitrate_allocation.h"
 #include "api/video/video_bitrate_allocator.h"
+#include "api/video/video_codec_constants.h"
 #include "api/video/video_codec_type.h"
 #include "api/video/video_frame.h"
 #include "api/video/video_frame_buffer.h"
@@ -1113,7 +1114,6 @@ class Encoder : public EncodedImageCallback {
  private:
   struct Superframe {
     EncodedImage encoded_frame;
-    scoped_refptr<EncodedImageBuffer> encoded_data;
     ScalabilityMode scalability_mode;
   };
 
@@ -1332,17 +1332,19 @@ class Encoder : public EncodedImageCallback {
       const EncodedImage& encoded_frame,
       const CodecSpecificInfo* codec_specific_info) {
     if (last_superframe_) {
-      // Append to base spatial layer frame(s).
+      // Append to base spatial layer frame(s) in a new buffer since decoders
+      // of lower layers may still be reading the previous one.
       RTC_CHECK_EQ(*encoded_frame.SpatialIndex(),
                    *last_superframe_->encoded_frame.SpatialIndex() + 1)
           << "Inter-layer frame drops are not supported.";
-      size_t current_size = last_superframe_->encoded_data->size();
-      last_superframe_->encoded_data->Realloc(current_size +
-                                              encoded_frame.size());
-      memcpy(last_superframe_->encoded_data->data() + current_size,
-             encoded_frame.data(), encoded_frame.size());
-      last_superframe_->encoded_frame.SetEncodedData(
-          last_superframe_->encoded_data);
+      size_t current_size = last_superframe_->encoded_frame.size();
+      scoped_refptr<EncodedImageBuffer> buffer =
+          EncodedImageBuffer::Create(current_size + encoded_frame.size());
+      memcpy(buffer->data(), last_superframe_->encoded_frame.data(),
+             current_size);
+      memcpy(buffer->data() + current_size, encoded_frame.data(),
+             encoded_frame.size());
+      last_superframe_->encoded_frame.SetEncodedData(std::move(buffer));
       last_superframe_->encoded_frame.SetSpatialIndex(
           encoded_frame.SpatialIndex());
       return last_superframe_->encoded_frame;
@@ -1352,11 +1354,9 @@ class Encoder : public EncodedImageCallback {
     if (IsSvc(encoded_frame, *codec_specific_info)) {
       last_superframe_ = Superframe{
           .encoded_frame = EncodedImage(encoded_frame),
-          .encoded_data = EncodedImageBuffer::Create(encoded_frame.data(),
-                                                     encoded_frame.size()),
           .scalability_mode = *codec_specific_info->scalability_mode};
-      last_superframe_->encoded_frame.SetEncodedData(
-          last_superframe_->encoded_data);
+      last_superframe_->encoded_frame.SetEncodedData(EncodedImageBuffer::Create(
+          encoded_frame.data(), encoded_frame.size()));
       return last_superframe_->encoded_frame;
     }
 

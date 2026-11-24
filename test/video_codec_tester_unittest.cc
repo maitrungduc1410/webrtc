@@ -63,6 +63,7 @@ using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::NiceMock;
+using ::testing::NotNull;
 using ::testing::Return;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
@@ -181,6 +182,7 @@ class TestVideoDecoder : public MockVideoDecoder {
             .build();
     callback_->Decoded(decoded_frame);
     frame_sizes_.push_back(DataSize::Bytes(encoded_frame.size()));
+    encoded_frames_.push_back(encoded_frame);
     return WEBRTC_VIDEO_CODEC_OK;
   }
 
@@ -191,10 +193,14 @@ class TestVideoDecoder : public MockVideoDecoder {
   }
 
   const std::vector<DataSize>& frame_sizes() const { return frame_sizes_; }
+  const std::vector<EncodedImage>& encoded_frames() const {
+    return encoded_frames_;
+  }
 
  private:
   DecodedImageCallback* callback_;
   std::vector<DataSize> frame_sizes_;
+  std::vector<EncodedImage> encoded_frames_;
 };
 
 class VideoCodecTesterTest : public ::testing::Test {
@@ -576,6 +582,15 @@ TEST_P(VideoCodecTesterTestScalability, EncodeDecode) {
   }
   EXPECT_THAT(decode_frame_sizes, UnorderedElementsAreArray(
                                       test_params.expected_decode_frame_sizes));
+
+  // Building the superframe of a higher layer must not modify the buffer
+  // handed to a lower layer decoder.
+  for (const auto& decoder : decoders_) {
+    for (const EncodedImage& frame : decoder->encoded_frames()) {
+      ASSERT_THAT(frame.GetEncodedData(), NotNull());
+      EXPECT_EQ(frame.GetEncodedData()->size(), frame.size());
+    }
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -606,6 +621,19 @@ INSTANTIATE_TEST_SUITE_P(
             .expected_decode_frame_sizes =
                 {DataSize::Bytes(1), DataSize::Bytes(3), DataSize::Bytes(4),
                  DataSize::Bytes(12), DataSize::Bytes(16), DataSize::Bytes(16)},
+        },
+        ScalabilityTestParameters{
+            .codec_type = "VP9",
+            .scalability_mode = ScalabilityMode::kL3T1,
+            .encoded_frame_sizes = {{{0, DataSize::Bytes(1)},
+                                     {1, DataSize::Bytes(2)},
+                                     {2, DataSize::Bytes(4)}},
+                                    {{0, DataSize::Bytes(8)},
+                                     {1, DataSize::Bytes(16)},
+                                     {2, DataSize::Bytes(32)}}},
+            .expected_decode_frame_sizes =
+                {DataSize::Bytes(1), DataSize::Bytes(3), DataSize::Bytes(7),
+                 DataSize::Bytes(8), DataSize::Bytes(24), DataSize::Bytes(56)},
         },
         ScalabilityTestParameters{
             .codec_type = "VP9",
