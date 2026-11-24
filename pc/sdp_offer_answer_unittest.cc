@@ -2062,6 +2062,100 @@ TEST_F(SdpOfferAnswerTest, PayloadTypeMatchingWithSubsequentOfferAnswer) {
   EXPECT_EQ(codecs[1].id, av1.id);
 }
 
+// A media section that a re-offer adds uses the payload types that the bundled
+// media sections got from a remote offer, not the default ones.
+TEST_F(SdpOfferAnswerTest, ReofferAddsMediaSectionWithRemotePayloadType) {
+  auto pc = CreatePeerConnection();
+  std::string sdp =
+      "v=0\r\n"
+      "o=- 0 3 IN IP4 127.0.0.1\r\n"
+      "s=-\r\n"
+      "t=0 0\r\n"
+      "a=group:BUNDLE 0\r\n"
+      "a=fingerprint:sha-1 "
+      "4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:5D:49:6B:19:E5:7C:AB\r\n"
+      "a=setup:actpass\r\n"
+      "a=ice-ufrag:ETEn\r\n"
+      "a=ice-pwd:OtSK0WpNtpUjkY4+86js7Z/l\r\n"
+      "m=audio 9 UDP/TLS/RTP/SAVPF 109\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "a=rtcp-mux\r\n"
+      "a=sendonly\r\n"
+      "a=mid:0\r\n"
+      "a=rtpmap:109 opus/48000/2\r\n";
+  auto opus_payload_types = [](const SessionDescriptionInterface& desc) {
+    std::vector<int> payload_types;
+    for (const ContentInfo& content : desc.description()->contents()) {
+      for (const Codec& codec : content.media_description()->codecs()) {
+        if (codec.name == "opus") {
+          payload_types.push_back(codec.id.value());
+        }
+      }
+    }
+    return payload_types;
+  };
+
+  ASSERT_TRUE(
+      pc->SetRemoteDescription(CreateSessionDescription(SdpType::kOffer, sdp)));
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      pc->CreateAnswerAndSetAsLocal();
+  ASSERT_THAT(answer, NotNull());
+  EXPECT_THAT(opus_payload_types(*answer), ElementsAre(109));
+
+  pc->AddTransceiver(MediaType::AUDIO);
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      pc->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(reoffer, NotNull());
+  EXPECT_THAT(opus_payload_types(*reoffer), ElementsAre(109, 109));
+}
+
+// Same as above for a video codec, whose default payload type is not reserved.
+// The remote offer has ulpfec, so that ulpfec does not take the default payload
+// type of VP8.
+TEST_F(SdpOfferAnswerTest, ReofferAddsMediaSectionWithRemoteVideoPayloadType) {
+  auto pc = CreatePeerConnection();
+  std::string sdp =
+      "v=0\r\n"
+      "o=- 0 3 IN IP4 127.0.0.1\r\n"
+      "s=-\r\n"
+      "t=0 0\r\n"
+      "a=group:BUNDLE 0\r\n"
+      "a=fingerprint:sha-1 "
+      "4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:5D:49:6B:19:E5:7C:AB\r\n"
+      "a=setup:actpass\r\n"
+      "a=ice-ufrag:ETEn\r\n"
+      "a=ice-pwd:OtSK0WpNtpUjkY4+86js7Z/l\r\n"
+      "m=video 9 UDP/TLS/RTP/SAVPF 120 122 123\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "a=rtcp-mux\r\n"
+      "a=sendonly\r\n"
+      "a=mid:0\r\n"
+      "a=rtpmap:120 VP8/90000\r\n"
+      "a=rtpmap:122 red/90000\r\n"
+      "a=rtpmap:123 ulpfec/90000\r\n";
+  auto vp8_payload_types = [](const SessionDescriptionInterface& desc) {
+    std::vector<int> payload_types;
+    for (const ContentInfo& content : desc.description()->contents()) {
+      for (const Codec& codec : content.media_description()->codecs()) {
+        if (codec.name == "VP8") {
+          payload_types.push_back(codec.id.value());
+        }
+      }
+    }
+    return payload_types;
+  };
+
+  ASSERT_TRUE(
+      pc->SetRemoteDescription(CreateSessionDescription(SdpType::kOffer, sdp)));
+  ASSERT_THAT(pc->CreateAnswerAndSetAsLocal(), NotNull());
+
+  pc->AddTransceiver(MediaType::VIDEO);
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      pc->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(reoffer, NotNull());
+  EXPECT_THAT(vp8_payload_types(*reoffer), ElementsAre(120, 120));
+}
+
 TEST_F(SdpOfferAnswerTest, TransceiverReceptive) {
   auto caller = CreatePeerConnection();
   auto callee = CreatePeerConnection();

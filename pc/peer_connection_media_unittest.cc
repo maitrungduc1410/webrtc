@@ -12,6 +12,8 @@
 // PeerConnection and the underlying media engine, as well as tests that check
 // the media-related aspects of SDP.
 
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -28,6 +30,7 @@
 #include "api/environment/environment.h"
 #include "api/jsep.h"
 #include "api/media_types.h"
+#include "api/payload_type.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_error.h"
 #include "api/rtc_event_log/rtc_event_log_factory.h"
@@ -76,6 +79,7 @@ using ::testing::Field;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
+using ::testing::SizeIs;
 using ::testing::StrCaseEq;
 using ::testing::UnorderedElementsAreArray;
 using ::testing::Values;
@@ -2423,6 +2427,410 @@ TEST_F(PeerConnectionMediaTestUnifiedPlan,
   EXPECT_THAT(codecs, Contains(Field(&Codec::name, StrCaseEq("VP8"))));
   EXPECT_THAT(codecs, Contains(Field(&Codec::name, StrCaseEq("AV1"))));
 }
+
+namespace {
+
+// Returns an H264 codec with packetization-mode=1 and `profile_level_id`.
+Codec CreateH264Codec(PayloadType payload_type,
+                      absl::string_view profile_level_id) {
+  Codec codec = CreateVideoCodec(payload_type, kH264CodecName);
+  codec.SetParam(kH264FmtpProfileLevelId, profile_level_id);
+  codec.SetParam(kH264FmtpPacketizationMode, "1");
+  return codec;
+}
+
+// Returns true if `codec` is the RTX codec of `associated_payload_type`.
+bool IsRtxCodecOf(const Codec& codec, PayloadType associated_payload_type) {
+  int apt;
+  return codec.GetResiliencyType() == Codec::ResiliencyType::kRtx &&
+         codec.GetParam(kCodecParamAssociatedPayloadType, &apt) &&
+         apt == associated_payload_type.value();
+}
+
+// Returns the payload types that the media sections of `description` use for
+// `codec`.
+std::vector<int> CodecPayloadTypes(
+    const SessionDescriptionInterface& description,
+    const Codec& codec) {
+  std::vector<int> payload_types;
+  for (const ContentInfo& content : description.description()->contents()) {
+    for (const Codec& c : content.media_description()->codecs()) {
+      if (c.Matches(codec)) {
+        payload_types.push_back(c.id.value());
+      }
+    }
+  }
+  return payload_types;
+}
+
+// Returns the payload types that the media sections of `description` use for
+// the RTX codec of `associated_payload_type`.
+std::vector<int> RtxPayloadTypes(const SessionDescriptionInterface& description,
+                                 PayloadType associated_payload_type) {
+  std::vector<int> payload_types;
+  for (const ContentInfo& content : description.description()->contents()) {
+    for (const Codec& c : content.media_description()->codecs()) {
+      if (IsRtxCodecOf(c, associated_payload_type)) {
+        payload_types.push_back(c.id.value());
+      }
+    }
+  }
+  return payload_types;
+}
+
+// Matches `count` payload types that are all the same.
+MATCHER_P(AreSamePayloadTypes, count, "") {
+  return arg.size() == static_cast<size_t>(count) &&
+         std::all_of(arg.begin(), arg.end(),
+                     [&](int payload_type) { return payload_type == arg[0]; });
+}
+
+// Leaves only `codec` and its RTX codec in the video sections of `answer`, and
+// sets codec parameter `name` of `codec` to `value`. This maps its payload type
+// to another variant of the offered codec, which SFUs that send all streams of
+// a codec with one payload type can do.
+void AnswerWithOtherCodecVariant(SessionDescriptionInterface& answer,
+                                 const Codec& codec,
+                                 absl::string_view name,
+                                 absl::string_view value) {
+  for (ContentInfo& content : answer.description()->contents()) {
+    if (content.media_description()->type() != MediaType::VIDEO) {
+      continue;
+    }
+    std::vector<Codec> codecs;
+    for (const Codec& c : content.media_description()->codecs()) {
+      if (c.Matches(codec)) {
+        codecs.push_back(c);
+        codecs.back().SetParam(name, value);
+      }
+    }
+    for (const Codec& c : content.media_description()->codecs()) {
+      if (!codecs.empty() && IsRtxCodecOf(c, codecs[0].id)) {
+        codecs.push_back(c);
+      }
+    }
+    content.media_description()->set_codecs(codecs);
+  }
+}
+
+class PeerConnectionMediaCodecVariantTest
+    : public PeerConnectionMediaTestUnifiedPlan,
+      public ::testing::WithParamInterface<
+          PeerConnectionInterface::BundlePolicy> {
+ protected:
+  // Negotiates a recvonly video section, preceded by a recvonly audio section
+  // if `audio_first`, between two endpoints that support `video_codecs`, with
+  // an answer that AnswerWithOtherCodecVariant() edits and that has no BUNDLE
+  // group unless `answer_with_bundle`. Then adds another recvonly video
+  // section and sets `reoffer` to the re-offer, which is also set as the local
+  // description. Records the payload types that the offer used for `codec` and
+  // its RTX codec.
+  void ReofferAfterAnswerWithOtherCodecVariant(
+      const std::vector<Codec>& video_codecs,
+      const Codec& codec,
+      absl::string_view name,
+      absl::string_view value,
+      std::unique_ptr<SessionDescriptionInterface>& reoffer,
+      bool answer_with_bundle = true,
+      bool audio_first = false) {
+    auto make_engine = [&] {
+      auto engine = std::make_unique<FakeMediaEngine>();
+      engine->SetAudioCodecs({CreateAudioCodec(111, kOpusCodecName, 48000, 2)});
+      engine->SetVideoCodecs(video_codecs);
+      return engine;
+    };
+    RTCConfiguration config;
+    config.bundle_policy = GetParam();
+    WrapperPtr caller = CreatePeerConnection(config, make_engine());
+    WrapperPtr callee = CreatePeerConnection(config, make_engine());
+    ASSERT_THAT(caller, NotNull());
+    ASSERT_THAT(callee, NotNull());
+    RtpTransceiverInit init;
+    init.direction = RtpTransceiverDirection::kRecvOnly;
+    if (audio_first) {
+      caller->AddTransceiver(MediaType::AUDIO, init);
+    }
+    caller->AddTransceiver(MediaType::VIDEO, init);
+    std::unique_ptr<SessionDescriptionInterface> offer =
+        caller->CreateOfferAndSetAsLocal();
+    ASSERT_THAT(offer, NotNull());
+    std::vector<int> payload_types = CodecPayloadTypes(*offer, codec);
+    ASSERT_THAT(payload_types, SizeIs(1));
+    offered_payload_type_ = payload_types[0];
+    std::vector<int> rtx_payload_types =
+        RtxPayloadTypes(*offer, offered_payload_type_);
+    ASSERT_THAT(rtx_payload_types, SizeIs(1));
+    offered_rtx_payload_type_ = rtx_payload_types[0];
+    ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+    std::unique_ptr<SessionDescriptionInterface> answer =
+        callee->CreateAnswer();
+    ASSERT_THAT(answer, NotNull());
+    AnswerWithOtherCodecVariant(*answer, codec, name, value);
+    if (!answer_with_bundle) {
+      answer->description()->RemoveGroupByName(GROUP_TYPE_BUNDLE);
+    }
+    ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+    caller->AddTransceiver(MediaType::VIDEO, init);
+    reoffer = caller->CreateOfferAndSetAsLocal();
+    ASSERT_THAT(reoffer, NotNull());
+  }
+
+  int offered_payload_type_ = 0;
+  int offered_rtx_payload_type_ = 0;
+};
+
+// Regression test for https://crbug.com/586047480. The answer maps the payload
+// type of H264 Baseline to H264 Constrained Baseline. A media section that a
+// re-offer adds must still use the payload types that the first media section
+// uses for H264 Baseline and its RTX codec. Otherwise it drops the packets of
+// an SFU that sends all streams of a codec with one payload type.
+TEST_P(PeerConnectionMediaCodecVariantTest,
+       ReofferKeepsPayloadTypeWhenAnswerUsesOtherCodecVariant) {
+  const Codec h264_baseline = CreateH264Codec(102, "42001f");
+  std::unique_ptr<SessionDescriptionInterface> reoffer;
+  ASSERT_NO_FATAL_FAILURE(ReofferAfterAnswerWithOtherCodecVariant(
+      {h264_baseline, CreateVideoRtxCodec(103, 102),
+       CreateH264Codec(108, "42e01f"), CreateVideoRtxCodec(109, 108)},
+      h264_baseline, kH264FmtpProfileLevelId, "42e01f", reoffer));
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, h264_baseline),
+              ElementsAre(offered_payload_type_, offered_payload_type_));
+  EXPECT_THAT(
+      RtxPayloadTypes(*reoffer, offered_payload_type_),
+      ElementsAre(offered_rtx_payload_type_, offered_rtx_payload_type_));
+}
+
+// Same as above, with an answer that maps the payload type of AV1 profile 1 to
+// AV1 profile 0.
+TEST_P(PeerConnectionMediaCodecVariantTest,
+       ReofferKeepsPayloadTypeWhenAnswerUsesOtherAv1Profile) {
+  const Codec av1_profile1 =
+      CreateVideoCodec(47, SdpVideoFormat::AV1Profile1());
+  std::unique_ptr<SessionDescriptionInterface> reoffer;
+  ASSERT_NO_FATAL_FAILURE(ReofferAfterAnswerWithOtherCodecVariant(
+      {CreateVideoCodec(45, SdpVideoFormat::AV1Profile0()),
+       CreateVideoRtxCodec(46, 45), av1_profile1, CreateVideoRtxCodec(48, 47)},
+      av1_profile1, kAv1FmtpProfile, "0", reoffer));
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, av1_profile1),
+              ElementsAre(offered_payload_type_, offered_payload_type_));
+  EXPECT_THAT(
+      RtxPayloadTypes(*reoffer, offered_payload_type_),
+      ElementsAre(offered_rtx_payload_type_, offered_rtx_payload_type_));
+}
+
+// Same as above, with an answer that does not bundle. The re-offer bundles the
+// media sections again, so they must not use different payload types either.
+TEST_P(PeerConnectionMediaCodecVariantTest,
+       ReofferKeepsPayloadTypeWhenAnswerHasNoBundle) {
+  if (GetParam() == PeerConnectionInterface::kBundlePolicyMaxBundle) {
+    GTEST_SKIP() << "With max-bundle, the offer already establishes the group.";
+  }
+  const Codec h264_baseline = CreateH264Codec(102, "42001f");
+  std::unique_ptr<SessionDescriptionInterface> reoffer;
+  ASSERT_NO_FATAL_FAILURE(ReofferAfterAnswerWithOtherCodecVariant(
+      {h264_baseline, CreateVideoRtxCodec(103, 102),
+       CreateH264Codec(108, "42e01f"), CreateVideoRtxCodec(109, 108)},
+      h264_baseline, kH264FmtpProfileLevelId, "42e01f", reoffer,
+      /*answer_with_bundle=*/false));
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, h264_baseline),
+              ElementsAre(offered_payload_type_, offered_payload_type_));
+  EXPECT_THAT(
+      RtxPayloadTypes(*reoffer, offered_payload_type_),
+      ElementsAre(offered_rtx_payload_type_, offered_rtx_payload_type_));
+}
+
+// Same as above, with an audio media section first. Its recorder has no video
+// payload types.
+TEST_P(PeerConnectionMediaCodecVariantTest,
+       ReofferKeepsPayloadTypeWhenAnswerHasNoBundleAndAudioIsFirst) {
+  if (GetParam() == PeerConnectionInterface::kBundlePolicyMaxBundle) {
+    GTEST_SKIP() << "With max-bundle, the offer already establishes the group.";
+  }
+  const Codec h264_baseline = CreateH264Codec(102, "42001f");
+  std::unique_ptr<SessionDescriptionInterface> reoffer;
+  ASSERT_NO_FATAL_FAILURE(ReofferAfterAnswerWithOtherCodecVariant(
+      {h264_baseline, CreateVideoRtxCodec(103, 102),
+       CreateH264Codec(108, "42e01f"), CreateVideoRtxCodec(109, 108)},
+      h264_baseline, kH264FmtpProfileLevelId, "42e01f", reoffer,
+      /*answer_with_bundle=*/false, /*audio_first=*/true));
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, h264_baseline),
+              ElementsAre(offered_payload_type_, offered_payload_type_));
+  EXPECT_THAT(
+      RtxPayloadTypes(*reoffer, offered_payload_type_),
+      ElementsAre(offered_rtx_payload_type_, offered_rtx_payload_type_));
+}
+
+// A media section that recycles the first media section uses the payload
+// types of the media sections that remain.
+TEST_P(PeerConnectionMediaCodecVariantTest,
+       ReofferKeepsPayloadTypeWhenFirstMediaSectionIsRecycled) {
+  const Codec h264_baseline = CreateH264Codec(102, "42001f");
+  auto make_engine = [&] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetVideoCodecs({h264_baseline, CreateVideoRtxCodec(103, 102),
+                            CreateH264Codec(108, "42e01f"),
+                            CreateVideoRtxCodec(109, 108)});
+    return engine;
+  };
+  RTCConfiguration config;
+  config.bundle_policy = GetParam();
+  WrapperPtr caller = CreatePeerConnection(config, make_engine());
+  WrapperPtr callee = CreatePeerConnection(config, make_engine());
+  ASSERT_THAT(caller, NotNull());
+  ASSERT_THAT(callee, NotNull());
+  auto negotiate = [&] {
+    ASSERT_TRUE(
+        callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+    std::unique_ptr<SessionDescriptionInterface> answer =
+        callee->CreateAnswerAndSetAsLocal();
+    ASSERT_THAT(answer, NotNull());
+    AnswerWithOtherCodecVariant(*answer, h264_baseline, kH264FmtpProfileLevelId,
+                                "42e01f");
+    ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+  };
+  RtpTransceiverInit init;
+  init.direction = RtpTransceiverDirection::kRecvOnly;
+  caller->AddTransceiver(MediaType::VIDEO, init);
+  caller->AddTransceiver(MediaType::VIDEO, init);
+  ASSERT_NO_FATAL_FAILURE(negotiate());
+  std::vector<int> payload_types =
+      CodecPayloadTypes(*caller->pc()->local_description(), h264_baseline);
+  ASSERT_THAT(payload_types, AreSamePayloadTypes(2));
+  const int offered_payload_type = payload_types[0];
+  std::vector<int> rtx_payload_types =
+      RtxPayloadTypes(*caller->pc()->local_description(), offered_payload_type);
+  ASSERT_THAT(rtx_payload_types, AreSamePayloadTypes(2));
+  const int offered_rtx_payload_type = rtx_payload_types[0];
+  caller->pc()->GetTransceivers()[0]->StopInternal();
+  ASSERT_NO_FATAL_FAILURE(negotiate());
+
+  caller->AddTransceiver(MediaType::VIDEO, init);
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(reoffer, NotNull());
+  const ContentInfos& contents = reoffer->description()->contents();
+  ASSERT_EQ(contents.size(), 2u);
+  ASSERT_NE(contents[0].mid(), "0");
+  ASSERT_FALSE(contents[0].rejected);
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, h264_baseline),
+              ElementsAre(offered_payload_type, offered_payload_type));
+  EXPECT_THAT(RtxPayloadTypes(*reoffer, offered_payload_type),
+              ElementsAre(offered_rtx_payload_type, offered_rtx_payload_type));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PeerConnectionMediaTest,
+    PeerConnectionMediaCodecVariantTest,
+    Values(PeerConnectionInterface::kBundlePolicyBalanced,
+           PeerConnectionInterface::kBundlePolicyMaxBundle,
+           PeerConnectionInterface::kBundlePolicyMaxCompat));
+
+// A video media section that replaces a stopped one in the same re-offer uses
+// the payload types of the BUNDLE group, which an audio media section holds.
+TEST_F(PeerConnectionMediaTestUnifiedPlan,
+       ReofferKeepsPayloadTypeWhenVideoMediaSectionIsReplaced) {
+  const Codec h264_baseline = CreateH264Codec(102, "42001f");
+  auto make_engine = [&] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetAudioCodecs({CreateAudioCodec(111, kOpusCodecName, 48000, 2)});
+    engine->SetVideoCodecs({h264_baseline, CreateVideoRtxCodec(103, 102),
+                            CreateH264Codec(108, "42e01f"),
+                            CreateVideoRtxCodec(109, 108)});
+    return engine;
+  };
+  RTCConfiguration config;
+  config.bundle_policy = PeerConnectionInterface::kBundlePolicyMaxBundle;
+  WrapperPtr caller = CreatePeerConnection(config, make_engine());
+  WrapperPtr callee = CreatePeerConnection(config, make_engine());
+  ASSERT_THAT(caller, NotNull());
+  ASSERT_THAT(callee, NotNull());
+  RtpTransceiverInit init;
+  init.direction = RtpTransceiverDirection::kRecvOnly;
+  caller->AddTransceiver(MediaType::AUDIO, init);
+  auto video = caller->AddTransceiver(MediaType::VIDEO, init);
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(offer, NotNull());
+  std::vector<int> offered_payload_types =
+      CodecPayloadTypes(*offer, h264_baseline);
+  ASSERT_THAT(offered_payload_types, SizeIs(1));
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      callee->CreateAnswerAndSetAsLocal();
+  ASSERT_THAT(answer, NotNull());
+  AnswerWithOtherCodecVariant(*answer, h264_baseline, kH264FmtpProfileLevelId,
+                              "42e01f");
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  video->StopStandard();
+  caller->AddTransceiver(MediaType::VIDEO, init);
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(reoffer, NotNull());
+  const ContentInfos& contents = reoffer->description()->contents();
+  ASSERT_THAT(contents, SizeIs(3));
+  ASSERT_TRUE(contents[1].rejected);
+  std::vector<int> payload_types;
+  for (const Codec& codec : contents[2].media_description()->codecs()) {
+    if (codec.Matches(h264_baseline)) {
+      payload_types.push_back(codec.id.value());
+    }
+  }
+  EXPECT_THAT(payload_types, ElementsAre(offered_payload_types[0]));
+}
+
+// A media section that was negotiated without bundle keeps its payload types
+// in a re-offer, even if they differ from those of the first media section.
+TEST_F(PeerConnectionMediaTestUnifiedPlan,
+       ReofferKeepsPayloadTypesOfUnbundledMediaSection) {
+  const Codec h264 = CreateH264Codec(102, "42001f");
+  auto make_engine = [&] {
+    auto engine = std::make_unique<FakeMediaEngine>();
+    engine->SetVideoCodecs({h264, CreateVideoRtxCodec(103, 102)});
+    return engine;
+  };
+  WrapperPtr caller = CreatePeerConnection(RTCConfiguration(), make_engine());
+  WrapperPtr callee = CreatePeerConnection(RTCConfiguration(), make_engine());
+  ASSERT_THAT(caller, NotNull());
+  ASSERT_THAT(callee, NotNull());
+  RtpTransceiverInit init;
+  init.direction = RtpTransceiverDirection::kRecvOnly;
+  callee->AddTransceiver(MediaType::VIDEO, init);
+  callee->AddTransceiver(MediaType::VIDEO, init);
+  std::unique_ptr<SessionDescriptionInterface> offer = callee->CreateOffer();
+  ASSERT_THAT(offer, NotNull());
+  offer->description()->RemoveGroupByName(GROUP_TYPE_BUNDLE);
+  std::vector<int> offered_payload_types = CodecPayloadTypes(*offer, h264);
+  ASSERT_THAT(offered_payload_types, AreSamePayloadTypes(2));
+  const PayloadType kPayloadType(offered_payload_types[0]);
+  const PayloadType kOtherPayloadType(120);
+  const PayloadType kOtherRtxPayloadType(121);
+  ASSERT_NE(kPayloadType, kOtherPayloadType);
+  MediaContentDescription* second =
+      offer->description()->contents()[1].media_description();
+  std::vector<Codec> codecs = second->codecs();
+  for (Codec& codec : codecs) {
+    if (codec.id == kPayloadType) {
+      codec.id = kOtherPayloadType;
+    } else if (IsRtxCodecOf(codec, kPayloadType)) {
+      codec.id = kOtherRtxPayloadType;
+      codec.SetParam(kCodecParamAssociatedPayloadType,
+                     kOtherPayloadType.value());
+    }
+  }
+  second->set_codecs(codecs);
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(offer)));
+  ASSERT_THAT(caller->CreateAnswerAndSetAsLocal(), NotNull());
+
+  std::unique_ptr<SessionDescriptionInterface> reoffer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_THAT(reoffer, NotNull());
+  EXPECT_THAT(CodecPayloadTypes(*reoffer, h264),
+              ElementsAre(kPayloadType.value(), kOtherPayloadType.value()));
+  EXPECT_THAT(RtxPayloadTypes(*reoffer, kOtherPayloadType),
+              ElementsAre(kOtherRtxPayloadType.value()));
+}
+
+}  // namespace
 
 INSTANTIATE_TEST_SUITE_P(PeerConnectionMediaTest,
                          PeerConnectionMediaTest,

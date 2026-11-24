@@ -76,9 +76,8 @@ class MediaSessionDescriptionFactory {
 
   AudioVideoRtpHeaderExtensions GetOfferedRtpHeaderExtensionsWithIds(
       const std::vector<const ContentInfo*>& current_active_contents,
-      bool extmap_allow_mixed,
-      const std::vector<MediaDescriptionOptions>& media_description_options)
-      const;
+      const SessionDescription* current_description,
+      const MediaSessionOptions& session_options) const;
   RTCError AddTransportOffer(const std::string& content_name,
                              const TransportOptions& transport_options,
                              const SessionDescription* current_desc,

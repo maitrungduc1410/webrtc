@@ -62,16 +62,15 @@ RTCErrorOr<PayloadType> SdpPayloadTypeSuggester::SuggestPayloadType(
   RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
   PayloadTypeRecorder& local_recorder = LookupRecorder(mid, /* local= */ true);
 
+  bool use_own_payload_type = false;
   if (pick_from_top_of_range && codec.id.IsSet()) {
     RTCErrorOr<Codec> existing = local_recorder.LookupCodec(codec.id);
     if (existing.ok()) {
       if (MatchesWithReferenceAttributes(existing.value(), codec)) {
         return codec.id;
       }
-    } else if (codec.id >= 0 && codec.id <= 127 &&
-               !payload_type_picker_.IsSeen(codec.id)) {
-      local_recorder.AddMapping(codec.id, codec);
-      return codec.id;
+    } else {
+      use_own_payload_type = codec.id >= 0 && codec.id <= 127;
     }
   }
 
@@ -95,6 +94,10 @@ RTCErrorOr<PayloadType> SdpPayloadTypeSuggester::SuggestPayloadType(
     }
     // If we get here, PT is already in use, possibly for something else.
     // Fall through to SuggestMapping.
+  }
+  if (use_own_payload_type && !payload_type_picker_.IsSeen(codec.id)) {
+    local_recorder.AddMapping(codec.id, codec);
+    return codec.id;
   }
   RTCErrorOr<PayloadType> suggested_result =
       payload_type_picker_.SuggestMapping(codec, pick_from_top_of_range);

@@ -344,6 +344,46 @@ std::vector<const ContentInfo*> GetActiveContents(
   return active_contents;
 }
 
+// For a media section that a bundled re-offer adds, returns the mid of the
+// active section whose payload types and header extension IDs it has to be
+// consistent with, if any.
+std::optional<std::string> GetSharedMid(
+    const MediaDescriptionOptions& media_description_options,
+    const SessionDescription* current_description,
+    const MediaSessionOptions& session_options) {
+  // Not bundling, stopped, or the initial offer.
+  if (!session_options.bundle_enabled || media_description_options.stopped ||
+      current_description == nullptr) {
+    return std::nullopt;
+  }
+  std::vector<const ContentInfo*> active_contents =
+      GetActiveContents(*current_description, session_options);
+  // Negotiated before, keeps its own payload types.
+  if (absl::c_any_of(active_contents, [&](const ContentInfo* content) {
+        return content->mid() == media_description_options.mid;
+      })) {
+    return std::nullopt;
+  }
+  // Prefer a section of the same type.
+  auto existing =
+      absl::c_find_if(active_contents, [&](const ContentInfo* content) {
+        return IsMediaContentOfType(content, media_description_options.type);
+      });
+  // Else the BUNDLE group, so that payload types do not collide within it.
+  const ContentGroup* bundle_group =
+      current_description->GetGroupByName(GROUP_TYPE_BUNDLE);
+  if (existing == active_contents.end() && bundle_group != nullptr) {
+    existing =
+        absl::c_find_if(active_contents, [&](const ContentInfo* content) {
+          return bundle_group->HasContentName(content->mid());
+        });
+  }
+  if (existing == active_contents.end()) {
+    return std::nullopt;
+  }
+  return (*existing)->mid();
+}
+
 // Create a media content to be offered for the given `sender_options`,
 // according to the given options.rtcp_mux, session_options.is_muc, codecs,
 // secure_transport, crypto, and current_streams. If we don't currently have
@@ -787,8 +827,7 @@ MediaSessionDescriptionFactory::CreateOfferOrError(
 
   AudioVideoRtpHeaderExtensions extensions_with_ids =
       GetOfferedRtpHeaderExtensionsWithIds(
-          current_active_contents, session_options.offer_extmap_allow_mixed,
-          session_options.media_description_options);
+          current_active_contents, current_description, session_options);
 
   auto offer = std::make_unique<SessionDescription>();
 
@@ -1118,9 +1157,9 @@ MediaSessionDescriptionFactory::CreateAnswerOrError(
 MediaSessionDescriptionFactory::AudioVideoRtpHeaderExtensions
 MediaSessionDescriptionFactory::GetOfferedRtpHeaderExtensionsWithIds(
     const std::vector<const ContentInfo*>& current_active_contents,
-    bool extmap_allow_mixed,
-    const std::vector<MediaDescriptionOptions>& media_description_options)
-    const {
+    const SessionDescription* current_description,
+    const MediaSessionOptions& session_options) const {
+  bool extmap_allow_mixed = session_options.offer_extmap_allow_mixed;
   // All header extensions allocated from the same range to avoid potential
   // issues when using BUNDLE.
 
@@ -1159,7 +1198,9 @@ MediaSessionDescriptionFactory::GetOfferedRtpHeaderExtensionsWithIds(
   // Add all encountered header extensions in the media description options that
   // are not in the current description.
   RTC_DCHECK(codec_lookup_helper_->PayloadTypeSuggester());
-  for (const auto& entry : media_description_options) {
+  for (const auto& entry : session_options.media_description_options) {
+    std::string mid = GetSharedMid(entry, current_description, session_options)
+                          .value_or(entry.mid);
     RtpHeaderExtensions filtered_extensions =
         filtered_rtp_header_extensions(UnstoppedOrPresentRtpHeaderExtensions(
             entry.header_extensions, all_encountered_extensions));
@@ -1167,12 +1208,12 @@ MediaSessionDescriptionFactory::GetOfferedRtpHeaderExtensionsWithIds(
       MergeRtpHdrExts(
           filtered_extensions, enable_encrypted_rtp_header_extensions_,
           &offered_extensions.audio, &all_encountered_extensions,
-          *codec_lookup_helper_->PayloadTypeSuggester(), entry.mid, id_domain);
+          *codec_lookup_helper_->PayloadTypeSuggester(), mid, id_domain);
     else if (entry.type == MediaType::VIDEO)
       MergeRtpHdrExts(
           filtered_extensions, enable_encrypted_rtp_header_extensions_,
           &offered_extensions.video, &all_encountered_extensions,
-          *codec_lookup_helper_->PayloadTypeSuggester(), entry.mid, id_domain);
+          *codec_lookup_helper_->PayloadTypeSuggester(), mid, id_domain);
   }
   return offered_extensions;
 }
@@ -1250,10 +1291,20 @@ RTCError MediaSessionDescriptionFactory::AddRtpContentForOffer(
   RTC_DCHECK(media_description_options.type == MediaType::AUDIO ||
              media_description_options.type == MediaType::VIDEO);
 
+  // A media section that shares the payload types of another one has no
+  // current content of its own.
+  std::optional<MediaDescriptionOptions> bundled_options;
+  std::optional<std::string> shared_mid = GetSharedMid(
+      media_description_options, current_description, session_options);
+  if (shared_mid) {
+    bundled_options = media_description_options;
+    bundled_options->mid = *shared_mid;
+  }
   std::vector<Codec> codecs_to_include;
   RTCErrorOr<std::vector<Codec>> error_or_filtered_codecs =
       codec_lookup_helper_->GetCodecVendor()->GetNegotiatedCodecsForOffer(
-          media_description_options, session_options, current_content,
+          bundled_options ? *bundled_options : media_description_options,
+          session_options, bundled_options ? nullptr : current_content,
           *codec_lookup_helper_->PayloadTypeSuggester());
   if (!error_or_filtered_codecs.ok()) {
     return error_or_filtered_codecs.MoveError();
