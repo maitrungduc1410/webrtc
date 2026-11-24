@@ -92,6 +92,20 @@ class RtpSenderInternal : public RtpSenderInterface {
   [[nodiscard]] virtual ScopedOperationsBatcher::BatchTaskWithFinalizer
   SetSsrcTask(uint32_t ssrc, size_t layer_count) = 0;
 
+  // The arguments of the `SetSsrcTask()` overload above.
+  struct SsrcAndLayerCount {
+    uint32_t ssrc = 0;
+    size_t layer_count = 0;
+  };
+
+  // Same as `SetSsrcTask()` above, for an SSRC that is only known when the
+  // returned task runs, e.g. because an earlier task in the same batch applies
+  // the local description that creates the send stream. `get_ssrc` runs on the
+  // network thread. Unlike above, the signaling thread state of the sender
+  // only changes in the finalizer, i.e. if the returned task runs.
+  [[nodiscard]] virtual ScopedOperationsBatcher::BatchTaskWithFinalizer
+  SetSsrcTask(absl::AnyInvocable<SsrcAndLayerCount() &&> get_ssrc) = 0;
+
   virtual void set_stream_ids(const std::vector<std::string>& stream_ids) = 0;
   virtual void set_init_send_encodings(
       const std::vector<RtpEncodingParameters>& init_send_encodings) = 0;
@@ -195,6 +209,8 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   ScopedOperationsBatcher::BatchTaskWithFinalizer SetSsrcTask(
       uint32_t ssrc,
       size_t layer_count) override;
+  ScopedOperationsBatcher::BatchTaskWithFinalizer SetSsrcTask(
+      absl::AnyInvocable<SsrcAndLayerCount() &&> get_ssrc) override;
 
   uint32_t ssrc() const override {
     RTC_DCHECK_RUN_ON(signaling_thread_);
@@ -324,9 +340,9 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // Enable sending on the media channel.
   void SetSend() RTC_RUN_ON(signaling_thread_);
   // Reads the track state and returns a task that applies it to the media
-  // channel for `ssrc_`. The task runs on the network thread and returns false
-  // on failure.
-  virtual absl::AnyInvocable<bool() &&> GetSetSendTask()
+  // channel for the SSRC that the task is called with. The task runs on the
+  // network thread and returns false on failure.
+  virtual absl::AnyInvocable<bool(uint32_t ssrc) &&> GetSetSendTask()
       RTC_RUN_ON(signaling_thread_) = 0;
   // Disable sending on the media channel.
   virtual void ClearSend() = 0;
@@ -360,6 +376,20 @@ class RtpSenderBase : public RtpSenderInternal, public ObserverInterface {
   // the media channel was left untouched.
   std::optional<RtpParameters> ApplyInitParameters_n(
       std::optional<uint32_t> ssrc) RTC_RUN_ON(network_thread_);
+
+  // Drops the init encodings beyond `layer_count`, the number of send layers
+  // that the applied local description describes for the send stream that the
+  // sender is about to be attached to.
+  void DropSurplusInitEncodings(size_t layer_count);
+
+  // Returns the network thread part of `SetSsrcTask()`: a task that stops
+  // sending on `clear_send_ssrc`, calls `set_send` and applies the
+  // configuration that the sender holds to the send stream for the SSRC that
+  // the task is called with.
+  absl::AnyInvocable<ScopedOperationsBatcher::BatchTaskResult(uint32_t ssrc) &&>
+  GetSetSsrcTask(std::optional<uint32_t> clear_send_ssrc,
+                 absl::AnyInvocable<bool(uint32_t ssrc) &&> set_send)
+      RTC_RUN_ON(signaling_thread_);
 
   const Environment env_;
   TaskQueueBase* const signaling_thread_;
@@ -529,7 +559,7 @@ class AudioRtpSender : public DtmfProviderInterface, public RtpSenderBase {
                  std::vector<RtpEncodingParameters> init_send_encodings,
                  std::vector<Codec> send_codecs);
 
-  absl::AnyInvocable<bool() &&> GetSetSendTask()
+  absl::AnyInvocable<bool(uint32_t ssrc) &&> GetSetSendTask()
       RTC_RUN_ON(signaling_thread_) override;
   void ClearSend() override;
   void ClearSend_n(uint32_t ssrc) RTC_RUN_ON(network_thread_) override;
@@ -610,7 +640,7 @@ class VideoRtpSender : public RtpSenderBase {
                  std::vector<std::string> stream_ids,
                  std::vector<Codec> send_codecs);
 
-  absl::AnyInvocable<bool() &&> GetSetSendTask()
+  absl::AnyInvocable<bool(uint32_t ssrc) &&> GetSetSendTask()
       RTC_RUN_ON(signaling_thread_) override;
   void ClearSend() override;
   void ClearSend_n(uint32_t ssrc) RTC_RUN_ON(network_thread_) override;

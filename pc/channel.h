@@ -121,6 +121,7 @@ class BaseChannel : public ChannelInterface,
   void EnableSframe() override;
 
   const std::vector<StreamParams>& local_streams() const override {
+    RTC_DCHECK_RUN_ON(network_thread_);
     return local_streams_;
   }
   const std::vector<StreamParams>& remote_streams() const override {

@@ -785,12 +785,12 @@ RtpSenderBase::MaybeCreateFactoryOverride() {
 void RtpSenderBase::SetSend() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
   RTC_DCHECK(!stopped_);
-  absl::AnyInvocable<bool() &&> set_send = GetSetSendTask();
+  absl::AnyInvocable<bool(uint32_t) &&> set_send = GetSetSendTask();
   InvalidateCache();
   std::optional<RtpParameters> parameters;
   network_thread_->BlockingCall([&, ssrc = ssrc_] {
     RTC_DCHECK_RUN_ON(network_thread_);
-    if (std::move(set_send)()) {
+    if (std::move(set_send)(ssrc)) {
       // Setting the send state can change the parameters, e.g. the scalability
       // mode. Read them back so that the cache stays populated.
       parameters = media_channel_->GetRtpSendParameters(ssrc);
@@ -971,12 +971,8 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
   // network thread by the task returned below, but the signaling thread is
   // blocked inside `ScopedOperationsBatcher::Run()` while that task runs, and
   // this code runs before the task is handed to the batcher.
-  if (ssrc != 0 && layer_count < init_parameters_.encodings.size()) {
-    RTC_LOG(LS_WARNING) << "The local description describes " << layer_count
-                        << " send layer(s) but the sender was configured with "
-                        << init_parameters_.encodings.size()
-                        << ". Dropping the surplus layers.";
-    init_parameters_.encodings.resize(layer_count);
+  if (ssrc != 0) {
+    DropSurplusInitEncodings(layer_count);
   }
 
   InvalidateCache();
@@ -988,17 +984,28 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
     RemoveTrackFromStats();
   }
   ssrc_ = ssrc;
-  absl::AnyInvocable<bool() &&> set_send;
+  absl::AnyInvocable<bool(uint32_t) &&> set_send;
   if (can_send_track()) {
     set_send = GetSetSendTask();
     AddTrackToStats();
   }
 
+  return [ssrc, set_ssrc = GetSetSsrcTask(clear_send_ssrc,
+                                          std::move(set_send))]() mutable {
+    return std::move(set_ssrc)(ssrc);
+  };
+}
+
+absl::AnyInvocable<ScopedOperationsBatcher::BatchTaskResult(uint32_t ssrc) &&>
+RtpSenderBase::GetSetSsrcTask(
+    std::optional<uint32_t> clear_send_ssrc,
+    absl::AnyInvocable<bool(uint32_t ssrc) &&> set_send) {
   auto [video_factory, audio_factory] = MaybeCreateFactoryOverride();
 
-  return [this, ssrc, clear_send_ssrc, set_send = std::move(set_send),
+  return [this, clear_send_ssrc, set_send = std::move(set_send),
           video_encoder_factory_override = std::move(video_factory),
-          audio_encoder_factory_override = std::move(audio_factory)]() mutable
+          audio_encoder_factory_override =
+              std::move(audio_factory)](uint32_t ssrc) mutable
              -> ScopedOperationsBatcher::BatchTaskResult {
     RTC_DCHECK_RUN_ON(network_thread_);
 
@@ -1007,8 +1014,8 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
     if (clear_send_ssrc.has_value()) {
       ClearSend_n(*clear_send_ssrc);
     }
-    if (set_send) {
-      std::move(set_send)();
+    if (set_send != nullptr && ssrc != 0) {
+      std::move(set_send)(ssrc);
     }
 
     std::optional<RtpParameters> applied_parameters = ApplyInitParameters_n(
@@ -1055,6 +1062,70 @@ ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
     }
     return ScopedOperationsBatcher::FinalizerTask();
   };
+}
+
+ScopedOperationsBatcher::BatchTaskWithFinalizer RtpSenderBase::SetSsrcTask(
+    absl::AnyInvocable<SsrcAndLayerCount() &&> get_ssrc) {
+  RTC_DCHECK_RUN_ON(signaling_thread_);
+  RTC_DCHECK_DISALLOW_THREAD_BLOCKING_CALLS();
+  if (stopped_) {
+    return nullptr;
+  }
+
+  // Read the track state now, for the case that the SSRC changes. If the
+  // sender is sending, it stops sending on its current SSRC.
+  std::optional<uint32_t> clear_send_ssrc;
+  if (can_send_track()) {
+    clear_send_ssrc = ssrc_;
+  }
+  absl::AnyInvocable<bool(uint32_t) &&> set_send;
+  if (track_) {
+    set_send = GetSetSendTask();
+  }
+
+  return [this, current_ssrc = ssrc_, get_ssrc = std::move(get_ssrc),
+          set_ssrc =
+              GetSetSsrcTask(clear_send_ssrc, std::move(set_send))]() mutable
+             -> ScopedOperationsBatcher::BatchTaskResult {
+    RTC_DCHECK_RUN_ON(network_thread_);
+    const auto [ssrc, layer_count] = std::move(get_ssrc)();
+    if (ssrc == current_ssrc) {
+      return ScopedOperationsBatcher::BatchTaskResult();
+    }
+    if (ssrc != 0) {
+      // Like `ApplyInitParameters_n()`, this changes `init_parameters_` while
+      // the signaling thread is blocked inside
+      // `ScopedOperationsBatcher::Run()`.
+      DropSurplusInitEncodings(layer_count);
+    }
+    ScopedOperationsBatcher::FinalizerTask update_cache =
+        std::move(set_ssrc)(ssrc).finalizer;
+    return ScopedOperationsBatcher::FinalizerTask(
+        [this, ssrc, update_cache = std::move(update_cache)]() mutable {
+          RTC_DCHECK_RUN_ON(signaling_thread_);
+          InvalidateCache();
+          if (can_send_track()) {
+            RemoveTrackFromStats();
+          }
+          ssrc_ = ssrc;
+          if (can_send_track()) {
+            AddTrackToStats();
+          }
+          if (update_cache != nullptr) {
+            std::move(update_cache)();
+          }
+        });
+  };
+}
+
+void RtpSenderBase::DropSurplusInitEncodings(size_t layer_count) {
+  if (layer_count < init_parameters_.encodings.size()) {
+    RTC_LOG(LS_WARNING) << "The local description describes " << layer_count
+                        << " send layer(s) but the sender was configured with "
+                        << init_parameters_.encodings.size()
+                        << ". Dropping the surplus layers.";
+    init_parameters_.encodings.resize(layer_count);
+  }
 }
 
 void RtpSenderBase::Stop() {
@@ -1501,9 +1572,9 @@ RTCError AudioRtpSender::GenerateKeyFrame(
          << "Generating key frames for audio is not supported.";
 }
 
-absl::AnyInvocable<bool() &&> AudioRtpSender::GetSetSendTask() {
+absl::AnyInvocable<bool(uint32_t) &&> AudioRtpSender::GetSetSendTask() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  RTC_DCHECK(can_send_track());
+  RTC_DCHECK(track_);
   // `track_->enabled()` hops to the signaling thread, so call it before we hop
   // to the network thread or else it will deadlock.
   bool track_enabled = track_->enabled();
@@ -1518,7 +1589,7 @@ absl::AnyInvocable<bool() &&> AudioRtpSender::GetSetSendTask() {
     options = audio_track()->GetSource()->options();
   }
 #endif
-  return [this, ssrc = ssrc_, track_enabled, options = std::move(options)] {
+  return [this, track_enabled, options = std::move(options)](uint32_t ssrc) {
     RTC_DCHECK_RUN_ON(network_thread_);
     if (media_channel_ == nullptr ||
         !voice_media_channel()->SetAudioSend(
@@ -1660,9 +1731,9 @@ RTCError VideoRtpSender::GenerateKeyFrame(
   return RTCError::OK();
 }
 
-absl::AnyInvocable<bool() &&> VideoRtpSender::GetSetSendTask() {
+absl::AnyInvocable<bool(uint32_t) &&> VideoRtpSender::GetSetSendTask() {
   RTC_DCHECK_RUN_ON(signaling_thread_);
-  RTC_DCHECK(can_send_track());
+  RTC_DCHECK(track_);
   VideoOptions options;
   VideoTrackSourceInterface* source = video_track()->GetSource();
   if (source) {
@@ -1682,7 +1753,7 @@ absl::AnyInvocable<bool() &&> VideoRtpSender::GetSetSendTask() {
       options.is_screencast = true;
       break;
   }
-  return [this, ssrc = ssrc_, options, video_track = video_track()] {
+  return [this, options, video_track = video_track()](uint32_t ssrc) {
     RTC_DCHECK_RUN_ON(network_thread_);
     bool success =
         media_channel_ != nullptr &&

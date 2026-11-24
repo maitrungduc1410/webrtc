@@ -295,9 +295,23 @@ class SdpOfferAnswerHandler : public SdpStateProvider {
   // Part of ApplyRemoteDescription steps specific to Unified Plan.
   bool ApplyRemoteDescriptionUpdateTransceiverState(SdpType sdp_type);
 
-  // Updates sender SSRCs and init send encodings from transceivers.
-  // Part of ApplyLocalDescription steps specific to Unified Plan.
-  void UpdateSenderSsrcsFromLocalDescription() RTC_RUN_ON(signaling_thread());
+  // Adds the tasks that attach the senders to the send streams of the local
+  // description to `network_tasks`, after the tasks that apply the local
+  // description to the channels. Part of ApplyLocalDescription steps specific
+  // to Unified Plan.
+  void UpdateSenderSsrcsFromLocalDescription(
+      SdpType type,
+      ScopedOperationsBatcher& network_tasks) RTC_RUN_ON(signaling_thread());
+  // Adds a task to `network_tasks` that, if it runs, sets the stream ids of
+  // the sender of `transceiver` from `stream` and, for an offer, keeps the
+  // sender's init send encodings in the stable state of `transceiver` for
+  // rollback. Does nothing if there is nothing to change.
+  void AddSenderStreamIdsTask(
+      const scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>&
+          transceiver,
+      const StreamParams& stream,
+      SdpType type,
+      ScopedOperationsBatcher& network_tasks) RTC_RUN_ON(signaling_thread());
 
   // Part of ApplyRemoteDescription steps specific to plan b.
   PLAN_B_ONLY bool PlanBUpdateSendersAndReceivers(

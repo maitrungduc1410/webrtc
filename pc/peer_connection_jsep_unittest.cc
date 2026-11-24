@@ -9,6 +9,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
@@ -2345,6 +2346,35 @@ TEST_F(PeerConnectionJsepTest, RollbackAfterMultipleSLD) {
   EXPECT_EQ(callee->pc()->GetTransceivers().size(), 2u);
   EXPECT_EQ(callee->pc()->GetTransceivers()[0]->mid(), std::nullopt);
   EXPECT_EQ(callee->pc()->GetTransceivers()[1]->mid(), std::nullopt);
+}
+
+// A local answer consumes the init send encodings of a sender that it attaches
+// to a send stream. There is no rollback in the stable state, so they must not
+// be kept for one: rolling back a later local offer has to leave the sender
+// attached.
+TEST_F(PeerConnectionJsepTest,
+       RollbackOfLocalOfferAfterLocalAnswerKeepsSender) {
+  auto caller = CreatePeerConnection();
+  caller->AddAudioTrack("a");
+  auto callee = CreatePeerConnection();
+  // With init send encodings, AddTrack() creates a transceiver that the remote
+  // offer can be associated with.
+  auto result = callee->pc()->AddTrack(callee->CreateAudioTrack("b"), {"s"},
+                                       {RtpEncodingParameters()});
+  ASSERT_TRUE(result.ok());
+  scoped_refptr<RtpSenderInterface> sender = result.MoveValue();
+  ASSERT_TRUE(callee->SetRemoteDescription(caller->CreateOfferAndSetAsLocal()));
+  ASSERT_EQ(1u, callee->pc()->GetTransceivers().size());
+  ASSERT_TRUE(
+      caller->SetRemoteDescription(callee->CreateAnswerAndSetAsLocal()));
+  const uint32_t ssrc = sender->ssrc();
+  ASSERT_NE(0u, ssrc);
+
+  ASSERT_TRUE(callee->CreateOfferAndSetAsLocal());
+  ASSERT_TRUE(callee->SetRemoteDescription(callee->CreateRollback()));
+
+  EXPECT_EQ(ssrc, sender->ssrc());
+  EXPECT_TRUE(callee->pc()->GetTransceivers()[0]->mid().has_value());
 }
 
 TEST_F(PeerConnectionJsepTest, NoRollbackNeeded) {

@@ -124,6 +124,10 @@ class MockRtpSenderInternal : public RtpSenderInternal {
               SetSsrcTask,
               (uint32_t, size_t),
               (override));
+  MOCK_METHOD(ScopedOperationsBatcher::BatchTaskWithFinalizer,
+              SetSsrcTask,
+              (absl::AnyInvocable<SsrcAndLayerCount() &&>),
+              (override));
   MOCK_METHOD(void,
               set_stream_ids,
               (const std::vector<std::string>&),

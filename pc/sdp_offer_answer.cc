@@ -160,6 +160,22 @@ void MaybeHandleLocallyRejectedTransceiver(
   }
 }
 
+// Returns the SSRC and the number of send layers of the channel's first send
+// stream, which applying the local description created.
+RtpSenderInternal::SsrcAndLayerCount GetLocalSendStreamSsrc(
+    const RtpTransceiver& transceiver) {
+  const std::vector<StreamParams>& streams =
+      transceiver.channel_local_streams();
+  RTC_DCHECK(!streams.empty());
+  // The local description is authoritative for the number of send layers.
+  // This is the same view that the media channel has, since the channel
+  // derives its encodings from these same `StreamParams` (see
+  // `CreateRtpParametersWithEncodings()`).
+  std::vector<uint32_t> primary_ssrcs;
+  streams[0].GetPrimarySsrcs(&primary_ssrcs);
+  return {.ssrc = streams[0].first_ssrc(), .layer_count = primary_ssrcs.size()};
+}
+
 struct DtlsTransportAndName {
   scoped_refptr<DtlsTransport> transport;
   std::optional<std::string> transport_name;
@@ -2508,13 +2524,14 @@ RTCError SdpOfferAnswerHandler::ApplyLocalDescription(
   return RTCError::OK();
 }
 
-void SdpOfferAnswerHandler::UpdateSenderSsrcsFromLocalDescription() {
+void SdpOfferAnswerHandler::UpdateSenderSsrcsFromLocalDescription(
+    SdpType type,
+    ScopedOperationsBatcher& network_tasks) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(IsUnifiedPlan());
   if (!ConfiguredForMedia()) {
     return;
   }
-  ScopedOperationsBatcher worker_tasks(context_->network_thread());
   // We must use List and not ListInternal here because
   // transceivers()->StableState() is indexed by the non-internal refptr.
   for (const auto& transceiver_ext : transceivers()->List()) {
@@ -2528,36 +2545,73 @@ void SdpOfferAnswerHandler::UpdateSenderSsrcsFromLocalDescription() {
       continue;
     }
     scoped_refptr<RtpSenderInternal> sender = transceiver->sender_internal();
-    if (content->rejected || !transceiver->HasChannel() ||
-        transceiver->channel_local_streams().empty()) {
+    // Applying the local description gives the channel a send stream for each
+    // stream in the description, see `BaseChannel::UpdateLocalStreams_n()`.
+    const std::vector<StreamParams>& streams =
+        content->media_description()->streams();
+    if (content->rejected || !transceiver->HasChannel() || streams.empty()) {
       // 0 is a special value meaning "this sender has no associated send
       // stream". Need to call this so the sender won't attempt to configure
       // a no longer existing stream and run into DCHECKs in the lower
       // layers.
-      worker_tasks.AddWithFinalizer(sender->SetSsrcTask(0, /*layer_count=*/0));
+      // TODO: https://crbug.com/webrtc/42233839 - When SSRC is no longer a
+      // special value, change this to `has_value()`.
+      if (sender->ssrc() != 0) {
+        network_tasks.AddWithFinalizer(sender->SetSsrcTask(
+            [] { return RtpSenderInternal::SsrcAndLayerCount(); }));
+      }
     } else {
-      const std::vector<StreamParams>& streams =
-          transceiver->channel_local_streams();
-      sender->set_stream_ids(streams[0].stream_ids());
-      std::vector<RtpEncodingParameters> encodings =
-          sender->init_send_encodings();
-      // The local description is authoritative for the number of send layers.
-      // This is the same view that the media channel has, since the channel
-      // derives its encodings from these same `StreamParams` (see
-      // `CreateRtpParametersWithEncodings()`). Computing it here means the
-      // sender does not have to discover a mismatch on the worker thread,
-      // where the context needed to act on it is gone.
-      std::vector<uint32_t> primary_ssrcs;
-      streams[0].GetPrimarySsrcs(&primary_ssrcs);
-      worker_tasks.AddWithFinalizer(
-          sender->SetSsrcTask(streams[0].first_ssrc(), primary_ssrcs.size()));
-      if (!encodings.empty()) {
-        transceivers()
-            ->StableState(transceiver_ext)
-            ->SetInitSendEncodings(std::move(encodings));
+      AddSenderStreamIdsTask(transceiver_ext, streams[0], type, network_tasks);
+      // If the description has the sender's SSRC, the channel keeps the send
+      // stream it has for it, so the SSRC doesn't change. Otherwise, the SSRC
+      // is looked up when the task runs, since the channel generates the SSRCs
+      // of a stream that only has RIDs.
+      if (!streams[0].has_ssrcs() ||
+          streams[0].first_ssrc() != sender->ssrc()) {
+        network_tasks.AddWithFinalizer(sender->SetSsrcTask(
+            [transceiver] { return GetLocalSendStreamSsrc(*transceiver); }));
       }
     }
   }
+}
+
+void SdpOfferAnswerHandler::AddSenderStreamIdsTask(
+    const scoped_refptr<RtpTransceiverProxyWithInternal<RtpTransceiver>>&
+        transceiver,
+    const StreamParams& stream,
+    SdpType type,
+    ScopedOperationsBatcher& network_tasks) {
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  scoped_refptr<RtpSenderInternal> sender =
+      transceiver->internal()->sender_internal();
+  // Take the stream ids from the description, and keep the init send
+  // encodings for rollback, since attaching the sender to the send stream
+  // consumes them. Both only if the tasks that apply the description succeed.
+  // Only an offer can be rolled back. For an answer, `UpdateSessionState()`
+  // has already discarded the stable states, and keeping the encodings would
+  // create a stable state that a later rollback would act on.
+  std::vector<RtpEncodingParameters> encodings;
+  if (type == SdpType::kOffer) {
+    encodings = sender->init_send_encodings();
+  }
+  if (sender->stream_ids() == stream.stream_ids() && encodings.empty()) {
+    return;
+  }
+  network_tasks.AddWithFinalizer(
+      [finalizer = ScopedOperationsBatcher::FinalizerTask(
+           [this, sender = std::move(sender), transceiver,
+            stream_ids = stream.stream_ids(),
+            encodings = std::move(encodings)]() mutable {
+             RTC_DCHECK_RUN_ON(signaling_thread());
+             sender->set_stream_ids(stream_ids);
+             if (!encodings.empty()) {
+               transceivers()
+                   ->StableState(transceiver)
+                   ->SetInitSendEncodings(std::move(encodings));
+             }
+           })]() mutable -> ScopedOperationsBatcher::BatchTaskResult {
+        return std::move(finalizer);
+      });
 }
 
 void SdpOfferAnswerHandler::SetRemoteDescription(
@@ -3851,13 +3905,6 @@ RTCError SdpOfferAnswerHandler::UpdateSessionState(
   // Update internal objects according to the session description's media
   // descriptions.
   RTCError error = PushdownMediaDescription(type, source, bundle_groups_by_mid);
-
-  // Connect the senders to the send streams that were created when applying
-  // the local description. This requires the description to have been pushed
-  // down.
-  if (error.ok() && source == CS_LOCAL && IsUnifiedPlan()) {
-    UpdateSenderSsrcsFromLocalDescription();
-  }
 
   // Only update the signaling state (and notify the observer) once the media
   // descriptions have been applied, so that an observer that inspects e.g.
@@ -6084,7 +6131,8 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
             std::min(local_sctp_description->max_message_size(),
                      remote_sctp_description->max_message_size());
       }
-      // Added last, since starting SCTP can fail, which stops the batch.
+      // Added after the channel tasks, since starting SCTP can fail, which
+      // stops the batch.
       pc_->StartSctpTransport(
           {.local_port = local_sctp_description->port(),
            .remote_port = remote_sctp_description->port(),
@@ -6094,6 +6142,13 @@ RTCError SdpOfferAnswerHandler::PushdownMediaDescription(
            .remote_init = remote_sctp_description->sctp_init()},
           batcher);
     }
+  }
+
+  // Connect the senders to the send streams that applying the local
+  // description creates. Added last, so that the senders are only updated if
+  // everything above succeeds.
+  if (source == CS_LOCAL && IsUnifiedPlan()) {
+    UpdateSenderSsrcsFromLocalDescription(type, batcher);
   }
 
   return batcher.Run();

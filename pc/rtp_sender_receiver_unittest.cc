@@ -126,6 +126,7 @@ class MockSetStreamsObserver : public RtpSenderBase::SetStreamsObserver {
 
 using ::testing::ContainerEq;
 using ::testing::MockFunction;
+using ::testing::SizeIs;
 using RidList = std::vector<std::string>;
 
 class MockVideoMediaSendChannel : public FakeVideoMediaSendChannel {
@@ -1965,6 +1966,134 @@ TEST_F(RtpSenderReceiverTest, SurplusLayersAreDroppedOnTheSignalingThread) {
   RtpParameters params = video_rtp_sender_->GetParameters();
   ASSERT_EQ(1u, params.encodings.size());
   EXPECT_EQ(params.encodings[0].max_bitrate_bps, 60000);
+
+  DestroyVideoRtpSender();
+}
+
+// SetSsrcTask() with a getter takes the SSRC and the number of send layers
+// from the getter when the task runs, and changes the sender's signaling
+// thread state in the finalizer.
+TEST_F(RtpSenderReceiverTest, SetSsrcTaskWithGetterAttachesTheSenderOnSuccess) {
+  AddVideoTrack(/*is_screencast=*/false);
+
+  MockSetStreamsObserver set_streams_observer;
+  video_rtp_sender_ = VideoRtpSender::Create(
+      CreateTestEnvironment(), signaling_thread_, worker_thread_.get(),
+      video_track_->id(), &set_streams_observer,
+      /*enable_sframe_at_owner=*/nullptr, nullptr,
+      /*init_send_encodings=*/{}, /*simulcast_rejected=*/false,
+      /*initial_simulcast_layers=*/{});
+  ASSERT_TRUE(video_rtp_sender_->SetTrack(video_track_.get()));
+  EXPECT_CALL(set_streams_observer, OnSetStreams());
+  video_rtp_sender_->SetStreams({local_stream_->id()});
+
+  std::vector<RtpEncodingParameters> init_encodings(2);
+  init_encodings[0].max_bitrate_bps = 60000;
+  init_encodings[1].max_bitrate_bps = 120000;
+  video_rtp_sender_->set_init_send_encodings(init_encodings);
+
+  worker_thread_->BlockingCall([&] {
+    video_rtp_sender_->SetMediaChannel(
+        video_media_send_channel()->AsVideoSendChannel());
+  });
+
+  {
+    ScopedOperationsBatcher tasks(worker_thread_.get());
+    tasks.AddWithFinalizer(video_rtp_sender_->SetSsrcTask([&] {
+      EXPECT_TRUE(worker_thread_->IsCurrent());
+      return RtpSenderInternal::SsrcAndLayerCount{.ssrc = kVideoSsrc,
+                                                  .layer_count = 1};
+    }));
+    EXPECT_EQ(0u, video_rtp_sender_->ssrc());
+    EXPECT_THAT(video_rtp_sender_->init_send_encodings(), SizeIs(2));
+  }
+
+  EXPECT_EQ(kVideoSsrc, video_rtp_sender_->ssrc());
+  EXPECT_TRUE(video_media_send_channel()->HasSource(kVideoSsrc));
+  ExpectParametersFromCache(*video_rtp_sender_, video_media_send_channel(),
+                            kVideoSsrc);
+  RtpParameters params = video_rtp_sender_->GetParameters();
+  ASSERT_THAT(params.encodings, SizeIs(1));
+  EXPECT_EQ(params.encodings[0].max_bitrate_bps, 60000);
+
+  DestroyVideoRtpSender();
+}
+
+// When the getter returns the sender's SSRC, the send stream and the cached
+// parameters are left alone.
+TEST_F(RtpSenderReceiverTest,
+       SetSsrcTaskWithGetterAndTheSameSsrcLeavesTheSendStreamAlone) {
+  CreateVideoRtpSender();
+
+  {
+    ScopedOperationsBatcher tasks(worker_thread_.get());
+    tasks.AddWithFinalizer(video_rtp_sender_->SetSsrcTask([] {
+      return RtpSenderInternal::SsrcAndLayerCount{.ssrc = kVideoSsrc,
+                                                  .layer_count = 1};
+    }));
+  }
+
+  EXPECT_EQ(kVideoSsrc, video_rtp_sender_->ssrc());
+  EXPECT_TRUE(video_media_send_channel()->HasSource(kVideoSsrc));
+  ExpectParametersFromCache(*video_rtp_sender_, video_media_send_channel(),
+                            kVideoSsrc);
+
+  DestroyVideoRtpSender();
+}
+
+// An SSRC of 0 from the getter detaches the sender, once the task has run.
+TEST_F(RtpSenderReceiverTest, SetSsrcTaskWithGetterDetachesTheSender) {
+  CreateVideoRtpSender();
+
+  {
+    ScopedOperationsBatcher tasks(worker_thread_.get());
+    tasks.AddWithFinalizer(video_rtp_sender_->SetSsrcTask(
+        [] { return RtpSenderInternal::SsrcAndLayerCount(); }));
+    EXPECT_EQ(kVideoSsrc, video_rtp_sender_->ssrc());
+  }
+
+  EXPECT_EQ(0u, video_rtp_sender_->ssrc());
+  EXPECT_FALSE(video_media_send_channel()->HasSource(kVideoSsrc));
+
+  DestroyVideoRtpSender();
+}
+
+// If an earlier task in the batch fails, the task doesn't run and the sender
+// is left as it was.
+TEST_F(RtpSenderReceiverTest,
+       SetSsrcTaskWithGetterLeavesTheSenderUntouchedAfterAFailedTask) {
+  CreateVideoRtpSender();
+
+  bool get_ssrc_called = false;
+  ScopedOperationsBatcher tasks(worker_thread_.get());
+  tasks.AddWithFinalizer([]() -> ScopedOperationsBatcher::BatchTaskResult {
+    return RTCError(RTCErrorType::INTERNAL_ERROR);
+  });
+  tasks.AddWithFinalizer(video_rtp_sender_->SetSsrcTask([&] {
+    get_ssrc_called = true;
+    return RtpSenderInternal::SsrcAndLayerCount();
+  }));
+  EXPECT_FALSE(tasks.Run().ok());
+
+  EXPECT_FALSE(get_ssrc_called);
+  EXPECT_EQ(kVideoSsrc, video_rtp_sender_->ssrc());
+  EXPECT_TRUE(video_media_send_channel()->HasSource(kVideoSsrc));
+
+  DestroyVideoRtpSender();
+}
+
+// A stopped sender has nothing to update.
+TEST_F(RtpSenderReceiverTest,
+       SetSsrcTaskWithGetterReturnsNullForAStoppedSender) {
+  CreateVideoRtpSender();
+  video_rtp_sender_->Stop();
+
+  EXPECT_EQ(video_rtp_sender_->SetSsrcTask([] {
+    ADD_FAILURE() << "Not expected to be called.";
+    return RtpSenderInternal::SsrcAndLayerCount();
+  }),
+            nullptr);
+  EXPECT_EQ(kVideoSsrc, video_rtp_sender_->ssrc());
 
   DestroyVideoRtpSender();
 }

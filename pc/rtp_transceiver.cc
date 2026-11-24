@@ -1519,7 +1519,7 @@ void RtpTransceiver::EnableChannel(bool enable) {
 }
 
 const std::vector<StreamParams>& RtpTransceiver::channel_local_streams() const {
-  RTC_DCHECK_RUN_ON(thread_);
+  RTC_DCHECK_RUN_ON(context()->network_thread());
   RTC_DCHECK(channel_);
   return channel_->local_streams();
 }

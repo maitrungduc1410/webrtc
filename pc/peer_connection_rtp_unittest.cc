@@ -2187,6 +2187,28 @@ TEST_F(PeerConnectionRtpTestUnifiedPlan,
   EXPECT_EQ("stream5", callee_streams[2]->id());
 }
 
+// Applying a local description in which the sender keeps its SSRC must not
+// revert the stream IDs that were changed with SetStreams().
+TEST_F(PeerConnectionRtpTestUnifiedPlan,
+       ChangedAssociatedStreamsSurviveRenegotiation) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+
+  auto sender = caller->AddAudioTrack("a", {"stream1"});
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+  const uint32_t ssrc = sender->ssrc();
+
+  sender->SetStreams({"stream2"});
+  caller->observer()->clear_legacy_renegotiation_needed();
+  caller->observer()->clear_latest_negotiation_needed_event();
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+
+  EXPECT_EQ(ssrc, sender->ssrc());
+  EXPECT_THAT(sender->stream_ids(), ElementsAre("stream2"));
+  EXPECT_FALSE(caller->observer()->legacy_renegotiation_needed());
+  EXPECT_FALSE(caller->observer()->has_negotiation_needed_event());
+}
+
 TEST_F(PeerConnectionRtpTestUnifiedPlan,
        SendParamsCorrectWhenSendCodecChanges) {
   auto caller = CreatePeerConnection();

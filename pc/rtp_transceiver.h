@@ -438,6 +438,7 @@ class RtpTransceiver : public RtpTransceiverInterface {
                                ScopedOperationsBatcher& batcher);
   void EnableChannel(bool enable);
 
+  // Returns the channel's send streams. Must be called on the network thread.
   const std::vector<StreamParams>& channel_local_streams() const;
   const std::vector<StreamParams>& channel_remote_streams() const;
   absl::string_view channel_transport_name() const;
