@@ -155,6 +155,7 @@ if (rtc_include_tests) {
       "../../../api/units:data_size",
       "../../../api/units:time_delta",
       "../../../api/units:timestamp",
+      "../../../rtc_base:checks",
       "../../../rtc_base:logging",
       "../../../rtc_base:platform_thread_types",
       "../../../rtc_base:rtc_numerics",

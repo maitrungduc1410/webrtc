@@ -40,6 +40,12 @@ class VideoEncoderInterface {
   struct EncodedData {
     FrameType frame_type;
     int encoded_qp;
+    struct YuvPsnr {
+      double y;
+      double u;
+      double v;
+    };
+    std::variant<std::monostate, YuvPsnr> psnr;
   };
   using EncodeResult = std::variant<EncodingError, EncodedData>;
 
@@ -131,6 +137,11 @@ class VideoEncoderInterface {
     int effort_level() const { return effort_level_; }
     void set_effort_level(int level) { effort_level_ = level; }
 
+    bool generate_psnr() const { return generate_psnr_; }
+    void set_generate_psnr(bool generate_psnr) {
+      generate_psnr_ = generate_psnr;
+    }
+
     FrameOutput* frame_output() const { return frame_output_.get(); }
     std::unique_ptr<FrameOutput> release_frame_output() {
       return std::move(frame_output_);
@@ -148,6 +159,7 @@ class VideoEncoderInterface {
     std::vector<int> reference_buffers_;
     std::optional<int> update_buffer_;
     int effort_level_ = 0;
+    bool generate_psnr_ = false;
     std::unique_ptr<FrameOutput> frame_output_;
   };
 

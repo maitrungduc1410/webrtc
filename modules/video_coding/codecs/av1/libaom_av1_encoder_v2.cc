@@ -78,6 +78,9 @@ constexpr int kNumBuffers = 8;
 constexpr int kMaxReferences = 3;
 constexpr int kMinEffortLevel = -2;  // Speed 11.
 constexpr int kMaxEffortLevel = 4;   // Speed 5.
+constexpr EncodingFormat kSupportedEncodingFormat = {
+    .sub_sampling = EncodingFormat::k420,
+    .bit_depth = 8};
 constexpr int kRtpTicksPerSecond = 90000;
 constexpr int kRtpTicksPerMs = kRtpTicksPerSecond / 1000;
 // Only used in CQP mode, where libaom requires a value but does not act on it.
@@ -706,7 +709,7 @@ LibaomAv1EncoderV2::GetCapabilities() {
             i.set_input_formats(
                 {VideoFrameBuffer::Type::kI420, VideoFrameBuffer::Type::kNV12});
           })
-      .EncodingFormats({{.sub_sampling = EncodingFormat::k420, .bit_depth = 8}})
+      .EncodingFormats({kSupportedEncodingFormat})
       .WithBitrateControl(
           [](VideoEncoderFactoryInterface::Capabilities::BitrateControl& b) {
             b.set_qp_range(0, kMaxQp);
@@ -720,6 +723,15 @@ LibaomAv1EncoderV2::GetCapabilities() {
           [](VideoEncoderFactoryInterface::Capabilities::Performance& p) {
             p.set_encode_on_calling_thread(true);
             p.set_min_max_effort_level(kMinEffortLevel, kMaxEffortLevel);
+          })
+      .WithOutputCapabilities(
+          [](VideoEncoderFactoryInterface::Capabilities::OutputCapabilities&
+                 o) {
+            using PsnrGeneration = VideoEncoderFactoryInterface::Capabilities::
+                OutputCapabilities::PsnrGeneration;
+            o.set_psnr_support(
+                PsnrGeneration(PsnrGeneration::SupportType::kAnyFrame,
+                               {kSupportedEncodingFormat}));
           })
       .Build();
 }
@@ -755,6 +767,7 @@ bool LibaomAv1EncoderV2::InitEncode(
   }
 
   max_number_of_threads_ = settings.max_number_of_threads();
+  encoding_format_ = settings.encoding_format();
   ThreadTilesAndSuperblockSizeInfo ttsbi = GetThreadingTilesAndSuperblockSize(
       settings.max_encode_dimensions().width,
       settings.max_encode_dimensions().height, max_number_of_threads_);
@@ -1032,22 +1045,27 @@ void LibaomAv1EncoderV2::Encode(
       effort_level_ = settings.effort_level();
     }
 
-    RTC_LOG(LS_VERBOSE) << __FUNCTION__ << " timestamp="
-                        << (tu_settings.presentation_timestamp().ms() *
-                            kRtpTicksPerMs)
-                        << "  duration=" << duration_in_rtp_ticks
-                        << "  tid=" << layer_id.temporal_layer_id << "  type="
-                        << (settings.frame_type() ==
-                                    VideoEncoderInterface::FrameType::kKeyframe
-                                ? "key"
-                                : "delta");
+    RTC_LOG(LS_VERBOSE)
+        << __FUNCTION__ << " timestamp="
+        << (tu_settings.presentation_timestamp().ms() * kRtpTicksPerMs)
+        << "  duration=" << duration_in_rtp_ticks
+        << "  tid=" << layer_id.temporal_layer_id << "  type="
+        << (settings.frame_type() == VideoEncoderInterface::FrameType::kKeyframe
+                ? "key"
+                : "delta")
+        << "  psnr=" << (settings.generate_psnr() ? "true" : "false");
+    aom_enc_frame_flags_t flags = 0;
+    if (settings.frame_type() == VideoEncoderInterface::FrameType::kKeyframe) {
+      flags |= AOM_EFLAG_FORCE_KF;
+    }
+    if (settings.generate_psnr() &&
+        encoding_format_ == kSupportedEncodingFormat) {
+      flags |= AOM_EFLAG_CALCULATE_PSNR;
+    }
     aom_codec_err_t ret = aom_codec_encode(
         &ctx_, &*image_to_encode_,
         tu_settings.presentation_timestamp().ms() * kRtpTicksPerMs,
-        duration_in_rtp_ticks,
-        settings.frame_type() == VideoEncoderInterface::FrameType::kKeyframe
-            ? AOM_EFLAG_FORCE_KF
-            : 0);
+        duration_in_rtp_ticks, flags);
     if (ret != AOM_CODEC_OK) {
       RTC_LOG(LS_WARNING) << "aom_codec_encode returned " << ret << " : "
                           << aom_codec_error(&ctx_) << " detail: "
@@ -1076,6 +1094,8 @@ void LibaomAv1EncoderV2::Encode(
     while (const aom_codec_cx_pkt_t* pkt =
                aom_codec_get_cx_data(&ctx_, &iter)) {
       if (pkt->kind == AOM_CODEC_CX_FRAME_PKT && pkt->data.frame.sz > 0) {
+        RTC_DCHECK(!bitstream_produced)
+            << "More than one output packet per frame is not supported.";
         SET_OR_RETURN(AOME_GET_LAST_QUANTIZER, &result.encoded_qp);
         result.frame_type = pkt->data.frame.flags & AOM_FRAME_IS_KEY
                                 ? VideoEncoderInterface::FrameType::kKeyframe
@@ -1090,7 +1110,13 @@ void LibaomAv1EncoderV2::Encode(
         }
         memcpy(output_buffer.data(), pkt->data.frame.buf, pkt->data.frame.sz);
         bitstream_produced = true;
-        break;
+        continue;
+      } else if (pkt->kind == AOM_CODEC_PSNR_PKT &&
+                 (flags & AOM_EFLAG_CALCULATE_PSNR)) {
+        result.psnr = VideoEncoderInterface::EncodedData::YuvPsnr{
+            .y = pkt->data.psnr.psnr[1],
+            .u = pkt->data.psnr.psnr[2],
+            .v = pkt->data.psnr.psnr[3]};
       }
     }
 

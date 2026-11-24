@@ -58,6 +58,7 @@ namespace webrtc {
 using Cbr = VideoEncoderInterface::FrameEncodeSettings::Cbr;
 using Cqp = VideoEncoderInterface::FrameEncodeSettings::Cqp;
 using EncodedData = VideoEncoderInterface::EncodedData;
+using YuvPsnr = EncodedData::YuvPsnr;
 using FrameType = VideoEncoderInterface::FrameType;
 using TemporalUnitSettings = VideoEncoderInterface::TemporalUnitSettings;
 using EncOut = TestEncodedOutput;
@@ -85,6 +86,44 @@ MATCHER(HasBitstreamAndMetaData, "") {
 MATCHER_P(QpIs, qp, "") {
   if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
     return ed->encoded_qp == qp;
+  }
+  return false;
+}
+
+MATCHER(HasNoPsnr, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    return std::holds_alternative<std::monostate>(ed->psnr);
+  }
+  return false;
+}
+
+MATCHER(HasYuvPsnr, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    return std::holds_alternative<YuvPsnr>(ed->psnr);
+  }
+  return false;
+}
+
+MATCHER_P(PsnrYIsAtLeast, value, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    const YuvPsnr* psnr = std::get_if<YuvPsnr>(&ed->psnr);
+    return psnr && psnr->y >= value;
+  }
+  return false;
+}
+
+MATCHER_P(PsnrUIsAtLeast, value, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    const YuvPsnr* psnr = std::get_if<YuvPsnr>(&ed->psnr);
+    return psnr && psnr->u >= value;
+  }
+  return false;
+}
+
+MATCHER_P(PsnrVIsAtLeast, value, "") {
+  if (const EncodedData* ed = std::get_if<EncodedData>(&arg.res)) {
+    const YuvPsnr* psnr = std::get_if<YuvPsnr>(&ed->psnr);
+    return psnr && psnr->v >= value;
   }
   return false;
 }

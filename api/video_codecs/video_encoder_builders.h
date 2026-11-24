@@ -44,6 +44,7 @@ class FrameEncodeSettingsBuilder {
       std::vector<int> reference_buffers);
   FrameEncodeSettingsBuilder& UpdateBuffer(std::optional<int> update_buffer);
   FrameEncodeSettingsBuilder& EffortLevel(int effort_level);
+  FrameEncodeSettingsBuilder& GeneratePsnr(bool generate_psnr);
   FrameEncodeSettingsBuilder& FrameOutput(
       std::unique_ptr<VideoEncoderInterface::FrameOutput> frame_output);
 
@@ -118,6 +119,9 @@ class CapabilitiesBuilder {
   CapabilitiesBuilder& WithPerformance(
       FunctionView<
           void(VideoEncoderFactoryInterface::Capabilities::Performance&)> f);
+  CapabilitiesBuilder& WithOutputCapabilities(
+      FunctionView<void(
+          VideoEncoderFactoryInterface::Capabilities::OutputCapabilities&)> f);
 
   CapabilitiesBuilder& EncodingFormats(
       std::vector<EncodingFormat> encoding_formats);

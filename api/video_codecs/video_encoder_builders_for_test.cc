@@ -81,6 +81,11 @@ FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::Effort(
   return EffortLevel(effort_level);
 }
 
+FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::WithPsnr(
+    bool generate_psnr) {
+  return GeneratePsnr(generate_psnr);
+}
+
 FrameEncodeSettingsBuilderForTest& FrameEncodeSettingsBuilderForTest::Out(
     TestEncodedOutput& out) {
   struct FrameOut : public VideoEncoderInterface::FrameOutput {

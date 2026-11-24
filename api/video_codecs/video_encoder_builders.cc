@@ -108,6 +108,12 @@ FrameEncodeSettingsBuilder& FrameEncodeSettingsBuilder::EffortLevel(
   return *this;
 }
 
+FrameEncodeSettingsBuilder& FrameEncodeSettingsBuilder::GeneratePsnr(
+    bool generate_psnr) {
+  settings_.set_generate_psnr(generate_psnr);
+  return *this;
+}
+
 FrameEncodeSettingsBuilder& FrameEncodeSettingsBuilder::FrameOutput(
     std::unique_ptr<VideoEncoderInterface::FrameOutput> frame_output) {
   settings_.set_frame_output(std::move(frame_output));
@@ -270,6 +276,16 @@ CapabilitiesBuilder& CapabilitiesBuilder::WithPerformance(
       capabilities_.performance();
   f(performance);
   capabilities_.set_performance(std::move(performance));
+  return *this;
+}
+
+CapabilitiesBuilder& CapabilitiesBuilder::WithOutputCapabilities(
+    FunctionView<void(
+        VideoEncoderFactoryInterface::Capabilities::OutputCapabilities&)> f) {
+  VideoEncoderFactoryInterface::Capabilities::OutputCapabilities
+      output_capabilities = capabilities_.output_capabilities();
+  f(output_capabilities);
+  capabilities_.set_output_capabilities(std::move(output_capabilities));
   return *this;
 }
 

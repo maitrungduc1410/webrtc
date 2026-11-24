@@ -10,6 +10,7 @@
 
 #include "api/video_codecs/libaom_av1_encoder_factory.h"
 
+#include <optional>
 #include <vector>
 
 #include "api/video/video_frame_buffer.h"
@@ -35,6 +36,8 @@ using BitrateControl = Capabilities::BitrateControl;
 using RateControlMode = VideoEncoderFactoryInterface::RateControlMode;
 using CbrSetting = VideoEncoderFactoryInterface::CbrSetting;
 using Performance = Capabilities::Performance;
+using OutputCapabilities = Capabilities::OutputCapabilities;
+using PsnrGeneration = OutputCapabilities::PsnrGeneration;
 using FrameType = VideoEncoderInterface::FrameType;
 using StaticEncoderSettings =
     VideoEncoderFactoryInterface::StaticEncoderSettings;
@@ -121,6 +124,16 @@ TEST(LibaomAv1EncoderFactory, ReportsCorrectCapabilities) {
   EXPECT_TRUE(perf.encode_on_calling_thread());
   EXPECT_EQ(perf.min_max_effort_level().first, -2);
   EXPECT_EQ(perf.min_max_effort_level().second, 4);
+
+  // Output Capabilities
+  const OutputCapabilities& oc = capabilities.output_capabilities();
+  ASSERT_TRUE(oc.psnr_support().has_value());
+  EXPECT_EQ(oc.psnr_support()->support_type(),
+            PsnrGeneration::SupportType::kAnyFrame);
+  EXPECT_THAT(
+      oc.psnr_support()->supported_formats(),
+      UnorderedElementsAre(EncodingFormat{
+          .sub_sampling = EncodingFormat::SubSampling::k420, .bit_depth = 8}));
 }
 
 TEST(LibaomAv1EncoderFactory, CreateEncoder) {

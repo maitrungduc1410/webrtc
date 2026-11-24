@@ -24,6 +24,7 @@
 #include "api/video/video_frame_buffer.h"
 #include "api/video_codecs/video_encoder_factory_interface.h"
 #include "api/video_codecs/video_encoder_interface.h"
+#include "api/video_codecs/video_encoding_general.h"
 #include "modules/video_coding/utility/cbr_layer_rate_tracker.h"
 #include "rtc_base/numerics/rational.h"
 #include "third_party/libaom/source/libaom/aom/aom_codec.h"
@@ -82,6 +83,8 @@ class LibaomAv1EncoderV2 : public VideoEncoderInterface {
   // a frame in the layer.
   std::array<Rational, kMaxSpatialLayers> scaling_factor_by_spatial_id_;
   int max_number_of_threads_ = 0;
+  EncodingFormat encoding_format_ = {.sub_sampling = EncodingFormat::k420,
+                                     .bit_depth = 8};
   std::array<std::optional<Resolution>, kNumBuffers> last_resolution_in_buffer_;
   // Recreated on every `InitEncode`, since what it has learned only describes
   // the configuration it was fed.

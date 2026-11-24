@@ -13,6 +13,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -182,6 +183,50 @@ class VideoEncoderFactoryInterface {
       std::pair<int, int> min_max_effort_level_ = {0, 0};
     };
 
+    class OutputCapabilities {
+     public:
+      class PsnrGeneration {
+       public:
+        enum class SupportType {
+          kStatic,
+          kAnyReferenceFrame,
+          kAnyFrame,
+        };
+
+        PsnrGeneration() = default;
+        PsnrGeneration(SupportType support_type,
+                       std::vector<EncodingFormat> supported_formats)
+            : support_type_(support_type),
+              supported_formats_(std::move(supported_formats)) {}
+
+        SupportType support_type() const { return support_type_; }
+        void set_support_type(SupportType val) { support_type_ = val; }
+
+        const std::vector<EncodingFormat>& supported_formats() const {
+          return supported_formats_;
+        }
+        void set_supported_formats(std::vector<EncodingFormat> val) {
+          supported_formats_ = std::move(val);
+        }
+
+       private:
+        SupportType support_type_ = SupportType::kStatic;
+        std::vector<EncodingFormat> supported_formats_;
+      };
+
+      OutputCapabilities() = default;
+
+      const std::optional<PsnrGeneration>& psnr_support() const {
+        return psnr_support_;
+      }
+      void set_psnr_support(std::optional<PsnrGeneration> val) {
+        psnr_support_ = std::move(val);
+      }
+
+     private:
+      std::optional<PsnrGeneration> psnr_support_;
+    };
+
     Capabilities() = default;
 
     const PredictionConstraints& prediction_constraints() const {
@@ -213,12 +258,20 @@ class VideoEncoderFactoryInterface {
     const Performance& performance() const { return performance_; }
     void set_performance(Performance val) { performance_ = std::move(val); }
 
+    const OutputCapabilities& output_capabilities() const {
+      return output_capabilities_;
+    }
+    void set_output_capabilities(OutputCapabilities val) {
+      output_capabilities_ = std::move(val);
+    }
+
    private:
     PredictionConstraints prediction_constraints_;
     InputConstraints input_constraints_;
     std::vector<EncodingFormat> encoding_formats_;
     BitrateControl bitrate_control_;
     Performance performance_;
+    OutputCapabilities output_capabilities_;
   };
 
   class StaticEncoderSettings {

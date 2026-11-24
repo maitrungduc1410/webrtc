@@ -50,6 +50,7 @@
 #include "api/video_codecs/video_encoder_factory_interface.h"
 #include "api/video_codecs/video_encoder_interface.h"
 #include "api/video_codecs/video_encoding_general.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/rational.h"
 #include "rtc_base/platform_thread_types.h"
@@ -58,6 +59,7 @@
 #include "test/gmock.h"
 #include "test/gtest.h"
 #include "test/testsupport/frame_reader.h"
+#include "third_party/libyuv/include/libyuv/compare.h"
 #include "third_party/libyuv/include/libyuv/convert.h"
 #include "third_party/libyuv/include/libyuv/planar_functions.h"
 
@@ -88,6 +90,9 @@ using BitrateControl = Capabilities::BitrateControl;
 using RateControlMode = VideoEncoderFactoryInterface::RateControlMode;
 using CbrSetting = VideoEncoderFactoryInterface::CbrSetting;
 using Performance = Capabilities::Performance;
+using OutputCapabilities = Capabilities::OutputCapabilities;
+using PsnrGeneration = OutputCapabilities::PsnrGeneration;
+using PsnrSupportType = PsnrGeneration::SupportType;
 using StaticEncoderSettings =
     VideoEncoderFactoryInterface::StaticEncoderSettings;
 using FrameEncodeSettings = VideoEncoderInterface::FrameEncodeSettings;
@@ -325,6 +330,168 @@ scoped_refptr<VideoFrameBuffer> CreateAndPopulateFrameBuffer(
     default:
       return nullptr;
   }
+}
+
+std::span<const uint16_t> MakePlaneSpan(const uint16_t* data,
+                                        int stride,
+                                        int width,
+                                        int height) {
+  RTC_DCHECK_GT(width, 0);
+  RTC_DCHECK_GE(stride, width);
+  RTC_DCHECK_GT(height, 0);
+  const size_t len = static_cast<size_t>(height - 1) * stride + width;
+#if defined(__clang__)
+#pragma clang unsafe_buffer_usage begin
+#endif
+  return std::span(data, len);
+#if defined(__clang__)
+#pragma clang unsafe_buffer_usage end
+#endif
+}
+
+double Calc16BitPlanePsnr(std::span<const uint16_t> a,
+                          int stride_a,
+                          std::span<const uint16_t> b,
+                          int stride_b,
+                          int width,
+                          int height,
+                          int bit_depth) {
+  uint64_t sse = 0;
+  for (int y = 0; y < height; ++y) {
+    std::span<const uint16_t> row_a =
+        a.subspan(static_cast<size_t>(y) * stride_a, width);
+    std::span<const uint16_t> row_b =
+        b.subspan(static_cast<size_t>(y) * stride_b, width);
+    for (int x = 0; x < width; ++x) {
+      int64_t diff =
+          static_cast<int64_t>(row_a[x]) - static_cast<int64_t>(row_b[x]);
+      sse += static_cast<uint64_t>(diff * diff);
+    }
+  }
+  if (sse == 0) {
+    return libyuv::kMaxPsnr;
+  }
+  const double peak = static_cast<double>((1 << bit_depth) - 1);
+  const double samples = static_cast<double>(width) * height;
+  return std::min<double>(libyuv::kMaxPsnr,
+                          10.0 * std::log10(samples * peak * peak / sse));
+}
+
+TEST(PsnrHelpersTest, Calc16BitPlanePsnrHandlesStrides) {
+  // 3x2 10-bit plane with different row strides (stride_a = 5, stride_b = 4)
+  // and non-matching padding values to verify padding is ignored.
+  constexpr int kWidth = 3;
+  constexpr int kHeight = 2;
+  constexpr int kStrideA = 5;
+  constexpr int kStrideB = 4;
+  const std::array<uint16_t, 9> plane_a = {
+      100, 200, 300, 999, 999,  // row 0 + padding
+      400, 500, 600, 999        // row 1 + padding
+  };
+  const std::array<uint16_t, 7> plane_b = {
+      102, 200, 298, 111,  // row 0 (diffs: -2, 0, +2) + padding
+      400, 504, 600        // row 1 (diffs: 0, -4, 0)
+  };
+  // SSE = 4 + 0 + 4 + 0 + 16 + 0 = 24 across 6 samples, peak = 1023.
+  const double expected = 10.0 * std::log10(6.0 * 1023.0 * 1023.0 / 24.0);
+  EXPECT_NEAR(Calc16BitPlanePsnr(plane_a, kStrideA, plane_b, kStrideB, kWidth,
+                                 kHeight, /*bit_depth=*/10),
+              expected, 1e-9);
+  EXPECT_EQ(Calc16BitPlanePsnr(plane_a, kStrideA, plane_a, kStrideA, kWidth,
+                               kHeight, /*bit_depth=*/10),
+            libyuv::kMaxPsnr);
+}
+
+std::optional<YuvPsnr> CalculateYuvPsnr(scoped_refptr<VideoFrameBuffer> ref,
+                                        const VideoFrame& decoded_frame) {
+  scoped_refptr<VideoFrameBuffer> dec_buf = decoded_frame.video_frame_buffer();
+  if (ref->width() != dec_buf->width() || ref->height() != dec_buf->height()) {
+    ref = ref->Scale(dec_buf->width(), dec_buf->height());
+  }
+  if (ref->type() != dec_buf->type()) {
+    scoped_refptr<I420BufferInterface> ref_i420 = ref->ToI420();
+    if (!ref_i420) {
+      return std::nullopt;
+    }
+    ref = CreateAndPopulateFrameBuffer(dec_buf->type(), *ref_i420);
+    if (!ref) {
+      return std::nullopt;
+    }
+  }
+
+  auto get_planar_8 =
+      [](const VideoFrameBuffer& buf) -> const PlanarYuv8Buffer* {
+    switch (buf.type()) {
+      case VideoFrameBuffer::Type::kI420:
+      case VideoFrameBuffer::Type::kI420A:
+        return buf.GetI420();
+      case VideoFrameBuffer::Type::kI422:
+        return buf.GetI422();
+      case VideoFrameBuffer::Type::kI444:
+        return buf.GetI444();
+      default:
+        return nullptr;
+    }
+  };
+  if (const PlanarYuv8Buffer* dec_p8 = get_planar_8(*dec_buf)) {
+    const PlanarYuv8Buffer* ref_p8 = get_planar_8(*ref);
+    RTC_CHECK(ref_p8);
+    return YuvPsnr{
+        .y = libyuv::CalcFramePsnr(ref_p8->DataY(), ref_p8->StrideY(),
+                                   dec_p8->DataY(), dec_p8->StrideY(),
+                                   dec_p8->width(), dec_p8->height()),
+        .u = libyuv::CalcFramePsnr(
+            ref_p8->DataU(), ref_p8->StrideU(), dec_p8->DataU(),
+            dec_p8->StrideU(), dec_p8->ChromaWidth(), dec_p8->ChromaHeight()),
+        .v = libyuv::CalcFramePsnr(
+            ref_p8->DataV(), ref_p8->StrideV(), dec_p8->DataV(),
+            dec_p8->StrideV(), dec_p8->ChromaWidth(), dec_p8->ChromaHeight()),
+    };
+  }
+
+  auto get_planar_16 =
+      [](const VideoFrameBuffer& buf) -> const PlanarYuv16BBuffer* {
+    switch (buf.type()) {
+      case VideoFrameBuffer::Type::kI010:
+        return buf.GetI010();
+      case VideoFrameBuffer::Type::kI210:
+        return buf.GetI210();
+      case VideoFrameBuffer::Type::kI410:
+        return buf.GetI410();
+      default:
+        return nullptr;
+    }
+  };
+  if (const PlanarYuv16BBuffer* dec_p16 = get_planar_16(*dec_buf)) {
+    const PlanarYuv16BBuffer* ref_p16 = get_planar_16(*ref);
+    RTC_CHECK(ref_p16);
+    const int width = dec_p16->width();
+    const int height = dec_p16->height();
+    const int chroma_width = dec_p16->ChromaWidth();
+    const int chroma_height = dec_p16->ChromaHeight();
+    return YuvPsnr{
+        .y = Calc16BitPlanePsnr(
+            MakePlaneSpan(ref_p16->DataY(), ref_p16->StrideY(), width, height),
+            ref_p16->StrideY(),
+            MakePlaneSpan(dec_p16->DataY(), dec_p16->StrideY(), width, height),
+            dec_p16->StrideY(), width, height, 10),
+        .u = Calc16BitPlanePsnr(
+            MakePlaneSpan(ref_p16->DataU(), ref_p16->StrideU(), chroma_width,
+                          chroma_height),
+            ref_p16->StrideU(),
+            MakePlaneSpan(dec_p16->DataU(), dec_p16->StrideU(), chroma_width,
+                          chroma_height),
+            dec_p16->StrideU(), chroma_width, chroma_height, 10),
+        .v = Calc16BitPlanePsnr(
+            MakePlaneSpan(ref_p16->DataV(), ref_p16->StrideV(), chroma_width,
+                          chroma_height),
+            ref_p16->StrideV(),
+            MakePlaneSpan(dec_p16->DataV(), dec_p16->StrideV(), chroma_width,
+                          chroma_height),
+            dec_p16->StrideV(), chroma_width, chroma_height, 10),
+    };
+  }
+  return std::nullopt;
 }
 
 // CBR settings that any encoder supporting CBR mode is expected to accept.
@@ -612,6 +779,28 @@ TEST_P(VideoEncoderFunctionalTest, ValidEffortLevelRange) {
   EXPECT_LE(effort_range.first, effort_range.second);
   EXPECT_LE(effort_range.first, 0);
   EXPECT_GE(effort_range.second, 0);
+}
+
+TEST_P(VideoEncoderFunctionalTest, ValidPsnrCapabilities) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    return;
+  }
+
+  EXPECT_THAT(psnr_support->supported_formats(), Not(IsEmpty()));
+  EXPECT_THAT(psnr_support->support_type(),
+              testing::AnyOf(PsnrSupportType::kStatic,
+                             PsnrSupportType::kAnyReferenceFrame,
+                             PsnrSupportType::kAnyFrame));
+  for (const EncodingFormat& format : psnr_support->supported_formats()) {
+    EXPECT_TRUE(absl::c_linear_search(capabilities.encoding_formats(), format))
+        << "PSNR supported format (sub_sampling="
+        << static_cast<int>(format.sub_sampling)
+        << ", bit_depth=" << format.bit_depth
+        << ") is not listed in Capabilities::encoding_formats().";
+  }
 }
 
 TEST_P(VideoEncoderFunctionalTest, EncodesAndDecodesKeyframe) {
@@ -2732,6 +2921,615 @@ TEST_P(VideoEncoderFunctionalTest,
   // versa), the comparison on that layer would be reversed.
   EXPECT_THAT(high_low.s0, Gt(low_high.s0));
   EXPECT_THAT(low_high.s1, Gt(high_low.s1));
+}
+
+// Creates a test configuration with moderate lossy compression so that all Y,
+// U, and V planes have non-zero SSE (avoiding differences in the zero-SSE PSNR
+// ceiling across implementations).
+TestConfig CreateLossyTestConfig(const Capabilities& capabilities) {
+  TestConfig config = CreateTestConfig(capabilities);
+  const BitrateControl& bc = capabilities.bitrate_control();
+  if (bc.rc_modes().contains(RateControlMode::kCqp)) {
+    config.rate_options =
+        FrameEncodeSettings::Cqp{.target_qp = (bc.min_qp() + bc.max_qp()) / 2};
+  }
+  return config;
+}
+
+TEST_P(VideoEncoderFunctionalTest, DoesNotGeneratePsnrWhenNotRequested) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(config.static_settings, {});
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+  EncOut key_out;
+  enc->Encode(
+      frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(0)),
+      ToVec({BuildSettings(
+          std::move(Fb().Res(kDefaultResolution).Upd(0).Key().Out(key_out)),
+          config.rate_options)}));
+  ASSERT_THAT(key_out, HasBitstreamAndMetaData());
+  EXPECT_THAT(key_out, HasNoPsnr());
+
+  if (capabilities.prediction_constraints().num_buffers() >= 1 &&
+      capabilities.prediction_constraints().max_references() >= 1) {
+    EncOut delta_out;
+    enc->Encode(
+        frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(100)),
+        ToVec({BuildSettings(
+            std::move(
+                Fb().Res(kDefaultResolution).Ref({0}).Upd(0).Out(delta_out)),
+            config.rate_options)}));
+    ASSERT_THAT(delta_out, HasBitstreamAndMetaData());
+    EXPECT_THAT(delta_out, HasNoPsnr());
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, PsnrBestEffortWhenUnsupported) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  TestConfig config = CreateLossyTestConfig(capabilities);
+
+  if (!psnr_support.has_value()) {
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(config.static_settings, {});
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+    EncOut out;
+    enc->Encode(
+        frame_reader->PullFrame(), TemporalUnitSettings(Timestamp::Millis(0)),
+        ToVec({BuildSettings(
+            std::move(
+                Fb().Res(kDefaultResolution).Upd(0).Key().WithPsnr().Out(out)),
+            config.rate_options)}));
+    ASSERT_THAT(out, HasBitstreamAndMetaData());
+    EXPECT_THAT(out, HasNoPsnr());
+    return;
+  }
+
+  std::vector<EncodingFormat> unsupported_formats;
+  for (const EncodingFormat& format : capabilities.encoding_formats()) {
+    if (!absl::c_linear_search(psnr_support->supported_formats(), format)) {
+      unsupported_formats.push_back(format);
+    }
+  }
+  if (unsupported_formats.empty()) {
+    GTEST_SKIP() << "All supported encoding formats also support PSNR.";
+  }
+
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  for (const EncodingFormat& format : unsupported_formats) {
+    std::optional<VideoFrameBuffer::Type> buffer_type =
+        ToVideoFrameBufferType(format);
+    if (!buffer_type.has_value()) {
+      continue;
+    }
+    scoped_refptr<VideoFrameBuffer> input_buffer =
+        CreateAndPopulateFrameBuffer(*buffer_type, *frame_reader->PullFrame());
+    if (!input_buffer) {
+      continue;
+    }
+    StaticEncoderSettings static_settings =
+        StaticEncoderSettingsBuilder()
+            .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
+            .EncodingFormat(format)
+            .RcMode(config.static_settings.rc_mode())
+            .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
+            .Build();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    EncOut out;
+    enc->Encode(
+        input_buffer, TemporalUnitSettings(Timestamp::Millis(0)),
+        ToVec({BuildSettings(
+            std::move(
+                Fb().Res(kDefaultResolution).Upd(0).Key().WithPsnr().Out(out)),
+            config.rate_options)}));
+    ASSERT_THAT(out, HasBitstreamAndMetaData());
+    EXPECT_THAT(out, HasNoPsnr());
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, GeneratesAccuratePsnrForSupportedFormats) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    GTEST_SKIP() << "Encoder does not support PSNR generation.";
+  }
+
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  constexpr double kMaxPsnrDiffDb = 0.1;
+
+  for (const EncodingFormat& format : psnr_support->supported_formats()) {
+    std::optional<VideoFrameBuffer::Type> buffer_type =
+        ToVideoFrameBufferType(format);
+    if (!buffer_type.has_value()) {
+      continue;
+    }
+
+    StaticEncoderSettings static_settings =
+        StaticEncoderSettingsBuilder()
+            .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
+            .EncodingFormat(format)
+            .RcMode(config.static_settings.rc_mode())
+            .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
+            .Build();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    ASSERT_THAT(enc, NotNull());
+
+    TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+
+    scoped_refptr<VideoFrameBuffer> key_in =
+        CreateAndPopulateFrameBuffer(*buffer_type, *frame_reader->PullFrame());
+    ASSERT_THAT(key_in, NotNull());
+
+    EncOut key_out;
+    enc->Encode(key_in, TemporalUnitSettings(Timestamp::Millis(0)),
+                ToVec({BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                                   .Upd(0)
+                                                   .Key()
+                                                   .WithPsnr()
+                                                   .Out(key_out)),
+                                     config.rate_options)}));
+    ASSERT_THAT(key_out, HasBitstreamAndMetaData());
+    ASSERT_THAT(key_out, HasYuvPsnr());
+    EXPECT_THAT(key_out, PsnrYIsAtLeast(20.0));
+    EXPECT_THAT(key_out, PsnrUIsAtLeast(20.0));
+    EXPECT_THAT(key_out, PsnrVIsAtLeast(20.0));
+
+    if (dec.IsSupported()) {
+      VideoFrame decoded_key = dec.Decode(key_out.bitstream);
+      std::optional<YuvPsnr> expected_key =
+          CalculateYuvPsnr(key_in, decoded_key);
+      ASSERT_TRUE(expected_key.has_value());
+      const YuvPsnr& reported_key =
+          std::get<YuvPsnr>(std::get<EncodedData>(key_out.res).psnr);
+      EXPECT_NEAR(reported_key.y, expected_key->y, kMaxPsnrDiffDb);
+      EXPECT_NEAR(reported_key.u, expected_key->u, kMaxPsnrDiffDb);
+      EXPECT_NEAR(reported_key.v, expected_key->v, kMaxPsnrDiffDb);
+    }
+
+    if (capabilities.prediction_constraints().num_buffers() >= 1 &&
+        capabilities.prediction_constraints().max_references() >= 1) {
+      scoped_refptr<VideoFrameBuffer> delta_in = CreateAndPopulateFrameBuffer(
+          *buffer_type, *frame_reader->PullFrame());
+      ASSERT_THAT(delta_in, NotNull());
+
+      EncOut delta_out;
+      enc->Encode(delta_in, TemporalUnitSettings(Timestamp::Millis(100)),
+                  ToVec({BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                                     .Ref({0})
+                                                     .Upd(0)
+                                                     .WithPsnr()
+                                                     .Out(delta_out)),
+                                       config.rate_options)}));
+      ASSERT_THAT(delta_out, HasBitstreamAndMetaData());
+      ASSERT_THAT(delta_out, HasYuvPsnr());
+
+      if (dec.IsSupported()) {
+        VideoFrame decoded_delta = dec.Decode(delta_out.bitstream);
+        std::optional<YuvPsnr> expected_delta =
+            CalculateYuvPsnr(delta_in, decoded_delta);
+        ASSERT_TRUE(expected_delta.has_value());
+        const YuvPsnr& reported_delta =
+            std::get<YuvPsnr>(std::get<EncodedData>(delta_out.res).psnr);
+        EXPECT_NEAR(reported_delta.y, expected_delta->y, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported_delta.u, expected_delta->u, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported_delta.v, expected_delta->v, kMaxPsnrDiffDb);
+      }
+    }
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, PsnrAcrossSpatialLayersAndInputFormats) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    GTEST_SKIP() << "Encoder does not support PSNR generation.";
+  }
+
+  constexpr EncodingFormat k420_8bit = {
+      .sub_sampling = EncodingFormat::SubSampling::k420, .bit_depth = 8};
+  if (!absl::c_linear_search(psnr_support->supported_formats(), k420_8bit)) {
+    GTEST_SKIP() << "Encoder does not support 8-bit 4:2:0 PSNR.";
+  }
+
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  int max_spatial_layers =
+      capabilities.prediction_constraints().max_spatial_layers();
+  constexpr double kMaxPsnrDiffDb = 0.1;
+
+  for (int sid = 0; sid < max_spatial_layers; ++sid) {
+    for (VideoFrameBuffer::Type format :
+         capabilities.input_constraints().input_formats()) {
+      std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+      scoped_refptr<I420Buffer> i420_source = frame_reader->PullFrame();
+      scoped_refptr<VideoFrameBuffer> input_buffer;
+      switch (format) {
+        case VideoFrameBuffer::Type::kI420:
+          input_buffer = i420_source;
+          break;
+        case VideoFrameBuffer::Type::kNV12:
+          input_buffer = NV12Buffer::Copy(*i420_source);
+          break;
+        default:
+          continue;
+      }
+
+      std::unique_ptr<VideoEncoderInterface> enc =
+          factory_->CreateEncoder(config.static_settings, {});
+      EncOut out;
+      enc->Encode(input_buffer, TemporalUnitSettings(Timestamp::Millis(0)),
+                  ToVec({BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                                     .S(sid)
+                                                     .Upd(0)
+                                                     .Key()
+                                                     .WithPsnr()
+                                                     .Out(out)),
+                                       config.rate_options)}));
+      ASSERT_THAT(out, HasBitstreamAndMetaData());
+      ASSERT_THAT(out, HasYuvPsnr());
+
+      TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+      if (dec.IsSupported()) {
+        VideoFrame decoded = dec.Decode(out.bitstream);
+        std::optional<YuvPsnr> expected =
+            CalculateYuvPsnr(i420_source, decoded);
+        ASSERT_TRUE(expected.has_value());
+        const YuvPsnr& reported =
+            std::get<YuvPsnr>(std::get<EncodedData>(out.res).psnr);
+        EXPECT_NEAR(reported.y, expected->y, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported.u, expected->u, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported.v, expected->v, kMaxPsnrDiffDb);
+      }
+    }
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, PsnrMultiSpatialLayerTemporalUnit) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    GTEST_SKIP() << "Encoder does not support PSNR generation.";
+  }
+  if (capabilities.prediction_constraints().max_spatial_layers() < 2) {
+    GTEST_SKIP() << "Encoder doesn't support multiple spatial layers.";
+  }
+  BufferSpaceType buffer_space_type =
+      capabilities.prediction_constraints().buffer_space_type();
+  if (buffer_space_type == BufferSpaceType::kSingleKeyframe &&
+      !capabilities.prediction_constraints().supported_frame_types().contains(
+          FrameType::kStartFrame)) {
+    GTEST_SKIP() << "kSingleKeyframe encoder must support start frames.";
+  }
+
+  const EncodingFormat format = psnr_support->supported_formats()[0];
+  std::optional<VideoFrameBuffer::Type> buffer_type =
+      ToVideoFrameBufferType(format);
+  if (!buffer_type.has_value()) {
+    GTEST_SKIP() << "Unsupported test buffer type.";
+  }
+
+  std::vector<Rational> factors =
+      FindSpatialLayerScalingFactors(capabilities, 2);
+  constexpr Resolution kBaseResolution = {.width = 640, .height = 384};
+  int alignment = capabilities.input_constraints().pixel_alignment();
+  std::vector<Resolution> resolutions =
+      factors.empty()
+          ? std::vector<Resolution>{kBaseResolution, kBaseResolution}
+          : GetSpatialLayerResolutions(kBaseResolution, factors, alignment);
+
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  StaticEncoderSettings static_settings =
+      StaticEncoderSettingsBuilder()
+          .MaxEncodeDimensions(kBaseResolution)
+          .EncodingFormat(format)
+          .RcMode(config.static_settings.rc_mode())
+          .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
+          .Build();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  ASSERT_THAT(enc, NotNull());
+
+  TestDecoder dec_s0(env_, decoder_factory_.get(), factory_->CodecName());
+  TestDecoder dec_s1(env_, decoder_factory_.get(), factory_->CodecName());
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+  const int s1_buf =
+      (buffer_space_type == BufferSpaceType::kMultiInstance) ? 0 : 1;
+  // When downscaling inside the encoder, its internal downsampling filter and
+  // phase can differ from libyuv's box scaler, so allow up to 3.0 dB on
+  // downscaled layers and 0.1 dB on unscaled layers.
+  const double s0_tol = (resolutions[0] == kBaseResolution) ? 0.1 : 3.0;
+  const double s1_tol = (resolutions[1] == kBaseResolution) ? 0.1 : 3.0;
+
+  std::vector<std::pair<bool, bool>> layer_psnr_flags = {{true, true}};
+  if (psnr_support->support_type() != PsnrSupportType::kStatic &&
+      capabilities.prediction_constraints().num_buffers() >= 2 &&
+      capabilities.prediction_constraints().max_references() >= 1) {
+    layer_psnr_flags.push_back({true, false});
+    layer_psnr_flags.push_back({false, true});
+  }
+
+  for (size_t tu = 0; tu < layer_psnr_flags.size(); ++tu) {
+    const auto [s0_psnr, s1_psnr] = layer_psnr_flags[tu];
+    scoped_refptr<I420Buffer> raw_scaled =
+        I420Buffer::Create(kBaseResolution.width, kBaseResolution.height);
+    raw_scaled->ScaleFrom(*frame_reader->PullFrame());
+    scoped_refptr<VideoFrameBuffer> frame_in =
+        CreateAndPopulateFrameBuffer(*buffer_type, *raw_scaled);
+    ASSERT_THAT(frame_in, NotNull());
+
+    EncOut out_s0, out_s1;
+    Fb fb_s0, fb_s1;
+    fb_s0.Res(resolutions[0]).S(0).Upd(0).WithPsnr(s0_psnr).Out(out_s0);
+    fb_s1.Res(resolutions[1]).S(1).Upd(s1_buf).WithPsnr(s1_psnr).Out(out_s1);
+    if (tu == 0) {
+      fb_s0.Key();
+      if (buffer_space_type == BufferSpaceType::kSingleKeyframe) {
+        fb_s1.Start();
+      } else {
+        fb_s1.Key();
+      }
+    } else {
+      fb_s0.Ref({0});
+      fb_s1.Ref({s1_buf});
+    }
+
+    enc->Encode(frame_in, TemporalUnitSettings(Timestamp::Millis(tu * 100)),
+                ToVec({BuildSettings(std::move(fb_s0), config.rate_options),
+                       BuildSettings(std::move(fb_s1), config.rate_options)}));
+    ASSERT_THAT(out_s0, HasBitstreamAndMetaData());
+    ASSERT_THAT(out_s1, HasBitstreamAndMetaData());
+
+    std::optional<VideoFrame> dec_frame_s0;
+    std::optional<VideoFrame> dec_frame_s1;
+    if (dec_s0.IsSupported() && dec_s1.IsSupported()) {
+      dec_frame_s0 = dec_s0.Decode(out_s0.bitstream);
+      dec_frame_s1 = dec_s1.Decode(out_s1.bitstream);
+    }
+
+    if (!s0_psnr) {
+      EXPECT_THAT(out_s0, HasNoPsnr());
+    } else {
+      ASSERT_THAT(out_s0, HasYuvPsnr());
+      if (dec_frame_s0.has_value()) {
+        std::optional<YuvPsnr> expected =
+            CalculateYuvPsnr(frame_in, *dec_frame_s0);
+        ASSERT_TRUE(expected.has_value());
+        const YuvPsnr& reported =
+            std::get<YuvPsnr>(std::get<EncodedData>(out_s0.res).psnr);
+        EXPECT_NEAR(reported.y, expected->y, s0_tol);
+        EXPECT_NEAR(reported.u, expected->u, s0_tol);
+        EXPECT_NEAR(reported.v, expected->v, s0_tol);
+      }
+    }
+
+    if (!s1_psnr) {
+      EXPECT_THAT(out_s1, HasNoPsnr());
+    } else {
+      ASSERT_THAT(out_s1, HasYuvPsnr());
+      if (dec_frame_s1.has_value()) {
+        std::optional<YuvPsnr> expected =
+            CalculateYuvPsnr(frame_in, *dec_frame_s1);
+        ASSERT_TRUE(expected.has_value());
+        const YuvPsnr& reported =
+            std::get<YuvPsnr>(std::get<EncodedData>(out_s1.res).psnr);
+        EXPECT_NEAR(reported.y, expected->y, s1_tol);
+        EXPECT_NEAR(reported.u, expected->u, s1_tol);
+        EXPECT_NEAR(reported.v, expected->v, s1_tol);
+      }
+    }
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, PsnrDynamicTogglePerFrame) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    GTEST_SKIP() << "Encoder does not support PSNR generation.";
+  }
+  if (psnr_support->support_type() == PsnrSupportType::kStatic) {
+    GTEST_SKIP() << "Encoder requires static PSNR configuration.";
+  }
+  if (capabilities.prediction_constraints().num_buffers() < 1 ||
+      capabilities.prediction_constraints().max_references() < 1) {
+    GTEST_SKIP() << "Encoder does not support reference frames.";
+  }
+
+  const EncodingFormat format = psnr_support->supported_formats()[0];
+  std::optional<VideoFrameBuffer::Type> buffer_type =
+      ToVideoFrameBufferType(format);
+  if (!buffer_type.has_value()) {
+    GTEST_SKIP() << "Unsupported test buffer type.";
+  }
+
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  StaticEncoderSettings static_settings =
+      StaticEncoderSettingsBuilder()
+          .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
+          .EncodingFormat(format)
+          .RcMode(config.static_settings.rc_mode())
+          .MaxNumberOfThreads(config.static_settings.max_number_of_threads())
+          .Build();
+  std::unique_ptr<VideoEncoderInterface> enc =
+      factory_->CreateEncoder(static_settings, {});
+  ASSERT_THAT(enc, NotNull());
+
+  TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+  std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+  constexpr double kMaxPsnrDiffDb = 0.1;
+
+  // Toggle PSNR off -> on -> off -> on across frames without reinitializing or
+  // forcing keyframes.
+  constexpr std::array<bool, 4> kGeneratePsnrByFrame = {false, true, false,
+                                                        true};
+  for (size_t i = 0; i < kGeneratePsnrByFrame.size(); ++i) {
+    const bool want_psnr = kGeneratePsnrByFrame[i];
+    scoped_refptr<VideoFrameBuffer> frame_in =
+        CreateAndPopulateFrameBuffer(*buffer_type, *frame_reader->PullFrame());
+    ASSERT_THAT(frame_in, NotNull());
+
+    EncOut out;
+    Fb fb;
+    fb.Res(kDefaultResolution).Upd(0).WithPsnr(want_psnr).Out(out);
+    if (i == 0) {
+      fb.Key();
+    } else {
+      fb.Ref({0});
+    }
+    enc->Encode(frame_in, TemporalUnitSettings(Timestamp::Millis(i * 100)),
+                ToVec({BuildSettings(std::move(fb), config.rate_options)}));
+
+    ASSERT_THAT(out, HasBitstreamAndMetaData());
+    const EncodedData& ed = std::get<EncodedData>(out.res);
+    EXPECT_EQ(ed.frame_type,
+              i == 0 ? FrameType::kKeyframe : FrameType::kDeltaFrame);
+
+    std::optional<VideoFrame> decoded;
+    if (dec.IsSupported()) {
+      decoded = dec.Decode(out.bitstream);
+    }
+
+    if (!want_psnr) {
+      EXPECT_THAT(out, HasNoPsnr());
+    } else {
+      ASSERT_THAT(out, HasYuvPsnr());
+      if (decoded.has_value()) {
+        std::optional<YuvPsnr> expected = CalculateYuvPsnr(frame_in, *decoded);
+        ASSERT_TRUE(expected.has_value());
+        const YuvPsnr& reported = std::get<YuvPsnr>(ed.psnr);
+        EXPECT_NEAR(reported.y, expected->y, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported.u, expected->u, kMaxPsnrDiffDb);
+        EXPECT_NEAR(reported.v, expected->v, kMaxPsnrDiffDb);
+      }
+    }
+  }
+}
+
+TEST_P(VideoEncoderFunctionalTest, PsnrOnNonReferenceFrame) {
+  Capabilities capabilities = factory_->GetEncoderCapabilities();
+  const std::optional<PsnrGeneration>& psnr_support =
+      capabilities.output_capabilities().psnr_support();
+  if (!psnr_support.has_value()) {
+    GTEST_SKIP() << "Encoder does not support PSNR generation.";
+  }
+  if (capabilities.prediction_constraints().num_buffers() < 1 ||
+      capabilities.prediction_constraints().max_references() < 1) {
+    GTEST_SKIP() << "Encoder does not support reference frames.";
+  }
+
+  const EncodingFormat format = psnr_support->supported_formats()[0];
+  std::optional<VideoFrameBuffer::Type> buffer_type =
+      ToVideoFrameBufferType(format);
+  if (!buffer_type.has_value()) {
+    GTEST_SKIP() << "Unsupported test buffer type.";
+  }
+
+  TestConfig config = CreateLossyTestConfig(capabilities);
+  const std::pair<int, int> effort_range =
+      capabilities.performance().min_max_effort_level();
+  constexpr double kMaxPsnrDiffDb = 0.1;
+  // TODO: bugs.webrtc.org/496266459 - Remove this relaxed tolerance once
+  // libaom rolls past d03d2c63a1 (which applies loop filter and CDEF on
+  // non-reference frames when PSNR is requested).
+  const double max_psnr_diff_db = (factory_->CodecName() == "AV1" &&
+                                   factory_->ImplementationName() == "Libaom")
+                                      ? 2.5
+                                      : kMaxPsnrDiffDb;
+
+  // Test both single-threaded high-effort and multi-threaded low-effort
+  // configurations so different encoder post-processing / threading pipelines
+  // are exercised on non-reference frames.
+  struct NonRefTestParams {
+    int max_threads;
+    int effort;
+  };
+  const std::array<NonRefTestParams, 2> kParams = {{
+      {.max_threads = 1, .effort = effort_range.second},
+      {.max_threads = 8, .effort = effort_range.first},
+  }};
+
+  for (const NonRefTestParams& params : kParams) {
+    StaticEncoderSettings static_settings =
+        StaticEncoderSettingsBuilder()
+            .MaxEncodeDimensions(config.static_settings.max_encode_dimensions())
+            .EncodingFormat(format)
+            .RcMode(config.static_settings.rc_mode())
+            .MaxNumberOfThreads(params.max_threads)
+            .Build();
+    std::unique_ptr<VideoEncoderInterface> enc =
+        factory_->CreateEncoder(static_settings, {});
+    ASSERT_THAT(enc, NotNull());
+
+    TestDecoder dec(env_, decoder_factory_.get(), factory_->CodecName());
+    std::unique_ptr<test::FrameReader> frame_reader = CreateFrameReader();
+
+    // Frame 0: Reference keyframe with PSNR enabled (so `kStatic` encoders also
+    // initialize with PSNR enabled).
+    scoped_refptr<VideoFrameBuffer> key_in =
+        CreateAndPopulateFrameBuffer(*buffer_type, *frame_reader->PullFrame());
+    ASSERT_THAT(key_in, NotNull());
+    EncOut key_out;
+    enc->Encode(key_in, TemporalUnitSettings(Timestamp::Millis(0)),
+                ToVec({BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                                   .Upd(0)
+                                                   .Key()
+                                                   .Effort(params.effort)
+                                                   .WithPsnr()
+                                                   .Out(key_out)),
+                                     config.rate_options)}));
+    ASSERT_THAT(key_out, HasBitstreamAndMetaData());
+    ASSERT_THAT(key_out, HasYuvPsnr());
+    if (dec.IsSupported()) {
+      dec.Decode(key_out.bitstream);
+    }
+
+    // Frame 1: Non-reference delta frame (`update_buffer` is not set) with PSNR
+    // requested.
+    scoped_refptr<VideoFrameBuffer> non_ref_in =
+        CreateAndPopulateFrameBuffer(*buffer_type, *frame_reader->PullFrame());
+    ASSERT_THAT(non_ref_in, NotNull());
+    EncOut non_ref_out;
+    enc->Encode(non_ref_in, TemporalUnitSettings(Timestamp::Millis(100)),
+                ToVec({BuildSettings(std::move(Fb().Res(kDefaultResolution)
+                                                   .Ref({0})
+                                                   .Effort(params.effort)
+                                                   .WithPsnr()
+                                                   .Out(non_ref_out)),
+                                     config.rate_options)}));
+    ASSERT_THAT(non_ref_out, HasBitstreamAndMetaData());
+    const EncodedData& non_ref_ed = std::get<EncodedData>(non_ref_out.res);
+    EXPECT_EQ(non_ref_ed.frame_type, FrameType::kDeltaFrame);
+
+    std::optional<VideoFrame> decoded_non_ref;
+    if (dec.IsSupported()) {
+      decoded_non_ref = dec.Decode(non_ref_out.bitstream);
+      EXPECT_EQ(GetResolution(*decoded_non_ref), kDefaultResolution);
+    }
+
+    if (psnr_support->support_type() == PsnrSupportType::kAnyReferenceFrame) {
+      EXPECT_THAT(non_ref_out, HasNoPsnr());
+    } else {
+      ASSERT_THAT(non_ref_out, HasYuvPsnr());
+      if (decoded_non_ref.has_value()) {
+        std::optional<YuvPsnr> expected =
+            CalculateYuvPsnr(non_ref_in, *decoded_non_ref);
+        ASSERT_TRUE(expected.has_value());
+        const YuvPsnr& reported = std::get<YuvPsnr>(non_ref_ed.psnr);
+        EXPECT_NEAR(reported.y, expected->y, max_psnr_diff_db);
+        EXPECT_NEAR(reported.u, expected->u, max_psnr_diff_db);
+        EXPECT_NEAR(reported.v, expected->v, max_psnr_diff_db);
+      }
+    }
+  }
 }
 
 std::unique_ptr<VideoEncoderFactoryInterface> CreateLibaomAv1EncoderFactory() {

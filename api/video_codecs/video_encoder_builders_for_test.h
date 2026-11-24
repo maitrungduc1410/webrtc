@@ -78,6 +78,10 @@ class FrameEncodeSettingsBuilderForTest : public FrameEncodeSettingsBuilder {
     FrameEncodeSettingsBuilder::EffortLevel(effort_level);
     return *this;
   }
+  FrameEncodeSettingsBuilderForTest& GeneratePsnr(bool generate_psnr) {
+    FrameEncodeSettingsBuilder::GeneratePsnr(generate_psnr);
+    return *this;
+  }
   FrameEncodeSettingsBuilderForTest& FrameOutput(
       std::unique_ptr<VideoEncoderInterface::FrameOutput> frame_output) {
     FrameEncodeSettingsBuilder::FrameOutput(std::move(frame_output));
@@ -98,6 +102,7 @@ class FrameEncodeSettingsBuilderForTest : public FrameEncodeSettingsBuilder {
   FrameEncodeSettingsBuilderForTest& Start();
   FrameEncodeSettingsBuilderForTest& Delta();
   FrameEncodeSettingsBuilderForTest& Effort(int effort_level);
+  FrameEncodeSettingsBuilderForTest& WithPsnr(bool generate_psnr = true);
   FrameEncodeSettingsBuilderForTest& Out(TestEncodedOutput& out);
 };
 

@@ -82,6 +82,18 @@ class VideoEncoderFactoryInterface {
       bool encode_on_calling_thread;
       std::pair<int, int> min_max_effort_level;
     } performance;
+
+    struct OutputCapabilities {
+      struct PsnrGeneration {
+        enum class SupportType {
+          kStatic,
+          kAnyReferenceFrame,
+          kAnyFrame
+        } support_type;
+        std::vector<EncodingFormat> supported_formats;
+      };
+      std::optional<PsnrGeneration> psnr_support;
+    } output_capabilities;
   };
 
   struct StaticEncoderSettings {
@@ -326,6 +338,43 @@ struct Performance {
   and indicates slower encoding but at a higher quality or compression. The
   default (0) should always be part of the range.
 
+### Output Capabilities
+
+Output capabilities detail what types of extra data the encoder can produce in
+addition to the encoded bitstream.
+
+```cpp
+struct OutputCapabilities {
+  struct PsnrGeneration {
+    enum class SupportType {
+      kStatic,
+      kAnyReferenceFrame,
+      kAnyFrame
+    } support_type;
+    std::vector<EncodingFormat> supported_formats;
+  };
+  std::optional<PsnrGeneration> psnr_support;
+};
+```
+
+- **`psnr_support`**: If present, indicates that the encoder is able to generate
+  Peak Signal-to-Noise Ratio (PSNR) values indicating the distortion between the
+  raw input frame and the reconstructed state (decoded representation) of an
+  encoded frame.
+  - **`support_type`**: The support type (`SupportType`) of the PSNR
+    implementation:
+    - **`kStatic`**: Enabling PSNR calculations is possible, but changing the
+      flag means the encoder has to be reinitialized, resulting in a keyframe.
+    - **`kAnyReferenceFrame`**: The PSNR generation flag can be turned on or off
+      at runtime, per frame, without reconfiguration, but PSNR can only be
+      calculated on reference frames (i.e. frames where the `update_buffer`
+      field of the corresponding `FrameEncodeSettings` is set).
+    - **`kAnyFrame`**: The PSNR generation flag can be turned on or off at
+      runtime, per frame, without reconfiguration and regardless of the frame
+      type or whether a reference buffer is updated.
+  - **`supported_formats`**: A list of the `EncodingFormat`s supported by the
+    PSNR generation implementation. The list must not be empty.
+
 ______________________________________________________________________
 
 ## VideoEncoderInterface
@@ -340,6 +389,12 @@ class VideoEncoderInterface {
   struct EncodedData {
     FrameType frame_type;
     int encoded_qp;
+    struct YuvPsnr {
+      double y;
+      double u;
+      double v;
+    };
+    std::variant<std::monostate, YuvPsnr> psnr;
   };
   using EncodeResult = std::variant<EncodingError, EncodedData>;
 
@@ -374,6 +429,7 @@ class VideoEncoderInterface {
     std::vector<int> reference_buffers;
     std::optional<int> update_buffer;
     int effort_level = 0;
+    bool generate_psnr = false;
 
     std::unique_ptr<FrameOutput> frame_output;
   };
@@ -436,6 +492,7 @@ struct FrameEncodeSettings {
   std::vector<int> reference_buffers;
   std::optional<int> update_buffer;
   int effort_level = 0;
+  bool generate_psnr = false;
 
   std::unique_ptr<FrameOutput> frame_output;
 };
@@ -467,6 +524,12 @@ struct FrameEncodeSettings {
   For keyframes and startframes this must be set.
 - **`effort_level`**: Indicates the amount of effort the encoder should spend
   encoding the frame.
+- **`generate_psnr`**: If true, the encoder shall attempt to generate PSNR data
+  for the encoded frame and populate it in the frame output. If PSNR cannot be
+  generated for the frame (for example, when PSNR is unsupported, the encoding
+  format is unsupported, or a non-reference frame is encoded under
+  `kAnyReferenceFrame`), encoding still succeeds and `EncodedData::psnr` holds
+  `std::monostate`.
 - **`frame_output`**: A `unique_ptr<FrameOutput>` that provides an allocator for
   the bitstream buffer (`GetBitstreamOutputBuffer`) and receives the callback
   when the encode completes (`EncodeComplete`).
@@ -504,6 +567,12 @@ struct EncodingError {};
 struct EncodedData {
   FrameType frame_type;
   int encoded_qp;
+  struct YuvPsnr {
+    double y;
+    double u;
+    double v;
+  };
+  std::variant<std::monostate, YuvPsnr> psnr;
 };
 using EncodeResult = std::variant<EncodingError, EncodedData>;
 ```
@@ -518,6 +587,10 @@ The feedback contains either:
     recommended that a pixel-weighted average QP is reported, but e.g. average
     pre-macroblock average QP is acceptable in most cases. If CQP mode is used,
     this value should match the target QP.
+  - **`psnr`**: The calculated PSNR for the frame, in one of the supported
+    variants:
+    - **`YuvPsnr`**: The PSNR for each of the Y, U, and V planes, in dB.
+    - **`std::monostate`**: No PSNR data present.
 
 ______________________________________________________________________
 

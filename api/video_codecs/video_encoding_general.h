@@ -17,6 +17,8 @@ struct EncodingFormat {
   enum SubSampling { k420, k422, k444 };
   SubSampling sub_sampling;
   int bit_depth;
+
+  bool operator==(const EncodingFormat&) const = default;
 };
 
 }  // namespace webrtc
