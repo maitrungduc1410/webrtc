@@ -96,7 +96,7 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
     return context_->signaling_thread();
   }
 
-  Thread* worker_thread() const { return context_->network_thread(); }
+  Thread* network_thread() const { return context_->network_thread(); }
 
   const Options& options() const {
     RTC_DCHECK_RUN_ON(signaling_thread());
@@ -122,8 +122,6 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
   ~PeerConnectionFactory() override;
 
  private:
-  Thread* network_thread() const { return context_->network_thread(); }
-
   std::unique_ptr<Call> CreateCall_s(
       const Environment& env,
       const PeerConnectionInterface::RTCConfiguration& configuration);
@@ -147,7 +145,7 @@ class PeerConnectionFactory : public PeerConnectionFactoryInterface {
       RTC_GUARDED_BY(signaling_thread());
   // While AEC dump is ongoing, we retain a reference to the media engine.
   std::unique_ptr<ConnectionContext::MediaEngineReference> media_engine_ref_
-      RTC_GUARDED_BY(worker_thread());
+      RTC_GUARDED_BY(network_thread());
 };
 
 }  // namespace webrtc

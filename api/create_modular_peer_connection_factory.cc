@@ -40,7 +40,7 @@ CreateModularPeerConnectionFactory(
   // thread.
   RTC_DCHECK_RUN_ON(pc_factory->signaling_thread());
   return PeerConnectionFactoryProxy::Create(
-      pc_factory->signaling_thread(), pc_factory->worker_thread(), pc_factory);
+      pc_factory->signaling_thread(), pc_factory->network_thread(), pc_factory);
 }
 
 }  // namespace webrtc

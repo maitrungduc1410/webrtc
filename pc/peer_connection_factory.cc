@@ -122,19 +122,19 @@ PeerConnectionFactory::PeerConnectionFactory(
 
 PeerConnectionFactory::~PeerConnectionFactory() {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  // The metronomes must be destroyed on the worker thread. Since BlockingCall
+  // The metronomes must be destroyed on the network thread. Since BlockingCall
   // uses FunctionView, the lambda object is destroyed on the calling thread
   // (signaling thread) after execution (together with its captures). We release
   // them here and delete them inside the lambda body to ensure destruction on
-  // the worker thread.
-  worker_thread()->BlockingCall([decode_metronome = decode_metronome_.release(),
-                                 encode_metronome = encode_metronome_.release(),
-                                 this] {
-    RTC_DCHECK_RUN_ON(worker_thread());
-    delete decode_metronome;
-    delete encode_metronome;
-    StopAecDump();
-  });
+  // the network thread.
+  network_thread()->BlockingCall(
+      [decode_metronome = decode_metronome_.release(),
+       encode_metronome = encode_metronome_.release(), this] {
+        RTC_DCHECK_RUN_ON(network_thread());
+        delete decode_metronome;
+        delete encode_metronome;
+        StopAecDump();
+      });
 }
 
 void PeerConnectionFactory::SetOptions(const Options& options) {
@@ -200,7 +200,7 @@ scoped_refptr<AudioSourceInterface> PeerConnectionFactory::CreateAudioSource(
   RTC_DCHECK(signaling_thread()->IsCurrent());
 #if !defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_WEBKIT_BUILD)
   if (context_->media_engine() != nullptr) {
-    worker_thread()->BlockingCall(
+    network_thread()->BlockingCall(
         [&] { context_->ApplyGlobalAudioOptions(options); });
   }
 #endif
@@ -209,7 +209,7 @@ scoped_refptr<AudioSourceInterface> PeerConnectionFactory::CreateAudioSource(
 }
 
 bool PeerConnectionFactory::StartAecDump(FILE* file, int64_t max_size_bytes) {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   if (!file) {
     RTC_LOG(LS_ERROR) << "Cannot start AEC dump with null file pointer.";
     return false;
@@ -229,7 +229,7 @@ bool PeerConnectionFactory::StartAecDump(FILE* file, int64_t max_size_bytes) {
 }
 
 void PeerConnectionFactory::StopAecDump() {
-  RTC_DCHECK_RUN_ON(worker_thread());
+  RTC_DCHECK_RUN_ON(network_thread());
   if (!media_engine_ref_)
     return;
   media_engine_ref_->media_engine()->voice().StopAecDump();
@@ -330,12 +330,8 @@ PeerConnectionFactory::CreatePeerConnectionOrError(
   auto pc = PeerConnection::Create(env, context_, options_, std::move(call),
                                    configuration, dependencies, stun_servers,
                                    turn_servers);
-  // We configure the proxy with a pointer to the network thread for methods
-  // that need to be invoked there rather than on the signaling thread.
-  // Internally, the proxy object has a member variable named `worker_thread_`
-  // which will point to the network thread (and not the factory's
-  // worker_thread()).  All such methods have thread checks though, so the code
-  // should still be clear (outside of macro expansion).
+  // The proxy runs the methods that are declared with PROXY_SECONDARY_* on the
+  // network thread.
   return scoped_refptr<PeerConnectionInterface>(PeerConnectionProxy::Create(
       signaling_thread(), network_thread(), std::move(pc)));
 }
@@ -352,8 +348,8 @@ scoped_refptr<VideoTrackInterface> PeerConnectionFactory::CreateVideoTrack(
     absl::string_view id) {
   RTC_DCHECK(signaling_thread()->IsCurrent());
   scoped_refptr<VideoTrackInterface> track =
-      VideoTrack::Create(id, source, worker_thread());
-  return VideoTrackProxy::Create(signaling_thread(), worker_thread(), track);
+      VideoTrack::Create(id, source, network_thread());
+  return VideoTrackProxy::Create(signaling_thread(), network_thread(), track);
 }
 
 scoped_refptr<AudioTrackInterface> PeerConnectionFactory::CreateAudioTrack(
