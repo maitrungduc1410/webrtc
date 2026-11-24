@@ -473,9 +473,13 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
   // Referenced by tasks running on `encoder_queue_` so need to be destroyed
   // after stopping that queue. Must be created and destroyed on
   // `worker_queue_`.
-  ScopedTaskSafety task_safety_;
+  ScopedTaskSafety worker_task_safety_;
 
   std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue_;
+
+  // Used to cancel any potentially pending tasks to `encoder_queue_` after
+  // shutdown on `encoder_queue_`.
+  const scoped_refptr<PendingTaskSafetyFlag> encoder_task_safety_;
 
   //  Required for automatic corruption detection.
   std::unique_ptr<FrameInstrumentationGenerator>
@@ -493,8 +497,6 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
   };
 
   std::deque<PreparingFrame> pending_mapped_frames_;
-
-  std::atomic<bool> is_stopped_ = false;
 };
 
 class VideoStreamEncoder : public VideoStreamEncoderInterface,
