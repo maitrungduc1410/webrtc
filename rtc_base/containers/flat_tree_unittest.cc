@@ -44,6 +44,7 @@
 #include <iterator>
 #include <list>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -1401,6 +1402,23 @@ TYPED_TEST_P(FlatTreeTest, UpperBound) {
     EXPECT_EQ(std::next(cont.begin(), 7), cont.upper_bound(18));
     EXPECT_EQ(std::next(cont.begin(), 8), cont.upper_bound(20));
   }
+}
+
+// Lookups with a std::pair of other types than the key's need heterogeneous
+// std::pair comparisons, which libstdc++ only has from GCC 14.
+TEST(FlatTree, HeterogeneousPairLookup) {
+  using Key = std::pair<std::string, bool>;
+  flat_tree<Key, std::identity, std::less<>, std::vector<Key>> cont(
+      {{"b", false}, {"a", true}, {"a", false}});
+  using Lookup = std::pair<std::string_view, bool>;
+
+  EXPECT_EQ(cont.find(Lookup("a", true)), std::next(cont.begin()));
+  EXPECT_EQ(cont.find(Lookup("b", true)), cont.end());
+  EXPECT_TRUE(cont.contains(Lookup("a", false)));
+  EXPECT_FALSE(cont.contains(Lookup("c", false)));
+  EXPECT_EQ(cont.count(Lookup("b", false)), 1u);
+  EXPECT_EQ(cont.lower_bound(Lookup("a", true)), std::next(cont.begin()));
+  EXPECT_EQ(cont.upper_bound(Lookup("a", true)), std::next(cont.begin(), 2));
 }
 
 // ----------------------------------------------------------------------------

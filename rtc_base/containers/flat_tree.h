@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <type_traits>
@@ -447,6 +448,31 @@ class flat_tree {
                                                   Args&&... args);
 
  private:
+  // Compares two keys with `comp`. Transparent lookups may compare keys of
+  // different types, e.g. a std::pair<std::string, bool> key with a
+  // std::pair<absl::string_view, bool>.
+  template <typename T, typename U>
+  static bool CompareKeys(const key_compare& comp, const T& lhs, const U& rhs) {
+    return comp(lhs, rhs);
+  }
+
+#if defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 14
+  // libstdc++ before GCC 14 lacks the heterogeneous std::pair comparisons
+  // (LWG 3865), so compare such pairs member by member there.
+  template <typename T1, typename T2, typename U1, typename U2>
+    requires(std::is_same_v<key_compare, std::less<>> &&
+             !std::is_same_v<std::pair<T1, T2>, std::pair<U1, U2>>)
+  static bool CompareKeys(const key_compare& /* comp */,
+                          const std::pair<T1, T2>& lhs,
+                          const std::pair<U1, U2>& rhs) {
+    if (lhs.first < rhs.first)
+      return true;
+    if (rhs.first < lhs.first)
+      return false;
+    return lhs.second < rhs.second;
+  }
+#endif
+
   // Helper class for e.g. lower_bound that can compare a value on the left
   // to a key on the right.
   struct KeyValueCompare {
@@ -455,7 +481,8 @@ class flat_tree {
 
     template <typename T, typename U>
     bool operator()(const T& lhs, const U& rhs) const {
-      return comp_(extract_if_value_type(lhs), extract_if_value_type(rhs));
+      return CompareKeys(comp_, extract_if_value_type(lhs),
+                         extract_if_value_type(rhs));
     }
 
    private:
@@ -962,7 +989,7 @@ template <typename K>
 bool flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::contains(
     const K& key) const {
   auto lower = lower_bound(key);
-  return lower != end() && !comp_(key, GetKeyFromValue()(*lower));
+  return lower != end() && !CompareKeys(comp_, key, GetKeyFromValue()(*lower));
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -1051,7 +1078,7 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::emplace_key_args(
     const K& key,
     Args&&... args) -> std::pair<iterator, bool> {
   auto lower = lower_bound(key);
-  if (lower == end() || comp_(key, GetKeyFromValue()(*lower)))
+  if (lower == end() || CompareKeys(comp_, key, GetKeyFromValue()(*lower)))
     return {unsafe_emplace(lower, std::forward<Args>(args)...), true};
   return {lower, false};
 }
