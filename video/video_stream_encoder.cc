@@ -2704,7 +2704,7 @@ void VideoStreamEncoderImpl::ProcessDroppedFrame(
   }
 }
 
-std::unique_ptr<VideoStreamEncoderOwner> VideoStreamEncoderOwner::Create(
+std::unique_ptr<VideoStreamEncoder> VideoStreamEncoder::Create(
     const Environment& env,
     uint32_t number_of_cores,
     VideoStreamEncoderObserver* encoder_stats_observer,
@@ -2717,7 +2717,7 @@ std::unique_ptr<VideoStreamEncoderOwner> VideoStreamEncoderOwner::Create(
         encoder_selector,
     EncoderSwitchRequestCallback encoder_switch_request_callback,
     AdaptationInjectionsForTest adaptation_injections_for_test) {
-  return std::make_unique<VideoStreamEncoderOwner>(
+  return std::make_unique<VideoStreamEncoder>(
       env, number_of_cores, encoder_stats_observer, std::move(settings),
       std::move(overuse_detector), std::move(frame_cadence_adapter),
       std::move(encoder_queue), allocation_cb_type, std::move(encoder_selector),
@@ -2725,7 +2725,7 @@ std::unique_ptr<VideoStreamEncoderOwner> VideoStreamEncoderOwner::Create(
       std::move(adaptation_injections_for_test));
 }
 
-VideoStreamEncoderOwner::VideoStreamEncoderOwner(
+VideoStreamEncoder::VideoStreamEncoder(
     const Environment& env,
     uint32_t number_of_cores,
     VideoStreamEncoderObserver* encoder_stats_observer,
@@ -2751,76 +2751,74 @@ VideoStreamEncoderOwner::VideoStreamEncoderOwner(
           std::move(encoder_switch_request_callback),
           std::move(adaptation_injections_for_test))) {}
 
-VideoStreamEncoderOwner::~VideoStreamEncoderOwner() {
+VideoStreamEncoder::~VideoStreamEncoder() {
   impl_.reset();
 }
 
-void VideoStreamEncoderOwner::AddAdaptationResource(
+void VideoStreamEncoder::AddAdaptationResource(
     scoped_refptr<Resource> resource) {
   impl_->AddAdaptationResource(std::move(resource));
 }
 
-void VideoStreamEncoderOwner::SetSource(
+void VideoStreamEncoder::SetSource(
     VideoSourceInterface<VideoFrame>* source,
     const DegradationPreference& degradation_preference) {
   impl_->SetSource(source, degradation_preference);
 }
 
-void VideoStreamEncoderOwner::SetSink(EncoderSink* sink,
-                                      bool rotation_applied) {
+void VideoStreamEncoder::SetSink(EncoderSink* sink, bool rotation_applied) {
   impl_->SetSink(sink, rotation_applied);
 }
 
-void VideoStreamEncoderOwner::SetStartBitrate(int start_bitrate_bps) {
+void VideoStreamEncoder::SetStartBitrate(int start_bitrate_bps) {
   impl_->SetStartBitrate(start_bitrate_bps);
 }
 
-void VideoStreamEncoderOwner::SetFecControllerOverride(
+void VideoStreamEncoder::SetFecControllerOverride(
     FecControllerOverride* fec_controller_override) {
   impl_->SetFecControllerOverride(fec_controller_override);
 }
 
-void VideoStreamEncoderOwner::ConfigureEncoder(VideoEncoderConfig config,
-                                               size_t max_data_payload_length) {
+void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
+                                          size_t max_data_payload_length) {
   impl_->ConfigureEncoder(std::move(config), max_data_payload_length);
 }
 
-void VideoStreamEncoderOwner::ConfigureEncoder(VideoEncoderConfig config,
-                                               size_t max_data_payload_length,
-                                               SetParametersCallback callback) {
+void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
+                                          size_t max_data_payload_length,
+                                          SetParametersCallback callback) {
   impl_->ConfigureEncoder(std::move(config), max_data_payload_length,
                           std::move(callback));
 }
 
-void VideoStreamEncoderOwner::Stop() {
+void VideoStreamEncoder::Stop() {
   impl_->Stop();
 }
 
-void VideoStreamEncoderOwner::SendKeyFrame(
+void VideoStreamEncoder::SendKeyFrame(
     const std::vector<VideoFrameType>& layers) {
   impl_->SendKeyFrame(layers);
 }
 
-void VideoStreamEncoderOwner::OnBitrateUpdated(DataRate target_bitrate,
-                                               DataRate link_allocation,
-                                               uint8_t fraction_lost,
-                                               int64_t round_trip_time_ms,
-                                               double cwnd_reduce_ratio) {
+void VideoStreamEncoder::OnBitrateUpdated(DataRate target_bitrate,
+                                          DataRate link_allocation,
+                                          uint8_t fraction_lost,
+                                          int64_t round_trip_time_ms,
+                                          double cwnd_reduce_ratio) {
   impl_->OnBitrateUpdated(target_bitrate, link_allocation, fraction_lost,
                           round_trip_time_ms, cwnd_reduce_ratio);
 }
 
-DataRate VideoStreamEncoderOwner::UpdateTargetBitrate(
-    DataRate target_bitrate,
-    double cwnd_reduce_ratio) {
+DataRate VideoStreamEncoder::UpdateTargetBitrate(DataRate target_bitrate,
+                                                 double cwnd_reduce_ratio) {
   return impl_->UpdateTargetBitrate(target_bitrate, cwnd_reduce_ratio);
 }
 
-void VideoStreamEncoderOwner::OnFramePrepared(size_t frame_identifier) {
+void VideoStreamEncoder::OnFramePrepared(size_t frame_identifier) {
   impl_->OnFramePrepared(frame_identifier);
 }
 
-void VideoStreamEncoderOwner::OnVideoSourceRestrictionsUpdated(
+void VideoStreamEncoder::OnVideoSourceRestrictionsUpdated(
     VideoSourceRestrictions restrictions,
     const VideoAdaptationCounters& adaptation_counters,
     scoped_refptr<Resource> reason,

@@ -156,7 +156,7 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
 
  protected:
   friend class VideoStreamEncoderFrameCadenceRestrictionTest;
-  friend class VideoStreamEncoderOwner;
+  friend class VideoStreamEncoder;
 
   void OnVideoSourceRestrictionsUpdated(
       VideoSourceRestrictions restrictions,
@@ -497,15 +497,15 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
   std::atomic<bool> is_stopped_ = false;
 };
 
-class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
-                                public VideoSourceRestrictionsListener {
+class VideoStreamEncoder : public VideoStreamEncoderInterface,
+                           public VideoSourceRestrictionsListener {
  public:
   using BitrateAllocationCallbackType =
       VideoStreamEncoderImpl::BitrateAllocationCallbackType;
   using AdaptationInjectionsForTest =
       VideoStreamEncoderImpl::AdaptationInjectionsForTest;
 
-  static std::unique_ptr<VideoStreamEncoderOwner> Create(
+  static std::unique_ptr<VideoStreamEncoder> Create(
       const Environment& env,
       uint32_t number_of_cores,
       VideoStreamEncoderObserver* encoder_stats_observer,
@@ -519,7 +519,7 @@ class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
       EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
       AdaptationInjectionsForTest adaptation_injections_for_test = {});
 
-  VideoStreamEncoderOwner(
+  VideoStreamEncoder(
       const Environment& env,
       uint32_t number_of_cores,
       VideoStreamEncoderObserver* encoder_stats_observer,
@@ -532,10 +532,10 @@ class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
           encoder_selector = nullptr,
       EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
       AdaptationInjectionsForTest adaptation_injections_for_test = {});
-  ~VideoStreamEncoderOwner() override;
+  ~VideoStreamEncoder() override;
 
-  VideoStreamEncoderOwner(const VideoStreamEncoderOwner&) = delete;
-  VideoStreamEncoderOwner& operator=(const VideoStreamEncoderOwner&) = delete;
+  VideoStreamEncoder(const VideoStreamEncoder&) = delete;
+  VideoStreamEncoder& operator=(const VideoStreamEncoder&) = delete;
 
   void AddAdaptationResource(scoped_refptr<Resource> resource) override;
 
