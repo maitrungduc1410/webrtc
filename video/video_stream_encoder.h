@@ -80,9 +80,9 @@ namespace webrtc {
 //  Call SetSource.
 //  Call ConfigureEncoder with the codec settings.
 //  Call Stop() when done.
-class VideoStreamEncoder : public VideoStreamEncoderInterface,
-                           private EncodedImageCallback,
-                           public VideoSourceRestrictionsListener {
+class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
+                               private EncodedImageCallback,
+                               public VideoSourceRestrictionsListener {
  public:
   enum class BitrateAllocationCallbackType {
     kNone,
@@ -98,7 +98,7 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
     std::vector<AdaptationConstraint*> constraints;
   };
 
-  VideoStreamEncoder(
+  VideoStreamEncoderImpl(
       const Environment& env,
       uint32_t number_of_cores,
       VideoStreamEncoderObserver* encoder_stats_observer,
@@ -111,10 +111,10 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
           encoder_selector = nullptr,
       EncoderSwitchRequestCallback encoder_switch_request_callback = nullptr,
       AdaptationInjectionsForTest adaptation_injections_for_test = {});
-  ~VideoStreamEncoder() override;
+  ~VideoStreamEncoderImpl() override;
 
-  VideoStreamEncoder(const VideoStreamEncoder&) = delete;
-  VideoStreamEncoder& operator=(const VideoStreamEncoder&) = delete;
+  VideoStreamEncoderImpl(const VideoStreamEncoderImpl&) = delete;
+  VideoStreamEncoderImpl& operator=(const VideoStreamEncoderImpl&) = delete;
 
   void AddAdaptationResource(scoped_refptr<Resource> resource) override;
 
@@ -167,7 +167,7 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
  private:
   class CadenceCallback : public FrameCadenceAdapterInterface::Callback {
    public:
-    explicit CadenceCallback(VideoStreamEncoder& video_stream_encoder)
+    explicit CadenceCallback(VideoStreamEncoderImpl& video_stream_encoder)
         : video_stream_encoder_(video_stream_encoder) {}
     // FrameCadenceAdapterInterface::Callback overrides.
     void OnFrame(Timestamp post_time,
@@ -183,7 +183,7 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
     }
 
    private:
-    VideoStreamEncoder& video_stream_encoder_;
+    VideoStreamEncoderImpl& video_stream_encoder_;
   };
 
   class VideoFrameInfo {
@@ -218,14 +218,14 @@ class VideoStreamEncoder : public VideoStreamEncoderInterface,
   class PreparedFramesProcessor
       : public VideoFrameBuffer::PreparedFrameHandler {
    public:
-    explicit PreparedFramesProcessor(VideoStreamEncoder* parent);
+    explicit PreparedFramesProcessor(VideoStreamEncoderImpl* parent);
 
     void StopCallbacks();
 
     void OnFramePrepared(size_t frame_identifier) override;
 
    private:
-    VideoStreamEncoder* parent_ RTC_GUARDED_BY(lock_);
+    VideoStreamEncoderImpl* parent_ RTC_GUARDED_BY(lock_);
     Mutex lock_;
   };
 
@@ -501,9 +501,9 @@ class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
                                 public VideoSourceRestrictionsListener {
  public:
   using BitrateAllocationCallbackType =
-      VideoStreamEncoder::BitrateAllocationCallbackType;
+      VideoStreamEncoderImpl::BitrateAllocationCallbackType;
   using AdaptationInjectionsForTest =
-      VideoStreamEncoder::AdaptationInjectionsForTest;
+      VideoStreamEncoderImpl::AdaptationInjectionsForTest;
 
   static std::unique_ptr<VideoStreamEncoderOwner> Create(
       const Environment& env,
@@ -580,7 +580,7 @@ class VideoStreamEncoderOwner : public VideoStreamEncoderInterface,
       const VideoSourceRestrictions& unfiltered_restrictions) override;
 
  private:
-  std::unique_ptr<VideoStreamEncoder> impl_;
+  std::unique_ptr<VideoStreamEncoderImpl> impl_;
 };
 
 }  // namespace webrtc

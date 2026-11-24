@@ -566,16 +566,16 @@ std::optional<int> ParseEncoderThreadLimit(const FieldTrialsView& trials) {
 
 }  //  namespace
 
-VideoStreamEncoder::PreparedFramesProcessor::PreparedFramesProcessor(
-    VideoStreamEncoder* parent)
+VideoStreamEncoderImpl::PreparedFramesProcessor::PreparedFramesProcessor(
+    VideoStreamEncoderImpl* parent)
     : parent_(parent) {}
 
-void VideoStreamEncoder::PreparedFramesProcessor::StopCallbacks() {
+void VideoStreamEncoderImpl::PreparedFramesProcessor::StopCallbacks() {
   MutexLock lock(&lock_);
   parent_ = nullptr;
 }
 
-void VideoStreamEncoder::PreparedFramesProcessor::OnFramePrepared(
+void VideoStreamEncoderImpl::PreparedFramesProcessor::OnFramePrepared(
     size_t frame_identifier) {
   MutexLock lock(&lock_);
   if (parent_) {
@@ -583,10 +583,10 @@ void VideoStreamEncoder::PreparedFramesProcessor::OnFramePrepared(
   }
 }
 
-VideoStreamEncoder::EncoderRateSettings::EncoderRateSettings()
+VideoStreamEncoderImpl::EncoderRateSettings::EncoderRateSettings()
     : rate_control(), encoder_target(DataRate::Zero()) {}
 
-VideoStreamEncoder::EncoderRateSettings::EncoderRateSettings(
+VideoStreamEncoderImpl::EncoderRateSettings::EncoderRateSettings(
     const VideoBitrateAllocation& bitrate,
     double framerate_fps,
     DataRate bandwidth_allocation,
@@ -594,18 +594,18 @@ VideoStreamEncoder::EncoderRateSettings::EncoderRateSettings(
     : rate_control(bitrate, framerate_fps, bandwidth_allocation),
       encoder_target(encoder_target) {}
 
-bool VideoStreamEncoder::EncoderRateSettings::operator==(
+bool VideoStreamEncoderImpl::EncoderRateSettings::operator==(
     const EncoderRateSettings& rhs) const {
   return rate_control == rhs.rate_control &&
          encoder_target == rhs.encoder_target;
 }
 
-bool VideoStreamEncoder::EncoderRateSettings::operator!=(
+bool VideoStreamEncoderImpl::EncoderRateSettings::operator!=(
     const EncoderRateSettings& rhs) const {
   return !(*this == rhs);
 }
 
-class VideoStreamEncoder::DegradationPreferenceManager
+class VideoStreamEncoderImpl::DegradationPreferenceManager
     : public DegradationPreferenceProvider {
  public:
   explicit DegradationPreferenceManager(
@@ -664,7 +664,7 @@ class VideoStreamEncoder::DegradationPreferenceManager
   VideoStreamAdapter* video_stream_adapter_ RTC_GUARDED_BY(&sequence_checker_);
 };
 
-VideoStreamEncoder::VideoStreamEncoder(
+VideoStreamEncoderImpl::VideoStreamEncoderImpl(
     const Environment& env,
     uint32_t number_of_cores,
     VideoStreamEncoderObserver* encoder_stats_observer,
@@ -774,7 +774,7 @@ VideoStreamEncoder::VideoStreamEncoder(
   });
 }
 
-VideoStreamEncoder::~VideoStreamEncoder() {
+VideoStreamEncoderImpl::~VideoStreamEncoderImpl() {
   RTC_DCHECK_RUN_ON(worker_queue_);
   RTC_DCHECK(is_stopped_) << "Must call ::Stop() before destruction.";
 
@@ -787,7 +787,7 @@ VideoStreamEncoder::~VideoStreamEncoder() {
   encoder_queue_.release();
 }
 
-void VideoStreamEncoder::Stop() {
+void VideoStreamEncoderImpl::Stop() {
   RTC_DCHECK_RUN_ON(worker_queue_);
   video_source_sink_controller_.SetSource(nullptr);
   is_stopped_ = true;
@@ -830,7 +830,7 @@ void VideoStreamEncoder::Stop() {
   shutdown_event.Wait(Event::kForever);
 }
 
-void VideoStreamEncoder::SetFecControllerOverride(
+void VideoStreamEncoderImpl::SetFecControllerOverride(
     FecControllerOverride* fec_controller_override) {
   encoder_queue_->PostTask([this, fec_controller_override] {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
@@ -842,7 +842,7 @@ void VideoStreamEncoder::SetFecControllerOverride(
   });
 }
 
-void VideoStreamEncoder::AddAdaptationResource(
+void VideoStreamEncoderImpl::AddAdaptationResource(
     scoped_refptr<Resource> resource) {
   RTC_DCHECK_RUN_ON(worker_queue_);
   TRACE_EVENT0("webrtc", "VideoStreamEncoder::AddAdaptationResource");
@@ -862,7 +862,7 @@ void VideoStreamEncoder::AddAdaptationResource(
   });
 }
 
-void VideoStreamEncoder::SetSource(
+void VideoStreamEncoderImpl::SetSource(
     VideoSourceInterface<VideoFrame>* source,
     const DegradationPreference& degradation_preference) {
   RTC_DCHECK_RUN_ON(worker_queue_);
@@ -884,7 +884,7 @@ void VideoStreamEncoder::SetSource(
   });
 }
 
-void VideoStreamEncoder::SetSink(EncoderSink* sink, bool rotation_applied) {
+void VideoStreamEncoderImpl::SetSink(EncoderSink* sink, bool rotation_applied) {
   RTC_DCHECK_RUN_ON(worker_queue_);
   video_source_sink_controller_.SetRotationApplied(rotation_applied);
   video_source_sink_controller_.PushSourceSinkSettings();
@@ -895,7 +895,7 @@ void VideoStreamEncoder::SetSink(EncoderSink* sink, bool rotation_applied) {
   });
 }
 
-void VideoStreamEncoder::SetStartBitrate(int start_bitrate_bps) {
+void VideoStreamEncoderImpl::SetStartBitrate(int start_bitrate_bps) {
   encoder_queue_->PostTask([this, start_bitrate_bps] {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
     RTC_LOG(LS_INFO) << "SetStartBitrate " << start_bitrate_bps;
@@ -907,14 +907,14 @@ void VideoStreamEncoder::SetStartBitrate(int start_bitrate_bps) {
   });
 }
 
-void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
-                                          size_t max_data_payload_length) {
+void VideoStreamEncoderImpl::ConfigureEncoder(VideoEncoderConfig config,
+                                              size_t max_data_payload_length) {
   ConfigureEncoder(std::move(config), max_data_payload_length, nullptr);
 }
 
-void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
-                                          size_t max_data_payload_length,
-                                          SetParametersCallback callback) {
+void VideoStreamEncoderImpl::ConfigureEncoder(VideoEncoderConfig config,
+                                              size_t max_data_payload_length,
+                                              SetParametersCallback callback) {
   RTC_DCHECK_RUN_ON(worker_queue_);
 
   // Inform source about max configured framerate,
@@ -1028,8 +1028,8 @@ void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
 
 // We should reduce the number of 'full' ReconfigureEncoder(). If only need
 // subset of it at runtime, consider handle it in
-// VideoStreamEncoder::EncodeVideoFrame() when encoder_info_ != info.
-void VideoStreamEncoder::ReconfigureEncoder() {
+// VideoStreamEncoderImpl::EncodeVideoFrame() when encoder_info_ != info.
+void VideoStreamEncoderImpl::ReconfigureEncoder() {
   // Running on the encoder queue.
   RTC_DCHECK(pending_encoder_reconfiguration_);
   RTC_LOG(LS_INFO) << "[VSE] " << __func__
@@ -1555,7 +1555,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   }
 }
 
-void VideoStreamEncoder::RequestEncoderSwitch() {
+void VideoStreamEncoderImpl::RequestEncoderSwitch() {
   bool is_encoder_switching_supported =
       encoder_switch_request_callback_ != nullptr;
   bool is_encoder_selector_available = encoder_selector_ != nullptr;
@@ -1593,7 +1593,7 @@ void VideoStreamEncoder::RequestEncoderSwitch() {
                                    /*allow_default_fallback=*/true);
 }
 
-void VideoStreamEncoder::OnEncoderSettingsChanged() {
+void VideoStreamEncoderImpl::OnEncoderSettingsChanged() {
   EncoderSettings encoder_settings(
       GetEncoderInfoWithBitrateLimitUpdate(encoder_->GetEncoderInfo(),
                                            encoder_config_),
@@ -1610,9 +1610,9 @@ void VideoStreamEncoder::OnEncoderSettingsChanged() {
   }
 }
 
-void VideoStreamEncoder::OnFrame(Timestamp post_time,
-                                 bool queue_overload,
-                                 const VideoFrame& video_frame) {
+void VideoStreamEncoderImpl::OnFrame(Timestamp post_time,
+                                     bool queue_overload,
+                                     const VideoFrame& video_frame) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
 
   VideoFrame incoming_frame = video_frame;
@@ -1704,12 +1704,12 @@ void VideoStreamEncoder::OnFrame(Timestamp post_time,
   }
 }
 
-void VideoStreamEncoder::OnDiscardedFrame() {
+void VideoStreamEncoderImpl::OnDiscardedFrame() {
   encoder_stats_observer_->OnFrameDropped(
       VideoStreamEncoderObserver::DropReason::kSource);
 }
 
-bool VideoStreamEncoder::EncoderPaused() const {
+bool VideoStreamEncoderImpl::EncoderPaused() const {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   // Pause video if paused by caller or as long as the network is down or the
   // pacer queue has grown too large in buffered mode.
@@ -1719,7 +1719,7 @@ bool VideoStreamEncoder::EncoderPaused() const {
          last_encoder_rate_settings_->encoder_target == DataRate::Zero();
 }
 
-void VideoStreamEncoder::TraceFrameDropStart() {
+void VideoStreamEncoderImpl::TraceFrameDropStart() {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   // Start trace event only on the first frame after encoder is paused.
   if (!encoder_paused_and_dropped_frame_) {
@@ -1729,7 +1729,7 @@ void VideoStreamEncoder::TraceFrameDropStart() {
   encoder_paused_and_dropped_frame_ = true;
 }
 
-void VideoStreamEncoder::TraceFrameDropEnd() {
+void VideoStreamEncoderImpl::TraceFrameDropEnd() {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   // End trace event on first frame after encoder resumes, if frame was dropped.
   if (encoder_paused_and_dropped_frame_) {
@@ -1739,8 +1739,8 @@ void VideoStreamEncoder::TraceFrameDropEnd() {
   encoder_paused_and_dropped_frame_ = false;
 }
 
-VideoStreamEncoder::EncoderRateSettings
-VideoStreamEncoder::UpdateBitrateAllocation(
+VideoStreamEncoderImpl::EncoderRateSettings
+VideoStreamEncoderImpl::UpdateBitrateAllocation(
     const EncoderRateSettings& rate_settings) {
   VideoBitrateAllocation new_allocation;
   // Only call allocators if bitrate > 0 (ie, not suspended), otherwise they
@@ -1776,7 +1776,7 @@ VideoStreamEncoder::UpdateBitrateAllocation(
   return new_rate_settings;
 }
 
-uint32_t VideoStreamEncoder::GetInputFramerateFps() {
+uint32_t VideoStreamEncoderImpl::GetInputFramerateFps() {
   const uint32_t default_fps = max_framerate_ != -1 ? max_framerate_ : 30;
 
   // This method may be called after we cleared out the frame_cadence_adapter_
@@ -1791,7 +1791,7 @@ uint32_t VideoStreamEncoder::GetInputFramerateFps() {
   return *input_fps;
 }
 
-void VideoStreamEncoder::SetEncoderRates(
+void VideoStreamEncoderImpl::SetEncoderRates(
     const EncoderRateSettings& rate_settings) {
   RTC_DCHECK_GT(rate_settings.rate_control.framerate_fps, 0.0);
   bool rate_control_changed =
@@ -1849,8 +1849,9 @@ void VideoStreamEncoder::SetEncoderRates(
   }
 }
 
-void VideoStreamEncoder::MaybePrepareVideoFrame(const VideoFrame& video_frame,
-                                                int64_t time_when_posted_us) {
+void VideoStreamEncoderImpl::MaybePrepareVideoFrame(
+    const VideoFrame& video_frame,
+    int64_t time_when_posted_us) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   if (pending_mapped_frames_.size() > kMaxFramesInPreparation) {
     RTC_LOG(LS_ERROR) << "To many frames are being prepared.";
@@ -1885,7 +1886,7 @@ void VideoStreamEncoder::MaybePrepareVideoFrame(const VideoFrame& video_frame,
   }
 }
 
-void VideoStreamEncoder::OnFramePrepared(size_t frame_id) {
+void VideoStreamEncoderImpl::OnFramePrepared(size_t frame_id) {
   if (!encoder_queue_->IsCurrent()) {
     encoder_queue_->PostTask([this, frame_id]() { OnFramePrepared(frame_id); });
     return;
@@ -1912,8 +1913,9 @@ void VideoStreamEncoder::OnFramePrepared(size_t frame_id) {
   }
 }
 
-void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
-                                               int64_t time_when_posted_us) {
+void VideoStreamEncoderImpl::MaybeEncodeVideoFrame(
+    const VideoFrame& video_frame,
+    int64_t time_when_posted_us) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
 
   input_state_provider_.OnFrameSizeObserved(video_frame.size());
@@ -2042,8 +2044,8 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
   EncodeVideoFrame(video_frame, time_when_posted_us);
 }
 
-void VideoStreamEncoder::EncodeVideoFrame(const VideoFrame& video_frame,
-                                          int64_t time_when_posted_us) {
+void VideoStreamEncoderImpl::EncodeVideoFrame(const VideoFrame& video_frame,
+                                              int64_t time_when_posted_us) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   RTC_LOG(LS_VERBOSE) << __func__ << " posted " << time_when_posted_us
                       << " ntp time " << video_frame.ntp_time_ms();
@@ -2227,14 +2229,14 @@ void VideoStreamEncoder::EncodeVideoFrame(const VideoFrame& video_frame,
   }
 }
 
-void VideoStreamEncoder::RequestRefreshFrame() {
+void VideoStreamEncoderImpl::RequestRefreshFrame() {
   worker_queue_->PostTask(SafeTask(task_safety_.flag(), [this] {
     RTC_DCHECK_RUN_ON(worker_queue_);
     video_source_sink_controller_.RequestRefreshFrame();
   }));
 }
 
-void VideoStreamEncoder::SendKeyFrame(
+void VideoStreamEncoderImpl::SendKeyFrame(
     const std::vector<VideoFrameType>& layers) {
   if (!encoder_queue_->IsCurrent()) {
     encoder_queue_->PostTask([this, layers] { SendKeyFrame(layers); });
@@ -2275,7 +2277,7 @@ void VideoStreamEncoder::SendKeyFrame(
   }
 }
 
-EncodedImage VideoStreamEncoder::AugmentEncodedImage(
+EncodedImage VideoStreamEncoderImpl::AugmentEncodedImage(
     const EncodedImage& encoded_image,
     const CodecSpecificInfo* codec_specific_info) {
   EncodedImage image_copy(encoded_image);
@@ -2309,7 +2311,7 @@ EncodedImage VideoStreamEncoder::AugmentEncodedImage(
   return image_copy;
 }
 
-EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
+EncodedImageCallback::Result VideoStreamEncoderImpl::OnEncodedImage(
     const EncodedImage& encoded_image,
     const CodecSpecificInfo* codec_specific_info) {
   TRACE_EVENT_INSTANT1("webrtc", "VCMEncodedFrameCallback::Encoded",
@@ -2436,9 +2438,9 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
   return result;
 }
 
-void VideoStreamEncoder::OnFrameDropped(uint32_t rtp_timestamp,
-                                        int spatial_id,
-                                        bool is_end_of_temporal_unit) {
+void VideoStreamEncoderImpl::OnFrameDropped(uint32_t rtp_timestamp,
+                                            int spatial_id,
+                                            bool is_end_of_temporal_unit) {
   sink_->OnFrameDropped(rtp_timestamp, spatial_id, is_end_of_temporal_unit);
   encoder_queue_->PostTask([this, rtp_timestamp, is_end_of_temporal_unit] {
     RTC_DCHECK_RUN_ON(encoder_queue_.get());
@@ -2454,8 +2456,8 @@ void VideoStreamEncoder::OnFrameDropped(uint32_t rtp_timestamp,
   });
 }
 
-DataRate VideoStreamEncoder::UpdateTargetBitrate(DataRate target_bitrate,
-                                                 double cwnd_reduce_ratio) {
+DataRate VideoStreamEncoderImpl::UpdateTargetBitrate(DataRate target_bitrate,
+                                                     double cwnd_reduce_ratio) {
   RTC_DCHECK_RUN_ON(encoder_queue_.get());
   DataRate updated_target_bitrate = target_bitrate;
 
@@ -2481,11 +2483,11 @@ DataRate VideoStreamEncoder::UpdateTargetBitrate(DataRate target_bitrate,
   return updated_target_bitrate;
 }
 
-void VideoStreamEncoder::OnBitrateUpdated(DataRate target_bitrate,
-                                          DataRate link_allocation,
-                                          uint8_t fraction_lost,
-                                          int64_t round_trip_time_ms,
-                                          double cwnd_reduce_ratio) {
+void VideoStreamEncoderImpl::OnBitrateUpdated(DataRate target_bitrate,
+                                              DataRate link_allocation,
+                                              uint8_t fraction_lost,
+                                              int64_t round_trip_time_ms,
+                                              double cwnd_reduce_ratio) {
   RTC_DCHECK_GE(link_allocation, target_bitrate);
   if (!encoder_queue_->IsCurrent()) {
     encoder_queue_->PostTask([this, target_bitrate, link_allocation,
@@ -2559,7 +2561,7 @@ void VideoStreamEncoder::OnBitrateUpdated(DataRate target_bitrate,
   }
 }
 
-bool VideoStreamEncoder::DropDueToSize(uint32_t source_pixel_count) const {
+bool VideoStreamEncoderImpl::DropDueToSize(uint32_t source_pixel_count) const {
   if (!encoder_ || !stream_resource_manager_.DropInitialFrames() ||
       !encoder_target_bitrate_bps_ ||
       !stream_resource_manager_.SingleActiveStreamPixels()) {
@@ -2592,7 +2594,7 @@ bool VideoStreamEncoder::DropDueToSize(uint32_t source_pixel_count) const {
   return false;
 }
 
-void VideoStreamEncoder::OnVideoSourceRestrictionsUpdated(
+void VideoStreamEncoderImpl::OnVideoSourceRestrictionsUpdated(
     VideoSourceRestrictions restrictions,
     const VideoAdaptationCounters& adaptation_counters,
     scoped_refptr<Resource> reason,
@@ -2635,10 +2637,10 @@ void VideoStreamEncoder::OnVideoSourceRestrictionsUpdated(
       }));
 }
 
-void VideoStreamEncoder::RunPostEncode(const EncodedImage& encoded_image,
-                                       int64_t time_sent_us,
-                                       int temporal_index,
-                                       DataSize frame_size) {
+void VideoStreamEncoderImpl::RunPostEncode(const EncodedImage& encoded_image,
+                                           int64_t time_sent_us,
+                                           int temporal_index,
+                                           DataSize frame_size) {
   if (!encoder_queue_->IsCurrent()) {
     encoder_queue_->PostTask([this, encoded_image, time_sent_us, temporal_index,
                               frame_size] {
@@ -2678,7 +2680,7 @@ void VideoStreamEncoder::RunPostEncode(const EncodedImage& encoded_image,
   }
 }
 
-void VideoStreamEncoder::ReleaseEncoder() {
+void VideoStreamEncoderImpl::ReleaseEncoder() {
   if (!encoder_ || !encoder_initialized_) {
     return;
   }
@@ -2689,7 +2691,7 @@ void VideoStreamEncoder::ReleaseEncoder() {
 }
 
 // RTC_RUN_ON(&encoder_queue_)
-void VideoStreamEncoder::ProcessDroppedFrame(
+void VideoStreamEncoderImpl::ProcessDroppedFrame(
     const VideoFrame& frame,
     VideoStreamEncoderObserver::DropReason reason) {
   accumulated_update_rect_.Union(frame.update_rect());
@@ -2736,7 +2738,7 @@ VideoStreamEncoderOwner::VideoStreamEncoderOwner(
         encoder_selector,
     EncoderSwitchRequestCallback encoder_switch_request_callback,
     AdaptationInjectionsForTest adaptation_injections_for_test)
-    : impl_(std::make_unique<VideoStreamEncoder>(
+    : impl_(std::make_unique<VideoStreamEncoderImpl>(
           env,
           number_of_cores,
           encoder_stats_observer,
