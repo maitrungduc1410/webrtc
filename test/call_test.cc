@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/functional/any_invocable.h"
 #include "api/audio/audio_device.h"
@@ -32,6 +33,7 @@
 #include "api/environment/environment.h"
 #include "api/environment/environment_factory.h"
 #include "api/field_trials.h"
+#include "api/field_trials_view.h"
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
@@ -63,6 +65,8 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
+#include "rtc_base/experiments/field_trial_parser.h"
+#include "rtc_base/experiments/rfc8888_congestion_control_feedback_experiment.h"
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/null_socket_server.h"
 #include "rtc_base/task_queue_for_test.h"
@@ -203,6 +207,21 @@ CreateTestEnvironmentOptions GetTestEnvironmentOptions(
     options.time = time_controller;
   }
   return options;
+}
+
+bool HasTransportSequenceNumberExtension(
+    std::span<const RtpExtension> extensions) {
+  return absl::c_any_of(extensions, [](const RtpExtension& ext) {
+    return ext.uri == RtpExtension::kTransportSequenceNumberUri ||
+           ext.uri == RtpExtension::kTransportSequenceNumberV2Uri;
+  });
+}
+
+bool IsOfferRfc8888Enabled(const FieldTrialsView& field_trials) {
+  FieldTrialParameter<bool> offer("offer", false);
+  ParseFieldTrial(
+      {&offer}, Rfc8888CongestionControlFeedbackFieldTrialString(field_trials));
+  return offer.Get();
 }
 }  // namespace
 
@@ -373,6 +392,17 @@ void CallTest::RunBaseTest(BaseTest* test) {
     if (num_flexfec_streams_ > 0) {
       test->ModifyFlexfecConfigs(&flexfec_receive_configs_);
     }
+
+    bool has_transport_seq_num =
+        (num_video_streams_ > 0 &&
+         absl::c_any_of(video_send_configs_,
+                        [](const VideoSendStream::Config& config) {
+                          return HasTransportSequenceNumberExtension(
+                              config.rtp.extensions);
+                        })) ||
+        (num_audio_streams_ > 0 && HasTransportSequenceNumberExtension(
+                                       audio_send_config_.rtp.extensions));
+    MaybeSetPreferredRtcpCcAckType(has_transport_seq_num);
 
     if (num_flexfec_streams_ > 0) {
       CreateFlexfecStreams();
@@ -843,6 +873,35 @@ void CallTest::CreateAudioStreams() {
         std::move(audio_receive_configs_[i])));
   }
   audio_receive_configs_.clear();
+}
+
+void CallTest::MaybeSetPreferredRtcpCcAckType(
+    bool has_transport_sequence_number) {
+  std::optional<RtcpFeedbackType> ack_type;
+  if (IsOfferRfc8888Enabled(send_env_.field_trials()) &&
+      IsRfc8888CongestionControlFeedbackEnabled(recv_env_.field_trials())) {
+    ack_type = RtcpFeedbackType::CCFB;
+  } else if (has_transport_sequence_number) {
+    ack_type = RtcpFeedbackType::TRANSPORT_CC;
+  }
+  if (!ack_type.has_value()) {
+    return;
+  }
+  auto set_ack_type = [ack_type = *ack_type](Call* call) {
+    if (!call) {
+      return;
+    }
+    TaskQueueBase* network_queue = call->network_thread();
+    if (network_queue->IsCurrent()) {
+      call->SetPreferredRtcpCcAckType(ack_type);
+    } else {
+      SendTask(network_queue, [call, ack_type]() {
+        call->SetPreferredRtcpCcAckType(ack_type);
+      });
+    }
+  };
+  set_ack_type(sender_call_.get());
+  set_ack_type(receiver_call_.get());
 }
 
 void CallTest::CreateFlexfecStreams() {

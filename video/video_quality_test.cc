@@ -1365,6 +1365,7 @@ void VideoQualityTest::RunWithAnalyzer(const Params& params) {
                             params_.audio.use_real_adm);
 
     CreateCalls(std::move(send_call_config), std::move(recv_call_config));
+    MaybeSetPreferredRtcpCcAckType(params_.call.send_side_bwe);
     send_transport = CreateSendTransport();
     recv_transport = CreateReceiveTransport();
   });
@@ -1591,6 +1592,7 @@ void VideoQualityTest::RunWithRenderers(const Params& params) {
                             params_.audio.use_real_adm);
 
     CreateCalls(std::move(send_call_config), std::move(recv_call_config));
+    MaybeSetPreferredRtcpCcAckType(params_.call.send_side_bwe);
 
     // TODO(minyue): consider if this is a good transport even for audio only
     // calls.

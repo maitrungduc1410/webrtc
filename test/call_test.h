@@ -194,6 +194,8 @@ class CallTest : public ::testing::Test, public RtpPacketSinkInterface {
   void CreateAudioStreams();
   void CreateFlexfecStreams();
 
+  void MaybeSetPreferredRtcpCcAckType(bool has_transport_sequence_number);
+
   // Receiver call must be created before calling CreateSendTransport in order
   // to set a receiver.
   // Rtp header extensions must be registered (RegisterRtpExtension(..)) before

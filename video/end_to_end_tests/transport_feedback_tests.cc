@@ -31,6 +31,8 @@
 #include "call/video_send_stream.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/common_header.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet.h"
 #include "rtc_base/checks.h"
@@ -501,6 +503,58 @@ TEST_F(TransportFeedbackEndToEndTest, TransportSeqNumOnAudioAndVideo) {
   // Double check conditions for successful test to produce better error
   // message when the test fail.
   test.ExpectSuccessful();
+}
+
+TEST_F(TransportFeedbackEndToEndTest,
+       VideoReceivesCongestionControlFeedbackWhenOfferEnabled) {
+  field_trials().Set("WebRTC-RFC8888CongestionControlFeedback",
+                     "Enabled,offer:true");
+
+  class CcfbFeedbackTest : public test::EndToEndTest {
+   public:
+    CcfbFeedbackTest()
+        : EndToEndTest(test::VideoTestConstants::kDefaultTimeout) {}
+
+    void OnCallsCreated(Call* sender_call, Call* /*receiver_call*/) override {
+      sender_call_ = sender_call;
+    }
+
+    void OnVideoStreamsCreated(
+        VideoSendStream* /*send_stream*/,
+        const std::vector<VideoReceiveStreamInterface*>& /*receive_streams*/)
+        override {
+      ASSERT_NE(sender_call_, nullptr);
+      EXPECT_TRUE(sender_call_->FeedbackAccordingToRfc8888Count().has_value());
+      EXPECT_FALSE(
+          sender_call_->FeedbackAccordingToTransportCcCount().has_value());
+    }
+
+    Action OnReceiveRtcp(std::span<const uint8_t> data) override {
+      rtcp::CommonHeader header;
+      const uint8_t* next = data.data();
+      const uint8_t* end = data.data() + data.size();
+      while (next < end && header.Parse(next, end - next)) {
+        if (header.type() == rtcp::CongestionControlFeedback::kPacketType &&
+            header.fmt() ==
+                rtcp::CongestionControlFeedback::kFeedbackMessageType) {
+          observation_complete_.Set();
+          break;
+        }
+        next = header.NextPacket();
+      }
+      return SEND_PACKET;
+    }
+
+    void PerformTest() override {
+      EXPECT_TRUE(Wait())
+          << "Timed out waiting for RFC 8888 congestion control feedback.";
+    }
+
+   private:
+    Call* sender_call_ = nullptr;
+  } test;
+
+  RunBaseTest(&test);
 }
 }  // namespace
 }  // namespace webrtc
