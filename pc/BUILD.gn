@@ -2751,6 +2751,7 @@ if (rtc_include_tests && !build_with_chromium) {
       "../api/environment",
       "../call:rtp_receiver",
       "../media:rtc_media_tests_utils",
+      "../p2p:dtls_transport",
       "../p2p:dtls_transport_internal",
       "../p2p:fake_ice_transport",
       "../p2p:ice_transport_internal",

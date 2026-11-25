@@ -40,6 +40,7 @@
 #include "p2p/base/p2p_constants.h"
 #include "p2p/base/packet_transport_internal.h"
 #include "p2p/base/transport_description.h"
+#include "p2p/dtls/dtls_transport.h"
 #include "p2p/dtls/dtls_transport_internal.h"
 #include "p2p/dtls/fake_dtls_transport.h"
 #include "p2p/test/fake_ice_transport.h"
@@ -107,6 +108,7 @@ scoped_refptr<IceTransportInterface> CreateIceTransport(
 
 struct JsepTransportTestOptions {
   bool rtcp_mux_enabled = true;
+  bool use_fake_dtls_transport = false;
   scoped_refptr<RTCCertificate> certificate;
   absl::AnyInvocable<void()> rtcp_mux_active_callback = [] {};
 };
@@ -116,19 +118,32 @@ JsepTransport MakeJsepTransport(const Environment& env,
   auto ice_internal = std::make_unique<FakeIceTransportInternal>(
       env, kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
   auto ice = CreateIceTransport(std::move(ice_internal));
-  auto rtp_dtls_transport = std::make_unique<FakeDtlsTransport>(ice);
+  std::unique_ptr<DtlsTransportInternal> rtp_dtls_transport;
+  if (options.use_fake_dtls_transport) {
+    rtp_dtls_transport = std::make_unique<FakeDtlsTransport>(ice);
+  } else {
+    rtp_dtls_transport =
+        std::make_unique<DtlsTransportInternalImpl>(env, ice, CryptoOptions());
+  }
   if (options.certificate != nullptr) {
     rtp_dtls_transport->SetLocalCertificate(options.certificate);
   }
 
-  std::unique_ptr<FakeIceTransportInternal> rtcp_ice_internal;
-  std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
-  scoped_refptr<IceTransportInterface> rtcp_ice;
+  std::unique_ptr<DtlsTransportInternal> rtcp_dtls_transport;
   if (!options.rtcp_mux_enabled) {
-    rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
+    auto rtcp_ice_internal = std::make_unique<FakeIceTransportInternal>(
         env, kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
-    rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
-    rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
+    scoped_refptr<IceTransportInterface> rtcp_ice =
+        CreateIceTransport(std::move(rtcp_ice_internal));
+    if (options.use_fake_dtls_transport) {
+      rtcp_dtls_transport = std::make_unique<FakeDtlsTransport>(rtcp_ice);
+    } else {
+      rtcp_dtls_transport = std::make_unique<DtlsTransportInternalImpl>(
+          env, rtcp_ice, CryptoOptions());
+    }
+    if (options.certificate != nullptr) {
+      rtcp_dtls_transport->SetLocalCertificate(options.certificate);
+    }
   }
 
   DtlsTransportInternal* rtp_dtls_transport_ptr = rtp_dtls_transport.get();
@@ -189,9 +204,10 @@ class JsepTransport2Test : public ::testing::Test {
   std::unique_ptr<JsepTransport> CreateJsepTransport2(bool rtcp_mux_enabled) {
     signal_rtcp_mux_active_received_ = false;
     // JsepTransport is not movable. To construct it as unique_ptr from
-    // the value, use raw new and rely on guaranteed copy eilision.
+    // the value, use raw new and rely on guaranteed copy elision.
     return absl::WrapUnique(new JsepTransport(
         MakeJsepTransport(env_, {.rtcp_mux_enabled = rtcp_mux_enabled,
+                                 .use_fake_dtls_transport = true,
                                  .rtcp_mux_active_callback = [&]() {
                                    signal_rtcp_mux_active_received_ = true;
                                  }})));
