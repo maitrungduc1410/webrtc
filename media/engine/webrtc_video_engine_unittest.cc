@@ -4711,7 +4711,7 @@ TEST_F(WebRtcVideoChannelTest, FlexfecSendCodecWithoutSsrcNotExposedByDefault) {
   const VideoSendStream::Config& config = stream->GetConfig();
 
   EXPECT_EQ(-1, config.rtp.flexfec.payload_type);
-  EXPECT_EQ(0U, config.rtp.flexfec.ssrc);
+  EXPECT_EQ(std::nullopt, config.rtp.flexfec.ssrc);
   EXPECT_TRUE(config.rtp.flexfec.protected_media_ssrcs.empty());
 }
 
@@ -4721,7 +4721,7 @@ TEST_F(WebRtcVideoChannelTest, FlexfecSendCodecWithSsrcNotExposedByDefault) {
   const VideoSendStream::Config& config = stream->GetConfig();
 
   EXPECT_EQ(-1, config.rtp.flexfec.payload_type);
-  EXPECT_EQ(0U, config.rtp.flexfec.ssrc);
+  EXPECT_EQ(std::nullopt, config.rtp.flexfec.ssrc);
   EXPECT_TRUE(config.rtp.flexfec.protected_media_ssrcs.empty());
 }
 
@@ -4919,7 +4919,7 @@ TEST_F(WebRtcVideoChannelFlexfecSendRecvTest, SetDefaultSendCodecsWithoutSsrc) {
   const VideoSendStream::Config& config = stream->GetConfig();
 
   EXPECT_EQ(GetEngineCodec("flexfec-03").id, config.rtp.flexfec.payload_type);
-  EXPECT_EQ(0U, config.rtp.flexfec.ssrc);
+  EXPECT_EQ(std::nullopt, config.rtp.flexfec.ssrc);
   EXPECT_TRUE(config.rtp.flexfec.protected_media_ssrcs.empty());
 }
 
@@ -4930,6 +4930,18 @@ TEST_F(WebRtcVideoChannelFlexfecSendRecvTest, SetDefaultSendCodecsWithSsrc) {
 
   EXPECT_EQ(GetEngineCodec("flexfec-03").id, config.rtp.flexfec.payload_type);
   EXPECT_EQ(kFlexfecSsrc, config.rtp.flexfec.ssrc);
+  ASSERT_EQ(1U, config.rtp.flexfec.protected_media_ssrcs.size());
+  EXPECT_EQ(kSsrcs1[0], config.rtp.flexfec.protected_media_ssrcs[0]);
+}
+
+TEST_F(WebRtcVideoChannelFlexfecSendRecvTest,
+       SetDefaultSendCodecsWithSsrcZero) {
+  FakeVideoSendStream* stream =
+      AddSendStream(CreatePrimaryWithFecFrStreamParams("cname", kSsrcs1[0], 0));
+  const VideoSendStream::Config& config = stream->GetConfig();
+
+  EXPECT_EQ(GetEngineCodec("flexfec-03").id, config.rtp.flexfec.payload_type);
+  EXPECT_EQ(0u, config.rtp.flexfec.ssrc);
   ASSERT_EQ(1U, config.rtp.flexfec.protected_media_ssrcs.size());
   EXPECT_EQ(kSsrcs1[0], config.rtp.flexfec.protected_media_ssrcs[0]);
 }
@@ -5016,7 +5028,7 @@ TEST_F(WebRtcVideoChannelFlexfecRecvTest,
   const VideoSendStream::Config& config = stream->GetConfig();
 
   EXPECT_EQ(-1, config.rtp.flexfec.payload_type);
-  EXPECT_EQ(0u, config.rtp.flexfec.ssrc);
+  EXPECT_EQ(std::nullopt, config.rtp.flexfec.ssrc);
   EXPECT_TRUE(config.rtp.flexfec.protected_media_ssrcs.empty());
 }
 
@@ -5032,7 +5044,7 @@ TEST_F(WebRtcVideoChannelFlexfecRecvTest,
   const VideoSendStream::Config& config = stream->GetConfig();
 
   EXPECT_EQ(-1, config.rtp.flexfec.payload_type);
-  EXPECT_EQ(0u, config.rtp.flexfec.ssrc);
+  EXPECT_EQ(std::nullopt, config.rtp.flexfec.ssrc);
   EXPECT_TRUE(config.rtp.flexfec.protected_media_ssrcs.empty());
 }
 

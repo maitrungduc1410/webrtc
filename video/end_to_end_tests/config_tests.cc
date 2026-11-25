@@ -44,7 +44,7 @@ void VerifyEmptyUlpfecConfig(const UlpfecConfig& config) {
 void VerifyEmptyFlexfecConfig(const RtpConfig::Flexfec& config) {
   EXPECT_EQ(-1, config.payload_type)
       << "Enabling FlexFEC requires rtpmap: flexfec negotiation.";
-  EXPECT_EQ(0U, config.ssrc)
+  EXPECT_EQ(std::nullopt, config.ssrc)
       << "Enabling FlexFEC requires ssrc-group: FEC-FR negotiation.";
   EXPECT_TRUE(config.protected_media_ssrcs.empty())
       << "Enabling FlexFEC requires ssrc-group: FEC-FR negotiation.";

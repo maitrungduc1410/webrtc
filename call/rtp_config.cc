@@ -144,7 +144,9 @@ std::string RtpConfig::ToString() const {
   ss << ']';
 
   ss << ", flexfec: {payload_type: " << flexfec.payload_type;
-  ss << ", ssrc: " << flexfec.ssrc;
+  if (flexfec.ssrc.has_value()) {
+    ss << ", ssrc: " << *flexfec.ssrc;
+  }
   ss << ", protected_media_ssrcs: [";
   for (size_t i = 0; i < flexfec.protected_media_ssrcs.size(); ++i) {
     ss << flexfec.protected_media_ssrcs[i];

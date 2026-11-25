@@ -152,7 +152,7 @@ struct RtpConfig {
     int payload_type = -1;
 
     // SSRC of FlexFEC stream.
-    uint32_t ssrc = 0;
+    std::optional<uint32_t> ssrc;
 
     // Vector containing a single element, corresponding to the SSRC of the
     // media stream being protected by this FlexFEC stream.

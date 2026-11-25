@@ -169,7 +169,7 @@ std::unique_ptr<VideoFecGenerator> MaybeCreateFecGenerator(
   if (rtp.flexfec.payload_type >= 0) {
     RTC_DCHECK_GE(rtp.flexfec.payload_type, 0);
     RTC_DCHECK_LE(rtp.flexfec.payload_type, 127);
-    if (rtp.flexfec.ssrc == 0) {
+    if (!rtp.flexfec.ssrc.has_value()) {
       RTC_LOG(LS_WARNING) << "FlexFEC is enabled, but no FlexFEC SSRC given. "
                              "Therefore disabling FlexFEC.";
       return nullptr;
@@ -198,14 +198,14 @@ std::unique_ptr<VideoFecGenerator> MaybeCreateFecGenerator(
     }
 
     const RtpState* rtp_state = nullptr;
-    auto it = suspended_ssrcs.find(rtp.flexfec.ssrc);
+    auto it = suspended_ssrcs.find(*rtp.flexfec.ssrc);
     if (it != suspended_ssrcs.end()) {
       rtp_state = &it->second;
     }
 
     RTC_DCHECK_EQ(1U, rtp.flexfec.protected_media_ssrcs.size());
     return std::make_unique<FlexfecSender>(
-        env, rtp.flexfec.payload_type, rtp.flexfec.ssrc,
+        env, rtp.flexfec.payload_type, *rtp.flexfec.ssrc,
         rtp.flexfec.protected_media_ssrcs[0], rtp.mid, rtp.extensions,
         RTPSender::FecExtensionSizes(), rtp_state);
   } else if (rtp.ulpfec.red_payload_type >= 0 &&
@@ -792,7 +792,8 @@ std::map<uint32_t, RtpState> RtpVideoSender::GetRtpStates() const {
       std::optional<RtpState> fec_state =
           rtp_streams_[i].fec_generator->GetRtpState();
       if (fec_state) {
-        uint32_t fec_ssrc = rtp_config_.flexfec.ssrc;
+        RTC_DCHECK(rtp_config_.flexfec.ssrc.has_value());
+        uint32_t fec_ssrc = *rtp_config_.flexfec.ssrc;
         rtp_states[fec_ssrc] = *fec_state;
       }
     }

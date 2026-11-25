@@ -1982,4 +1982,42 @@ TEST(RtpVideoSenderTest, FrameIdMatchesRtpTimestampOffset) {
   EXPECT_EQ(result.error, EncodedImageCallback::Result::OK);
   EXPECT_EQ(result.frame_id, encoded_image.RtpTimestamp() + offsets[1]);
 }
+
+TEST(RtpVideoSenderTest, FlexfecSsrcZeroCreatesFecGeneratorAndTracksRtpState) {
+  GlobalSimulatedTimeController time_controller(Timestamp::Millis(1000000));
+  Environment env = CreateTestEnvironment({.time = &time_controller});
+  NiceMock<MockTransport> transport;
+  VideoSendStream::Config config = CreateVideoSendStreamConfig(
+      &transport, {kSsrc1}, {kRtxSsrc1}, kPayloadType, {}, {});
+  config.rtp.flexfec.payload_type = 118;
+  config.rtp.flexfec.ssrc = 0;
+  config.rtp.flexfec.protected_media_ssrcs = {kSsrc1};
+  EXPECT_TRUE(config.rtp.IsFlexfecSsrc(0));
+
+  BitrateConstraints bitrate_config = GetBitrateConfig();
+  RtpTransportControllerSend transport_controller(
+      RtpTransportConfig{.env = env,
+                         .bitrate_config = bitrate_config,
+                         .network_thread = time_controller.GetMainThread()});
+  transport_controller.EnsureStarted();
+  SendStatisticsProxy stats_proxy(
+      env, config, VideoEncoderConfig::ContentType::kRealtimeVideo);
+  MockRtcpIntraFrameObserver encoder_feedback;
+  std::map<uint32_t, RtpState> suspended_ssrcs;
+  std::map<uint32_t, RtpPayloadState> suspended_payload_states;
+
+  RtpVideoSender router(
+      env, time_controller.GetMainThread(), suspended_ssrcs,
+      suspended_payload_states, config.rtp, config.rtcp_report_interval_ms,
+      &transport,
+      CreateObservers(&encoder_feedback, &stats_proxy, &stats_proxy,
+                      &stats_proxy, nullptr, &stats_proxy),
+      &transport_controller, std::make_unique<FecControllerDefault>(env),
+      nullptr, CryptoOptions{}, nullptr);
+
+  std::map<uint32_t, RtpState> states = router.GetRtpStates();
+  EXPECT_TRUE(states.contains(kSsrc1));
+  EXPECT_TRUE(states.contains(0u));
+}
+
 }  // namespace webrtc
