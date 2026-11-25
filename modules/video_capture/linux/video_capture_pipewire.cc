@@ -27,7 +27,6 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -39,6 +38,7 @@
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/portal/pipewire_utils.h"
 #include "modules/video_capture/linux/pipewire_session.h"
+#include "modules/video_capture/linux/pipewire_video_sizes.h"
 #include "modules/video_capture/video_capture_defines.h"
 #include "modules/video_capture/video_capture_impl.h"
 #include "modules/video_capture/video_capture_options.h"
@@ -254,8 +254,9 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
   spa_fraction frame_rate = {.num = static_cast<uint32_t>(capability.maxFPS),
                              .denom = 1};
   if (capability.maxFPSNumerator && capability.maxFPSDenominator) {
-    RTC_DCHECK(capability.maxFPS == std::ceil(1.0 * capability.maxFPSNumerator /
-                                              capability.maxFPSDenominator));
+    RTC_DCHECK(RoundedUpRate({.num = capability.maxFPSNumerator,
+                              .denom = capability.maxFPSDenominator}) ==
+               capability.maxFPS);
     frame_rate = {.num = capability.maxFPSNumerator,
                   .denom = capability.maxFPSDenominator};
   }
@@ -335,13 +336,14 @@ void VideoCaptureModulePipeWire::OnStreamParamChanged(
 static void SetMaxFPSFromFractions(const spa_fraction& framerate,
                                    const spa_fraction& max_framerate,
                                    VideoCaptureCapability& capability) {
+  // A rate that does not fit in maxFPS is not used either.
   spa_fraction selected = {.num = 30, .denom = 1};
-  if (framerate.num && framerate.denom) {
+  if (framerate.num && RoundedUpRate(framerate)) {
     selected = framerate;
-  } else if (max_framerate.num && max_framerate.denom) {
+  } else if (max_framerate.num && RoundedUpRate(max_framerate)) {
     selected = max_framerate;
   }
-  capability.maxFPS = std::ceil(1.0 * selected.num / selected.denom);
+  capability.maxFPS = *RoundedUpRate(selected);
   capability.maxFPSNumerator = selected.num;
   capability.maxFPSDenominator = selected.denom;
 }

@@ -25,7 +25,6 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -60,6 +59,19 @@ constexpr int kMaxReconnectDelayMs = 30000;
 // Checks that the pod matches the expected type and is large enough to hold it.
 static bool SpaValueIsType(const spa_pod* val, uint32_t type) {
   return val->type == type && val->size >= spa_pod_type_size(type);
+}
+
+// Sets the frame rate of |cap| to |rate|, unless the rate has a zero
+// denominator or does not fit in maxFPS.
+static void SetCapabilityFrameRate(const spa_fraction& rate,
+                                   VideoCaptureCapability& cap) {
+  const std::optional<int32_t> fps = RoundedUpRate(rate);
+  if (!fps) {
+    return;
+  }
+  cap.maxFPS = *fps;
+  cap.maxFPSNumerator = rate.num;
+  cap.maxFPSDenominator = rate.denom;
 }
 
 VideoType PipeWireRawFormatToVideoType(uint32_t id) {
@@ -200,6 +212,7 @@ void PipeWireNode::OnNodeParam(void* data,
   VideoCaptureCapability cap;
   spa_pod* val;
   uint32_t n_items, choice;
+  std::vector<spa_fraction> range_rates;
 
   cap.videoType = VideoType::kUnknown;
   cap.maxFPS = 0;
@@ -212,29 +225,16 @@ void PipeWireNode::OnNodeParam(void* data,
 
       fract = static_cast<spa_fraction*>(SPA_POD_BODY(val));
 
-      if (choice == SPA_CHOICE_None && n_items >= 1 && fract[0].denom) {
-        cap.maxFPS = std::ceil(1.0 * fract[0].num / fract[0].denom);
-        cap.maxFPSNumerator = fract[0].num;
-        cap.maxFPSDenominator = fract[0].denom;
-      } else if (choice == SPA_CHOICE_Enum && n_items >= 2) {
-        double max_fps = 0.0;
-        for (uint32_t i = 1; i < n_items; i++) {
-          if (!fract[i].denom) {
-            continue;
-          }
-          const double fps = 1.0 * fract[i].num / fract[i].denom;
-          if (fps > max_fps || !cap.maxFPSDenominator) {
-            max_fps = fps;
-            cap.maxFPSNumerator = fract[i].num;
-            cap.maxFPSDenominator = fract[i].denom;
-          }
+      if (choice == SPA_CHOICE_None && n_items >= 1) {
+        SetCapabilityFrameRate(fract[0], cap);
+      } else if (choice == SPA_CHOICE_Enum) {
+        const std::optional<spa_fraction> rate =
+            GetPipeWireEnumFrameRate(&prop->value);
+        if (rate) {
+          SetCapabilityFrameRate(*rate, cap);
         }
-        cap.maxFPS = static_cast<int32_t>(std::ceil(max_fps));
-      } else if (choice == SPA_CHOICE_Range && n_items >= 2 &&
-                 fract[1].num > 0 && fract[1].denom) {
-        cap.maxFPS = std::ceil(1.0 * fract[1].num / fract[1].denom);
-        cap.maxFPSNumerator = fract[1].num;
-        cap.maxFPSDenominator = fract[1].denom;
+      } else if (choice == SPA_CHOICE_Range) {
+        range_rates = GetPipeWireRangeFrameRates(&prop->value);
       }
     }
   }
@@ -250,16 +250,25 @@ void PipeWireNode::OnNodeParam(void* data,
   if (!ParseFormat(param, &cap))
     return;
 
+  // Without a range, a single capability keeps the rate parsed above.
+  const size_t n_caps = range_rates.empty() ? 1 : range_rates.size();
+
   for (const spa_rectangle& size : sizes) {
     cap.width = size.width;
     cap.height = size.height;
 
-    RTC_LOG(LS_VERBOSE) << "Found Format(" << that->display_name_
-                        << "): " << static_cast<int>(cap.videoType) << "("
-                        << cap.width << "x" << cap.height << "@" << cap.maxFPS
-                        << ")";
+    for (size_t i = 0; i < n_caps; i++) {
+      if (!range_rates.empty()) {
+        SetCapabilityFrameRate(range_rates[i], cap);
+      }
 
-    that->pending_capabilities_.push_back(cap);
+      RTC_LOG(LS_VERBOSE) << "Found Format(" << that->display_name_
+                          << "): " << static_cast<int>(cap.videoType) << "("
+                          << cap.width << "x" << cap.height << "@" << cap.maxFPS
+                          << ")";
+
+      that->pending_capabilities_.push_back(cap);
+    }
   }
 }
 

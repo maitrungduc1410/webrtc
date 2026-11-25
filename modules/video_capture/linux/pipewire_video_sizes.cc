@@ -14,8 +14,11 @@
 #include <spa/utils/type.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <limits>
+#include <optional>
 #include <vector>
 
 namespace webrtc {
@@ -77,7 +80,31 @@ static std::vector<spa_rectangle> SizesInRange(const spa_rectangle& def,
   return sizes;
 }
 
+// Returns whether the rate |a| is lower than or equal to the rate |b|.
+static bool FractionLessOrEqual(const spa_fraction& a, const spa_fraction& b) {
+  return static_cast<uint64_t>(a.num) * b.denom <=
+         static_cast<uint64_t>(b.num) * a.denom;
+}
+
+// Returns whether |rate| rounds up to INT32_MAX or more, or has a zero
+// denominator.
+static bool RoundsUpToInt32Max(const spa_fraction& rate) {
+  const std::optional<int32_t> fps = RoundedUpRate(rate);
+  return !fps || *fps == std::numeric_limits<int32_t>::max();
+}
+
 }  // namespace
+
+std::optional<int32_t> RoundedUpRate(const spa_fraction& rate) {
+  if (rate.denom == 0) {
+    return std::nullopt;
+  }
+  const double rounded = std::ceil(static_cast<double>(rate.num) / rate.denom);
+  if (rounded > std::numeric_limits<int32_t>::max()) {
+    return std::nullopt;
+  }
+  return static_cast<int32_t>(rounded);
+}
 
 std::vector<spa_rectangle> GetPipeWireVideoSizes(const spa_pod* value) {
   uint32_t n_items, choice;
@@ -102,6 +129,84 @@ std::vector<spa_rectangle> GetPipeWireVideoSizes(const spa_pod* value) {
         choice == SPA_CHOICE_Step && n_items >= 4 ? &rect[3] : nullptr);
   }
   return sizes;
+}
+
+std::vector<spa_fraction> GetPipeWireRangeFrameRates(const spa_pod* value) {
+  uint32_t n_items, choice;
+  spa_pod* val = spa_pod_get_values(value, &n_items, &choice);
+  // The values are read as an array of spa_fraction.
+  if (val->type != SPA_TYPE_Fraction || val->size != sizeof(spa_fraction) ||
+      choice != SPA_CHOICE_Range || n_items < 3) {
+    return {};
+  }
+  // The values of a range are its default, its minimum and its maximum.
+  const auto* fract = static_cast<const spa_fraction*>(SPA_POD_BODY(val));
+  const spa_fraction& def = fract[0];
+  const spa_fraction& min = fract[1];
+  const spa_fraction& max = fract[2];
+  if (!min.denom || !max.denom || !max.num) {
+    return {};
+  }
+  // A maximum whose rate rounds up to INT32_MAX or more is taken as no upper
+  // bound. Such a range offers its minimum alone, or no rate when the minimum
+  // is zero or too large as well, as for the {25; 0..INT32_MAX} that
+  // videotestsrc advertises.
+  if (RoundsUpToInt32Max(max)) {
+    if (!min.num || RoundsUpToInt32Max(min)) {
+      return {};
+    }
+    return {min};
+  }
+  if (!FractionLessOrEqual(min, max)) {
+    return {};
+  }
+  // As for sizes, a default outside the range is left out, and the bounds
+  // are still offered.
+  std::vector<spa_fraction> candidates = {min, max};
+  if (def.denom && FractionLessOrEqual(min, def) &&
+      FractionLessOrEqual(def, max)) {
+    candidates.insert(candidates.begin(), def);
+  }
+  std::vector<spa_fraction> rates;
+  for (const spa_fraction& rate : candidates) {
+    if (!rate.num) {
+      continue;
+    }
+    auto same = std::find_if(rates.begin(), rates.end(),
+                             [&rate](const spa_fraction& r) {
+                               return RoundedUpRate(r) == RoundedUpRate(rate);
+                             });
+    if (same == rates.end()) {
+      rates.push_back(rate);
+    } else if (!FractionLessOrEqual(rate, *same)) {
+      *same = rate;
+    }
+  }
+  return rates;
+}
+
+std::optional<spa_fraction> GetPipeWireEnumFrameRate(const spa_pod* value) {
+  uint32_t n_items, choice;
+  spa_pod* val = spa_pod_get_values(value, &n_items, &choice);
+  // The values are read as an array of spa_fraction.
+  if (val->type != SPA_TYPE_Fraction || val->size != sizeof(spa_fraction) ||
+      choice != SPA_CHOICE_Enum || n_items < 2) {
+    return std::nullopt;
+  }
+  // The first value of an enum is its default; the alternatives follow. An
+  // alternative that does not fit in maxFPS is skipped, so that it does not
+  // hide one that does.
+  const auto* fract = static_cast<const spa_fraction*>(SPA_POD_BODY(val));
+  std::optional<spa_fraction> max_rate;
+  for (uint32_t i = 1; i < n_items; i++) {
+    if (!RoundedUpRate(fract[i])) {
+      continue;
+    }
+    if (!max_rate || !FractionLessOrEqual(fract[i], *max_rate)) {
+      max_rate = fract[i];
+    }
+  }
+  return max_rate;
 }
 
 }  // namespace videocapturemodule
