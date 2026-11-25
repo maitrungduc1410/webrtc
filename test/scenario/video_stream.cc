@@ -575,7 +575,7 @@ ReceiveVideoStream::ReceiveVideoStream(CallClient* receiver,
       flexfec.payload_type = VideoTestConstants::kFlexfecPayloadType;
       flexfec.remote_ssrc = VideoTestConstants::kFlexfecSendSsrc;
       flexfec.protected_media_ssrcs = send_stream->rtx_ssrcs_;
-      receiver_->ssrc_media_types_[flexfec.remote_ssrc] = MediaType::VIDEO;
+      receiver_->ssrc_media_types_[*flexfec.remote_ssrc] = MediaType::VIDEO;
 
       receiver_->SendTask([this, &flexfec] {
         flecfec_stream_ = receiver_->call_->CreateFlexfecReceiveStream(flexfec);

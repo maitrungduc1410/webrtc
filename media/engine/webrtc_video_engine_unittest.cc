@@ -4988,6 +4988,20 @@ TEST_F(WebRtcVideoChannelFlexfecRecvTest, SetRecvCodecsWithFec) {
   EXPECT_EQ(video_stream_config.rtp.rtcp_mode, flexfec_stream_config.rtcp_mode);
 }
 
+TEST_F(WebRtcVideoChannelFlexfecRecvTest, SetRecvCodecsWithFecSsrcZero) {
+  AddRecvStream(CreatePrimaryWithFecFrStreamParams("cname", kSsrcs1[0], 0));
+
+  VideoReceiverParameters recv_parameters;
+  recv_parameters.codecs.push_back(GetEngineCodec("VP8"));
+  recv_parameters.codecs.push_back(GetEngineCodec("flexfec-03"));
+  ASSERT_TRUE(receive_channel_->SetReceiverParameters(recv_parameters));
+
+  const std::vector<FakeFlexfecReceiveStream*>& flexfec_streams =
+      fake_call_->GetFlexfecReceiveStreams();
+  ASSERT_EQ(1U, flexfec_streams.size());
+  EXPECT_EQ(0u, flexfec_streams.front()->GetConfig().remote_ssrc);
+}
+
 // We should not send FlexFEC, even if we advertise it, unless the right
 // field trial is set.
 // TODO(brandtr): Remove when FlexFEC is enabled by default.

@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -46,7 +47,7 @@ class FlexfecReceiveStream : public RtpPacketSinkInterface,
     // Synchronization source (stream identifier) to be received.
     // This member will not change mid-stream and can be assumed to be const
     // post initialization.
-    uint32_t remote_ssrc = 0;
+    std::optional<uint32_t> remote_ssrc;
 
     // Vector containing a single element, corresponding to the SSRC of the
     // media stream being protected by this FlexFEC stream. The vector MUST have

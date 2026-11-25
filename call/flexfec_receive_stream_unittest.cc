@@ -79,6 +79,10 @@ TEST(FlexfecReceiveStreamConfigTest, IsCompleteAndEnabled) {
 
   config.protected_media_ssrcs.push_back(33423423);
   EXPECT_FALSE(config.IsCompleteAndEnabled());
+
+  config.protected_media_ssrcs = {138989393};
+  config.remote_ssrc = 0;
+  EXPECT_TRUE(config.IsCompleteAndEnabled());
 }
 
 class FlexfecReceiveStreamTest : public ::testing::Test {
@@ -157,6 +161,51 @@ TEST_F(FlexfecReceiveStreamTest, RecoversPacket) {
 TEST_F(FlexfecReceiveStreamTest, LogsReceivedPacketToEventLog) {
   EXPECT_CALL(log_, LogProxy);
   receive_stream_->OnRtpPacket(RtpPacketReceived());
+}
+
+TEST(FlexfecReceiveStreamSsrcZeroTest, RecoversPacketWithSsrcZero) {
+  test::RunLoop main_thread;
+  MockTransport rtcp_send_transport;
+  MockRtcEventLog log;
+  MockRecoveredPacketReceiver recovered_packet_receiver;
+  MockRtcpRttStats rtt_stats;
+  RtpStreamReceiverController controller(main_thread.task_queue());
+
+  FlexfecReceiveStream::Config config(&rtcp_send_transport);
+  config.payload_type = kFlexfecPlType;
+  config.remote_ssrc = 0;
+  config.protected_media_ssrcs = {
+      ByteReader<uint32_t>::ReadBigEndian(kMediaSsrc)};
+  ASSERT_TRUE(config.IsCompleteAndEnabled());
+
+  FlexfecReceiveStreamImpl receive_stream(
+      CreateTestEnvironment({.event_log = &log}), config,
+      &recovered_packet_receiver, /*packet_router=*/nullptr, &rtt_stats);
+  receive_stream.RegisterWithTransport(&controller);
+
+  constexpr uint8_t kKBit0 = 1 << 7;
+  // clang-format off
+  constexpr uint8_t kFlexfecPacket[] = {
+      // RTP header with SSRC 0.
+      0x80, kFlexfecPlType, 0x00, 0x01,
+      0x00, 0x11, 0x22, 0x33,
+      0x00, 0x00, 0x00, 0x00,
+      // FlexFEC header.
+      0x00, 107, 0x00, 0x04,
+      0xaa, 0xbb, 0xcc, 0xdd,
+      1, 0x00, 0x00, 0x00,
+      kMediaSsrc[0], kMediaSsrc[1], kMediaSsrc[2], kMediaSsrc[3],
+      0x00, 0x02, kKBit0 | 0x00, 0x01,
+      // FEC payload.
+      0x00, 0x00, 0x00, 0x00};
+  // clang-format on
+
+  EXPECT_CALL(
+      recovered_packet_receiver,
+      OnRecoveredPacket(Property(&RtpPacketReceived::payload_size, Eq(4u))));
+  EXPECT_TRUE(controller.OnRtpPacket(ParsePacket(kFlexfecPacket)));
+
+  receive_stream.UnregisterFromTransport();
 }
 
 }  // namespace webrtc

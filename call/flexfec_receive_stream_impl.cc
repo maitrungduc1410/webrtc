@@ -11,6 +11,7 @@
 #include "call/flexfec_receive_stream_impl.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -33,7 +34,9 @@ namespace webrtc {
 std::string FlexfecReceiveStream::Config::ToString() const {
   StringBuilder ss;
   ss << "{payload_type: " << payload_type;
-  ss << ", remote_ssrc: " << remote_ssrc;
+  if (remote_ssrc.has_value()) {
+    ss << ", remote_ssrc: " << *remote_ssrc;
+  }
   ss << ", protected_media_ssrcs: [";
   size_t i = 0;
   for (; i + 1 < protected_media_ssrcs.size(); ++i)
@@ -49,7 +52,7 @@ bool FlexfecReceiveStream::Config::IsCompleteAndEnabled() const {
   if (payload_type < 0)
     return false;
   // Do we have the necessary SSRC information?
-  if (remote_ssrc == 0)
+  if (!remote_ssrc.has_value())
     return false;
   // TODO(brandtr): Update this check when we support multistream protection.
   if (protected_media_ssrcs.size() != 1u)
@@ -58,6 +61,11 @@ bool FlexfecReceiveStream::Config::IsCompleteAndEnabled() const {
 }
 
 namespace {
+
+uint32_t CheckedRemoteSsrc(const FlexfecReceiveStream::Config& config) {
+  RTC_CHECK(config.remote_ssrc.has_value());
+  return *config.remote_ssrc;
+}
 
 // TODO(brandtr): Update this function when we support multistream protection.
 std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
@@ -72,7 +80,7 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
   }
   RTC_DCHECK_GE(config.payload_type, 0);
   RTC_DCHECK_LE(config.payload_type, 127);
-  if (config.remote_ssrc == 0) {
+  if (!config.remote_ssrc.has_value()) {
     RTC_LOG(LS_WARNING)
         << "Invalid FlexFEC SSRC given. "
            "This FlexfecReceiveStream will therefore be useless.";
@@ -95,7 +103,7 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
   }
   RTC_DCHECK_EQ(1U, config.protected_media_ssrcs.size());
   return std::unique_ptr<FlexfecReceiver>(new FlexfecReceiver(
-      clock, config.remote_ssrc, config.protected_media_ssrcs[0],
+      clock, *config.remote_ssrc, config.protected_media_ssrcs[0],
       recovered_packet_receiver));
 }
 
@@ -108,7 +116,7 @@ FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
     PacketRouter* packet_router,
     RtcpRttStats* rtt_stats)
     : env_(env),
-      remote_ssrc_(config.remote_ssrc),
+      remote_ssrc_(CheckedRemoteSsrc(config)),
       payload_type_(config.payload_type),
       receiver_(MaybeCreateFlexfecReceiver(&env.clock(),
                                            config,
@@ -122,7 +130,7 @@ FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
            .outgoing_transport = config.rtcp_send_transport,
            .rtt_stats = rtt_stats,
            .rtcp_mode = config.rtcp_mode,
-           .remote_ssrc = config.remote_ssrc},
+           .remote_ssrc = remote_ssrc_},
           [packet_router] {
             // Use the same logic as for the video receiver.
             if (packet_router != nullptr) {

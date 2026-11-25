@@ -69,6 +69,7 @@
 #include "modules/rtp_rtcp/include/receive_statistics.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "rtc_base/buffer.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/network/sent_packet.h"
 #include "test/gmock.h"
@@ -373,7 +374,10 @@ class FakeFlexfecReceiveStream final : public FlexfecReceiveStream {
 
   const FlexfecReceiveStream::Config& GetConfig() const;
 
-  uint32_t remote_ssrc() const { return config_.remote_ssrc; }
+  uint32_t remote_ssrc() const {
+    RTC_DCHECK(config_.remote_ssrc.has_value());
+    return *config_.remote_ssrc;
+  }
 
   const ReceiveStatistics* GetStats() const override { return nullptr; }
 
