@@ -756,5 +756,25 @@ TEST_F(DataChannelControllerTest, ReopenChannelWhileClosing) {
   EXPECT_EQ(old_channel->state(), DataChannelInterface::DataState::kClosed);
 }
 
+// A rollback can remove the transport for the data m-section, and applying a
+// description again creates a new one. The controller uses that transport and
+// opens the streams of the existing channels on it.
+TEST_F(DataChannelControllerTest, UsesTransportCreatedAgainAfterRemoval) {
+  NiceMock<MockDataChannelTransport> transport;
+  NiceMock<MockDataChannelTransport> new_transport;
+  DataChannelControllerForTest dcc(pc_.get(), &transport);
+  RTCErrorOr<scoped_refptr<DataChannelInterface>> channel =
+      dcc.InternalCreateDataChannelWithProxy(
+          "label", InternalDataChannelInit({.negotiated = true, .id = 4}));
+  ASSERT_TRUE(channel.ok());
+
+  EXPECT_CALL(new_transport, OpenChannel(4, _))
+      .WillOnce(Return(RTCError::OK()));
+  network_thread_.BlockingCall([&] {
+    dcc.OnTransportChanged(nullptr);
+    dcc.OnTransportChanged(&new_transport);
+  });
+}
+
 }  // namespace
 }  // namespace webrtc

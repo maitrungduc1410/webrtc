@@ -152,7 +152,8 @@ class PeerConnectionSdpMethods {
   // Initializes the data channel transport for the peerconnection instance.
   // This will have the effect that `sctp_mid()` and `sctp_transport_name()`
   // will return a set value (even though it might be an empty string) and the
-  // dc transport will be initialized on the network thread.
+  // dc transport will be initialized on the network thread. Does nothing if
+  // the data channel transport is already set up for `mid`.
   virtual bool CreateDataChannelTransport(absl::string_view mid) = 0;
   // Tears down the data channel transport state and clears the `sctp_mid()` and
   // `sctp_transport_name()` properties.

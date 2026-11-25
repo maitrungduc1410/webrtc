@@ -2389,6 +2389,12 @@ void PeerConnection::OnSelectedCandidatePairChanged(
 bool PeerConnection::CreateDataChannelTransport(absl::string_view mid) {
   RTC_DCHECK_RUN_ON(signaling_thread());
   RTC_DCHECK(!sctp_mid().has_value() || mid == sctp_mid().value());
+  if (sctp_mid_s_ == mid) {
+    // Already set up. OnTransportChanged() follows changes of the transport
+    // for `mid`, e.g. when the m-section gets bundled, or when the transport
+    // is created again after a rollback removed it.
+    return true;
+  }
   RTC_LOG(LS_INFO) << "Creating data channel, mid=" << mid;
 
   std::optional<std::string> transport_name =

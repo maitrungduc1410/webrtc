@@ -305,10 +305,11 @@ void DataChannelController::TeardownDataChannelTransport_n(RTCError error) {
 void DataChannelController::OnTransportChanged(
     DataChannelTransportInterface* new_data_channel_transport) {
   RTC_DCHECK_RUN_ON(network_thread());
-  if (data_channel_transport_ &&
-      data_channel_transport_ != new_data_channel_transport) {
+  if (data_channel_transport_ != new_data_channel_transport) {
     // Changed which data channel transport is used for `sctp_mid_` (eg. now
-    // it's bundled).
+    // it's bundled), or the transport was created again after a rollback
+    // removed it. The data channel transport for a mid is only set up once,
+    // so this is where it gets the new transport.
     set_data_channel_transport(new_data_channel_transport);
   }
 }

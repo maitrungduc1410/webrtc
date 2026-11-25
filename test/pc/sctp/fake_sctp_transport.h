@@ -48,6 +48,7 @@ class FakeSctpTransport : public webrtc::SctpTransportInternal {
     return true;
   }
   bool OpenStream(int sid, webrtc::PriorityValue priority) override {
+    opened_streams_.push_back(sid);
     return true;
   }
   bool ResetStream(int sid) override { return true; }
@@ -77,12 +78,15 @@ class FakeSctpTransport : public webrtc::SctpTransportInternal {
     RTC_DCHECK(remote_port_);
     return *remote_port_;
   }
+  // The stream ids that OpenStream() was called with, in order.
+  const std::vector<int>& opened_streams() const { return opened_streams_; }
 
  private:
   webrtc::DtlsTransportInternal* dtls_transport_ = nullptr;
   std::optional<int> local_port_;
   std::optional<int> remote_port_;
   int max_message_size_;
+  std::vector<int> opened_streams_;
 };
 
 class FakeSctpTransportFactory : public webrtc::SctpTransportFactoryInterface {

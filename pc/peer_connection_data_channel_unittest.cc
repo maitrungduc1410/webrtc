@@ -16,6 +16,7 @@
 
 #include "absl/strings/string_view.h"
 #include "api/create_modular_peer_connection_factory.h"
+#include "api/data_channel_interface.h"
 #include "api/environment/environment.h"
 #include "api/jsep.h"
 #include "api/media_types.h"
@@ -42,6 +43,7 @@
 
 namespace webrtc {
 
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
@@ -330,6 +332,53 @@ TEST_P(PeerConnectionDataChannelTest, ObsoleteSdpSyntaxIfSet) {
   offer->ToString(&sdp);
   EXPECT_THAT(sdp, Not(HasSubstr(" UDP/DTLS/SCTP webrtc-datachannel")));
   EXPECT_THAT(sdp, HasSubstr("a=sctpmap:"));
+}
+
+// The data channel transport is set up once for the data m-section. Applying
+// later descriptions doesn't set it up again, which would open the streams of
+// the existing data channels again.
+TEST_P(PeerConnectionDataChannelTest, NegotiationDoesNotReopenSctpStreams) {
+  auto caller = CreatePeerConnection();
+  auto callee = CreatePeerConnection();
+  DataChannelInit init;
+  init.negotiated = true;
+  init.id = 1;
+  ASSERT_TRUE(caller->pc()->CreateDataChannelOrError("dc", &init).ok());
+
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+  FakeSctpTransport* transport =
+      caller->sctp_transport_factory()->last_fake_sctp_transport();
+  ASSERT_TRUE(transport);
+  EXPECT_THAT(transport->opened_streams(), ElementsAre(1));
+
+  ASSERT_TRUE(caller->ExchangeOfferAnswerWith(callee.get()));
+  EXPECT_EQ(transport,
+            caller->sctp_transport_factory()->last_fake_sctp_transport());
+  EXPECT_THAT(transport->opened_streams(), ElementsAre(1));
+}
+
+// A rollback removes the transport of a data m-section that the rolled back
+// description added. Applying the same description again creates a new
+// transport, which the existing data channels then use.
+TEST_F(PeerConnectionDataChannelUnifiedPlanTest,
+       DataChannelsUseTheTransportCreatedAfterRollback) {
+  auto caller = CreatePeerConnectionWithDataChannel();
+  auto callee = CreatePeerConnection();
+  DataChannelInit init;
+  init.negotiated = true;
+  init.id = 1;
+  ASSERT_TRUE(callee->pc()->CreateDataChannelOrError("dc", &init).ok());
+
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      caller->CreateOfferAndSetAsLocal();
+  ASSERT_TRUE(callee->SetRemoteDescription(offer->Clone()));
+  ASSERT_TRUE(callee->SetRemoteDescription(callee->CreateRollback()));
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+  FakeSctpTransport* transport =
+      callee->sctp_transport_factory()->last_fake_sctp_transport();
+  ASSERT_TRUE(transport);
+  EXPECT_THAT(transport->opened_streams(), ElementsAre(1));
 }
 
 INSTANTIATE_TEST_SUITE_P(PeerConnectionDataChannelTest,
