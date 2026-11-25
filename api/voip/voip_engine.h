@@ -68,6 +68,9 @@ class VoipVolumeControl;
 //   voip_base.StopPlayout(channel);
 //   voip_base.ReleaseChannel(channel);
 //
+// All methods of VoipEngine, and of the interfaces that it returns, must be
+// called on the same task queue, the network thread. Channels are bound to the
+// task queue that creates them.
 class VoipEngine {
  public:
   virtual ~VoipEngine() = default;

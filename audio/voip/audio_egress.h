@@ -15,10 +15,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 
 #include "api/audio_codecs/audio_format.h"
 #include "api/environment/environment.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "audio/audio_level.h"
 #include "call/audio_sender.h"
@@ -26,7 +28,6 @@
 #include "modules/audio_coding/include/audio_coding_module_typedefs.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_interface.h"
 #include "modules/rtp_rtcp/source/rtp_sender_audio.h"
-#include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
@@ -41,6 +42,19 @@ namespace webrtc {
 // TaskQueue is used to encode and send RTP asynchrounously as some OS platform
 // uses the same thread for both audio input and output sample deliveries which
 // can affect audio quality.
+//
+// AudioEgress is created, used and destroyed on the network thread, the task
+// queue that its owner (AudioChannel) and the RTP module are created on. The
+// exceptions are SendAudioData(), which the audio capture thread calls,
+// SendData(), which runs on the encoder queue, and SetMute(),
+// OnReceivedUplinkPacketLossFraction() and the input level getters, which can
+// be called on any thread.
+//
+// The RTP sender (`RTPSender` and `RTPSenderAudio`) is used on the network
+// thread, the task queue that AudioEgress and the RTP module are created on.
+// Encoded payloads are copied and posted from the encoder queue to the network
+// thread for packetization, as ChannelSend does. StartSend() and StopSend()
+// post the sending state to the encoder queue, where SendAudioData() checks it.
 //
 // Note that this class is originally based on ChannelSend in
 // audio/channel_send.cc with non-audio related logic trimmed as aimed for
@@ -78,7 +92,7 @@ class AudioEgress : public AudioSender, public AudioPacketizationCallback {
   // Retrieve current encoder format info. This returns encoder format set
   // by SetEncoder() and if encoder is not set, this will return nullopt.
   std::optional<SdpAudioFormat> GetEncoderFormat() const {
-    MutexLock lock(&lock_);
+    RTC_DCHECK_RUN_ON(network_thread_);
     return encoder_format_;
   }
 
@@ -114,21 +128,25 @@ class AudioEgress : public AudioSender, public AudioPacketizationCallback {
                    size_t payload_size) override;
 
  private:
-  void SetEncoderFormat(const SdpAudioFormat& encoder_format) {
-    MutexLock lock(&lock_);
-    encoder_format_ = encoder_format;
-  }
+  // Posts the sending state to the encoder queue.
+  void SetEncoderQueueSending(bool sending);
 
-  mutable Mutex lock_;
+  // Sends an encoded payload. Runs on the network thread.
+  void SendRtpAudio(AudioFrameType frame_type,
+                    uint8_t payload_type,
+                    uint32_t timestamp,
+                    std::span<const uint8_t> payload)
+      RTC_RUN_ON(network_thread_);
+
+  // The network thread, which AudioEgress is created on. See the class comment.
+  TaskQueueBase* const network_thread_;
 
   // Current encoder format selected by caller.
-  std::optional<SdpAudioFormat> encoder_format_ RTC_GUARDED_BY(lock_);
+  std::optional<SdpAudioFormat> encoder_format_ RTC_GUARDED_BY(network_thread_);
 
-  // Synchronization is handled internally by RtpRtcp.
-  RtpRtcpInterface* const rtp_rtcp_;
+  RtpRtcpInterface* const rtp_rtcp_ RTC_PT_GUARDED_BY(network_thread_);
 
-  // Synchronization is handled internally by RTPSenderAudio.
-  RTPSenderAudio rtp_sender_audio_;
+  RTPSenderAudio rtp_sender_audio_ RTC_GUARDED_BY(network_thread_);
 
   // Synchronization is handled internally by AudioCodingModule.
   const std::unique_ptr<AudioCodingModule> audio_coding_;
@@ -147,12 +165,20 @@ class AudioEgress : public AudioSender, public AudioPacketizationCallback {
     // to implement fading effect when (un)mute is invoked.
     bool mute_ = false;
     bool previously_muted_ = false;
+
+    // Whether StartSend() has been called without a later StopSend(). Posted
+    // from the network thread, so that SendAudioData() doesn't query the RTP
+    // module on the encoder queue.
+    bool sending_ = false;
   };
 
   EncoderContext encoder_context_ RTC_GUARDED_BY(encoder_queue_checker_);
 
   std::unique_ptr<TaskQueueBase, TaskQueueDeleter> encoder_queue_;
   RTC_NO_UNIQUE_ADDRESS SequenceChecker encoder_queue_checker_;
+
+  // Guards the tasks that SendData() posts to the network thread.
+  ScopedTaskSafety task_safety_;
 };
 
 }  // namespace webrtc

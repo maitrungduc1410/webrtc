@@ -65,8 +65,6 @@ class AudioIngressTest : public ::testing::Test {
     rtp_config.rtcp_mode = RtcpMode::kCompound;
     rtp_rtcp_ = ModuleRtpRtcpImpl2::CreateSendModule(env_, rtp_config);
 
-    rtp_rtcp_->SetSendingMediaStatus(false);
-
     encoder_factory_ = CreateBuiltinAudioEncoderFactory();
     decoder_factory_ = CreateBuiltinAudioDecoderFactory();
   }

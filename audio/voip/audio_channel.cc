@@ -37,6 +37,23 @@ namespace {
 
 constexpr int kRtcpReportIntervalMs = 5000;
 
+std::unique_ptr<ModuleRtpRtcpImpl2> CreateRtpRtcpModule(
+    const Environment& env,
+    Transport* transport,
+    uint32_t local_ssrc,
+    ReceiveStatistics* receive_statistics,
+    ReportBlockDataObserver* report_block_data_observer) {
+  RtpRtcpInterface::Configuration rtp_config;
+  rtp_config.audio = true;
+  rtp_config.receive_statistics = receive_statistics;
+  rtp_config.report_block_data_observer = report_block_data_observer;
+  rtp_config.rtcp_report_interval_ms = kRtcpReportIntervalMs;
+  rtp_config.outgoing_transport = transport;
+  rtp_config.local_media_ssrc = local_ssrc;
+  rtp_config.rtcp_mode = RtcpMode::kCompound;
+  return ModuleRtpRtcpImpl2::CreateSendModule(env, rtp_config);
+}
+
 }  // namespace
 
 AudioChannel::AudioChannel(const Environment& env,
@@ -44,77 +61,65 @@ AudioChannel::AudioChannel(const Environment& env,
                            uint32_t local_ssrc,
                            AudioMixer* audio_mixer,
                            scoped_refptr<AudioDecoderFactory> decoder_factory)
-    : audio_mixer_(audio_mixer) {
+    : audio_mixer_(audio_mixer),
+      receive_statistics_(ReceiveStatistics::Create(&env.clock())),
+      rtp_rtcp_(CreateRtpRtcpModule(env,
+                                    transport,
+                                    local_ssrc,
+                                    receive_statistics_.get(),
+                                    this)),
+      ingress_(env,
+               rtp_rtcp_.get(),
+               receive_statistics_.get(),
+               std::move(decoder_factory)),
+      egress_(env, rtp_rtcp_.get()) {
   RTC_DCHECK(audio_mixer);
-
-  receive_statistics_ = ReceiveStatistics::Create(&env.clock());
-
-  RtpRtcpInterface::Configuration rtp_config;
-  rtp_config.audio = true;
-  rtp_config.receive_statistics = receive_statistics_.get();
-  rtp_config.report_block_data_observer = this;
-  rtp_config.rtcp_report_interval_ms = kRtcpReportIntervalMs;
-  rtp_config.outgoing_transport = transport;
-  rtp_config.local_media_ssrc = local_ssrc;
-  rtp_config.rtcp_mode = RtcpMode::kCompound;
-
-  rtp_rtcp_ = ModuleRtpRtcpImpl2::CreateSendModule(env, rtp_config);
-
-  rtp_rtcp_->SetSendingMediaStatus(false);
-
-  ingress_ = std::make_unique<AudioIngress>(env, rtp_rtcp_.get(),
-                                            receive_statistics_.get(),
-                                            std::move(decoder_factory));
-  egress_ = std::make_unique<AudioEgress>(env, rtp_rtcp_.get());
 
   // Set the instance of audio ingress to be part of audio mixer for ADM to
   // fetch audio samples to play.
-  audio_mixer_->AddSource(ingress_.get());
+  audio_mixer_->AddSource(&ingress_);
 }
 
 AudioChannel::~AudioChannel() {
-  if (egress_->IsSending()) {
+  if (egress_.IsSending()) {
     StopSend();
   }
-  if (ingress_->IsPlaying()) {
+  if (ingress_.IsPlaying()) {
     StopPlay();
   }
 
-  audio_mixer_->RemoveSource(ingress_.get());
-
-  // TODO(bugs.webrtc.org/11581): unclear if we still need to clear `egress_`
-  // here.
-  egress_.reset();
-  ingress_.reset();
+  audio_mixer_->RemoveSource(&ingress_);
 }
 
 bool AudioChannel::StartSend() {
   // If encoder has not been set, return false.
-  if (!egress_->StartSend()) {
+  if (!egress_.GetEncoderFormat()) {
     return false;
   }
 
-  // Start sending with RTP stack if it has not been sending yet.
+  // Start sending with RTP stack if it has not been sending yet. This is done
+  // before AudioEgress starts sending media, since the RTP stack drops frames
+  // that are encoded while it isn't sending.
   if (!rtp_rtcp_->Sending()) {
     rtp_rtcp_->SetSendingStatus(true);
   }
-  return true;
+  return egress_.StartSend();
 }
 
 void AudioChannel::StopSend() {
-  egress_->StopSend();
+  egress_.StopSend();
 
   // Deactivate RTP stack when both sending and receiving are stopped.
   // SetSendingStatus(false) triggers the transmission of RTCP BYE
   // message to remote endpoint.
-  if (!ingress_->IsPlaying() && rtp_rtcp_->Sending()) {
+  if (!ingress_.IsPlaying() && rtp_rtcp_->Sending()) {
     rtp_rtcp_->SetSendingStatus(false);
   }
 }
 
 bool AudioChannel::StartPlay() {
   // If decoders have not been set, return false.
-  if (!ingress_->StartPlay()) {
+  if (!ingress_.StartPlay()) {
     return false;
   }
 
@@ -127,17 +132,17 @@ bool AudioChannel::StartPlay() {
 }
 
 void AudioChannel::StopPlay() {
-  ingress_->StopPlay();
+  ingress_.StopPlay();
 
   // Deactivate RTP stack only when both sending and receiving are stopped.
-  if (!rtp_rtcp_->SendingMedia() && rtp_rtcp_->Sending()) {
+  if (!egress_.IsSending() && rtp_rtcp_->Sending()) {
     rtp_rtcp_->SetSendingStatus(false);
   }
 }
 
 IngressStatistics AudioChannel::GetIngressStatistics() {
   IngressStatistics ingress_stats;
-  NetworkStatistics stats = ingress_->GetNetworkStatistics();
+  NetworkStatistics stats = ingress_.GetNetworkStatistics();
   ingress_stats.neteq_stats.total_samples_received = stats.totalSamplesReceived;
   ingress_stats.neteq_stats.concealed_samples = stats.concealedSamples;
   ingress_stats.neteq_stats.concealment_events = stats.concealmentEvents;
@@ -161,12 +166,12 @@ IngressStatistics AudioChannel::GetIngressStatistics() {
   ingress_stats.neteq_stats.interruption_count = stats.interruptionCount;
   ingress_stats.neteq_stats.total_interruption_duration_ms =
       stats.totalInterruptionDurationMs;
-  ingress_stats.total_duration = ingress_->GetOutputTotalDuration();
+  ingress_stats.total_duration = ingress_.GetOutputTotalDuration();
   return ingress_stats;
 }
 
 ChannelStatistics AudioChannel::GetChannelStatistics() {
-  ChannelStatistics channel_stat = ingress_->GetChannelStatistics();
+  ChannelStatistics channel_stat = ingress_.GetChannelStatistics();
 
   StreamDataCounters rtp_stats, rtx_stats;
   rtp_rtcp_->GetSendStreamDataCounters(&rtp_stats, &rtx_stats);
@@ -179,9 +184,7 @@ ChannelStatistics AudioChannel::GetChannelStatistics() {
 }
 
 void AudioChannel::OnReportBlockDataUpdated(ReportBlockData report_block) {
-  if (egress_) {
-    egress_->OnReceivedUplinkPacketLossFraction(report_block.fraction_lost());
-  }
+  egress_.OnReceivedUplinkPacketLossFraction(report_block.fraction_lost());
 }
 
 }  // namespace webrtc

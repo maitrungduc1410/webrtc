@@ -25,6 +25,7 @@
 #include "api/environment/environment.h"
 #include "api/rtp_headers.h"
 #include "api/scoped_refptr.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "modules/audio_mixer/sine_wave_generator.h"
@@ -56,9 +57,7 @@ std::unique_ptr<ModuleRtpRtcpImpl2> CreateRtpStack(const Environment& env,
   rtp_config.outgoing_transport = transport;
   rtp_config.local_media_ssrc = remote_ssrc;
   rtp_config.rtcp_mode = RtcpMode::kCompound;
-  auto rtp_rtcp = ModuleRtpRtcpImpl2::CreateSendModule(env, rtp_config);
-  rtp_rtcp->SetSendingMediaStatus(false);
-  return rtp_rtcp;
+  return ModuleRtpRtcpImpl2::CreateSendModule(env, rtp_config);
 }
 
 constexpr int16_t kAudioLevel = 3004;  // Used for sine wave level.
@@ -126,6 +125,36 @@ TEST_F(AudioEgressTest, SendingStatusAfterStartAndStop) {
   EXPECT_TRUE(egress_->IsSending());
   egress_->StopSend();
   EXPECT_FALSE(egress_->IsSending());
+}
+
+// Encoding runs on the encoder queue, while the RTP sender packetizes and
+// sends the encoded payload on the network thread.
+TEST_F(AudioEgressTest, SendsRtpOnNetworkThread) {
+  TaskQueueBase* const network_thread = TaskQueueBase::Current();
+  int rtp_count = 0;
+  EXPECT_CALL(transport_, SendRtp)
+      .WillRepeatedly([&](std::span<const uint8_t>, Unused) {
+        EXPECT_EQ(TaskQueueBase::Current(), network_thread);
+        ++rtp_count;
+        return true;
+      });
+
+  // Two 10 ms audio frames will result in rtp packet with ptime 20.
+  egress_->SendAudioData(GetAudioFrame(0));
+  egress_->SendAudioData(GetAudioFrame(1));
+  time_controller_.AdvanceTime(TimeDelta::Zero());
+  EXPECT_EQ(rtp_count, 1);
+}
+
+// Payloads that the encoder queue posted before StopSend() aren't sent.
+TEST_F(AudioEgressTest, NoRtpAfterStopSend) {
+  EXPECT_CALL(transport_, SendRtp).Times(0);
+
+  // Two 10 ms audio frames will result in rtp packet with ptime 20.
+  egress_->SendAudioData(GetAudioFrame(0));
+  egress_->SendAudioData(GetAudioFrame(1));
+  egress_->StopSend();
+  time_controller_.AdvanceTime(TimeDelta::Zero());
 }
 
 TEST_F(AudioEgressTest, ProcessAudioWithMute) {
@@ -299,6 +328,19 @@ TEST_F(AudioEgressTest, SendDTMF) {
 
   event.Wait(TimeDelta::Seconds(1));
   EXPECT_EQ(dtmf_count, kExpected);
+}
+
+TEST_F(AudioEgressTest, SendTelephoneEventRequiresRegistrationAndSending) {
+  constexpr int kPayloadType = 100;
+  constexpr int kSampleRate = 8000;
+  constexpr int kEvent = 3;
+  constexpr int kDurationMs = 100;
+
+  EXPECT_FALSE(egress_->SendTelephoneEvent(kEvent, kDurationMs));
+  egress_->RegisterTelephoneEventType(kPayloadType, kSampleRate);
+  EXPECT_TRUE(egress_->SendTelephoneEvent(kEvent, kDurationMs));
+  egress_->StopSend();
+  EXPECT_FALSE(egress_->SendTelephoneEvent(kEvent, kDurationMs));
 }
 
 TEST_F(AudioEgressTest, TestAudioInputLevelAndEnergyDuration) {

@@ -80,8 +80,10 @@ class AudioIngress : public AudioMixer::Source {
   int GetOutputAudioLevel() const {
     return output_audio_level_.LevelFullRange();
   }
-  double GetOutputTotalEnergy() { return output_audio_level_.TotalEnergy(); }
-  double GetOutputTotalDuration() {
+  double GetOutputTotalEnergy() const {
+    return output_audio_level_.TotalEnergy();
+  }
+  double GetOutputTotalDuration() const {
     return output_audio_level_.TotalDuration();
   }
 

@@ -21,11 +21,14 @@
 #include "api/audio_codecs/audio_format.h"
 #include "api/environment/environment.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/task_queue/task_queue_factory.h"
 #include "audio/utility/audio_frame_operations.h"
 #include "modules/audio_coding/include/audio_coding_module.h"
 #include "modules/audio_coding/include/audio_coding_module_typedefs.h"
 #include "modules/rtp_rtcp/source/rtp_rtcp_interface.h"
+#include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -33,17 +36,23 @@
 namespace webrtc {
 
 AudioEgress::AudioEgress(const Environment& env, RtpRtcpInterface* rtp_rtcp)
-    : rtp_rtcp_(rtp_rtcp),
+    : network_thread_(TaskQueueBase::Current()),
+      rtp_rtcp_(rtp_rtcp),
       rtp_sender_audio_(&env.clock(), rtp_rtcp_->RtpSender()),
       audio_coding_(AudioCodingModule::Create()),
       encoder_queue_(env.task_queue_factory().CreateTaskQueue(
           "AudioEncoder",
           TaskQueueFactory::Priority::kNormal)),
       encoder_queue_checker_(encoder_queue_.get()) {
+  RTC_DCHECK(network_thread_);
   audio_coding_->RegisterTransportCallback(this);
+
+  // Don't send media until StartSend() is called.
+  rtp_rtcp_->SetSendingMediaStatus(false);
 }
 
 AudioEgress::~AudioEgress() {
+  RTC_DCHECK_RUN_ON(network_thread_);
   audio_coding_->RegisterTransportCallback(nullptr);
 
   // Delete first to ensure that there are no running tasks when the other
@@ -52,6 +61,7 @@ AudioEgress::~AudioEgress() {
 }
 
 bool AudioEgress::IsSending() const {
+  RTC_DCHECK_RUN_ON(network_thread_);
   return rtp_rtcp_->SendingMedia();
 }
 
@@ -61,7 +71,8 @@ void AudioEgress::SetEncoder(int payload_type,
   RTC_DCHECK_GE(payload_type, 0);
   RTC_DCHECK_LE(payload_type, 127);
 
-  SetEncoderFormat(encoder_format);
+  RTC_DCHECK_RUN_ON(network_thread_);
+  encoder_format_ = encoder_format;
 
   // The RTP/RTCP module needs to know the RTP timestamp rate (i.e. clockrate)
   // as well as some other things, so we collect this info and send it along.
@@ -75,16 +86,27 @@ void AudioEgress::SetEncoder(int payload_type,
 }
 
 bool AudioEgress::StartSend() {
-  if (!GetEncoderFormat()) {
+  RTC_DCHECK_RUN_ON(network_thread_);
+  if (!encoder_format_.has_value()) {
     RTC_DLOG(LS_WARNING) << "Send codec has not been set yet";
     return false;
   }
   rtp_rtcp_->SetSendingMediaStatus(true);
+  SetEncoderQueueSending(true);
   return true;
 }
 
 void AudioEgress::StopSend() {
+  RTC_DCHECK_RUN_ON(network_thread_);
   rtp_rtcp_->SetSendingMediaStatus(false);
+  SetEncoderQueueSending(false);
+}
+
+void AudioEgress::SetEncoderQueueSending(bool sending) {
+  encoder_queue_->PostTask([this, sending] {
+    RTC_DCHECK_RUN_ON(&encoder_queue_checker_);
+    encoder_context_.sending_ = sending;
+  });
 }
 
 void AudioEgress::SendAudioData(std::unique_ptr<AudioFrame> audio_frame) {
@@ -94,7 +116,7 @@ void AudioEgress::SendAudioData(std::unique_ptr<AudioFrame> audio_frame) {
   encoder_queue_->PostTask(
       [this, audio_frame = std::move(audio_frame)]() mutable {
         RTC_DCHECK_RUN_ON(&encoder_queue_checker_);
-        if (!rtp_rtcp_->SendingMedia()) {
+        if (!encoder_context_.sending_) {
           return;
         }
 
@@ -132,7 +154,25 @@ int32_t AudioEgress::SendData(AudioFrameType frame_type,
                               size_t payload_size) {
   RTC_DCHECK_RUN_ON(&encoder_queue_checker_);
 
-  std::span<const uint8_t> payload(payload_data, payload_size);
+  // The RTP sender is used on the network thread.
+  network_thread_->PostTask(SafeTask(
+      task_safety_.flag(), [this, frame_type, payload_type, timestamp,
+                            payload = Buffer(payload_data, payload_size)] {
+        RTC_DCHECK_RUN_ON(network_thread_);
+        SendRtpAudio(frame_type, payload_type, timestamp, payload);
+      }));
+  return 0;
+}
+
+void AudioEgress::SendRtpAudio(AudioFrameType frame_type,
+                               uint8_t payload_type,
+                               uint32_t timestamp,
+                               std::span<const uint8_t> payload) {
+  // Drop payloads that were posted before StopSend(), so that no packets are
+  // sent after StopSend() returns.
+  if (!IsSending()) {
+    return;
+  }
 
   // Currently we don't get a capture time from downstream modules (ADM,
   // AudioTransportImpl).
@@ -144,7 +184,7 @@ int32_t AudioEgress::SendData(AudioFrameType frame_type,
   if (!rtp_rtcp_->OnSendingRtpFrame(timestamp, kUndefinedCaptureTime,
                                     payload_type,
                                     /*force_sender_report=*/false)) {
-    return -1;
+    return;
   }
 
   const uint32_t rtp_timestamp = timestamp + rtp_rtcp_->StartTimestamp();
@@ -155,11 +195,9 @@ int32_t AudioEgress::SendData(AudioFrameType frame_type,
                                     .payload_id = payload_type,
                                     .rtp_timestamp = rtp_timestamp})) {
     RTC_DLOG(LS_ERROR)
-        << "AudioEgress::SendData() failed to send data to RTP/RTCP module";
-    return -1;
+        << "AudioEgress::SendRtpAudio() failed to send data to RTP/RTCP module";
+    return;
   }
-
-  return 0;
 }
 
 void AudioEgress::RegisterTelephoneEventType(int rtp_payload_type,
@@ -167,6 +205,7 @@ void AudioEgress::RegisterTelephoneEventType(int rtp_payload_type,
   RTC_DCHECK_GE(rtp_payload_type, 0);
   RTC_DCHECK_LE(rtp_payload_type, 127);
 
+  RTC_DCHECK_RUN_ON(network_thread_);
   rtp_rtcp_->RegisterSendPayloadFrequency(rtp_payload_type, sample_rate_hz);
   rtp_sender_audio_.RegisterAudioPayload("telephone-event", rtp_payload_type,
                                          sample_rate_hz, 0, 0);
@@ -178,6 +217,7 @@ bool AudioEgress::SendTelephoneEvent(int dtmf_event, int duration_ms) {
   RTC_DCHECK_GE(duration_ms, 0);
   RTC_DCHECK_LE(duration_ms, 65535);
 
+  RTC_DCHECK_RUN_ON(network_thread_);
   if (!IsSending()) {
     return false;
   }

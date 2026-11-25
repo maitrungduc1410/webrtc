@@ -64,34 +64,34 @@ class AudioChannel : public RefCountInterface, public ReportBlockDataObserver {
   void StopPlay();
 
   // APIs relayed to AudioEgress.
-  bool IsSendingMedia() const { return egress_->IsSending(); }
-  AudioSender* GetAudioSender() { return egress_.get(); }
+  bool IsSendingMedia() const { return egress_.IsSending(); }
+  AudioSender* GetAudioSender() { return &egress_; }
   void SetEncoder(int payload_type,
                   const SdpAudioFormat& encoder_format,
                   std::unique_ptr<AudioEncoder> encoder) {
-    egress_->SetEncoder(payload_type, encoder_format, std::move(encoder));
+    egress_.SetEncoder(payload_type, encoder_format, std::move(encoder));
   }
   std::optional<SdpAudioFormat> GetEncoderFormat() const {
-    return egress_->GetEncoderFormat();
+    return egress_.GetEncoderFormat();
   }
   void RegisterTelephoneEventType(int rtp_payload_type, int sample_rate_hz) {
-    egress_->RegisterTelephoneEventType(rtp_payload_type, sample_rate_hz);
+    egress_.RegisterTelephoneEventType(rtp_payload_type, sample_rate_hz);
   }
   bool SendTelephoneEvent(int dtmf_event, int duration_ms) {
-    return egress_->SendTelephoneEvent(dtmf_event, duration_ms);
+    return egress_.SendTelephoneEvent(dtmf_event, duration_ms);
   }
-  void SetMute(bool enable) { egress_->SetMute(enable); }
+  void SetMute(bool enable) { egress_.SetMute(enable); }
 
   // APIs relayed to AudioIngress.
-  bool IsPlaying() const { return ingress_->IsPlaying(); }
+  bool IsPlaying() const { return ingress_.IsPlaying(); }
   void ReceivedRTPPacket(std::span<const uint8_t> rtp_packet) {
-    ingress_->ReceivedRTPPacket(rtp_packet);
+    ingress_.ReceivedRTPPacket(rtp_packet);
   }
   void ReceivedRTCPPacket(std::span<const uint8_t> rtcp_packet) {
-    ingress_->ReceivedRTCPPacket(rtcp_packet);
+    ingress_.ReceivedRTCPPacket(rtcp_packet);
   }
   void SetReceiveCodecs(const std::map<int, SdpAudioFormat>& codecs) {
-    ingress_->SetReceiveCodecs(codecs);
+    ingress_.SetReceiveCodecs(codecs);
   }
   IngressStatistics GetIngressStatistics();
   ChannelStatistics GetChannelStatistics();
@@ -101,20 +101,20 @@ class AudioChannel : public RefCountInterface, public ReportBlockDataObserver {
   // DoubleAudioLevelFromIntAudioLevel method in rtc_stats_collector.cc to be
   // consistent.
   double GetInputAudioLevel() const {
-    return egress_->GetInputAudioLevel() / 32767.0;
+    return egress_.GetInputAudioLevel() / 32767.0;
   }
-  double GetInputTotalEnergy() const { return egress_->GetInputTotalEnergy(); }
+  double GetInputTotalEnergy() const { return egress_.GetInputTotalEnergy(); }
   double GetInputTotalDuration() const {
-    return egress_->GetInputTotalDuration();
+    return egress_.GetInputTotalDuration();
   }
   double GetOutputAudioLevel() const {
-    return ingress_->GetOutputAudioLevel() / 32767.0;
+    return ingress_.GetOutputAudioLevel() / 32767.0;
   }
   double GetOutputTotalEnergy() const {
-    return ingress_->GetOutputTotalEnergy();
+    return ingress_.GetOutputTotalEnergy();
   }
   double GetOutputTotalDuration() const {
-    return ingress_->GetOutputTotalDuration();
+    return ingress_.GetOutputTotalDuration();
   }
 
   // Implementation of ReportBlockDataObserver.
@@ -131,14 +131,16 @@ class AudioChannel : public RefCountInterface, public ReportBlockDataObserver {
   ChannelId id_;
 
   // Synchronization is handled internally by AudioMixer.
-  AudioMixer* audio_mixer_;
+  AudioMixer* const audio_mixer_;
 
-  // Listed in order for safe destruction of AudioChannel object.
+  // Listed in order for safe destruction of AudioChannel object. `egress_` is
+  // destroyed first and its destructor deletes the encoder queue while the
+  // other members are still alive.
   // Synchronization for these are handled internally.
-  std::unique_ptr<ReceiveStatistics> receive_statistics_;
-  std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
-  std::unique_ptr<AudioIngress> ingress_;
-  std::unique_ptr<AudioEgress> egress_;
+  const std::unique_ptr<ReceiveStatistics> receive_statistics_;
+  const std::unique_ptr<ModuleRtpRtcpImpl2> rtp_rtcp_;
+  AudioIngress ingress_;
+  AudioEgress egress_;
 };
 
 }  // namespace webrtc
