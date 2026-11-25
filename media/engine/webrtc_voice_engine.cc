@@ -2987,26 +2987,25 @@ void WebRtcVoiceReceiveChannel::SetDefaultRawAudioSink(
 }
 
 void WebRtcVoiceReceiveChannel::SetDepacketizerToDecoderFrameTransformer(
-    uint32_t ssrc,
+    std::optional<uint32_t> ssrc,
     scoped_refptr<FrameTransformerInterface> frame_transformer) {
   RTC_DCHECK_RUN_ON(network_thread_);
-  if (ssrc == 0) {
+  if (!ssrc.has_value()) {
     // If the receiver is unsignaled, save the frame transformer for future
-    // streams and apply it to any existing unsignaled streams, as well as any
-    // signaled stream registered with SSRC 0.
+    // streams and apply it to any existing unsignaled streams.
     unsignaled_frame_transformer_ = frame_transformer;
-    for (auto& [stream_ssrc, stream] : recv_streams_) {
-      if (stream_ssrc == 0 ||
-          absl::c_linear_search(unsignaled_recv_ssrcs_, stream_ssrc)) {
-        stream->SetDepacketizerToDecoderFrameTransformer(frame_transformer);
+    for (uint32_t unsignaled_ssrc : unsignaled_recv_ssrcs_) {
+      auto it = recv_streams_.find(unsignaled_ssrc);
+      if (it != recv_streams_.end()) {
+        it->second->SetDepacketizerToDecoderFrameTransformer(frame_transformer);
       }
     }
     return;
   }
 
-  auto matching_stream = recv_streams_.find(ssrc);
+  auto matching_stream = recv_streams_.find(*ssrc);
   if (matching_stream == recv_streams_.end()) {
-    RTC_LOG(LS_INFO) << "Attempting to set frame transformer for SSRC:" << ssrc
+    RTC_LOG(LS_INFO) << "Attempting to set frame transformer for SSRC:" << *ssrc
                      << " which doesn't exist.";
     return;
   }

@@ -209,7 +209,7 @@ class RtpReceiveChannelHelper : public Base, public MediaChannelUtil {
                          /* frame_decryptor */) override {}
 
   void SetDepacketizerToDecoderFrameTransformer(
-      uint32_t /* ssrc */,
+      std::optional<uint32_t> /* ssrc */,
       scoped_refptr<FrameTransformerInterface> /* frame_transformer */)
       override {}
 

@@ -8187,7 +8187,7 @@ TEST_F(WebRtcVideoChannelTest,
 }
 
 TEST_F(WebRtcVideoChannelTest,
-       SetFrameTransformerWithZeroSsrcUpdatesExistingAndFutureDefaultStreams) {
+       SetFrameTransformerWithNulloptUpdatesExistingAndFutureDefaultStreams) {
   VideoReceiverParameters parameters;
   parameters.codecs.push_back(GetEngineCodec("VP8"));
   ASSERT_TRUE(receive_channel_->SetReceiverParameters(parameters));
@@ -8206,7 +8206,7 @@ TEST_F(WebRtcVideoChannelTest,
 
   auto transformer =
       make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
-  receive_channel_->SetDepacketizerToDecoderFrameTransformer(/*ssrc=*/0,
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(std::nullopt,
                                                              transformer);
   EXPECT_EQ(default_stream->GetConfig().frame_transformer, transformer);
 
@@ -10836,6 +10836,45 @@ TEST_F(WebRtcVideoChannelTest, ScaleResolutionDownToSimulcast) {
   }
 
   EXPECT_TRUE(send_channel_->SetVideoSend(last_ssrc_, nullptr, nullptr));
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       SetFrameTransformerSeparatesZeroSsrcFromUnsignaled) {
+  FakeVideoReceiveStream* zero_stream =
+      AddRecvStream(StreamParams::CreateLegacy(0));
+  ASSERT_NE(zero_stream, nullptr);
+
+  RtpPacketReceived rtp_packet;
+  rtp_packet.SetPayloadType(GetEngineCodec("VP8").id);
+  rtp_packet.SetSsrc(kSsrcs3[0]);
+  ReceivePacketAndAdvanceTime(rtp_packet);
+  const FakeVideoReceiveStream* default_stream =
+      fake_call_->GetVideoReceiveStream(kSsrcs3[0]);
+  ASSERT_NE(default_stream, nullptr);
+
+  auto signaled_transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(
+      0u, signaled_transformer);
+  EXPECT_EQ(zero_stream->GetConfig().frame_transformer, signaled_transformer);
+  EXPECT_EQ(default_stream->GetConfig().frame_transformer, nullptr);
+
+  auto unsignaled_transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(
+      std::nullopt, unsignaled_transformer);
+  EXPECT_EQ(zero_stream->GetConfig().frame_transformer, signaled_transformer);
+  EXPECT_EQ(default_stream->GetConfig().frame_transformer,
+            unsignaled_transformer);
+
+  time_controller_.AdvanceTime(TimeDelta::Seconds(1));
+  rtp_packet.SetSsrc(kSsrcs3[1]);
+  ReceivePacketAndAdvanceTime(rtp_packet);
+  const FakeVideoReceiveStream* new_default_stream =
+      fake_call_->GetVideoReceiveStream(kSsrcs3[1]);
+  ASSERT_NE(new_default_stream, nullptr);
+  EXPECT_EQ(new_default_stream->GetConfig().frame_transformer,
+            unsignaled_transformer);
 }
 
 }  // namespace

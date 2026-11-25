@@ -122,7 +122,7 @@ class MockVoiceMediaReceiveChannelInterface
               (override));
   MOCK_METHOD(void,
               SetDepacketizerToDecoderFrameTransformer,
-              (uint32_t ssrc,
+              (std::optional<uint32_t> ssrc,
                scoped_refptr<FrameTransformerInterface> frame_transformer),
               (override));
   MOCK_METHOD(bool,

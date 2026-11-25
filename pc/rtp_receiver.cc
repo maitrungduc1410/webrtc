@@ -116,7 +116,7 @@ void RtpReceiverBase::set_media_channel(
     }
     if (frame_transformer_ != nullptr) {
       media_channel_->SetDepacketizerToDecoderFrameTransformer(
-          signaled_ssrc_.value_or(0), frame_transformer_);
+          signaled_ssrc_, frame_transformer_);
     }
   }
 }
@@ -170,7 +170,7 @@ void RtpReceiverBase::SetFrameTransformer(
   frame_transformer_ = std::move(frame_transformer);
   if (media_channel()) {
     media_channel()->SetDepacketizerToDecoderFrameTransformer(
-        signaled_ssrc_.value_or(0), frame_transformer_);
+        signaled_ssrc_, frame_transformer_);
   }
 }
 

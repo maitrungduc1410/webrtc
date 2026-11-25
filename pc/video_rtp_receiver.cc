@@ -164,8 +164,8 @@ void VideoRtpReceiver::GetRestartFunctionForMediaChannel_n(
   }
 
   if (frame_transformer_ && video_channel) {
-    video_channel->SetDepacketizerToDecoderFrameTransformer(
-        signaled_ssrc_.value_or(0), frame_transformer_);
+    video_channel->SetDepacketizerToDecoderFrameTransformer(signaled_ssrc_,
+                                                            frame_transformer_);
   }
 
   if (video_channel && signaled_ssrc_) {

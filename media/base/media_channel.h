@@ -337,8 +337,10 @@ class MediaReceiveChannelInterface {
       uint32_t ssrc,
       scoped_refptr<FrameDecryptorInterface> frame_decryptor) = 0;
 
+  // Sets the depacketizer-to-decoder frame transformer for `ssrc`. If `ssrc`
+  // is std::nullopt, applies to active and future unsignaled receive streams.
   virtual void SetDepacketizerToDecoderFrameTransformer(
-      uint32_t ssrc,
+      std::optional<uint32_t> ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) = 0;
 
   // Set base minimum delay of the receive stream with specified ssrc.

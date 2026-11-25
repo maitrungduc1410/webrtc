@@ -325,8 +325,8 @@ void AudioRtpReceiver::Reconfigure(bool track_enabled, double volume) {
   }
 
   if (frame_transformer_) {
-    voice_channel->SetDepacketizerToDecoderFrameTransformer(
-        signaled_ssrc_.value_or(0), frame_transformer_);
+    voice_channel->SetDepacketizerToDecoderFrameTransformer(signaled_ssrc_,
+                                                            frame_transformer_);
   }
 }
 

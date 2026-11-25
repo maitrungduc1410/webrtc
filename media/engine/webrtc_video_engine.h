@@ -584,7 +584,7 @@ class WebRtcVideoReceiveChannel : public MediaChannelUtil,
   void ClearRecordableEncodedFrameCallback(uint32_t ssrc) override;
   void RequestRecvKeyFrame(uint32_t ssrc) override;
   void SetDepacketizerToDecoderFrameTransformer(
-      uint32_t ssrc,
+      std::optional<uint32_t> ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
   void EnableSframe() override;

@@ -493,15 +493,15 @@ TEST(AudioRtpReceiver, SetMediaChannelForwardsFrameTransformerToNewChannel) {
   auto transformer =
       make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
 
-  EXPECT_CALL(channel1,
-              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  EXPECT_CALL(channel1, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(std::nullopt), Eq(transformer)));
   worker_thread->BlockingCall(
       [&] { receiver->SetFrameTransformer(transformer); });
 
   // Detach old channel (as during rollback) and attach replacement channel.
   worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
-  EXPECT_CALL(channel2,
-              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(std::nullopt), Eq(transformer)));
   worker_thread->BlockingCall([&] { receiver->SetMediaChannel(&channel2); });
 
   worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
@@ -520,25 +520,25 @@ TEST(AudioRtpReceiver, ReconfiguresSameSsrcAfterChannelSwap) {
       make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
   constexpr uint32_t kSsrc = 12345;
 
-  EXPECT_CALL(channel1,
-              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  EXPECT_CALL(channel1, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(std::nullopt), Eq(transformer)));
   worker_thread->BlockingCall(
       [&] { receiver->SetFrameTransformer(transformer); });
 
-  EXPECT_CALL(channel1,
-              SetDepacketizerToDecoderFrameTransformer(kSsrc, Eq(transformer)));
+  EXPECT_CALL(channel1, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(kSsrc), Eq(transformer)));
   auto setup1 = receiver->GetSetupForMediaChannel(kSsrc);
   worker_thread->BlockingCall([&] { std::move(setup1)(); });
 
   // Simulate rollback (channel detached) followed by renegotiation with a new
   // channel and the same signaled SSRC.
   worker_thread->BlockingCall([&] { receiver->SetMediaChannel(nullptr); });
-  EXPECT_CALL(channel2,
-              SetDepacketizerToDecoderFrameTransformer(0u, Eq(transformer)));
+  EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(std::nullopt), Eq(transformer)));
   worker_thread->BlockingCall([&] { receiver->SetMediaChannel(&channel2); });
 
-  EXPECT_CALL(channel2,
-              SetDepacketizerToDecoderFrameTransformer(kSsrc, Eq(transformer)));
+  EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
+                            Eq(kSsrc), Eq(transformer)));
   EXPECT_CALL(channel2, SetOutputVolume(kSsrc, 1.0));
   auto setup2 = receiver->GetSetupForMediaChannel(kSsrc);
   worker_thread->BlockingCall([&] { std::move(setup2)(); });

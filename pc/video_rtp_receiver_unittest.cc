@@ -81,7 +81,8 @@ class VideoRtpReceiverTest : public testing::Test {
     MOCK_METHOD(void, RequestRecvKeyFrame, (uint32_t), (override));
     MOCK_METHOD(void,
                 SetDepacketizerToDecoderFrameTransformer,
-                (uint32_t, scoped_refptr<FrameTransformerInterface>),
+                (std::optional<uint32_t>,
+                 scoped_refptr<FrameTransformerInterface>),
                 (override));
   };
 
@@ -371,13 +372,15 @@ TEST_F(VideoRtpReceiverTest, SignaledSsrcTakesPrecedenceOverUnsignaledSsrc) {
 TEST_F(VideoRtpReceiverTest,
        SetMediaChannelForwardsFrameTransformerToNewChannel) {
   auto transformer = make_ref_counted<NiceMock<MockFrameTransformer>>();
-  EXPECT_CALL(channel_, SetDepacketizerToDecoderFrameTransformer(
-                            0u, ::testing::Eq(transformer)));
+  EXPECT_CALL(channel_,
+              SetDepacketizerToDecoderFrameTransformer(
+                  ::testing::Eq(std::nullopt), ::testing::Eq(transformer)));
   RunOnWorkerThread([&] { receiver_->SetFrameTransformer(transformer); });
 
   NiceMock<MockVideoMediaReceiveChannel> channel2{VideoOptions()};
-  EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
-                            0u, ::testing::Eq(transformer)));
+  EXPECT_CALL(channel2,
+              SetDepacketizerToDecoderFrameTransformer(
+                  ::testing::Eq(std::nullopt), ::testing::Eq(transformer)));
   SetMediaChannel(&channel2);
   SetMediaChannel(nullptr);
 }
@@ -386,24 +389,26 @@ TEST_F(VideoRtpReceiverTest, ReconfiguresSameSsrcAfterChannelSwap) {
   auto transformer = make_ref_counted<NiceMock<MockFrameTransformer>>();
   constexpr uint32_t kSsrc = 12345;
 
-  EXPECT_CALL(channel_, SetDepacketizerToDecoderFrameTransformer(
-                            0u, ::testing::Eq(transformer)));
+  EXPECT_CALL(channel_,
+              SetDepacketizerToDecoderFrameTransformer(
+                  ::testing::Eq(std::nullopt), ::testing::Eq(transformer)));
   RunOnWorkerThread([&] { receiver_->SetFrameTransformer(transformer); });
 
   EXPECT_CALL(channel_, SetDepacketizerToDecoderFrameTransformer(
-                            kSsrc, ::testing::Eq(transformer)));
+                            ::testing::Eq(kSsrc), ::testing::Eq(transformer)));
   RunOnWorkerThread(receiver_->GetSetupForMediaChannel(kSsrc));
 
   // Simulate rollback (channel detached) followed by renegotiation with a new
   // channel and the same signaled SSRC.
   SetMediaChannel(nullptr);
   NiceMock<MockVideoMediaReceiveChannel> channel2{VideoOptions()};
-  EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
-                            0u, ::testing::Eq(transformer)));
+  EXPECT_CALL(channel2,
+              SetDepacketizerToDecoderFrameTransformer(
+                  ::testing::Eq(std::nullopt), ::testing::Eq(transformer)));
   SetMediaChannel(&channel2);
 
   EXPECT_CALL(channel2, SetDepacketizerToDecoderFrameTransformer(
-                            kSsrc, ::testing::Eq(transformer)));
+                            ::testing::Eq(kSsrc), ::testing::Eq(transformer)));
   RunOnWorkerThread(receiver_->GetSetupForMediaChannel(kSsrc));
 
   SetMediaChannel(nullptr);

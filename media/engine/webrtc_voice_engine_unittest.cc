@@ -3325,7 +3325,7 @@ TEST_P(WebRtcVoiceEngineTestFake,
 }
 
 TEST_P(WebRtcVoiceEngineTestFake,
-       SetFrameTransformerWithZeroSsrcUpdatesExistingAndFutureUnsignaled) {
+       SetFrameTransformerWithNulloptUpdatesExistingAndFutureUnsignaled) {
   ASSERT_TRUE(SetupChannel());
 
   // Spawn an unsignaled stream (SSRC 1 in kPcmuFrame) before setting the
@@ -3336,7 +3336,7 @@ TEST_P(WebRtcVoiceEngineTestFake,
 
   auto transformer =
       make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
-  receive_channel_->SetDepacketizerToDecoderFrameTransformer(/*ssrc=*/0,
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(std::nullopt,
                                                              transformer);
   EXPECT_EQ(GetRecvStreamConfig(1).frame_transformer, transformer);
 
@@ -3346,6 +3346,38 @@ TEST_P(WebRtcVoiceEngineTestFake,
   SetBE32(std::span<uint8_t>(&packet[8], 4), 7011);
   DeliverPacket(packet);
   EXPECT_EQ(GetRecvStreamConfig(7011).frame_transformer, transformer);
+}
+
+TEST_P(WebRtcVoiceEngineTestFake,
+       SetFrameTransformerSeparatesZeroSsrcFromUnsignaled) {
+  ASSERT_TRUE(SetupChannel());
+  ASSERT_TRUE(AddRecvStream(0));
+
+  // Spawn an unsignaled stream (SSRC 1 in kPcmuFrame).
+  DeliverPacket(kPcmuFrame);
+  ASSERT_EQ(call_.GetAudioReceiveStreams().size(), 2u);
+
+  auto signaled_transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(
+      0u, signaled_transformer);
+  EXPECT_EQ(GetRecvStreamConfig(0).frame_transformer, signaled_transformer);
+  EXPECT_EQ(GetRecvStreamConfig(1).frame_transformer, nullptr);
+
+  auto unsignaled_transformer =
+      make_ref_counted<::testing::NiceMock<MockFrameTransformer>>();
+  receive_channel_->SetDepacketizerToDecoderFrameTransformer(
+      std::nullopt, unsignaled_transformer);
+  EXPECT_EQ(GetRecvStreamConfig(0).frame_transformer, signaled_transformer);
+  EXPECT_EQ(GetRecvStreamConfig(1).frame_transformer, unsignaled_transformer);
+
+  // Subsequent unsignaled stream also receives the cached transformer.
+  uint8_t packet[sizeof(kPcmuFrame)];
+  memcpy(packet, kPcmuFrame, sizeof(kPcmuFrame));
+  SetBE32(std::span<uint8_t>(packet).subspan(8, 4), 7011);
+  DeliverPacket(packet);
+  EXPECT_EQ(GetRecvStreamConfig(7011).frame_transformer,
+            unsignaled_transformer);
 }
 
 TEST_P(WebRtcVoiceEngineTestFake, TestAddRecvStreamFailWithSameSsrc) {

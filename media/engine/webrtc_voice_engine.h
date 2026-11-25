@@ -448,7 +448,7 @@ class WebRtcVoiceReceiveChannel final
       std::unique_ptr<AudioSinkInterface> sink) override;
 
   void SetDepacketizerToDecoderFrameTransformer(
-      uint32_t ssrc,
+      std::optional<uint32_t> ssrc,
       scoped_refptr<FrameTransformerInterface> frame_transformer) override;
 
   void SetRtcpMode(enum RtcpMode mode) override;
