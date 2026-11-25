@@ -806,6 +806,7 @@ void VideoStreamEncoderImpl::Stop() {
   // Release any state captured by the callback synchronously on `worker_queue_`
   // (`worker_task_safety_` already prevents post-Stop invocation).
   encoder_switch_request_callback_ = nullptr;
+  fec_controller_override_ = nullptr;
 
   // `StopCallbacks` must be called before the queue is destroyed, because
   // ongoing notifications of prepared frames may post tasks or run on
@@ -852,15 +853,9 @@ void VideoStreamEncoderImpl::Stop() {
 
 void VideoStreamEncoderImpl::SetFecControllerOverride(
     FecControllerOverride* fec_controller_override) {
-  encoder_queue_->PostTask(
-      SafeTask(encoder_task_safety_, [this, fec_controller_override] {
-        RTC_DCHECK_RUN_ON(encoder_queue_.get());
-        RTC_DCHECK(!fec_controller_override_);
-        fec_controller_override_ = fec_controller_override;
-        if (encoder_) {
-          encoder_->SetFecControllerOverride(fec_controller_override_);
-        }
-      }));
+  RTC_DCHECK_RUN_ON(worker_queue_);
+  RTC_DCHECK(!fec_controller_override_);
+  fec_controller_override_ = fec_controller_override;
 }
 
 void VideoStreamEncoderImpl::AddAdaptationResource(
@@ -1088,7 +1083,7 @@ void VideoStreamEncoderImpl::ReconfigureEncoder() {
       encoder_selector_->OnCurrentEncoder(encoder_config_.video_format);
     }
 
-    encoder_->SetFecControllerOverride(fec_controller_override_);
+    encoder_->SetFecControllerOverride(this);
 
     encoder_reset_required = true;
   }
@@ -2498,6 +2493,16 @@ void VideoStreamEncoderImpl::OnFrameDropped(uint32_t rtp_timestamp,
         }
         encoder_stats_observer_->OnFrameDropped(
             VideoStreamEncoderObserver::DropReason::kEncoder);
+      }));
+}
+
+void VideoStreamEncoderImpl::SetFecAllowed(bool fec_allowed) {
+  worker_queue_->PostTask(
+      SafeTask(worker_task_safety_.flag(), [this, fec_allowed] {
+        RTC_DCHECK_RUN_ON(worker_queue_);
+        if (fec_controller_override_) {
+          fec_controller_override_->SetFecAllowed(fec_allowed);
+        }
       }));
 }
 

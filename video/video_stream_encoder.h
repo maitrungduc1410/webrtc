@@ -83,6 +83,7 @@ namespace webrtc {
 //  Call Stop() when done.
 class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
                                private EncodedImageCallback,
+                               private FecControllerOverride,
                                public VideoSourceRestrictionsListener {
  public:
   enum class BitrateAllocationCallbackType {
@@ -262,6 +263,9 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
                       int spatial_id,
                       bool is_end_of_temporal_unit) override;
 
+  // Implements FecControllerOverride.
+  void SetFecAllowed(bool fec_allowed) override;
+
   bool EncoderPaused() const;
   void TraceFrameDropStart();
   void TraceFrameDropEnd();
@@ -374,7 +378,7 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
   bool accumulated_update_rect_is_valid_ RTC_GUARDED_BY(encoder_queue_) = true;
 
   FecControllerOverride* fec_controller_override_
-      RTC_GUARDED_BY(encoder_queue_) = nullptr;
+      RTC_GUARDED_BY(worker_queue_) = nullptr;
   std::optional<int64_t> last_parameters_update_ms_
       RTC_GUARDED_BY(encoder_queue_);
   std::optional<int64_t> last_encode_info_ms_ RTC_GUARDED_BY(encoder_queue_);
