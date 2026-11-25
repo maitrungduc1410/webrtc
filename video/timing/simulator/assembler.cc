@@ -16,6 +16,7 @@
 
 #include "absl/base/nullability.h"
 #include "api/environment/environment.h"
+#include "api/rtp_headers.h"
 #include "api/rtp_parameters.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/task_queue_base.h"
@@ -71,6 +72,9 @@ Assembler::Assembler(const Environment& env,
       observer_(*observer),
       assembled_frame_cb_(*assembled_frame_cb) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
+  // The RTCP that the receiver sends is dropped by `SendRtcp`, so don't spend
+  // time on periodically building reports.
+  rtp_video_stream_receiver2_.SetRtcpMode(RtcpMode::kOff);
   rtp_video_stream_receiver2_.StartReceive();
 }
 
