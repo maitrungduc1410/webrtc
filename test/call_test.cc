@@ -418,8 +418,7 @@ CallConfig CallTest::SendCallConfig(TaskQueueBase* network_task_queue) const {
   if (network_task_queue == nullptr) {
     network_task_queue = network_thread_.get();
   }
-  CallConfig sender_config = CallConfig::CreateWithJoinedWorkerAndNetworkQueue(
-      send_env_, network_task_queue);
+  CallConfig sender_config(send_env_, network_task_queue);
   sender_config.network_state_predictor_factory =
       network_state_predictor_factory_.get();
   sender_config.network_controller_factory = network_controller_factory_.get();
@@ -430,8 +429,7 @@ CallConfig CallTest::RecvCallConfig(TaskQueueBase* network_task_queue) const {
   if (network_task_queue == nullptr) {
     network_task_queue = network_thread_.get();
   }
-  return CallConfig::CreateWithJoinedWorkerAndNetworkQueue(recv_env_,
-                                                           network_task_queue);
+  return CallConfig(recv_env_, network_task_queue);
 }
 
 void CallTest::CreateCalls(TaskQueueBase* network_task_queue) {

@@ -459,15 +459,11 @@ void FakeFlexfecReceiveStream::OnRtpPacket(const RtpPacketReceived&) {
   RTC_DCHECK_NOTREACHED() << "Not implemented.";
 }
 
-FakeCall::FakeCall(const Environment& env)
-    : FakeCall(env, Thread::Current(), Thread::Current()) {}
+FakeCall::FakeCall(const Environment& env) : FakeCall(env, Thread::Current()) {}
 
-FakeCall::FakeCall(const Environment& env,
-                   TaskQueueBase* worker_thread,
-                   TaskQueueBase* network_thread)
+FakeCall::FakeCall(const Environment& env, TaskQueueBase* network_thread)
     : env_(env),
       network_thread_(network_thread),
-      worker_thread_(worker_thread),
       audio_network_state_(kNetworkUp),
       video_network_state_(kNetworkUp),
       num_created_send_streams_(0),
@@ -731,10 +727,6 @@ Call::Stats FakeCall::GetStats() const {
 
 TaskQueueBase* FakeCall::network_thread() const {
   return network_thread_;
-}
-
-TaskQueueBase* FakeCall::worker_thread() const {
-  return worker_thread_;
 }
 
 void FakeCall::SignalChannelNetworkState(MediaType media, NetworkState state) {

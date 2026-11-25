@@ -13,7 +13,6 @@
 #include <memory>
 #include <optional>
 
-#include "absl/base/nullability.h"
 #include "api/environment/environment.h"
 #include "api/fec_controller.h"
 #include "api/metronome/metronome.h"
@@ -35,10 +34,6 @@ class AudioProcessing;
 struct CallConfig {
   explicit CallConfig(const Environment& env,
                       TaskQueueBase* network_task_queue = nullptr);
-
-  static CallConfig CreateWithJoinedWorkerAndNetworkQueue(
-      const Environment& env,
-      TaskQueueBase* absl_nonnull worker_and_network_queue);
 
   // Creates a configuration for a single-threaded Call setup where Call runs
   // on the current thread, which is also the signaling thread.

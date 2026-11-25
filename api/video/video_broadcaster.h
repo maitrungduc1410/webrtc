@@ -29,7 +29,7 @@ namespace webrtc {
 // from its sinks. It does that by implementing VideoSourceInterface and
 // VideoSinkInterface. The class is threadsafe; methods may be called on
 // any thread. This is needed because VideoStreamEncoder calls AddOrUpdateSink
-// both on the worker thread and on the encoder task queue.
+// both on the network thread and on the encoder task queue.
 class VideoBroadcaster : public VideoSourceInterface<VideoFrame>,
                          public VideoSinkInterface<VideoFrame> {
  public:

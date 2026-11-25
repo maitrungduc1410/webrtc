@@ -65,10 +65,10 @@ scoped_refptr<RTCCertificate> RTCCertificateGenerator::GenerateCertificate(
 
 RTCCertificateGenerator::RTCCertificateGenerator(
     TaskQueueBase* signaling_thread,
-    TaskQueueBase* worker_thread)
-    : signaling_thread_(signaling_thread), worker_thread_(worker_thread) {
+    TaskQueueBase* generation_queue)
+    : signaling_thread_(signaling_thread), generation_queue_(generation_queue) {
   RTC_DCHECK(signaling_thread_);
-  RTC_DCHECK(worker_thread_);
+  RTC_DCHECK(generation_queue_);
 }
 
 void RTCCertificateGenerator::GenerateCertificateAsync(
@@ -78,9 +78,9 @@ void RTCCertificateGenerator::GenerateCertificateAsync(
   RTC_DCHECK(signaling_thread_->IsCurrent());
   RTC_DCHECK(callback);
 
-  worker_thread_->PostTask([key_params, expires_ms,
-                            signaling_thread = signaling_thread_,
-                            cb = std::move(callback)]() mutable {
+  generation_queue_->PostTask([key_params, expires_ms,
+                               signaling_thread = signaling_thread_,
+                               cb = std::move(callback)]() mutable {
     scoped_refptr<RTCCertificate> certificate =
         RTCCertificateGenerator::GenerateCertificate(key_params, expires_ms);
     signaling_thread->PostTask(

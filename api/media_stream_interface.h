@@ -109,7 +109,7 @@ class RTC_EXPORT MediaStreamTrackInterface : public RefCountInterface,
 // VideoTracks. The same source can be used by multiple VideoTracks.
 // VideoTrackSourceInterface is designed to be invoked on the signaling thread
 // except for VideoSourceInterface<VideoFrame> methods that will be
-// invoked on the worker thread via a VideoTrack. A custom implementation of a
+// invoked on the network thread via a VideoTrack. A custom implementation of a
 // source can inherit AdaptedVideoTrackSource instead of directly implementing
 // this interface.
 class VideoTrackSourceInterface : public MediaSourceInterface,
@@ -175,7 +175,7 @@ class VideoTrackSourceInterface : public MediaSourceInterface,
 
 // VideoTrackInterface is designed to be invoked on the signaling thread except
 // for VideoSourceInterface<VideoFrame> methods that must be invoked
-// on the worker thread.
+// on the network thread.
 // PeerConnectionFactory::CreateVideoTrack can be used for creating a VideoTrack
 // that ensures thread safety and that all methods are called on the right
 // thread.

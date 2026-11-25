@@ -22,13 +22,13 @@ scoped_refptr<VideoTrackSourceInterface> ObjCToNativeVideoCapturer(
     RTC_OBJC_TYPE(RTCVideoCapturer) * objc_video_capturer,
     const Environment &env,
     Thread *signaling_thread,
-    Thread *worker_thread) {
+    Thread *network_thread) {
   RTCObjCVideoSourceAdapter *adapter = [[RTCObjCVideoSourceAdapter alloc] init];
   scoped_refptr<ObjCVideoTrackSource> objc_video_track_source =
       make_ref_counted<ObjCVideoTrackSource>(env, adapter);
   scoped_refptr<VideoTrackSourceInterface> video_source =
       CreateVideoTrackSourceProxy(
-          signaling_thread, worker_thread, objc_video_track_source.get());
+          signaling_thread, network_thread, objc_video_track_source.get());
 
   objc_video_capturer.delegate = adapter;
 

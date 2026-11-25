@@ -198,7 +198,7 @@ class RtpSenderReceiverTest
         // Create fake media engine/etc. so we can create channels to use to
         // test RtpSenders/RtpReceivers.
         media_engine_(std::make_unique<FakeMediaEngine>()),
-        fake_call_(env_, worker_thread_.get(), network_thread_.get()),
+        fake_call_(env_, network_thread_.get()),
         local_stream_(MediaStream::Create(kStreamId1)) {
     rtp_dtls_transport_ = std::make_unique<FakeDtlsTransport>(
         env_, "fake_dtls_transport", ICE_CANDIDATE_COMPONENT_RTP);

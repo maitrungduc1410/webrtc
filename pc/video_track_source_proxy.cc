@@ -19,10 +19,10 @@ namespace webrtc {
 
 scoped_refptr<VideoTrackSourceInterface> CreateVideoTrackSourceProxy(
     Thread* signaling_thread,
-    Thread* worker_thread,
+    Thread* network_thread,
     VideoTrackSourceInterface* source) {
   return VideoTrackSourceProxy::Create(
-      signaling_thread, worker_thread,
+      signaling_thread, network_thread,
       scoped_refptr<VideoTrackSourceInterface>(source));
 }
 

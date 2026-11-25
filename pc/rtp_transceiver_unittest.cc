@@ -229,10 +229,7 @@ class RtpTransceiverDoubleThreadTest : public testing::Test {
 
 class RtpTransceiverTestWithFakeCall : public RtpTransceiverTest {
  public:
-  RtpTransceiverTestWithFakeCall()
-      : call_(std::make_unique<FakeCall>(env(),
-                                         Thread::Current(),
-                                         Thread::Current())) {}
+  RtpTransceiverTestWithFakeCall() : call_(std::make_unique<FakeCall>(env())) {}
 
  protected:
   std::unique_ptr<FakeCall> call_;
@@ -1253,8 +1250,7 @@ TEST_F(RtpTransceiverDoubleThreadTest,
     rtp_transport->SetRtpPacketTransport(fake_dtls.get());
   });
 
-  auto call = std::make_unique<FakeCall>(env(), context()->network_thread(),
-                                         context()->network_thread());
+  auto call = std::make_unique<FakeCall>(env(), context()->network_thread());
 
   auto transceiver = CreateAudioTransceiverWithChannel(
       env(), call.get(), context(), codec_lookup_helper(), AudioOptions(),

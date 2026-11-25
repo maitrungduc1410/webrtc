@@ -390,9 +390,7 @@ class FakeFlexfecReceiveStream final : public FlexfecReceiveStream {
 class FakeCall final : public Call, public PacketReceiver {
  public:
   explicit FakeCall(const Environment& env);
-  FakeCall(const Environment& env,
-           TaskQueueBase* worker_thread,
-           TaskQueueBase* network_thread);
+  FakeCall(const Environment& env, TaskQueueBase* network_thread);
   ~FakeCall() override;
 
   PayloadTypeSuggester* GetPayloadTypeSuggester() { return &pt_suggester_; }
@@ -499,7 +497,6 @@ class FakeCall final : public Call, public PacketReceiver {
   Call::Stats GetStats() const override;
 
   TaskQueueBase* network_thread() const override;
-  TaskQueueBase* worker_thread() const override;
 
   void SignalChannelNetworkState(MediaType media, NetworkState state) override;
   void OnUpdateSyncGroup(AudioReceiveStreamInterface& stream,
@@ -508,7 +505,6 @@ class FakeCall final : public Call, public PacketReceiver {
 
   const Environment env_;
   TaskQueueBase* const network_thread_;
-  TaskQueueBase* const worker_thread_;
 
   ::testing::NiceMock<MockRtpTransportControllerSend>
       transport_controller_send_;

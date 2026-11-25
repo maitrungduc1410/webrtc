@@ -10,7 +10,6 @@
 
 #include "call/call_config.h"
 
-#include "absl/base/nullability.h"
 #include "api/environment/environment.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/network_types.h"
@@ -25,12 +24,6 @@ CallConfig::CallConfig(const Environment& env,
       network_task_queue_(network_task_queue ? network_task_queue
                                              : TaskQueueBase::Current()) {
   RTC_DCHECK(network_task_queue_ != nullptr);
-}
-
-CallConfig CallConfig::CreateWithJoinedWorkerAndNetworkQueue(
-    const Environment& env,
-    TaskQueueBase* absl_nonnull worker_and_network_queue) {
-  return CallConfig(env, worker_and_network_queue);
 }
 
 CallConfig CallConfig::CreateSingleThreaded(const Environment& env) {

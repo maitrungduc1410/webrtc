@@ -1515,9 +1515,9 @@ struct RTC_EXPORT PeerConnectionFactoryDependencies final {
   // manage video frame timing for rendering.
   std::unique_ptr<VideoJitterTimingFactory> video_jitter_timing_factory;
   std::unique_ptr<SctpTransportFactoryInterface> sctp_factory;
-  // Metronome used for decoding, must be called on the worker thread.
+  // Metronome used for decoding, must be called on the network thread.
   std::unique_ptr<Metronome> decode_metronome;
-  // Metronome used for encoding, must be called on the worker thread.
+  // Metronome used for encoding, must be called on the network thread.
   // TODO(b/304158952): Consider merging into a single metronome for all codec
   // usage.
   std::unique_ptr<Metronome> encode_metronome;

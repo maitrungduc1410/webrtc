@@ -261,7 +261,6 @@ class Call final : public webrtc::Call,
   void DisconnectFromNetworkThread() override;
 
   TaskQueueBase* network_thread() const override;
-  TaskQueueBase* worker_thread() const override;
 
   void DeliverRtcpPacket(CopyOnWriteBuffer packet) override;
 
@@ -1070,10 +1069,6 @@ void Call::DisconnectFromNetworkThread() {
 }
 
 TaskQueueBase* Call::network_thread() const {
-  return network_thread_;
-}
-
-TaskQueueBase* Call::worker_thread() const {
   return network_thread_;
 }
 

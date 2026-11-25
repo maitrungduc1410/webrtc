@@ -31,12 +31,12 @@ class RTCCertificateGeneratorFixture {
  public:
   RTCCertificateGeneratorFixture()
       : signaling_thread_(Thread::Current()),
-        worker_thread_(Thread::Create()),
+        generation_queue_(Thread::Create()),
         generate_async_completed_(false) {
     RTC_CHECK(signaling_thread_);
-    RTC_CHECK(worker_thread_->Start());
-    generator_.reset(
-        new RTCCertificateGenerator(signaling_thread_, worker_thread_.get()));
+    RTC_CHECK(generation_queue_->Start());
+    generator_.reset(new RTCCertificateGenerator(signaling_thread_,
+                                                 generation_queue_.get()));
   }
 
   RTCCertificateGenerator* generator() const { return generator_.get(); }
@@ -62,7 +62,7 @@ class RTCCertificateGeneratorFixture {
 
  protected:
   Thread* const signaling_thread_;
-  std::unique_ptr<Thread> worker_thread_;
+  std::unique_ptr<Thread> generation_queue_;
   std::unique_ptr<RTCCertificateGenerator> generator_;
   scoped_refptr<RTCCertificate> certificate_;
   bool generate_async_completed_;

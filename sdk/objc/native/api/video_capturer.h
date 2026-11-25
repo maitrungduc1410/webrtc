@@ -26,7 +26,7 @@ scoped_refptr<VideoTrackSourceInterface> ObjCToNativeVideoCapturer(
     RTC_OBJC_TYPE(RTCVideoCapturer) * objc_video_capturer,
     const Environment& env,
     Thread* signaling_thread,
-    Thread* worker_thread);
+    Thread* network_thread);
 
 }  // namespace webrtc
 

@@ -34,7 +34,7 @@ class RTCCertificateGeneratorInterface {
 
   virtual ~RTCCertificateGeneratorInterface() = default;
 
-  // Generates a certificate asynchronously on the worker thread.
+  // Generates a certificate asynchronously on the network thread.
   // Must be called on the signaling thread. The `callback` is invoked with the
   // result on the signaling thread. `exipres_ms` optionally specifies for how
   // long we want the certificate to be valid, but the implementation may choose
@@ -48,7 +48,7 @@ class RTCCertificateGeneratorInterface {
 // Standard implementation of `RTCCertificateGeneratorInterface`.
 // The static function `GenerateCertificate` generates a certificate on the
 // current thread. The `RTCCertificateGenerator` instance generates certificates
-// asynchronously on the worker thread with `GenerateCertificateAsync`.
+// asynchronously on `generation_queue` with `GenerateCertificateAsync`.
 class RTC_EXPORT RTCCertificateGenerator
     : public RTCCertificateGeneratorInterface {
  public:
@@ -62,7 +62,7 @@ class RTC_EXPORT RTCCertificateGenerator
       const std::optional<uint64_t>& expires_ms);
 
   RTCCertificateGenerator(TaskQueueBase* signaling_thread,
-                          TaskQueueBase* worker_thread);
+                          TaskQueueBase* generation_queue);
   ~RTCCertificateGenerator() override {}
 
   // `RTCCertificateGeneratorInterface` overrides.
@@ -76,7 +76,7 @@ class RTC_EXPORT RTCCertificateGenerator
 
  private:
   TaskQueueBase* const signaling_thread_;
-  TaskQueueBase* const worker_thread_;
+  TaskQueueBase* const generation_queue_;
 };
 
 }  //  namespace webrtc
