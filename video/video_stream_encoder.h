@@ -45,6 +45,7 @@
 #include "api/video/video_frame_type.h"
 #include "api/video/video_source_interface.h"
 #include "api/video/video_stream_encoder_settings.h"
+#include "api/video_codecs/sdp_video_format.h"
 #include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_encoder.h"
 #include "api/video_codecs/video_encoder_factory.h"
@@ -283,6 +284,9 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
   void ShutdownResourceAdaptationQueue();
 
   void RequestEncoderSwitch() RTC_RUN_ON(encoder_queue_);
+  void AsyncInvokeEncoderSwitchRequestCallback(
+      std::optional<SdpVideoFormat> format,
+      bool allow_default_fallback);
 
   // Augments an EncodedImage received from an encoder with parsable
   // information.
@@ -301,7 +305,9 @@ class VideoStreamEncoderImpl : public VideoStreamEncoderInterface,
 
   EncoderSink* sink_ = nullptr;
   const VideoStreamEncoderSettings settings_;
-  EncoderSwitchRequestCallback encoder_switch_request_callback_;
+  const bool has_encoder_switch_request_callback_;
+  EncoderSwitchRequestCallback encoder_switch_request_callback_
+      RTC_GUARDED_BY(worker_queue_);
   const BitrateAllocationCallbackType allocation_cb_type_;
   const RateControlSettings rate_control_settings_;
 

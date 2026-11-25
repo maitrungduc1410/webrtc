@@ -681,6 +681,8 @@ VideoStreamEncoderImpl::VideoStreamEncoderImpl(
       worker_queue_(TaskQueueBase::Current()),
       number_of_cores_(number_of_cores),
       settings_(std::move(settings)),
+      has_encoder_switch_request_callback_(encoder_switch_request_callback !=
+                                           nullptr),
       encoder_switch_request_callback_(
           std::move(encoder_switch_request_callback)),
       allocation_cb_type_(allocation_cb_type),
@@ -801,6 +803,9 @@ void VideoStreamEncoderImpl::Stop() {
   }
   video_source_sink_controller_.SetSource(nullptr);
   worker_task_safety_.flag()->SetNotAlive();
+  // Release any state captured by the callback synchronously on `worker_queue_`
+  // (`worker_task_safety_` already prevents post-Stop invocation).
+  encoder_switch_request_callback_ = nullptr;
 
   // `StopCallbacks` must be called before the queue is destroyed, because
   // ongoing notifications of prepared frames may post tasks or run on
@@ -1582,8 +1587,7 @@ void VideoStreamEncoderImpl::ReconfigureEncoder() {
 }
 
 void VideoStreamEncoderImpl::RequestEncoderSwitch() {
-  bool is_encoder_switching_supported =
-      encoder_switch_request_callback_ != nullptr;
+  bool is_encoder_switching_supported = has_encoder_switch_request_callback_;
   bool is_encoder_selector_available = encoder_selector_ != nullptr;
 
   RTC_LOG(LS_INFO) << "RequestEncoderSwitch."
@@ -1606,8 +1610,8 @@ void VideoStreamEncoderImpl::RequestEncoderSwitch() {
     if (!env_.field_trials().IsDisabled(
             kSwitchEncoderFollowCodecPreferenceOrderFieldTrial)) {
       encoder_fallback_requested_ = true;
-      encoder_switch_request_callback_(std::nullopt,
-                                       /*allow_default_fallback=*/false);
+      AsyncInvokeEncoderSwitchRequestCallback(std::nullopt,
+                                              /*allow_default_fallback=*/false);
       return;
     } else {
       preferred_fallback_encoder =
@@ -1615,8 +1619,22 @@ void VideoStreamEncoderImpl::RequestEncoderSwitch() {
     }
   }
 
-  encoder_switch_request_callback_(*preferred_fallback_encoder,
-                                   /*allow_default_fallback=*/true);
+  AsyncInvokeEncoderSwitchRequestCallback(*preferred_fallback_encoder,
+                                          /*allow_default_fallback=*/true);
+}
+
+void VideoStreamEncoderImpl::AsyncInvokeEncoderSwitchRequestCallback(
+    std::optional<SdpVideoFormat> format,
+    bool allow_default_fallback) {
+  RTC_DCHECK(has_encoder_switch_request_callback_);
+  worker_queue_->PostTask(SafeTask(
+      worker_task_safety_.flag(),
+      [this, format = std::move(format), allow_default_fallback]() mutable {
+        RTC_DCHECK_RUN_ON(worker_queue_);
+        RTC_DCHECK(encoder_switch_request_callback_);
+        encoder_switch_request_callback_(std::move(format),
+                                         allow_default_fallback);
+      }));
 }
 
 void VideoStreamEncoderImpl::OnEncoderSettingsChanged() {
@@ -1949,11 +1967,11 @@ void VideoStreamEncoderImpl::MaybeEncodeVideoFrame(
       video_frame.is_texture() != last_frame_info_->is_texture) {
     if ((!last_frame_info_ || video_frame.width() != last_frame_info_->width ||
          video_frame.height() != last_frame_info_->height) &&
-        encoder_switch_request_callback_ && encoder_selector_) {
+        has_encoder_switch_request_callback_ && encoder_selector_) {
       if (auto encoder = encoder_selector_->OnResolutionChange(
               {video_frame.width(), video_frame.height()})) {
-        encoder_switch_request_callback_(*encoder,
-                                         /*allow_default_fallback=*/false);
+        AsyncInvokeEncoderSwitchRequestCallback(
+            *encoder, /*allow_default_fallback=*/false);
       }
     }
 
@@ -2535,11 +2553,11 @@ void VideoStreamEncoderImpl::OnBitrateUpdated(DataRate target_bitrate,
   const bool video_is_suspended = target_bitrate == DataRate::Zero();
   const bool video_suspension_changed = video_is_suspended != EncoderPaused();
 
-  if (!video_is_suspended && encoder_switch_request_callback_ &&
+  if (!video_is_suspended && has_encoder_switch_request_callback_ &&
       encoder_selector_) {
     if (auto encoder = encoder_selector_->OnAvailableBitrate(link_allocation)) {
-      encoder_switch_request_callback_(*encoder,
-                                       /*allow_default_fallback=*/false);
+      AsyncInvokeEncoderSwitchRequestCallback(*encoder,
+                                              /*allow_default_fallback=*/false);
     }
   }
 
