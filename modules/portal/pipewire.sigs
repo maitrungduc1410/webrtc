@@ -22,6 +22,7 @@ const char* pw_get_library_version();
 
 // properties.h
 pw_properties * pw_properties_new_string(const char *args);
+pw_properties * pw_properties_new_dict(const struct spa_dict *dict);
 
 // stream.h
 void pw_stream_add_listener(pw_stream *stream, spa_hook *listener, const pw_stream_events *events, void *data);

@@ -30,6 +30,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -113,21 +114,26 @@ void PipeWireNode::PipeWireNodeDeleter::operator()(
 }
 
 // static
-PipeWireNode::PipeWireNodePtr PipeWireNode::Create(PipeWireSession* session,
-                                                   uint32_t id,
-                                                   const spa_dict* props) {
-  return PipeWireNodePtr(new PipeWireNode(session, id, props));
+PipeWireNode::PipeWireNodePtr PipeWireNode::Create(
+    PipeWireSession* session,
+    uint32_t id,
+    const std::string& object_serial,
+    const spa_dict* props) {
+  return PipeWireNodePtr(new PipeWireNode(session, id, object_serial, props));
 }
 
 RTC_NO_SANITIZE("cfi-icall")
 PipeWireNode::PipeWireNode(PipeWireSession* session,
                            uint32_t id,
+                           const std::string& object_serial,
                            const spa_dict* props)
     : session_(session),
       id_(id),
+      object_serial_(object_serial),
       display_name_(spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION)),
       unique_id_(spa_dict_lookup(props, PW_KEY_NODE_NAME)) {
-  RTC_LOG(LS_VERBOSE) << "Found Camera: " << display_name_;
+  RTC_LOG(LS_VERBOSE) << "Found Camera: " << display_name_ << " (serial "
+                      << object_serial_ << ")";
 
   proxy_ = static_cast<pw_proxy*>(pw_registry_bind(
       session_->pw_registry_, id, PW_TYPE_INTERFACE_Node, PW_VERSION_NODE, 0));
@@ -625,11 +631,19 @@ void PipeWireSession::OnRegistryGlobal(void* data,
   if (!spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION))
     return;
 
+  if (!spa_dict_lookup(props, PW_KEY_NODE_NAME))
+    return;
+
   auto node_role = spa_dict_lookup(props, PW_KEY_MEDIA_ROLE);
   if (!node_role || strcmp(node_role, "Camera"))
     return;
 
-  that->pending_nodes_.push_back(PipeWireNode::Create(that, id, props));
+  const char* serial_str = spa_dict_lookup(props, PW_KEY_OBJECT_SERIAL);
+  if (!serial_str)
+    return;
+
+  that->pending_nodes_.push_back(
+      PipeWireNode::Create(that, id, serial_str, props));
   that->PipeWireSync();
 }
 

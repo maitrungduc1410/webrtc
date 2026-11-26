@@ -53,9 +53,11 @@ class PipeWireNode {
       std::unique_ptr<PipeWireNode, PipeWireNode::PipeWireNodeDeleter>;
   static PipeWireNodePtr Create(PipeWireSession* session,
                                 uint32_t id,
+                                const std::string& object_serial,
                                 const spa_dict* props);
 
   uint32_t id() const { return id_; }
+  const std::string& object_serial() const { return object_serial_; }
   const std::string& display_name() const { return display_name_; }
   const std::string& unique_id() const { return unique_id_; }
   std::string model_id() const {
@@ -68,7 +70,10 @@ class PipeWireNode {
   }
 
  protected:
-  PipeWireNode(PipeWireSession* session, uint32_t id, const spa_dict* props);
+  PipeWireNode(PipeWireSession* session,
+               uint32_t id,
+               const std::string& object_serial,
+               const spa_dict* props);
 
  private:
   static void OnNodeInfo(void* data, const pw_node_info* info);
@@ -86,6 +91,7 @@ class PipeWireNode {
   struct spa_hook proxy_listener_;
   PipeWireSession* session_;
   uint32_t id_;
+  std::string object_serial_;
   std::string display_name_;
   std::string unique_id_;
   // The PipeWire thread changes these while other threads read them.

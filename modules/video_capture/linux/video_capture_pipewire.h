@@ -16,6 +16,7 @@
 #include <spa/utils/hook.h>
 
 #include <cstdint>
+#include <string>
 
 #include "api/scoped_refptr.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
@@ -61,8 +62,8 @@ class VideoCaptureModulePipeWire : public VideoCaptureImpl {
   // Whether the end of the current stream was reported: the stream can get an
   // error and then go to unconnected.
   bool stream_end_reported_ RTC_GUARDED_BY(api_lock_) = false;
-  int node_id_ RTC_GUARDED_BY(capture_checker_);
-  // node_id_ is only valid while the session keeps this count.
+  std::string object_serial_ RTC_GUARDED_BY(capture_checker_);
+  // object_serial_ is only valid while the session keeps this count.
   int lost_connections_at_init_ RTC_GUARDED_BY(capture_checker_) = 0;
   VideoCaptureCapability configured_capability_
       RTC_GUARDED_BY(capture_checker_);

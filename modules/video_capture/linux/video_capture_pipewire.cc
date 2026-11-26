@@ -124,7 +124,7 @@ int32_t VideoCaptureModulePipeWire::Init(const char* deviceUniqueId) {
     if (node == session_->nodes_.end())
       return -1;
 
-    node_id_ = (*node)->id();
+    object_serial_ = (*node)->object_serial();
     lost_connections_at_init_ = session_->lost_connections_;
   }
 
@@ -213,8 +213,8 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
   RTC_CHECK_RUNS_SERIALIZED(&capture_checker_);
 
   {
-    // When PipeWire comes back after a restart, it numbers its nodes anew, so
-    // the id from Init() can belong to another camera now.
+    // When PipeWire comes back after a restart, the node from Init() may no
+    // longer be available, so refuse to start with a stale session.
     MutexLock lock(&session_->nodes_lock());
     if (session_->lost_connections_ != lost_connections_at_init_) {
       RTC_LOG(LS_ERROR) << "The connection to PipeWire was lost after Init().";
@@ -222,11 +222,25 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
     }
   }
 
-  RTC_LOG(LS_VERBOSE) << "Creating new PipeWire stream for node " << node_id_;
+  RTC_LOG(LS_VERBOSE) << "Creating new PipeWire stream for node "
+                      << object_serial_;
 
-  pw_properties* reuse_props =
-      pw_properties_new_string("pipewire.client.reuse=1");
-  stream_ = pw_stream_new(session_->pw_core_, "camera-stream", reuse_props);
+  const struct spa_dict_item stream_props_items[] = {
+      {PW_KEY_MEDIA_TYPE, "Video"},
+      {PW_KEY_MEDIA_CATEGORY, "Capture"},
+      {PW_KEY_MEDIA_ROLE, "Camera"},
+      {PW_KEY_TARGET_OBJECT, object_serial_.c_str()},
+      {"pipewire.client.reuse", "1"},
+  };
+  const struct spa_dict stream_props_dict =
+      SPA_DICT_INIT_ARRAY(stream_props_items);
+  pw_properties* stream_properties = pw_properties_new_dict(&stream_props_dict);
+  if (!stream_properties) {
+    RTC_LOG(LS_ERROR) << "Failed to create camera stream!";
+    return -1;
+  }
+  stream_ =
+      pw_stream_new(session_->pw_core_, "camera-stream", stream_properties);
 
   if (!stream_) {
     RTC_LOG(LS_ERROR) << "Failed to create camera stream!";
@@ -266,7 +280,7 @@ int32_t VideoCaptureModulePipeWire::StartCapture(
       BuildFormat(&builder, video_type, width, height, frame_rate));
 
   int res = pw_stream_connect(
-      stream_, PW_DIRECTION_INPUT, node_id_,
+      stream_, PW_DIRECTION_INPUT, PW_ID_ANY,
       static_cast<enum pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT |
                                         PW_STREAM_FLAG_DONT_RECONNECT),
       params.data(), params.size());
