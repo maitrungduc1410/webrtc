@@ -61,7 +61,7 @@ TEST(RtcpPacketDlrrTest, Parse) {
 
 TEST(RtcpPacketDlrrTest, ParseFailsOnBadSize) {
   const size_t kBigBufferSize = 0x100;  // More than enough.
-  uint8_t buffer[kBigBufferSize];
+  uint8_t buffer[kBigBufferSize] = {};
   buffer[0] = Dlrr::kBlockType;
   buffer[1] = 0;  // Reserved.
   buffer[2] = 0;  // Most significant size byte.
