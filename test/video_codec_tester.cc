@@ -349,8 +349,8 @@ class TesterIvfWriter {
 
   void Write(const EncodedImage& encoded_frame, VideoCodecType codec_type) {
     task_queue_.PostTask([this, encoded_frame, codec_type] {
-      int spatial_idx = encoded_frame.SpatialIndex().value_or(
-          encoded_frame.SimulcastIndex().value_or(0));
+      int spatial_idx = std::max(encoded_frame.SpatialIndex().value_or(0),
+                                 encoded_frame.SimulcastIndex().value_or(0));
       if (ivf_file_writers_.find(spatial_idx) == ivf_file_writers_.end()) {
         std::string ivf_path =
             base_path_ + "-s" + std::to_string(spatial_idx) + ".ivf";
@@ -437,8 +437,8 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
     Timestamp encode_finished = clock_->CurrentTime();
     task_queue_.PostTask(
         [this, timestamp_rtp = encoded_frame.RtpTimestamp(),
-         spatial_idx = encoded_frame.SpatialIndex().value_or(
-             encoded_frame.SimulcastIndex().value_or(0)),
+         spatial_idx = std::max(encoded_frame.SpatialIndex().value_or(0),
+                                encoded_frame.SimulcastIndex().value_or(0)),
          temporal_idx = encoded_frame.TemporalIndex().value_or(0),
          width = encoded_frame._encodedWidth,
          height = encoded_frame._encodedHeight,
@@ -471,8 +471,8 @@ class VideoCodecAnalyzer : public VideoCodecTester::VideoCodecStats {
     Timestamp decode_start = clock_->CurrentTime();
     task_queue_.PostTask(
         [this, timestamp_rtp = encoded_frame.RtpTimestamp(),
-         spatial_idx = encoded_frame.SpatialIndex().value_or(
-             encoded_frame.SimulcastIndex().value_or(0)),
+         spatial_idx = std::max(encoded_frame.SpatialIndex().value_or(0),
+                                encoded_frame.SimulcastIndex().value_or(0)),
          temporal_idx = encoded_frame.TemporalIndex().value_or(0),
          width = encoded_frame._encodedWidth,
          height = encoded_frame._encodedHeight,
@@ -913,8 +913,8 @@ class Decoder : public DecodedImageCallback {
 
   void Decode(const EncodedImage& encoded_frame,
               std::optional<VideoFrame> ref_frame = std::nullopt) {
-    int spatial_idx = encoded_frame.SpatialIndex().value_or(
-        encoded_frame.SimulcastIndex().value_or(0));
+    int spatial_idx = std::max(encoded_frame.SpatialIndex().value_or(0),
+                               encoded_frame.SimulcastIndex().value_or(0));
     {
       MutexLock lock(&mutex_);
       RTC_CHECK_EQ(spatial_idx_.value_or(spatial_idx), spatial_idx)
@@ -1785,8 +1785,8 @@ VideoCodecTester::RunEncodeDecodeTest(
     encoder.Encode(
         source_frame, frame_settings,
         [&decoders, source_frame](const EncodedImage& encoded_frame) {
-          int sidx = encoded_frame.SpatialIndex().value_or(
-              encoded_frame.SimulcastIndex().value_or(0));
+          int sidx = std::max(encoded_frame.SpatialIndex().value_or(0),
+                              encoded_frame.SimulcastIndex().value_or(0));
           decoders.at(sidx)->Decode(encoded_frame, source_frame);
         });
   }
