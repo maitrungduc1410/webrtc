@@ -326,8 +326,11 @@ class FakeVideoEngineForStats : public FakeVideoEngine {
       const CryptoOptions& crypto_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
-          video_encoder_switch_request_callback,
-      absl::AnyInvocable<void()> parameters_changed_callback) override {
+          video_encoder_switch_request_callback =
+              VideoMediaSendChannelInterface::
+                  DefaultEncoderSwitchRequestCallback,
+      absl::AnyInvocable<void()> parameters_changed_callback =
+          nullptr) override {
     return std::make_unique<FakeVideoMediaSendChannelForStats>(network_thread_);
   }
 

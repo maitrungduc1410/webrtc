@@ -141,8 +141,10 @@ class VideoChannelFactoryInterface {
       const CryptoOptions& crypto_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
-          video_encoder_switch_request_callback,
-      absl::AnyInvocable<void()> parameters_changed_callback) = 0;
+          video_encoder_switch_request_callback =
+              VideoMediaSendChannelInterface::
+                  DefaultEncoderSwitchRequestCallback,
+      absl::AnyInvocable<void()> parameters_changed_callback = nullptr) = 0;
 
   // Safe to be called from the signaling thread.
   virtual std::unique_ptr<VideoMediaReceiveChannelInterface>
@@ -239,8 +241,11 @@ class VideoEngineInterface : public RtpHeaderExtensionQueryInterface,
       const CryptoOptions& crypto_options,
       VideoBitrateAllocatorFactory* video_bitrate_allocator_factory,
       VideoMediaSendChannelInterface::EncoderSwitchRequestCallback
-          video_encoder_switch_request_callback,
-      absl::AnyInvocable<void()> parameters_changed_callback) override = 0;
+          video_encoder_switch_request_callback =
+              VideoMediaSendChannelInterface::
+                  DefaultEncoderSwitchRequestCallback,
+      absl::AnyInvocable<void()> parameters_changed_callback =
+          nullptr) override = 0;
 
   std::unique_ptr<VideoMediaReceiveChannelInterface> CreateReceiveChannel(
       const Environment& env,

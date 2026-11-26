@@ -1030,7 +1030,14 @@ class VideoMediaSendChannelInterface : public MediaSendChannelInterface {
  public:
   using EncoderSwitchRequestAction = absl::AnyInvocable<void() &&>;
   using EncoderSwitchRequestCallback =
-      absl::AnyInvocable<void(EncoderSwitchRequestAction)>;
+      absl::AnyInvocable<void(EncoderSwitchRequestAction) const>;
+
+  // Default callback that invokes `action` immediately on the current thread
+  // (which must be the network thread).
+  static void DefaultEncoderSwitchRequestCallback(
+      EncoderSwitchRequestAction action) {
+    std::move(action)();
+  }
 
   virtual bool SetSenderParameters(const VideoSenderParameters& params) = 0;
 

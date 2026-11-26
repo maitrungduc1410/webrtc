@@ -210,7 +210,7 @@ class RtpSenderReceiverTest
         env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions());
     video_media_send_channel_ = media_engine_->video().CreateSendChannel(
         env_, &fake_call_, MediaConfig(), VideoOptions(), CryptoOptions(),
-        video_bitrate_allocator_factory_.get(), nullptr, nullptr);
+        video_bitrate_allocator_factory_.get());
     voice_media_receive_channel_ = media_engine_->voice().CreateReceiveChannel(
         env_, &fake_call_, MediaConfig(), AudioOptions(), CryptoOptions(),
         nullptr, nullptr);

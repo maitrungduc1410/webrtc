@@ -955,7 +955,9 @@ WebRtcVideoSendChannel::WebRtcVideoSendChannel(
       crypto_options_(crypto_options),
       parameters_changed_callback_(std::move(parameters_changed_callback)),
       encoder_switch_request_callback_(
-          std::move(video_encoder_switch_request_callback)) {}
+          std::move(video_encoder_switch_request_callback)) {
+  RTC_DCHECK(encoder_switch_request_callback_);
+}
 
 WebRtcVideoSendChannel::~WebRtcVideoSendChannel() {
   for (auto& kv : send_streams_)
@@ -1262,18 +1264,12 @@ bool WebRtcVideoSendChannel::SetSenderParameters(
 void WebRtcVideoSendChannel::RequestEncoderSwitch(
     std::optional<SdpVideoFormat> format,
     bool allow_default_fallback) {
-  if (encoder_switch_request_callback_) {
-    auto task = SafeTask(
-        task_safety_.flag(),
-        [this, format = std::move(format), allow_default_fallback]() mutable {
-          RTC_DCHECK_RUN_ON(network_thread_);
-          ApplyEncoderSwitch(std::move(format), allow_default_fallback);
-        });
-    encoder_switch_request_callback_(std::move(task));
-  } else {
+  auto task = SafeTask(task_safety_.flag(), [this, format = std::move(format),
+                                             allow_default_fallback]() mutable {
     RTC_DCHECK_RUN_ON(network_thread_);
     ApplyEncoderSwitch(std::move(format), allow_default_fallback);
-  }
+  });
+  encoder_switch_request_callback_(std::move(task));
 }
 
 void WebRtcVideoSendChannel::ApplyEncoderSwitch(
