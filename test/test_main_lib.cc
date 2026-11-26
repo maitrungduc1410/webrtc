@@ -85,6 +85,7 @@ ABSL_FLAG(
 
 #elif defined(WEBRTC_FUCHSIA)
 ABSL_FLAG(std::string, use_vulkan, "", "Intentionally ignored flag.");
+ABSL_FLAG(bool, use_gpu_in_tests, false, "Intentionally ignored flag.");
 #else
 // TODO(bugs.webrtc.org/8115): Remove workaround when fixed.
 ABSL_FLAG(bool, no_sandbox, false, "Intentionally ignored flag.");
