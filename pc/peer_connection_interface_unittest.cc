@@ -525,7 +525,7 @@ bool ContainsSender(
 // CreateStreamCollection(2) correspond to kSdpStringWithStream1And2.
 scoped_refptr<StreamCollection> CreateStreamCollection(int number_of_streams,
                                                        int tracks_per_stream,
-                                                       Thread* worker_thread) {
+                                                       Thread* network_thread) {
   scoped_refptr<StreamCollection> local_collection(StreamCollection::Create());
 
   for (int i = 0; i < number_of_streams; ++i) {
@@ -541,7 +541,7 @@ scoped_refptr<StreamCollection> CreateStreamCollection(int number_of_streams,
       // Add a local video track.
       scoped_refptr<VideoTrackInterface> video_track(
           VideoTrack::Create(kVideoTracks[i * tracks_per_stream + j],
-                             FakeVideoTrackSource::Create(), worker_thread));
+                             FakeVideoTrackSource::Create(), network_thread));
       stream->AddTrack(video_track);
     }
 
@@ -653,9 +653,6 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
     network_thread_ = Thread::CreateWithSocketServer();
     network_thread_->SetName("NetworkThread", nullptr);
     ASSERT_TRUE(network_thread_->Start());
-    worker_thread_ = Thread::Create();
-    worker_thread_->SetName("WorkerThread", nullptr);
-    ASSERT_TRUE(worker_thread_->Start());
 
     PeerConnectionFactoryDependencies dependencies;
     dependencies.network_thread = network_thread_.get();
@@ -1200,7 +1197,7 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   void AddVideoTrack(const std::string& track_id,
                      MediaStreamInterface* stream) {
     scoped_refptr<VideoTrackInterface> video_track(VideoTrack::Create(
-        track_id, FakeVideoTrackSource::Create(), worker_thread_.get()));
+        track_id, FakeVideoTrackSource::Create(), network_thread_.get()));
     ASSERT_TRUE(stream->AddTrack(video_track));
   }
 
@@ -1312,7 +1309,6 @@ class PeerConnectionInterfaceBaseTest : public ::testing::Test {
   std::unique_ptr<VirtualSocketServer> vss_;
   test::RunLoop main_;
   std::unique_ptr<Thread> network_thread_;
-  std::unique_ptr<Thread> worker_thread_;
   scoped_refptr<FakeAudioCaptureModule> fake_audio_capture_module_;
   WeakPtr<FakePortAllocator> port_allocator_;
   FakeRTCCertificateGenerator* fake_certificate_generator_ = nullptr;
@@ -2807,7 +2803,7 @@ TEST_P(PeerConnectionInterfaceTest, UpdateRemoteStreams) {
   CreateAndSetRemoteOffer(GetSdpStringWithStream1());
 
   scoped_refptr<StreamCollection> reference(
-      CreateStreamCollection(1, 1, worker_thread_.get()));
+      CreateStreamCollection(1, 1, network_thread_.get()));
   RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
   EXPECT_TRUE(
       CompareStreamCollections(observer_.remote_streams(), reference.get()));
@@ -2820,7 +2816,7 @@ TEST_P(PeerConnectionInterfaceTest, UpdateRemoteStreams) {
   CreateAndSetRemoteOffer(GetSdpStringWithStream1And2());
 
   scoped_refptr<StreamCollection> reference2(
-      CreateStreamCollection(2, 1, worker_thread_.get()));
+      CreateStreamCollection(2, 1, network_thread_.get()));
   RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN();
   EXPECT_TRUE(
       CompareStreamCollections(observer_.remote_streams(), reference2.get()));
@@ -3097,7 +3093,7 @@ TEST_F(PeerConnectionInterfaceTestPlanB, VerifyDefaultStreamIsNotRecreated) {
   CreatePeerConnection(config);
   CreateAndSetRemoteOffer(GetSdpStringWithStream1());
   scoped_refptr<StreamCollection> reference(
-      CreateStreamCollection(1, 1, worker_thread_.get()));
+      CreateStreamCollection(1, 1, network_thread_.get()));
   EXPECT_TRUE(
       CompareStreamCollections(observer_.remote_streams(), reference.get()));
 
@@ -3173,7 +3169,7 @@ TEST_F(PeerConnectionInterfaceTestPlanB, LocalDescriptionChanged) {
 
   // Create an offer with 1 stream with 2 tracks of each type.
   scoped_refptr<StreamCollection> stream_collection =
-      CreateStreamCollection(1, 2, worker_thread_.get());
+      CreateStreamCollection(1, 2, network_thread_.get());
   pc_->AddStream(stream_collection->at(0));
   std::unique_ptr<SessionDescriptionInterface> offer;
   ASSERT_TRUE(DoCreateOffer(&offer, nullptr));
@@ -3188,7 +3184,7 @@ TEST_F(PeerConnectionInterfaceTestPlanB, LocalDescriptionChanged) {
 
   // Remove an audio and video track.
   pc_->RemoveStream(stream_collection->at(0));
-  stream_collection = CreateStreamCollection(1, 1, worker_thread_.get());
+  stream_collection = CreateStreamCollection(1, 1, network_thread_.get());
   pc_->AddStream(stream_collection->at(0));
   ASSERT_TRUE(DoCreateOffer(&offer, nullptr));
   EXPECT_TRUE(DoSetLocalDescription(std::move(offer)));
@@ -3210,7 +3206,7 @@ TEST_F(PeerConnectionInterfaceTestPlanB,
   CreatePeerConnection(config);
 
   scoped_refptr<StreamCollection> stream_collection =
-      CreateStreamCollection(1, 2, worker_thread_.get());
+      CreateStreamCollection(1, 2, network_thread_.get());
   // Add a stream to create the offer, but remove it afterwards.
   pc_->AddStream(stream_collection->at(0));
   std::unique_ptr<SessionDescriptionInterface> offer;
@@ -3293,7 +3289,7 @@ TEST_F(PeerConnectionInterfaceTestPlanB,
   CreatePeerConnection(config);
 
   scoped_refptr<StreamCollection> stream_collection =
-      CreateStreamCollection(2, 1, worker_thread_.get());
+      CreateStreamCollection(2, 1, network_thread_.get());
   pc_->AddStream(stream_collection->at(0));
   std::unique_ptr<SessionDescriptionInterface> offer;
   ASSERT_TRUE(DoCreateOffer(&offer, nullptr));
