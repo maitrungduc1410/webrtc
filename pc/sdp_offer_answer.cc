@@ -6375,8 +6375,15 @@ bool SdpOfferAnswerHandler::ReadyToUseRemoteCandidate(
     // restricted_addresses:<host-with-wildcard>:<port>|<other-host>:<other-port>
     // The host can contain wildcards that match anything that comes after it.
     // The port should either be a wildcard or a specific port.
-    const std::string restricted_addresses =
+    constexpr absl::string_view kDefaultRestrictedAddresses =
+        "127.0.0.1:12580|127.0.0.1:12581|127.0.0.1:12582|127.0.0.1:12583|"
+        "127.0.0.1:12584|127.0.0.1:12585";
+    const std::string field_trial_restricted_addresses =
         pc_->trials().Lookup("WebRTC-NoSdpMangleUfragRestrictedAddresses");
+    const absl::string_view restricted_addresses =
+        field_trial_restricted_addresses.empty()
+            ? kDefaultRestrictedAddresses
+            : absl::string_view(field_trial_restricted_addresses);
     const std::string port = candidate->candidate().address().PortAsString();
     const std::string host = candidate->candidate().address().HostAsURIString();
     const std::vector<absl::string_view> restricted_address_list =

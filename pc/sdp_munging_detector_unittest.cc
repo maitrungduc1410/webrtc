@@ -166,6 +166,68 @@ class SdpMungingTest : public ::testing::Test {
         pc_factory_, result.MoveValue(), std::move(observer));
   }
 
+  void ExpectIceCandidateAddresses(
+      PeerConnectionWrapper* pc,
+      const std::vector<std::pair<const char*, bool>>& address_tests) {
+    static constexpr const char kCandidateTemplate[] =
+        "candidate:a0+B/1 1 udp 2130706432 %s typ host";
+    for (const auto& address_test : address_tests) {
+      SCOPED_TRACE(address_test.first);
+      std::optional<RTCError> result;
+      const std::string candidate = StringFormat(
+          kCandidateTemplate,
+          absl::StrReplaceAll(address_test.first, {{":", " "}}).c_str());
+
+      Event event;
+      pc->pc()->AddIceCandidate(
+          std::unique_ptr<IceCandidate>(
+              CreateIceCandidate("", 0, candidate, nullptr)),
+          [&](RTCError error) {
+            result = error;
+            event.Set();
+          });
+
+      ASSERT_TRUE(event.Wait(kDefaultTimeout));
+      ASSERT_TRUE(result.has_value());
+
+      if (address_test.second) {
+        EXPECT_TRUE(result.value().ok());
+      } else {
+        EXPECT_FALSE(result.value().ok());
+        EXPECT_EQ(result.value().type(), RTCErrorType::UNSUPPORTED_OPERATION);
+      }
+    }
+  }
+
+  void TestIceUfragRestrictedAddresses(
+      absl::string_view field_trials,
+      bool munge_ufrag,
+      const std::vector<std::pair<const char*, bool>>& address_tests) {
+    RTCConfiguration config;
+    config.certificates.push_back(
+        FakeRTCCertificateGenerator::GenerateCertificate());
+    std::unique_ptr<PeerConnectionWrapper> caller =
+        CreatePeerConnection(config, field_trials);
+    std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
+    caller->AddAudioTrack("audio_track", {});
+    std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+    if (munge_ufrag) {
+      auto& transport_infos = offer->description()->transport_infos();
+      ASSERT_EQ(transport_infos.size(), 1u);
+      transport_infos[0].description.ice_ufrag = "amungediceufrag";
+    }
+
+    ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+    ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+    std::unique_ptr<SessionDescriptionInterface> answer =
+        callee->CreateAnswer();
+    ASSERT_TRUE(callee->SetLocalDescription(answer->Clone()));
+    ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+    ExpectIceCandidateAddresses(caller.get(), address_tests);
+  }
+
  protected:
   std::unique_ptr<Thread> signaling_thread_;
   scoped_refptr<PeerConnectionFactoryInterface> pc_factory_;
@@ -561,62 +623,42 @@ TEST_F(SdpMungingTest, IcePwd) {
 }
 
 TEST_F(SdpMungingTest, IceUfragRestrictedAddresses) {
-  RTCConfiguration config;
-  config.certificates.push_back(
-      FakeRTCCertificateGenerator::GenerateCertificate());
-  std::unique_ptr<PeerConnectionWrapper> caller =
-      CreatePeerConnection(config,
-                           "WebRTC-NoSdpMangleUfragRestrictedAddresses/"
-                           "127.0.0.1:12345|127.0.0.*:23456|*:34567/");
-  std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
-  caller->AddAudioTrack("audio_track", {});
-  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
-  auto& transport_infos = offer->description()->transport_infos();
-  ASSERT_EQ(transport_infos.size(), 1u);
-  transport_infos[0].description.ice_ufrag = "amungediceufrag";
+  TestIceUfragRestrictedAddresses(
+      "WebRTC-NoSdpMangleUfragRestrictedAddresses/"
+      "127.0.0.1:12345|127.0.0.*:23456|*:34567/",
+      /*munge_ufrag=*/true,
+      {
+          {"127.0.0.1:12345", false},
+          {"127.0.0.2:23456", false},
+          {"8.8.8.8:34567", false},
+          {"127.0.0.2:12345", true},
+          {"127.0.1.1:23456", true},
+          {"8.8.8.8:3456", true},
+          {"127.0.0.1:12580", true},
+      });
+}
 
-  EXPECT_TRUE(caller->SetLocalDescription(offer->Clone()));
-  EXPECT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+TEST_F(SdpMungingTest, IceUfragDefaultRestrictedAddresses) {
+  TestIceUfragRestrictedAddresses(
+      /*field_trials=*/"",
+      /*munge_ufrag=*/true,
+      {
+          {"127.0.0.1:12580", false},
+          {"127.0.0.1:12581", false},
+          {"127.0.0.1:12582", false},
+          {"127.0.0.1:12583", false},
+          {"127.0.0.1:12584", false},
+          {"127.0.0.1:12585", false},
+          {"127.0.0.1:12579", true},
+          {"127.0.0.1:12586", true},
+          {"127.0.0.2:12580", true},
+      });
+}
 
-  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
-  EXPECT_TRUE(callee->SetLocalDescription(answer->Clone()));
-  EXPECT_TRUE(caller->SetRemoteDescription(std::move(answer)));
-
-  static constexpr const char tmpl[] =
-      "candidate:a0+B/1 1 udp 2130706432 %s typ host";
-
-  // Addresses to test. First field is the address in string format,
-  // second field is the expected outcome (success or failure).
-  const std::vector<std::pair<const char*, bool>> address_tests = {
-      {"127.0.0.1:12345", false}, {"127.0.0.2:23456", false},
-      {"8.8.8.8:34567", false},   {"127.0.0.2:12345", true},
-      {"127.0.1.1:23456", true},  {"8.8.8.8:3456", true},
-  };
-
-  for (const auto& address_test : address_tests) {
-    std::optional<RTCError> result;
-    const std::string candidate = StringFormat(
-        tmpl, absl::StrReplaceAll(address_test.first, {{":", " "}}).c_str());
-
-    Event event;
-    caller->pc()->AddIceCandidate(
-        std::unique_ptr<IceCandidate>(
-            CreateIceCandidate("", 0, candidate, nullptr)),
-        [&](RTCError error) {
-          result = error;
-          event.Set();
-        });
-
-    ASSERT_TRUE(event.Wait(kDefaultTimeout));
-    EXPECT_TRUE(result.has_value());
-
-    if (address_test.second == true) {
-      EXPECT_TRUE(result.value().ok());
-    } else {
-      EXPECT_FALSE(result.value().ok());
-      EXPECT_EQ(result.value().type(), RTCErrorType::UNSUPPORTED_OPERATION);
-    }
-  }
+TEST_F(SdpMungingTest, UnmungedIceUfragAllowsDefaultRestrictedAddresses) {
+  TestIceUfragRestrictedAddresses(/*field_trials=*/"",
+                                  /*munge_ufrag=*/false,
+                                  {{"127.0.0.1:12580", true}});
 }
 
 TEST_F(SdpMungingTest, IceUfragSdpRejectedAndRestrictedAddresses) {
