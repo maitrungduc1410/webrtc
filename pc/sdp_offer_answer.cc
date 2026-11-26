@@ -3206,8 +3206,15 @@ void SdpOfferAnswerHandler::DoSetLocalDescription(
   if (!disable_sdp_munging_checks_) {
     bool reject_with_error =
         !IsSdpMungingAllowed(sdp_munging_type, pc_->trials());
+    // `last_created_offer_` and `last_created_answer_` are cleared after a
+    // successful SetLocalDescription. Fall back to `local_description()` so
+    // consecutive SetLocalDescription calls without an intervening
+    // CreateOffer/CreateAnswer still detect ICE ufrag/pwd munging (and fail
+    // safe if no local description has been applied yet).
+    const SessionDescriptionInterface* ufrag_reference_desc =
+        last_created_desc ? last_created_desc : local_description();
     if (!reject_with_error &&
-        HasUfragSdpMunging(desc.get(), last_created_desc)) {
+        HasUfragSdpMunging(desc.get(), ufrag_reference_desc)) {
       // ice-ufrag munging may still trigger rejection for other reasons
       // guarded by this variable.
       has_sdp_munged_ufrag_ = true;

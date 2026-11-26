@@ -661,6 +661,233 @@ TEST_F(SdpMungingTest, UnmungedIceUfragAllowsDefaultRestrictedAddresses) {
                                   {{"127.0.0.1:12580", true}});
 }
 
+TEST_F(SdpMungingTest,
+       IceUfragMungedOnSecondSetLocalDescriptionRestrictsAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
+  caller->AddAudioTrack("audio_track", {});
+
+  // Apply the unmodified offer first, which clears last_created_offer_.
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  // Apply a second offer with a munged ice-ufrag without calling CreateOffer.
+  auto& transport_infos = offer->description()->transport_infos();
+  ASSERT_EQ(transport_infos.size(), 1u);
+  transport_infos[0].description.ice_ufrag = "amungediceufrag";
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  ASSERT_TRUE(callee->SetLocalDescription(answer->Clone()));
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(
+      caller.get(), {{"127.0.0.1:12580", false}, {"127.0.0.2:12580", true}});
+}
+
+TEST_F(SdpMungingTest,
+       IcePwdMungedOnSecondSetLocalDescriptionRestrictsAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
+  caller->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  auto& transport_infos = offer->description()->transport_infos();
+  ASSERT_EQ(transport_infos.size(), 1u);
+  transport_infos[0].description.ice_pwd =
+      "amungedicepwdthisshouldberestricted";
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  ASSERT_TRUE(callee->SetLocalDescription(answer->Clone()));
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(caller.get(), {{"127.0.0.1:12580", false}});
+}
+
+TEST_F(SdpMungingTest,
+       IceUfragUnmungedOnSecondSetLocalDescriptionAllowsRestrictedAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
+  caller->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+  // Re-apply the same unmodified offer.
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  ASSERT_TRUE(callee->SetLocalDescription(answer->Clone()));
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(caller.get(), {{"127.0.0.1:12580", true}});
+}
+
+TEST_F(SdpMungingTest,
+       SetLocalDescriptionWithoutCreateAnswerRestrictsAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> callee =
+      CreatePeerConnection(config, /*field_trials=*/"");
+
+  std::string sdp =
+      "v=0\r\n"
+      "o=- 0 3 IN IP4 127.0.0.1\r\n"
+      "s=-\r\n"
+      "t=0 0\r\n"
+      "a=fingerprint:sha-1 "
+      "D9:AB:00:AA:12:7B:62:54:CF:AD:3B:55:F7:60:BC:F3:40:A7:0B:5B\r\n"
+      "a=setup:actpass\r\n"
+      "a=ice-ufrag:ETEn\r\n"
+      "a=ice-pwd:OtSK0WpNtpUjkY4+86js7Z/l\r\n"
+      "m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "a=rtcp-mux\r\n"
+      "a=sendrecv\r\n"
+      "a=mid:0\r\n"
+      "a=rtpmap:111 opus/48000/2\r\n";
+  std::unique_ptr<SessionDescriptionInterface> offer =
+      CreateSessionDescription(SdpType::kOffer, sdp);
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+  // Apply a crafted answer directly without calling CreateAnswer().
+  std::unique_ptr<SessionDescriptionInterface> answer =
+      CreateSessionDescription(SdpType::kAnswer, sdp);
+  answer->description()->transport_infos()[0].description.connection_role =
+      CONNECTIONROLE_ACTIVE;
+  ASSERT_TRUE(callee->SetLocalDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(callee.get(), {{"127.0.0.1:12580", false}});
+}
+
+TEST_F(SdpMungingTest, IceUfragMungedAfterRollbackRestrictsAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  std::unique_ptr<PeerConnectionWrapper> callee = CreatePeerConnection();
+  caller->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+  ASSERT_TRUE(caller->SetLocalDescription(
+      CreateSessionDescription(SdpType::kRollback, "")));
+
+  auto& transport_infos = offer->description()->transport_infos();
+  ASSERT_EQ(transport_infos.size(), 1u);
+  transport_infos[0].description.ice_ufrag = "amungediceufrag";
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  ASSERT_TRUE(callee->SetLocalDescription(answer->Clone()));
+  ASSERT_TRUE(caller->SetRemoteDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(caller.get(), {{"127.0.0.1:12580", false}});
+}
+
+TEST_F(SdpMungingTest,
+       IceUfragMungedBetweenPrAnswerAndAnswerRestrictsAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller = CreatePeerConnection();
+  std::unique_ptr<PeerConnectionWrapper> callee =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  caller->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  std::string answer_sdp;
+  ASSERT_TRUE(answer->ToString(&answer_sdp));
+  std::unique_ptr<SessionDescriptionInterface> pranswer =
+      CreateSessionDescription(SdpType::kPrAnswer, answer_sdp);
+  ASSERT_TRUE(callee->SetLocalDescription(std::move(pranswer)));
+
+  auto& transport_infos = answer->description()->transport_infos();
+  ASSERT_EQ(transport_infos.size(), 1u);
+  transport_infos[0].description.ice_ufrag = "amungediceufrag";
+  ASSERT_TRUE(callee->SetLocalDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(callee.get(), {{"127.0.0.1:12580", false}});
+}
+
+TEST_F(SdpMungingTest,
+       IceUfragUnmungedBetweenPrAnswerAndAnswerAllowsRestrictedAddresses) {
+  RTCConfiguration config;
+  config.certificates.push_back(
+      FakeRTCCertificateGenerator::GenerateCertificate());
+  std::unique_ptr<PeerConnectionWrapper> caller = CreatePeerConnection();
+  std::unique_ptr<PeerConnectionWrapper> callee =
+      CreatePeerConnection(config, /*field_trials=*/"");
+  caller->AddAudioTrack("audio_track", {});
+
+  std::unique_ptr<SessionDescriptionInterface> offer = caller->CreateOffer();
+  ASSERT_TRUE(caller->SetLocalDescription(offer->Clone()));
+  ASSERT_TRUE(callee->SetRemoteDescription(std::move(offer)));
+
+  std::unique_ptr<SessionDescriptionInterface> answer = callee->CreateAnswer();
+  std::string answer_sdp;
+  ASSERT_TRUE(answer->ToString(&answer_sdp));
+  std::unique_ptr<SessionDescriptionInterface> pranswer =
+      CreateSessionDescription(SdpType::kPrAnswer, answer_sdp);
+  ASSERT_TRUE(callee->SetLocalDescription(std::move(pranswer)));
+  ASSERT_TRUE(callee->SetLocalDescription(std::move(answer)));
+
+  ExpectIceCandidateAddresses(callee.get(), {{"127.0.0.1:12580", true}});
+}
+
+TEST_F(SdpMungingTest, HasUfragSdpMungingNullOrMismatchedTransportInfos) {
+  std::unique_ptr<PeerConnectionWrapper> pc = CreatePeerConnection();
+  pc->AddAudioTrack("audio_track", {});
+  std::unique_ptr<SessionDescriptionInterface> one_mline_offer =
+      pc->CreateOffer();
+  ASSERT_THAT(one_mline_offer, NotNull());
+
+  // Missing reference description fails safe.
+  EXPECT_TRUE(HasUfragSdpMunging(one_mline_offer.get(), nullptr));
+  // Identical description has no ufrag munging.
+  EXPECT_FALSE(
+      HasUfragSdpMunging(one_mline_offer.get(), one_mline_offer.get()));
+
+  // Adding a second transport info must be treated as munging even if the first
+  // matches.
+  pc->AddVideoTrack("video_track", {});
+  std::unique_ptr<SessionDescriptionInterface> two_mline_offer =
+      pc->CreateOffer();
+  ASSERT_THAT(two_mline_offer, NotNull());
+  ASSERT_EQ(two_mline_offer->description()->transport_infos().size(), 2u);
+  two_mline_offer->description()->transport_infos()[0].description.ice_ufrag =
+      one_mline_offer->description()
+          ->transport_infos()[0]
+          .description.ice_ufrag;
+  two_mline_offer->description()->transport_infos()[0].description.ice_pwd =
+      one_mline_offer->description()->transport_infos()[0].description.ice_pwd;
+  EXPECT_TRUE(HasUfragSdpMunging(two_mline_offer.get(), one_mline_offer.get()));
+}
+
 TEST_F(SdpMungingTest, IceUfragSdpRejectedAndRestrictedAddresses) {
   RTCConfiguration config;
   config.certificates.push_back(

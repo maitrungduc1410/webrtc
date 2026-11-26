@@ -21,9 +21,12 @@ SdpMungingType DetermineSdpMungingType(
     const SessionDescriptionInterface* sdesc,
     const SessionDescriptionInterface* last_created_desc);
 
-// Determines if the ICE ufrag or pwd of the SDP were modified.
+// Determines if the ICE ufrag or pwd of `sdesc` were modified relative to
+// `reference_desc` (the last created offer/answer, or the currently applied
+// local description on consecutive SetLocalDescription calls). Returns true if
+// `reference_desc` is missing or has a different number of transport infos.
 bool HasUfragSdpMunging(const SessionDescriptionInterface* sdesc,
-                        const SessionDescriptionInterface* last_created_desc);
+                        const SessionDescriptionInterface* reference_desc);
 
 // Determines if SDP munging is allowed. This is determined based on the field
 // trials WebRTC-NoSdpMangle and WebRTC-NoSdpMangleForTesting.

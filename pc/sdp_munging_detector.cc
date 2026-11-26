@@ -10,7 +10,6 @@
 
 #include "pc/sdp_munging_detector.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -738,31 +737,36 @@ SdpMungingType DetermineSdpMungingType(
 }
 
 // Similar to DetermineSdpMungingType, but only checks whether the ICE ufrag or
-// pwd of the SDP has been modified between createOffer and setLocalDescription.
+// pwd of `sdesc` has been modified relative to `reference_desc`. Fails safe by
+// returning true if `reference_desc` is missing or has a different number of
+// transport infos.
 bool HasUfragSdpMunging(const SessionDescriptionInterface* sdesc,
-                        const SessionDescriptionInterface* last_created_desc) {
+                        const SessionDescriptionInterface* reference_desc) {
   if (!sdesc || !sdesc->description()) {
     RTC_LOG(LS_WARNING) << "SDP munging: Failed to parse session description.";
     return false;
   }
 
-  if (!last_created_desc || !last_created_desc->description()) {
-    RTC_LOG(LS_WARNING) << "SDP munging: SetLocalDescription called without "
-                           "CreateOffer or CreateAnswer.";
-    return false;
+  if (!reference_desc || !reference_desc->description()) {
+    RTC_LOG(LS_WARNING)
+        << "SDP munging: SetLocalDescription called without a reference "
+           "description (no prior CreateOffer/CreateAnswer or local "
+           "description).";
+    return true;
   }
-  TransportInfos last_created_transport_infos =
-      last_created_desc->description()->transport_infos();
-  TransportInfos transport_infos_to_set =
+  const TransportInfos& reference_transport_infos =
+      reference_desc->description()->transport_infos();
+  const TransportInfos& transport_infos_to_set =
       sdesc->description()->transport_infos();
-  for (size_t i = 0; i < std::min(last_created_transport_infos.size(),
-                                  transport_infos_to_set.size());
-       i++) {
-    if (last_created_transport_infos[i].description.ice_ufrag !=
+  if (reference_transport_infos.size() != transport_infos_to_set.size()) {
+    return true;
+  }
+  for (size_t i = 0; i < reference_transport_infos.size(); i++) {
+    if (reference_transport_infos[i].description.ice_ufrag !=
         transport_infos_to_set[i].description.ice_ufrag) {
       return true;
     }
-    if (last_created_transport_infos[i].description.ice_pwd !=
+    if (reference_transport_infos[i].description.ice_pwd !=
         transport_infos_to_set[i].description.ice_pwd) {
       return true;
     }
