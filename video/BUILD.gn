@@ -863,8 +863,6 @@ if (rtc_include_tests) {
     sources = [ "call_stats2_unittest.cc" ]
     deps = [
       ":video",
-      "../api/task_queue",
-      "../api/task_queue:default_task_queue_factory",
       "../modules:module_api",
       "../modules/rtp_rtcp:rtp_rtcp_format",
       "../system_wrappers",

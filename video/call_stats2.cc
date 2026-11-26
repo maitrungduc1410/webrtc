@@ -13,11 +13,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <list>
-#include <utility>
 
 #include "absl/algorithm/container.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "modules/include/module_common_types.h"
@@ -135,23 +133,12 @@ int64_t CallStats::LastProcessedRtt() const {
 }
 
 void CallStats::OnRttUpdate(int64_t rtt) {
-  // This callback may for some RtpRtcp module instances (video send stream) be
-  // invoked from a separate task queue, in other cases, we should already be
-  // on the correct TQ.
+  RTC_DCHECK_RUN_ON(task_queue_);
   int64_t now_ms = clock_->TimeInMilliseconds();
-  auto update = [this, rtt, now_ms]() {
-    RTC_DCHECK_RUN_ON(task_queue_);
-    reports_.push_back(RttTime(rtt, now_ms));
-    if (time_of_first_rtt_ms_ == -1)
-      time_of_first_rtt_ms_ = now_ms;
-    UpdateAndReport();
-  };
-
-  if (task_queue_->IsCurrent()) {
-    update();
-  } else {
-    task_queue_->PostTask(SafeTask(task_safety_.flag(), std::move(update)));
-  }
+  reports_.push_back(RttTime(rtt, now_ms));
+  if (time_of_first_rtt_ms_ == -1)
+    time_of_first_rtt_ms_ = now_ms;
+  UpdateAndReport();
 }
 
 void CallStats::UpdateHistograms() {

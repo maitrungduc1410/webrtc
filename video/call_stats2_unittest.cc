@@ -11,11 +11,7 @@
 #include "video/call_stats2.h"
 
 #include <cstdint>
-#include <memory>
 
-#include "api/task_queue/default_task_queue_factory.h"
-#include "api/task_queue/task_queue_base.h"
-#include "api/task_queue/task_queue_factory.h"
 #include "modules/include/module_common_types.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "system_wrappers/include/clock.h"
@@ -42,24 +38,14 @@ class CallStats2Test : public ::testing::Test {
  public:
   CallStats2Test() { call_stats_.EnsureStarted(); }
 
-  // Queues an rtt update call on the process thread.
+  // Queues an rtt update call on the task queue of `call_stats_`.
   void AsyncSimulateRttUpdate(int64_t rtt) {
     RtcpRttStats* rtcp_rtt_stats = call_stats_.AsRtcpRttStats();
-    task_queue_->PostTask(
-        [rtcp_rtt_stats, rtt] { rtcp_rtt_stats->OnRttUpdate(rtt); });
+    loop_.PostTask([rtcp_rtt_stats, rtt] { rtcp_rtt_stats->OnRttUpdate(rtt); });
   }
 
  protected:
-  void FlushProcessAndWorker() {
-    task_queue_->PostTask([this] { loop_.PostTask([this] { loop_.Quit(); }); });
-    loop_.Run();
-  }
-
   test::RunLoop loop_;
-  std::unique_ptr<TaskQueueBase, TaskQueueDeleter> task_queue_ =
-      CreateDefaultTaskQueueFactory()->CreateTaskQueue(
-          "CallStats",
-          TaskQueueFactory::Priority::kNormal);
 
   // Note: Since webrtc::Thread doesn't support injecting a Clock, we're going
   // to be using a mix of the fake clock (used by CallStats) as well as the
@@ -166,9 +152,8 @@ TEST_F(CallStats2Test, MultipleObservers) {
   EXPECT_CALL(stats_observer_2, OnRttUpdate(kRtt, kRtt)).Times(0);
   AsyncSimulateRttUpdate(kRtt);
 
-  // Flush the queue on the process thread to make sure we return after
-  // Process() has been called.
-  FlushProcessAndWorker();
+  // Run the queued update to make sure it doesn't trigger any callbacks.
+  loop_.Flush();
 }
 
 // Verify increasing and decreasing rtt triggers callbacks with correct values.

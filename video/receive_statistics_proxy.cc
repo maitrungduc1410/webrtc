@@ -596,25 +596,6 @@ void ReceiveStatisticsProxy::RtcpPacketTypesCounterUpdated(
   if (ssrc != remote_ssrc_)
     return;
 
-  if (!worker_thread_->IsCurrent()) {
-    // RtpRtcpInterface::Configuration has a single
-    // RtcpPacketTypeCounterObserver and that same configuration may be used for
-    // both receiver and sender (see ModuleRtpRtcpImpl::ModuleRtpRtcpImpl). The
-    // RTCPSender implementation currently makes calls to this function on a
-    // process thread whereas the RTCPReceiver implementation calls back on the
-    // [main] worker thread.
-    // So until the sender implementation has been updated, we work around this
-    // here by posting the update to the expected thread. We make a by value
-    // copy of the `task_safety_` to handle the case if the queued task
-    // runs after the `ReceiveStatisticsProxy` has been deleted. In such a
-    // case the packet_counter update won't be recorded.
-    worker_thread_->PostTask(
-        SafeTask(task_safety_.flag(), [ssrc, packet_counter, this]() {
-          RtcpPacketTypesCounterUpdated(ssrc, packet_counter);
-        }));
-    return;
-  }
-
   RTC_DCHECK_RUN_ON(&main_thread_);
   stats_.rtcp_packet_type_counts = packet_counter;
 }
@@ -839,8 +820,13 @@ void ReceiveStatisticsProxy::OnCompleteFrame(bool is_keyframe,
 }
 
 void ReceiveStatisticsProxy::OnDroppedFrames(uint32_t frames_dropped) {
-  // Can be called on either the decode queue or the worker thread
-  // See FrameBuffer2 for more details.
+  // Called on `worker_thread_` by VideoStreamBufferController and on the decode
+  // queue by VideoStreamDecoder.
+  if (worker_thread_->IsCurrent()) {
+    RTC_DCHECK_RUN_ON(&main_thread_);
+    stats_.frames_dropped += frames_dropped;
+    return;
+  }
   worker_thread_->PostTask(
       SafeTask(task_safety_.flag(), [frames_dropped, this]() {
         RTC_DCHECK_RUN_ON(&main_thread_);

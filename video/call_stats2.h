@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <list>
 
-#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "modules/include/module_common_types.h"
@@ -77,13 +76,7 @@ class CallStats {
     ~RtcpRttStatsImpl() override = default;
 
    private:
-    void OnRttUpdate(int64_t rtt) override {
-      // For video send streams (video/video_send_stream.cc), the RtpRtcp module
-      // is currently created on a transport worker TaskQueue and not the worker
-      // thread - which is what happens in other cases. We should probably fix
-      // that so that the call consistently comes in on the right thread.
-      owner_->OnRttUpdate(rtt);
-    }
+    void OnRttUpdate(int64_t rtt) override { owner_->OnRttUpdate(rtt); }
 
     CallStats* const owner_;
   } rtcp_rtt_stats_impl_{this};
@@ -110,9 +103,6 @@ class CallStats {
   std::list<CallStatsObserver*> observers_ RTC_GUARDED_BY(task_queue_);
 
   TaskQueueBase* const task_queue_;
-
-  // Used to signal destruction to potentially pending tasks.
-  ScopedTaskSafety task_safety_;
 };
 
 }  // namespace internal
