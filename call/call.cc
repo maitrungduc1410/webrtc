@@ -1287,11 +1287,6 @@ void Call::DeliverRtpPacket(MediaType media_type,
                                      : video_receiver_controller_;
   RtpPacketSinkInterface* sink = receiver_controller.ResolveSink(packet);
 
-  const TimeDelta nw_to_deliver_delay =
-      env_.clock().CurrentTime() - packet.arrival_time();
-  RTC_HISTOGRAM_COUNTS_100000("WebRTC.TimeFromNetworkToDeliverRtpPacketUs",
-                              nw_to_deliver_delay.us());
-
   if (sink != nullptr) {
     sink->OnRtpPacket(packet);
     return;
