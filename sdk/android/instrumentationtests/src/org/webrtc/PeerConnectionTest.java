@@ -69,12 +69,6 @@ public class PeerConnectionTest {
     public void onIceCandidatesRemoved(IceCandidate[] candidates) {}
 
     @Override
-    public void onAddStream(MediaStream stream) {}
-
-    @Override
-    public void onRemoveStream(MediaStream stream) {}
-
-    @Override
     public void onDataChannel(DataChannel dataChannel) {}
 
     @Override

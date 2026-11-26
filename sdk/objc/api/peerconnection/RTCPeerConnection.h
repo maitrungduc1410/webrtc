@@ -100,16 +100,6 @@ RTC_OBJC_EXPORT
     : (RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection didChangeSignalingState
     : (RTCSignalingState)stateChanged;
 
-/** Called when media is received on a new stream from remote peer. */
-- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
-          didAddStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream;
-
-/** Called when a remote peer closes a stream.
- *  This is not called when RTCSdpSemanticsUnifiedPlan is specified.
- */
-- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
-       didRemoveStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream;
-
 /** Called when negotiation is needed, for example ICE has restarted. */
 - (void)peerConnectionShouldNegotiate:
     (RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection;
@@ -140,6 +130,16 @@ RTC_OBJC_EXPORT
  *  This is only called with RTCSdpSemanticsUnifiedPlan specified.
  */
 @optional
+/** Called when media is received on a new stream from remote peer. */
+- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
+          didAddStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream;
+
+/** Called when a remote peer closes a stream.
+ *  This is not called when RTCSdpSemanticsUnifiedPlan is specified.
+ */
+- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
+       didRemoveStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream;
+
 /** Called any time the IceConnectionState changes following standardized
  * transition. */
 - (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection

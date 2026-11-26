@@ -82,22 +82,6 @@ class FakePeerConnectionBase : public PeerConnectionInternal {
   FakePeerConnectionBase() : env_(CreateEnvironment()) {}
   explicit FakePeerConnectionBase(const Environment& env) : env_(env) {}
 
-  PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> local_streams()
-      override {
-    return nullptr;
-  }
-
-  PLAN_B_ONLY scoped_refptr<StreamCollectionInterface> remote_streams()
-      override {
-    return nullptr;
-  }
-
-  PLAN_B_ONLY bool AddStream(MediaStreamInterface* stream) override {
-    return false;
-  }
-
-  PLAN_B_ONLY void RemoveStream(MediaStreamInterface* stream) override {}
-
   RTCErrorOr<scoped_refptr<RtpSenderInterface>> AddTrack(
       scoped_refptr<MediaStreamTrackInterface> track,
       const std::vector<std::string>& stream_ids) override {

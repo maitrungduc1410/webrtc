@@ -786,14 +786,17 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
   // Accessor methods to active local streams.
   // This method is not supported with kUnifiedPlan semantics. Please use
   // GetSenders() instead.
-  PLAN_B_ONLY virtual scoped_refptr<StreamCollectionInterface>
-  local_streams() = 0;
+  PLAN_B_ONLY virtual scoped_refptr<StreamCollectionInterface> local_streams() {
+    return nullptr;
+  }
 
   // Accessor methods to remote streams.
   // This method is not supported with kUnifiedPlan semantics. Please use
   // GetReceivers() instead.
   PLAN_B_ONLY virtual scoped_refptr<StreamCollectionInterface>
-  remote_streams() = 0;
+  remote_streams() {
+    return nullptr;
+  }
 
   // Add a new MediaStream to be sent on this PeerConnection.
   // Note that a SessionDescription negotiation is needed before the
@@ -807,7 +810,9 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
   //
   // This method is not supported with kUnifiedPlan semantics. Please use
   // AddTrack instead.
-  PLAN_B_ONLY virtual bool AddStream(MediaStreamInterface* stream) = 0;
+  PLAN_B_ONLY virtual bool AddStream(MediaStreamInterface* stream) {
+    return false;
+  }
 
   // Remove a MediaStream from this PeerConnection.
   // Note that a SessionDescription negotiation is needed before the
@@ -815,7 +820,7 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
   //
   // This method is not supported with kUnifiedPlan semantics. Please use
   // RemoveTrack instead.
-  PLAN_B_ONLY virtual void RemoveStream(MediaStreamInterface* stream) = 0;
+  PLAN_B_ONLY virtual void RemoveStream(MediaStreamInterface* stream) {}
 
   // Add a new MediaStreamTrack to be sent on this PeerConnection, and return
   // the newly created RtpSender. The RtpSender will be associated with the

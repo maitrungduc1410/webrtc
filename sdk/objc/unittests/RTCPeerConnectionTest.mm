@@ -116,14 +116,6 @@ NSError *DeallocatedPeerConnectionError() {
   }
 }
 
-- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
-          didAddStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream {
-}
-
-- (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
-       didRemoveStream:(RTC_OBJC_TYPE(RTCMediaStream) *)stream {
-}
-
 - (void)peerConnectionShouldNegotiate:
     (RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection {
 }

@@ -24,7 +24,6 @@ namespace webrtc {
 const char CN_AUDIO[] = "audio";
 const char CN_VIDEO[] = "video";
 const char CN_DATA[] = "data";
-const char CN_OTHER[] = "main";
 
 const char GROUP_TYPE_BUNDLE[] = "BUNDLE";
 

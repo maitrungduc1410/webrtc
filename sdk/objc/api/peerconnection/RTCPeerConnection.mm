@@ -163,10 +163,13 @@ void PeerConnectionDelegateAdapter::OnAddStream(
     return;
   }
 
-  RTC_OBJC_TYPE(RTCMediaStream) *media_stream = [[RTC_OBJC_TYPE(RTCMediaStream)
-      alloc] initWithFactory:peer_connection.factory nativeMediaStream:stream];
-
-  [delegate peerConnection:peer_connection didAddStream:media_stream];
+  if ([delegate respondsToSelector:@selector(peerConnection:didAddStream:)]) {
+    RTC_OBJC_TYPE(RTCMediaStream) *media_stream =
+        [[RTC_OBJC_TYPE(RTCMediaStream) alloc]
+              initWithFactory:peer_connection.factory
+            nativeMediaStream:stream];
+    [delegate peerConnection:peer_connection didAddStream:media_stream];
+  }
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
 }
 
@@ -182,10 +185,14 @@ void PeerConnectionDelegateAdapter::OnRemoveStream(
   if (delegate == nil) {
     return;
   }
-  RTC_OBJC_TYPE(RTCMediaStream) *mediaStream = [[RTC_OBJC_TYPE(RTCMediaStream)
-      alloc] initWithFactory:peer_connection.factory nativeMediaStream:stream];
 
-  [delegate peerConnection:peer_connection didRemoveStream:mediaStream];
+  if ([delegate
+          respondsToSelector:@selector(peerConnection:didRemoveStream:)]) {
+    RTC_OBJC_TYPE(RTCMediaStream) *mediaStream = [[RTC_OBJC_TYPE(RTCMediaStream)
+        alloc] initWithFactory:peer_connection.factory
+             nativeMediaStream:stream];
+    [delegate peerConnection:peer_connection didRemoveStream:mediaStream];
+  }
   RTC_ALLOW_PLAN_B_DEPRECATION_END();
 }
 

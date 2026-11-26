@@ -129,10 +129,12 @@ public class PeerConnection {
     default void onSelectedCandidatePairChanged(CandidatePairChangeEvent event) {}
 
     /** Triggered when media is received on a new stream from remote peer. */
-    @CalledByNative void onAddStream(MediaStream stream);
+    @CalledByNative
+    default void onAddStream(MediaStream stream) {}
 
     /** Triggered when a remote peer close a stream. */
-    @CalledByNative void onRemoveStream(MediaStream stream);
+    @CalledByNative
+    default void onRemoveStream(MediaStream stream) {}
 
     /** Triggered when a remote peer opens a DataChannel. */
     @CalledByNative void onDataChannel(DataChannel dataChannel);

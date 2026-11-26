@@ -30,7 +30,6 @@ namespace webrtc {
 PLAN_B_ONLY extern const char CN_AUDIO[];
 PLAN_B_ONLY extern const char CN_VIDEO[];
 PLAN_B_ONLY extern const char CN_DATA[];
-PLAN_B_ONLY extern const char CN_OTHER[];
 
 extern const char GROUP_TYPE_BUNDLE[];
 
