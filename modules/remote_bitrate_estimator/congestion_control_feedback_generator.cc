@@ -69,7 +69,12 @@ void CongestionControlFeedbackGenerator::OnSendBandwidthEstimateChanged(
     bool is_bandwidth_limited,
     std::optional<DataSize> transport_overhead) {
   RTC_DCHECK_RUN_ON(&sequence_checker_);
-  send_bandwidth_estimate_ = estimate;
+  // Zero target rate is used to pause encoders (e.g. during pacer queue
+  // buildup) rather than as a 0 bps link estimate; retain the previous
+  // non-zero estimate so feedback is not throttled to the max interval.
+  if (!estimate.IsZero()) {
+    send_bandwidth_estimate_ = estimate;
+  }
   is_bandwidth_limited_ = is_bandwidth_limited;
   transport_overhead_ = transport_overhead;
 }
@@ -160,13 +165,14 @@ void CongestionControlFeedbackGenerator::CalculateNextPossibleSendTime(
   if (is_bandwidth_limited_ && max_feedback_fraction_.Get() > 0.0 &&
       send_bandwidth_estimate_.has_value() &&
       send_bandwidth_estimate_->IsFinite()) {
-    if (send_bandwidth_estimate_->IsZero()) {
-      next_possible_feedback_send_time_ =
-          last_feedback_sent_time_ + max_time_between_feedback_.Get();
-      return;
-    }
     max_feedback_rate =
         *send_bandwidth_estimate_ * max_feedback_fraction_.Get();
+  }
+  if (max_feedback_rate.IsZero()) {
+    send_rate_debt_ = DataSize::Zero();
+    next_possible_feedback_send_time_ =
+        last_feedback_sent_time_ + max_time_between_feedback_.Get();
+    return;
   }
   DataSize debt_payed = time_since_last_sent * max_feedback_rate;
   send_rate_debt_ = debt_payed > send_rate_debt_ ? DataSize::Zero()
@@ -176,6 +182,10 @@ void CongestionControlFeedbackGenerator::CalculateNextPossibleSendTime(
       now + std::clamp(send_rate_debt_ / max_feedback_rate,
                        min_time_between_feedback_.Get(),
                        max_time_between_feedback_.Get());
+  // Cap debt to one max feedback interval so prolonged low-BWE periods cannot
+  // keep feedback throttled after BWE recovers.
+  send_rate_debt_ = std::min(
+      send_rate_debt_, max_time_between_feedback_.Get() * max_feedback_rate);
 }
 
 flat_map<uint32_t, SentCongestionControllerFeedbackStats>
