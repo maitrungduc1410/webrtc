@@ -11,6 +11,7 @@
 #include "call/rtp_transport_controller_send.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -19,6 +20,7 @@
 #include "api/transport/ecn_marking.h"
 #include "api/transport/network_control.h"
 #include "api/transport/network_types.h"
+#include "api/transport/test/mock_network_control.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -26,6 +28,7 @@
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/congestion_control_feedback.h"
 #include "rtc_base/containers/flat_map.h"
+#include "rtc_base/network_route.h"
 #include "test/create_test_environment.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -38,6 +41,7 @@ using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::IsEmpty;
+using ::testing::NiceMock;
 using ::testing::UnorderedElementsAre;
 
 class FakeTargetTransferRateObserver : public TargetTransferRateObserver {
@@ -353,6 +357,71 @@ TEST(RtpTransportControllerSendTest,
       transport.GetNetworkController()->OnTargetRateConstraints(constraints);
   ASSERT_TRUE(update.pacer_config.has_value());
   EXPECT_EQ(update.pacer_config->data_rate(), kTargetRate * 2.5f);
+}
+
+class FakeNetworkControllerFactory : public NetworkControllerFactoryInterface {
+ public:
+  explicit FakeNetworkControllerFactory(
+      std::unique_ptr<NetworkControllerInterface> controller)
+      : controller_(std::move(controller)) {}
+
+  std::unique_ptr<NetworkControllerInterface> Create(
+      NetworkControllerConfig config) override {
+    return std::move(controller_);
+  }
+
+  TimeDelta GetProcessInterval() const override {
+    return TimeDelta::Millis(100);
+  }
+
+ private:
+  std::unique_ptr<NetworkControllerInterface> controller_;
+};
+
+TEST(RtpTransportControllerSendTest,
+     OnNetworkRouteChangedNotifiesControllerWhenRouteChanges) {
+  test::RunLoop main_thread;
+  auto controller =
+      std::make_unique<NiceMock<MockNetworkControllerInterface>>();
+  MockNetworkControllerInterface* controller_ptr = controller.get();
+  FakeNetworkControllerFactory factory(std::move(controller));
+  FakeTargetTransferRateObserver observer;
+
+  RtpTransportControllerSend transport(
+      {.env = CreateTestEnvironment(),
+       .network_controller_factory = &factory,
+       .network_thread = main_thread.task_queue()});
+  transport.RegisterTargetTransferRateObserver(&observer);
+  transport.OnNetworkAvailability(true);
+
+  NetworkRoute route1;
+  route1.connected = true;
+  route1.local = RouteEndpoint::CreateWithNetworkId(1);
+  route1.remote = RouteEndpoint::CreateWithNetworkId(1);
+  route1.packet_overhead = 20;
+
+  // Initial route, duplicate route, and overhead-only updates do not trigger
+  // OnNetworkRouteChange.
+  EXPECT_CALL(*controller_ptr, OnNetworkRouteChange).Times(0);
+  transport.OnNetworkRouteChanged("transport", route1);
+  transport.OnNetworkRouteChanged("transport", route1);
+  NetworkRoute route_overhead_only = route1;
+  route_overhead_only.packet_overhead = 40;
+  transport.OnNetworkRouteChanged("transport", route_overhead_only);
+
+  // Route change that switches TURN usage sets restart_bwe to false.
+  NetworkRoute route2 = route_overhead_only;
+  route2.local = route2.local.CreateWithTurn(true);
+  EXPECT_CALL(*controller_ptr, OnNetworkRouteChange(Field(
+                                   &NetworkRouteChange::restart_bwe, false)));
+  transport.OnNetworkRouteChanged("transport", route2);
+
+  // Route change that changes network_id sets restart_bwe to true.
+  NetworkRoute route3 = route2;
+  route3.local = RouteEndpoint::CreateWithNetworkId(2);
+  EXPECT_CALL(*controller_ptr, OnNetworkRouteChange(Field(
+                                   &NetworkRouteChange::restart_bwe, true)));
+  transport.OnNetworkRouteChanged("transport", route3);
 }
 
 }  // namespace

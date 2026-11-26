@@ -158,6 +158,9 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkAvailability(
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
     NetworkRouteChange msg) {
+  if (!msg.restart_bwe) {
+    return NetworkControlUpdate();
+  }
   if (safe_reset_on_route_change_) {
     std::optional<DataRate> estimated_bitrate;
     if (safe_reset_acknowledged_rate_) {

@@ -442,6 +442,22 @@ TEST(GoogCcNetworkControllerTest, OnNetworkRouteChanged) {
   EXPECT_EQ(update.probe_cluster_configs.size(), 2u);
 }
 
+TEST(GoogCcNetworkControllerTest,
+     OnNetworkRouteChangedWithoutRestartBweDoesNotResetBitrate) {
+  NetworkControllerTestFixture fixture;
+  std::unique_ptr<NetworkControllerInterface> controller =
+      fixture.CreateController();
+  Timestamp current_time = Timestamp::Millis(123);
+  NetworkControlUpdate update = controller->OnNetworkAvailability(
+      {.at_time = current_time, .network_available = true});
+
+  NetworkRouteChange route_change =
+      CreateRouteChange(current_time, DataRate::BitsPerSec(200000));
+  route_change.restart_bwe = false;
+  update = controller->OnNetworkRouteChange(route_change);
+  EXPECT_FALSE(update.has_updates());
+}
+
 TEST(GoogCcNetworkControllerTest, ProbeOnRouteChange) {
   NetworkControllerTestFixture fixture;
   std::unique_ptr<NetworkControllerInterface> controller =

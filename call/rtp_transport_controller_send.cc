@@ -351,24 +351,18 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
   }
   const NetworkRoute old_route = kv->second;
   kv->second = network_route;
+  if (old_route.connected == network_route.connected &&
+      old_route.local == network_route.local &&
+      old_route.remote == network_route.remote &&
+      old_route.last_sent_packet_id == network_route.last_sent_packet_id) {
+    // Nothing changed except possibly packet overhead (already handled above) -
+    // no need to notify the controller.
+    return;
+  }
 
   // Check if the new/old route is significantly different from the old route.
   // If it is, restart BWE.
   bool restart_bwe = IsRelevantRouteChange(old_route, network_route);
-
-  // If Scream is used, notify the controller of the route change regardless
-  // of what changed in order for it to understand that the route has changed,
-  // and thus RTT may have changed. Always log the route change and ensure the
-  // feedback adapter only reports packets sent on the new route since ECN
-  // support may be different.
-  bool is_controller_supporting_ecn =
-      preferred_rtcp_cc_ack_type_ == RtcpFeedbackType::CCFB && controller_ &&
-      controller_->SupportsEcnAdaptation();
-  if (!restart_bwe && !is_controller_supporting_ecn) {
-    // Nothing changed - no need to notify the controller.
-    return;
-  }
-
   if (restart_bwe) {
     BitrateConstraints bitrate_config = bitrate_configurator_.GetConfig();
     RTC_LOG(LS_INFO) << "Reset bitrates to min: "
@@ -382,10 +376,6 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
       network_route.connected, network_route.packet_overhead));
   transport_feedback_adapter_.SetNetworkRoute(network_route);
 
-  // Reset the congested state.
-  is_congested_ = false;
-  pacer_.SetCongested(false);
-
   NetworkRouteChange msg;
   msg.at_time = env_.clock().CurrentTime();
   msg.constraints =
@@ -396,6 +386,7 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
   } else {
     UpdateInitialConstraints(msg.constraints);
   }
+  UpdateCongestedState();
 
   // The new path may preserve the ECT(1) marking even if the old one did not.
   ect1_policy_.OnNetworkRouteChanged();
