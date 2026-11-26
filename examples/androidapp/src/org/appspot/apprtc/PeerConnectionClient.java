@@ -1274,12 +1274,6 @@ public class PeerConnectionClient {
     }
 
     @Override
-    public void onAddStream(final MediaStream stream) {}
-
-    @Override
-    public void onRemoveStream(final MediaStream stream) {}
-
-    @Override
     public void onDataChannel(final DataChannel dc) {
       Log.d(TAG, "New Data channel " + dc.label());
 
