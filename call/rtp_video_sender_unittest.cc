@@ -301,7 +301,7 @@ class RtpVideoSenderTestFixture {
 
   RtpVideoSender* router() { return router_.get(); }
   MockTransport& transport() { return transport_; }
-  TaskQueueBase* transport_queue() { return time_controller_.GetMainThread(); }
+  TaskQueueBase* network_queue() { return time_controller_.GetMainThread(); }
   void AdvanceTime(TimeDelta delta) { time_controller_.AdvanceTime(delta); }
 
   void SetSending(bool sending) { router_->SetSending(sending); }
@@ -1609,7 +1609,7 @@ TEST(RtpVideoSenderTest, SendsTransformedFramesOnTransportQueue) {
 
   callback->OnTransformedFrame(std::move(transformed_frame));
   test.AdvanceTime(TimeDelta::Millis(33));
-  EXPECT_EQ(send_queue, test.transport_queue());
+  EXPECT_EQ(send_queue, test.network_queue());
 
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1))
       .WillOnce([&] { callback = nullptr; });
@@ -1647,7 +1647,7 @@ TEST(RtpVideoSenderTest,
   callback->OnTransformedFrame(std::move(transformed_frame));
   test.AdvanceTime(TimeDelta::Millis(33));
   EXPECT_THAT(send_queue, NotNull());
-  EXPECT_NE(send_queue, test.transport_queue());
+  EXPECT_NE(send_queue, test.network_queue());
 
   EXPECT_CALL(*transformer, UnregisterTransformedFrameSinkCallback(kSsrc1))
       .WillOnce([&] { callback = nullptr; });
@@ -1720,16 +1720,14 @@ TEST(RtpVideoSenderTest, ReservesBitrateForFecOnlyWhenAllowed) {
   test.router()->OnBitrateUpdated(update, /*framerate=*/30);
   EXPECT_EQ(test.router()->GetPayloadBitrateBps(), kRateWithFecBps);
 
-  // SetFecAllowed() may be called on any thread. The value applies to bitrate
-  // updates once it has been handed to the transport queue.
+  // SetFecAllowed() runs on the network queue and applies to subsequent
+  // bitrate updates.
   test.router()->SetFecAllowed(false);
-  test.AdvanceTime(TimeDelta::Zero());
   test.router()->OnBitrateUpdated(update, /*framerate=*/30);
   EXPECT_GT(payload_bitrate_bps, kRateWithFecBps);
   EXPECT_EQ(test.router()->GetPayloadBitrateBps(), payload_bitrate_bps);
 
   test.router()->SetFecAllowed(true);
-  test.AdvanceTime(TimeDelta::Zero());
   test.router()->OnBitrateUpdated(update, /*framerate=*/30);
   EXPECT_EQ(test.router()->GetPayloadBitrateBps(), kRateWithFecBps);
 }
@@ -1934,7 +1932,7 @@ TEST(RtpVideoSenderTest, AllocationUpdateWhenInactiveDoesNotReRegisterSender) {
   router->SetSending(false);
 
   // 2. An allocation update arrives afterwards, e.g. one that
-  // VideoSendStreamImpl posted to the transport queue before the sender was
+  // VideoSendStreamImpl posted to the network queue before the sender was
   // stopped. It must not re-register the module because active_ is now false.
   VideoLayersAllocation allocation;
   allocation.active_spatial_layers.push_back({.rtp_stream_index = 0});

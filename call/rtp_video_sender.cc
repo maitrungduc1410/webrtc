@@ -36,7 +36,6 @@
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/transport/rtp/dependency_descriptor.h"
 #include "api/units/data_rate.h"
@@ -276,7 +275,7 @@ void ConfigureRtpModule(const RtpConfig& rtp_config,
 
 std::vector<RtpStreamSender> CreateRtpStreamSenders(
     const Environment& env,
-    TaskQueueBase* absl_nonnull transport_queue,
+    TaskQueueBase* absl_nonnull network_queue,
     const RtpConfig& rtp_config,
     const RtpSenderObservers& observers,
     int rtcp_report_interval_ms,
@@ -386,7 +385,7 @@ std::vector<RtpStreamSender> CreateRtpStreamSenders(
     video_config.frame_transformer = frame_transformer;
     if (!video_config.field_trials->IsDisabled(
             "WebRTC-Video-FrameTransformer-SendQueue")) {
-      video_config.send_queue = transport_queue;
+      video_config.send_queue = network_queue;
     } else {
       video_config.task_queue_factory = &env.task_queue_factory();
     }
@@ -500,7 +499,7 @@ bool IsFirstFrameOfACodedVideoSequence(
 
 RtpVideoSender::RtpVideoSender(
     const Environment& env,
-    TaskQueueBase* absl_nonnull transport_queue,
+    TaskQueueBase* absl_nonnull network_queue,
     const std::map<uint32_t, RtpState>& suspended_ssrcs,
     const std::map<uint32_t, RtpPayloadState>& states,
     const RtpConfig& rtp_config,
@@ -516,10 +515,9 @@ RtpVideoSender::RtpVideoSender(
       use_frame_rate_for_overhead_(
           env.field_trials().IsEnabled("WebRTC-Video-UseFrameRateForOverhead")),
       has_packet_feedback_(TransportSeqNumExtensionConfigured(rtp_config)),
-      transport_queue_(*transport_queue),
       fec_controller_(std::move(fec_controller)),
       rtp_streams_(CreateRtpStreamSenders(env,
-                                          transport_queue,
+                                          network_queue,
                                           rtp_config,
                                           observers,
                                           rtcp_report_interval_ms,
@@ -539,11 +537,8 @@ RtpVideoSender::RtpVideoSender(
       frame_counts_(rtp_config.ssrcs.size()),
       frame_count_observer_(observers.frame_count_observer),
       ssrc_to_rtp_module_(
-          CreateSsrcToRtpModuleMap(rtp_config.ssrcs, rtp_streams_)),
-      safety_(PendingTaskSafetyFlag::CreateAttachedToTaskQueue(
-          /*alive=*/true,
-          transport_queue)) {
-  transport_checker_.Detach();
+          CreateSsrcToRtpModuleMap(rtp_config.ssrcs, rtp_streams_)) {
+  network_queue_checker_.Detach();
   RTC_DCHECK_EQ(rtp_config_.ssrcs.size(), rtp_streams_.size());
   if (has_packet_feedback_)
     transport_->IncludeOverheadInPacedSender();
@@ -569,12 +564,12 @@ RtpVideoSender::RtpVideoSender(
 }
 
 RtpVideoSender::~RtpVideoSender() {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   SetActiveModules(/*sending=*/false);
 }
 
 void RtpVideoSender::SetSending(bool enabled) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   if (enabled == active_) {
     return;
   }
@@ -582,7 +577,7 @@ void RtpVideoSender::SetSending(bool enabled) {
 }
 
 void RtpVideoSender::SetActiveModules(bool sending) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   if (active_ == sending) {
     return;
   }
@@ -614,14 +609,14 @@ void RtpVideoSender::SetModuleIsActive(bool sending,
 }
 
 bool RtpVideoSender::IsActive() {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   return active_ && !rtp_streams_.empty();
 }
 
 EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
     const EncodedImage& encoded_image,
     const CodecSpecificInfo* codec_specific_info) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   fec_controller_->UpdateWithEncodedData(encoded_image.size(),
                                          encoded_image.frame_type());
   RTC_DCHECK(!rtp_streams_.empty());
@@ -722,7 +717,7 @@ void RtpVideoSender::OnFrameDropped(uint32_t /*rtp_timestamp*/,
 
 void RtpVideoSender::OnVideoLayersAllocationUpdated(
     const VideoLayersAllocation& allocation) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   if (IsActive()) {
     for (size_t i = 0; i < rtp_streams_.size(); ++i) {
       VideoLayersAllocation stream_allocation = allocation;
@@ -770,7 +765,7 @@ void RtpVideoSender::DeliverRtcp(std::span<const uint8_t> packet) {
 }
 
 void RtpVideoSender::OnNetworkAvailability(bool network_available) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   for (const RtpStreamSender& stream : rtp_streams_) {
     stream.rtp_rtcp->SetRTCPStatus(network_available ? rtp_config_.rtcp_mode
                                                      : RtcpMode::kOff);
@@ -778,7 +773,7 @@ void RtpVideoSender::OnNetworkAvailability(bool network_available) {
 }
 
 std::map<uint32_t, RtpState> RtpVideoSender::GetRtpStates() const {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   std::map<uint32_t, RtpState> rtp_states;
 
   for (size_t i = 0; i < rtp_config_.ssrcs.size(); ++i) {
@@ -809,7 +804,7 @@ std::map<uint32_t, RtpState> RtpVideoSender::GetRtpStates() const {
 
 std::map<uint32_t, RtpPayloadState> RtpVideoSender::GetRtpPayloadStates()
     const {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   std::map<uint32_t, RtpPayloadState> payload_states;
   for (const auto& param : params_) {
     payload_states[param.ssrc()] = param.state();
@@ -820,7 +815,7 @@ std::map<uint32_t, RtpPayloadState> RtpVideoSender::GetRtpPayloadStates()
 
 void RtpVideoSender::OnBitrateUpdated(BitrateAllocationUpdate update,
                                       int framerate) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   // Substract overhead from bitrate.
   if (transport_overhead_bytes_per_packet_ !=
       update.packet_overhead.bytes<size_t>()) {
@@ -907,12 +902,12 @@ void RtpVideoSender::OnBitrateUpdated(BitrateAllocationUpdate update,
 }
 
 uint32_t RtpVideoSender::GetPayloadBitrateBps() const {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   return encoder_target_rate_bps_;
 }
 
 uint32_t RtpVideoSender::GetProtectionBitrateBps() const {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   return protection_bitrate_bps_;
 }
 
@@ -928,7 +923,7 @@ std::vector<RtpSequenceNumberMap::Info> RtpVideoSender::GetSentRtpPacketInfos(
 }
 
 std::vector<uint32_t> RtpVideoSender::GetRtpTimestampOffsets() const {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   std::vector<uint32_t> offsets;
   offsets.reserve(rtp_streams_.size());
   for (const auto& rtp_stream : rtp_streams_) {
@@ -959,17 +954,13 @@ int RtpVideoSender::ProtectionRequest(const FecProtectionParams* delta_params,
 }
 
 void RtpVideoSender::SetFecAllowed(bool fec_allowed) {
-  // Called by the encoder, which may run on any thread. `fec_allowed_` is only
-  // used on the transport queue, so apply the value there.
-  transport_queue_.PostTask(SafeTask(safety_.flag(), [this, fec_allowed] {
-    RTC_DCHECK_RUN_ON(&transport_checker_);
-    fec_allowed_ = fec_allowed;
-  }));
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
+  fec_allowed_ = fec_allowed;
 }
 
 void RtpVideoSender::OnPacketFeedbackVector(
     std::vector<StreamPacketInfo> packet_feedback_vector) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   if (fec_controller_->UseLossVectorMask()) {
     for (const StreamPacketInfo& packet : packet_feedback_vector) {
       loss_mask_vector_.push_back(!packet.received);
@@ -1028,13 +1019,13 @@ void RtpVideoSender::OnPacketFeedbackVector(
 void RtpVideoSender::SetEncodingData(size_t width,
                                      size_t height,
                                      size_t num_temporal_layers) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   fec_controller_->SetEncodingData(width, height, num_temporal_layers,
                                    rtp_config_.max_packet_size);
 }
 
 void RtpVideoSender::SetCsrcs(std::span<const uint32_t> csrcs) {
-  RTC_DCHECK_RUN_ON(&transport_checker_);
+  RTC_DCHECK_RUN_ON(&network_queue_checker_);
   csrcs_ = LimitCsrcs(csrcs);
 }
 

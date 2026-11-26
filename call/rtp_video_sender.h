@@ -27,7 +27,6 @@
 #include "api/frame_transformer_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
-#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/task_queue/task_queue_base.h"
 #include "api/units/data_rate.h"
 #include "api/units/data_size.h"
@@ -83,7 +82,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   // Rtp modules are assumed to be sorted in simulcast index order.
   RtpVideoSender(
       const Environment& env,
-      TaskQueueBase* absl_nonnull transport_queue,
+      TaskQueueBase* absl_nonnull network_queue,
       const std::map<uint32_t, RtpState>& suspended_ssrcs,
       const std::map<uint32_t, RtpPayloadState>& states,
       const RtpConfig& rtp_config,
@@ -118,7 +117,7 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   // Implements FecControllerOverride.
   void SetFecAllowed(bool fec_allowed) override;
 
-  // Implements EncodedImageCallback. Called on the transport queue.
+  // Implements EncodedImageCallback. Called on the network queue.
   EncodedImageCallback::Result OnEncodedImage(
       const EncodedImage& encoded_image,
       const CodecSpecificInfo* codec_specific_info) override;
@@ -160,21 +159,19 @@ class RtpVideoSender : public RtpVideoSenderInterface,
                                  DataSize overhead_per_packet,
                                  Frequency framerate) const;
   void SetModuleIsActive(bool sending, RtpRtcpInterface& rtp_module)
-      RTC_RUN_ON(transport_checker_);
+      RTC_RUN_ON(network_queue_checker_);
 
   const Environment env_;
   const bool use_frame_rate_for_overhead_;
   const bool has_packet_feedback_;
 
-  // All methods except SetFecAllowed() run on `transport_queue_`, which is the
-  // network thread.
-  RTC_NO_UNIQUE_ADDRESS SequenceChecker transport_checker_;
-  TaskQueueBase& transport_queue_;
+  // All methods run on the network queue, which is the network thread.
+  RTC_NO_UNIQUE_ADDRESS SequenceChecker network_queue_checker_;
 
-  bool active_ RTC_GUARDED_BY(transport_checker_) = false;
+  bool active_ RTC_GUARDED_BY(network_queue_checker_) = false;
 
   const std::unique_ptr<FecController> fec_controller_;
-  bool fec_allowed_ RTC_GUARDED_BY(transport_checker_) = true;
+  bool fec_allowed_ RTC_GUARDED_BY(network_queue_checker_) = true;
 
   // Rtp modules are assumed to be sorted in simulcast index order.
   const std::vector<webrtc_internal_rtp_video_sender::RtpStreamSender>
@@ -183,30 +180,28 @@ class RtpVideoSender : public RtpVideoSenderInterface,
   RtpTransportControllerSendInterface* const transport_;
 
   // The list of CSRCs to be included when sending an encoded image.
-  std::vector<uint32_t> csrcs_ RTC_GUARDED_BY(transport_checker_);
+  std::vector<uint32_t> csrcs_ RTC_GUARDED_BY(network_queue_checker_);
 
   // When using the generic descriptor we want all simulcast streams to share
   // one frame id space (so that the SFU can switch stream without having to
   // rewrite the frame id), therefore `shared_frame_id` has to live in a place
   // where we are aware of all the different streams.
-  int64_t shared_frame_id_ RTC_GUARDED_BY(transport_checker_);
+  int64_t shared_frame_id_ RTC_GUARDED_BY(network_queue_checker_);
   const bool independent_frame_ids_;
-  std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(transport_checker_);
+  std::vector<RtpPayloadParams> params_ RTC_GUARDED_BY(network_queue_checker_);
 
   size_t transport_overhead_bytes_per_packet_
-      RTC_GUARDED_BY(transport_checker_) = 0;
-  uint32_t protection_bitrate_bps_ RTC_GUARDED_BY(transport_checker_) = 0;
-  uint32_t encoder_target_rate_bps_ RTC_GUARDED_BY(transport_checker_) = 0;
+      RTC_GUARDED_BY(network_queue_checker_) = 0;
+  uint32_t protection_bitrate_bps_ RTC_GUARDED_BY(network_queue_checker_) = 0;
+  uint32_t encoder_target_rate_bps_ RTC_GUARDED_BY(network_queue_checker_) = 0;
 
-  std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(transport_checker_);
+  std::vector<bool> loss_mask_vector_ RTC_GUARDED_BY(network_queue_checker_);
 
-  std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(transport_checker_);
+  std::vector<FrameCounts> frame_counts_ RTC_GUARDED_BY(network_queue_checker_);
   FrameCountObserver* const frame_count_observer_;
 
   // Map from SSRC to RtpRtcp, for all media SSRCs.
   const flat_map<uint32_t, RtpRtcpInterface*> ssrc_to_rtp_module_;
-
-  ScopedTaskSafety safety_;
 };
 
 }  // namespace webrtc

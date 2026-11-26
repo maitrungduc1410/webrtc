@@ -51,7 +51,6 @@
 #include "api/scoped_refptr.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
-#include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "api/video/recordable_encoded_frame.h"
@@ -1263,15 +1262,17 @@ bool WebRtcVideoSendChannel::SetSenderParameters(
 void WebRtcVideoSendChannel::RequestEncoderSwitch(
     std::optional<SdpVideoFormat> format,
     bool allow_default_fallback) {
-  auto task = SafeTask(task_safety_.flag(), [this, format = std::move(format),
-                                             allow_default_fallback]() mutable {
-    RTC_DCHECK_RUN_ON(network_thread_);
-    ApplyEncoderSwitch(std::move(format), allow_default_fallback);
-  });
   if (encoder_switch_request_callback_) {
+    auto task = SafeTask(
+        task_safety_.flag(),
+        [this, format = std::move(format), allow_default_fallback]() mutable {
+          RTC_DCHECK_RUN_ON(network_thread_);
+          ApplyEncoderSwitch(std::move(format), allow_default_fallback);
+        });
     encoder_switch_request_callback_(std::move(task));
   } else {
-    network_thread_->PostTask(std::move(task));
+    RTC_DCHECK_RUN_ON(network_thread_);
+    ApplyEncoderSwitch(std::move(format), allow_default_fallback);
   }
 }
 

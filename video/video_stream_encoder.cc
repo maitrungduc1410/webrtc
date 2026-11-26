@@ -1627,6 +1627,8 @@ void VideoStreamEncoderImpl::AsyncInvokeEncoderSwitchRequestCallback(
       [this, format = std::move(format), allow_default_fallback]() mutable {
         RTC_DCHECK_RUN_ON(worker_queue_);
         RTC_DCHECK(encoder_switch_request_callback_);
+        // After this line, `this` may be deleted due to encoder switching
+        // synchronously triggering Stop().
         encoder_switch_request_callback_(std::move(format),
                                          allow_default_fallback);
       }));
