@@ -10947,5 +10947,87 @@ TEST_F(WebRtcVideoChannelTest,
             unsignaled_transformer);
 }
 
+TEST_F(WebRtcVideoChannelTest,
+       UnchangedExtmapAllowMixedDoesNotRecreateSendStream) {
+  ASSERT_TRUE(send_channel_->AddSendStream(StreamParams::CreateLegacy(kSsrc)));
+  ASSERT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_FALSE(SendImpl()->ExtmapAllowMixed());
+  const auto& initial_config =
+      fake_call_->GetVideoSendStreams()[0]->GetConfig();
+  EXPECT_FALSE(initial_config.rtp.extmap_allow_mixed);
+
+  // Reapplying the current configuration does not recreate the stream.
+  EXPECT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
+  EXPECT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+
+  // Local offer: channel mixed=true, existing stream remains false.
+  send_channel_->SetExtmapAllowMixed(true);
+  EXPECT_TRUE(SendImpl()->ExtmapAllowMixed());
+  EXPECT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_FALSE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+
+  // Remote answer without a=extmap-allow-mixed supplies mixed=false.
+  VideoSenderParameters parameters = send_parameters_;
+  parameters.extmap_allow_mixed = false;
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+
+  EXPECT_FALSE(SendImpl()->ExtmapAllowMixed());
+  EXPECT_FALSE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+  // Unchanged mixed-header configuration must not increase the creation count.
+  EXPECT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+}
+
+TEST_F(WebRtcVideoChannelTest, ChangedExtmapAllowMixedRecreatesSendStream) {
+  ASSERT_TRUE(send_channel_->AddSendStream(StreamParams::CreateLegacy(kSsrc)));
+  ASSERT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_FALSE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+
+  VideoSenderParameters parameters = send_parameters_;
+  parameters.extmap_allow_mixed = true;
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+  EXPECT_EQ(2, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_TRUE(SendImpl()->ExtmapAllowMixed());
+  EXPECT_TRUE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+
+  parameters.extmap_allow_mixed = false;
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+  EXPECT_EQ(3, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_FALSE(SendImpl()->ExtmapAllowMixed());
+  EXPECT_FALSE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+}
+
+TEST_F(WebRtcVideoChannelTest,
+       UnchangedExtmapAllowMixedWithRtpExtensionChangeRecreatesSendStream) {
+  ASSERT_TRUE(send_channel_->AddSendStream(StreamParams::CreateLegacy(kSsrc)));
+  ASSERT_EQ(1, fake_call_->GetNumCreatedSendStreams());
+
+  // A local offer updates the channel-level mixed state, while the existing
+  // send stream remains configured with mixed=false.
+  send_channel_->SetExtmapAllowMixed(true);
+  ASSERT_TRUE(SendImpl()->ExtmapAllowMixed());
+  ASSERT_FALSE(
+      fake_call_->GetVideoSendStreams()[0]->GetConfig().rtp.extmap_allow_mixed);
+
+  // The answer restores channel mixed=false, matching the stream. The new RTP
+  // header extension still requires recreation.
+  VideoSenderParameters parameters = send_parameters_;
+  parameters.extmap_allow_mixed = false;
+  parameters.extensions.push_back(
+      RtpExtension(RtpExtension::kAbsSendTimeUri, RtpHeaderExtensionId(1)));
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+
+  EXPECT_EQ(2, fake_call_->GetNumCreatedSendStreams());
+  EXPECT_FALSE(SendImpl()->ExtmapAllowMixed());
+  const auto& config = fake_call_->GetVideoSendStreams()[0]->GetConfig();
+  EXPECT_FALSE(config.rtp.extmap_allow_mixed);
+  ASSERT_EQ(1u, config.rtp.extensions.size());
+  EXPECT_EQ(RtpExtension::kAbsSendTimeUri, config.rtp.extensions[0].uri);
+}
+
 }  // namespace
 }  // namespace webrtc

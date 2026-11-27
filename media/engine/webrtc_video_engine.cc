@@ -2161,7 +2161,8 @@ void WebRtcVideoSendChannel::WebRtcVideoSendStream::SetSenderParameters(
         parameters_.config.rtp.rtcp_mode == RtcpMode::kReducedSize;
     recreate_stream = true;
   }
-  if (params.extmap_allow_mixed) {
+  if (params.extmap_allow_mixed &&
+      parameters_.config.rtp.extmap_allow_mixed != *params.extmap_allow_mixed) {
     parameters_.config.rtp.extmap_allow_mixed = *params.extmap_allow_mixed;
     recreate_stream = true;
   }
