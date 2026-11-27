@@ -48,7 +48,6 @@ if (is_android) {
       ":libjingle_peerconnection_metrics_default_java",
       ":libvpx_vp8_java",
       ":libvpx_vp9_java",
-      ":logging_java",
       ":peerconnection_java",
       ":screencapturer_java",
       ":surfaceviewrenderer_java",
@@ -341,7 +340,6 @@ if (is_android) {
 
       #TODO(bugs.webrtc.org/7452): Make injection mandatory and remove this dep.
       ":java_audio_device_module_java",
-      ":logging_java",
       ":swcodecs_java",
       ":video_api_java",
       ":video_java",
@@ -830,7 +828,6 @@ if (current_os == "linux" || is_android) {
       ":generated_peerconnection_jni",
       ":generated_rtcerror_jni",
       ":internal_jni",
-      ":logging_jni",
       ":native_api_jni",
       ":native_api_stacktrace",
       "..:media_constraints",
@@ -1266,16 +1263,6 @@ if (current_os == "linux" || is_android) {
   # Internal targets #
   ####################
 
-  rtc_android_library("logging_java") {
-    sources = [ "src/java/org/webrtc/JNILogging.java" ]
-
-    deps = [
-      ":base_java",
-      ":generated_logging_jni_java",
-      "../../rtc_base:base_java",
-    ]
-  }
-
   # Internal code that is needed by native_api_jni. The code cannot be placed in
   # base_jni because native_api_jni depends on the code (and base_jni depends on
   # native_api_jni).
@@ -1312,24 +1299,6 @@ if (current_os == "linux" || is_android) {
       "../../rtc_base:checks",
       "../../rtc_base:refcount",
       "../../rtc_base:timeutils",
-    ]
-  }
-
-  rtc_library("logging_jni") {
-    visibility = [ "*" ]
-    sources = [
-      "src/jni/logging/log_sink.cc",
-      "src/jni/logging/log_sink.h",
-    ]
-
-    deps = [
-      ":base_jni",
-      ":generated_logging_jni",
-      ":internal_jni",
-      ":native_api_jni",
-      "../../rtc_base:checks",
-      "../../rtc_base:logging",
-      "//third_party/abseil-cpp/absl/strings:string_view",
     ]
   }
 
@@ -1632,10 +1601,6 @@ if (current_os == "linux" || is_android) {
   }
 
   # Generated JNI for internal targets.
-
-  generate_jni("generated_logging_jni") {
-    sources = [ "src/java/org/webrtc/JNILogging.java" ]
-  }
 
   generate_jni("generated_audio_device_module_base_jni") {
     sources = [ "src/java/org/webrtc/audio/WebRtcAudioManager.java" ]

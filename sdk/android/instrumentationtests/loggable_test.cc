@@ -15,7 +15,6 @@
 #include "rtc_base/logging.h"
 #include "sdk/android/generated_instrumentationtests_jni/LoggableTest_jni.h"
 #include "sdk/android/native_api/jni/java_types.h"
-#include "sdk/android/src/jni/jni_helpers.h"
 #include "third_party/jni_zero/jni_zero.h"
 
 namespace webrtc {
@@ -30,6 +29,22 @@ static void JNI_LoggableTest_LogInfoTestMessage(
 
 static void JNI_LoggableTest_ResetLoggingForTesting(JNIEnv* jni) {
   ResetLoggingForTesting();
+}
+
+static jint JNI_LoggableTest_GetNativeDebugSeverity(JNIEnv* jni) {
+  return static_cast<jint>(GetLoggingConfig().debug_severity());
+}
+
+static jint JNI_LoggableTest_GetNativeMinSeverity(JNIEnv* jni) {
+  return static_cast<jint>(GetLoggingConfig().min_severity());
+}
+
+static jboolean JNI_LoggableTest_GetNativeLogThreads(JNIEnv* jni) {
+  return GetLoggingConfig().log_thread();
+}
+
+static jboolean JNI_LoggableTest_GetNativeLogTimestamps(JNIEnv* jni) {
+  return GetLoggingConfig().log_timestamp();
 }
 
 }  // namespace jni

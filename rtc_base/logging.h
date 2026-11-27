@@ -291,13 +291,6 @@ struct LogMetadataErr {
   int err;
 };
 
-#ifdef WEBRTC_ANDROID
-struct LogMetadataTag {
-  LoggingSeverity severity;
-  const char* tag;
-};
-#endif
-
 enum class LogArgType : int8_t {
   kEnd = 0,
   kInt,
@@ -314,11 +307,6 @@ enum class LogArgType : int8_t {
   kVoidP,
   kLogMetadata,
   kLogMetadataErr,
-#ifdef WEBRTC_ANDROID
-  kLogMetadataTag,
-#else
-  kReserved,
-#endif
   kStdStringView,  // std::string_view, for downstream compatibility.
 };
 
@@ -457,13 +445,6 @@ inline decltype(MakeVal(std::declval<std::underlying_type_t<T>>())) MakeVal(
   return {static_cast<std::underlying_type_t<T>>(x)};
 }
 
-#ifdef WEBRTC_ANDROID
-inline Val<LogArgType::kLogMetadataTag, LogMetadataTag> MakeVal(
-    const LogMetadataTag& x) {
-  return {x};
-}
-#endif
-
 #if RTC_LOG_ENABLED()
 // `size_hint` is a compile-time estimate of the size of the log message, see
 // LogStreamer<>::Call(). `fmt` lists the types of the variadic arguments,
@@ -573,14 +554,13 @@ class LogMessage {
              LoggingSeverity sev,
              LogErrorContext err_ctx,
              int err);
-#if defined(WEBRTC_ANDROID)
-  LogMessage(const char* file, int line, LoggingSeverity sev, const char* tag);
-#endif
   ~LogMessage();
 
   LogMessage(const LogMessage&) = delete;
   LogMessage& operator=(const LogMessage&) = delete;
 
+  // Sets the tag of the message, which on Android is the logcat tag. `tag` must
+  // outlive the LogMessage. Does nothing on other platforms.
   void AddTag(const char* tag);
   StringBuilder& stream();
   // Reserves capacity in the stream for `size` more characters, in addition to
@@ -595,22 +575,10 @@ class LogMessage {
   // Returns the wall clock equivalent of `LogStartTime`, in seconds from the
   // epoch.
   static uint32_t WallClockStartTime();
-  // LogThreads: Display the thread identifier of the current thread
-  // Returns the previously set value.
-  // NOTE: Must be called prior to starting threads and/or starting logging.
-  [[deprecated("Use InitializeLogging instead.")]]
-  static bool LogThreads(bool enabled = true);
 
   // TODO: bugs.webrtc.org/42234107 - Remove the deprecated methods below once
   // downstream projects have migrated.
 
-  //  LogTimestamps: Display the elapsed time of the program
-  [[deprecated("Use LoggingConfig::set_log_timestamp() instead.")]]
-  static void LogTimestamps(bool on = true);
-  // These are the available logging channels
-  //  Debug: Debug console on Windows, otherwise stderr
-  [[deprecated("Use LoggingConfig::set_debug_severity() instead.")]]
-  static void LogToDebug(LoggingSeverity min_sev);
   // Stream: Any non-blocking stream interface.
   // Installs the `stream` to collect logs with severtiy `min_sev` or higher.
   // If `stream` has already been added, its severity is updated.
@@ -649,10 +617,6 @@ class LogMessage {
              LoggingSeverity sev,
              LogErrorContext err_ctx,
              int err) {}
-#if defined(WEBRTC_ANDROID)
-  LogMessage(const char* file, int line, LoggingSeverity sev, const char* tag) {
-  }
-#endif
   ~LogMessage() = default;
 
   inline void AddTag(const char* tag) {}
@@ -660,15 +624,6 @@ class LogMessage {
   inline void ReserveStream(size_t size) {}
   inline static int64_t LogStartTime() { return 0; }
   inline static uint32_t WallClockStartTime() { return 0; }
-  [[deprecated("Use InitializeLogging instead.")]]
-  inline static bool LogThreads(bool enabled = true) {
-    return false;
-  }
-
-  [[deprecated("Use LoggingConfig::set_log_timestamp() instead.")]]
-  inline static void LogTimestamps(bool on = true) {}
-  [[deprecated("Use LoggingConfig::set_debug_severity() instead.")]]
-  inline static void LogToDebug(LoggingSeverity min_sev) {}
   [[deprecated(
       "Use LoggingConfig::AddSink() and InitializeLogging() instead.")]]
   inline static void AddLogToStream(LogSink* stream, LoggingSeverity min_sev) {}
@@ -786,33 +741,6 @@ inline bool LogCheckLevel(LoggingSeverity sev) {
 #define RTC_LOG_ERR_EX(sev, err) RTC_LOG_ERRNO_EX(sev, err)
 #define RTC_LOG_ERR(sev) RTC_LOG_ERRNO(sev)
 #endif  // WEBRTC_WIN
-
-#ifdef WEBRTC_ANDROID
-
-namespace webrtc_logging_impl {
-// TODO(kwiberg): Replace these with absl::string_view.
-inline const char* AdaptString(const char* str) {
-  return str;
-}
-inline const char* AdaptString(const std::string& str) {
-  return str.c_str();
-}
-}  // namespace webrtc_logging_impl
-
-#define RTC_LOG_TAG(sev, tag)                                    \
-  !::webrtc::LogMessage::IsNoop(sev) &&                          \
-      ::webrtc::webrtc_logging_impl::LogCall() &                 \
-          ::webrtc::webrtc_logging_impl::LogStreamer<>()         \
-              << ::webrtc::webrtc_logging_impl::LogMetadataTag { \
-    sev, ::webrtc::webrtc_logging_impl::AdaptString(tag)         \
-  }
-
-#else
-
-// DEPRECATED. This macro is only intended for Android.
-#define RTC_LOG_TAG(sev, tag) RTC_LOG_V(sev)
-
-#endif
 
 // The RTC_DLOG macros are equivalent to their RTC_LOG counterparts except that
 // they only generate code in debug builds.

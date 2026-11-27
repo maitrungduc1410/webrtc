@@ -15,7 +15,6 @@ import android.os.Process;
 import androidx.annotation.Nullable;
 import java.util.List;
 import org.jni_zero.NativeMethods;
-import org.webrtc.Logging.Severity;
 import org.webrtc.audio.AudioDeviceModule;
 import org.webrtc.audio.JavaAudioDeviceModule;
 
@@ -62,20 +61,15 @@ public class PeerConnectionFactory {
     final boolean enableInternalTracer;
     final NativeLibraryLoader nativeLibraryLoader;
     final String nativeLibraryName;
-    @Nullable Loggable loggable;
-    @Nullable Severity loggableSeverity;
 
     private InitializationOptions(Context applicationContext, String fieldTrials,
         boolean enableInternalTracer, NativeLibraryLoader nativeLibraryLoader,
-        String nativeLibraryName, @Nullable Loggable loggable,
-        @Nullable Severity loggableSeverity) {
+        String nativeLibraryName) {
       this.applicationContext = applicationContext;
       this.fieldTrials = fieldTrials;
       this.enableInternalTracer = enableInternalTracer;
       this.nativeLibraryLoader = nativeLibraryLoader;
       this.nativeLibraryName = nativeLibraryName;
-      this.loggable = loggable;
-      this.loggableSeverity = loggableSeverity;
     }
 
     public static Builder builder(Context applicationContext) {
@@ -88,8 +82,6 @@ public class PeerConnectionFactory {
       private boolean enableInternalTracer;
       private NativeLibraryLoader nativeLibraryLoader = new NativeLibrary.DefaultLoader();
       private String nativeLibraryName = "jingle_peerconnection_so";
-      @Nullable private Loggable loggable;
-      @Nullable private Severity loggableSeverity;
 
       Builder(Context applicationContext) {
         this.applicationContext = applicationContext;
@@ -118,23 +110,10 @@ public class PeerConnectionFactory {
         return this;
       }
 
-      // Deprecated, use Logging.initialize() with LoggingConfig.Builder.addSink() instead.
-      // A sink differs from an injected Loggable in two ways:
-      // - It doesn't turn off logging to logcat. Use
-      //   LoggingConfig.Builder.setDebugSeverity(Severity.LS_NONE) for that.
-      // - Messages from Java reach the sink as formatted log lines, see addSink().
-      // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
-      @Deprecated
-      public Builder setInjectableLogger(Loggable loggable, Severity severity) {
-        this.loggable = loggable;
-        this.loggableSeverity = severity;
-        return this;
-      }
-
       public PeerConnectionFactory.InitializationOptions createInitializationOptions() {
-        return new PeerConnectionFactory.InitializationOptions(applicationContext, fieldTrials,
-            enableInternalTracer, nativeLibraryLoader, nativeLibraryName, loggable,
-            loggableSeverity);
+        return new PeerConnectionFactory.InitializationOptions(
+            applicationContext, fieldTrials, enableInternalTracer, nativeLibraryLoader,
+            nativeLibraryName);
       }
     }
   }
@@ -328,7 +307,6 @@ public class PeerConnectionFactory {
    * PeerConnectionFactory. Replaces all the old initialization methods. Must not be called while
    * a PeerConnectionFactory is alive.
    */
-  @SuppressWarnings("EnumOrdinal")
   public static void initialize(InitializationOptions options) {
     ContextUtils.initialize(options.applicationContext);
     NativeLibrary.initialize(options.nativeLibraryLoader, options.nativeLibraryName);
@@ -336,17 +314,6 @@ public class PeerConnectionFactory {
     PeerConnectionFactoryJni.get().initializeFieldTrials(options.fieldTrials);
     if (options.enableInternalTracer && !internalTracerInitialized) {
       initializeInternalTracer();
-    }
-    if (options.loggable != null) {
-      Logging.injectLoggable(options.loggable, options.loggableSeverity);
-      PeerConnectionFactoryJni.get()
-          .injectLoggable(new JNILogging(options.loggable), options.loggableSeverity.ordinal());
-    } else {
-      Logging.d(TAG,
-          "PeerConnectionFactory was initialized without an injected Loggable. "
-              + "Any existing Loggable will be deleted.");
-      Logging.deleteInjectedLoggable();
-      PeerConnectionFactoryJni.get().deleteLoggable();
     }
   }
 
@@ -700,10 +667,6 @@ public class PeerConnectionFactory {
     boolean isOnWebRtcThread();
 
     long getNativePeerConnectionFactory(long factory);
-
-    void injectLoggable(JNILogging jniLogging, int severity);
-
-    void deleteLoggable();
 
     void printStackTrace(int tid);
 

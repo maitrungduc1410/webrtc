@@ -25,14 +25,6 @@ typedef NS_ENUM(NSInteger, RTCLoggingSeverity) {
 // Logs the log string to the webrtc logstream for the given severity.
 RTC_EXTERN void RTCLogEx(RTCLoggingSeverity severity, NSString* log_string);
 
-// Wrapper for webrtc::LogMessage::LogToDebug.
-// Sets the minimum severity to be logged to console.
-// TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have
-// migrated.
-RTC_OBJC_DEPRECATED(
-    "Use RTCInitializeLogging() with RTCLoggingConfig.debugSeverity instead.")
-RTC_EXTERN void RTCSetMinDebugLogLevel(RTCLoggingSeverity severity);
-
 // Returns the filename with the path prefix removed.
 RTC_EXTERN NSString* RTCFileName(const char* filePath);
 

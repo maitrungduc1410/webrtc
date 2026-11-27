@@ -202,27 +202,6 @@ if (is_ios || is_mac) {
   }
 
   if (!build_with_chromium) {
-    rtc_library("callback_logger_objc") {
-      sources = [
-        "objc/api/logging/RTCCallbackLogger.h",
-        "objc/api/logging/RTCCallbackLogger.mm",
-      ]
-
-      deps = [
-        ":base_objc",
-        ":helpers_objc",
-        "../rtc_base:checks",
-        "../rtc_base:log_sinks",
-        "../rtc_base:logging",
-        "//third_party/abseil-cpp/absl/strings:string_view",
-      ]
-
-      configs += [
-        "..:common_objc",
-        ":used_from_extension",
-      ]
-    }
-
     rtc_library("logging_config_objc") {
       visibility = [ "*" ]
       sources = [
@@ -1213,7 +1192,6 @@ if (is_ios || is_mac) {
             "objc/unittests/RTCAudioDevice_xctest.mm",
             "objc/unittests/RTCAudioSessionTest.mm",
             "objc/unittests/RTCCVPixelBuffer_xctest.mm",
-            "objc/unittests/RTCCallbackLogger_xctest.m",
             "objc/unittests/RTCCameraVideoCapturerTests.mm",
             "objc/unittests/RTCCertificateTest.mm",
             "objc/unittests/RTCConfigurationTest.mm",
@@ -1250,7 +1228,6 @@ if (is_ios || is_mac) {
             ":audio_session_objc",
             ":base_native_additions_objc",
             ":base_objc",
-            ":callback_logger_objc",
             ":default_codec_factory_objc",
             ":framework_objc",
             ":helpers_objc",
@@ -1448,7 +1425,6 @@ if (is_ios || is_mac) {
 
         if (!build_with_chromium) {
           common_objc_headers += [
-            "objc/api/logging/RTCCallbackLogger.h",
             "objc/api/logging/RTCLoggingConfig.h",
             "objc/api/peerconnection/RTCFileLogger.h",
           ]
@@ -1477,7 +1453,6 @@ if (is_ios || is_mac) {
         ]
         if (!build_with_chromium) {
           deps += [
-            ":callback_logger_objc",
             ":file_logger_objc",
             ":logging_config_objc",
           ]
@@ -1598,7 +1573,6 @@ if (is_ios || is_mac) {
         ]
         if (!build_with_chromium) {
           sources += [
-            "objc/api/logging/RTCCallbackLogger.h",
             "objc/api/logging/RTCLoggingConfig.h",
             "objc/api/peerconnection/RTCFileLogger.h",
           ]
@@ -1617,7 +1591,6 @@ if (is_ios || is_mac) {
         ]
         if (!build_with_chromium) {
           deps += [
-            ":callback_logger_objc",
             ":file_logger_objc",
             ":logging_config_objc",
           ]

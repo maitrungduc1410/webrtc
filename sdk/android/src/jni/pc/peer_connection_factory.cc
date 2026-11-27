@@ -59,7 +59,6 @@
 #include "sdk/android/src/jni/android_network_monitor.h"
 #include "sdk/android/src/jni/jni_helpers.h"
 #include "sdk/android/src/jni/jvm.h"
-#include "sdk/android/src/jni/logging/log_sink.h"
 #include "sdk/android/src/jni/pc/android_network_monitor.h"
 #include "sdk/android/src/jni/pc/media_constraints.h"
 #include "sdk/android/src/jni/pc/media_stream_track.h"
@@ -132,8 +131,6 @@ JavaToNativePeerConnectionFactoryOptions(
 struct StaticObjectContainer {
   // Field trials initialization string
   std::unique_ptr<std::string> field_trials_init_string;
-  // Set in PeerConnectionFactory_InjectLoggable().
-  std::unique_ptr<JNILogSink> jni_log_sink;
 };
 
 StaticObjectContainer& GetStaticObjects() {
@@ -552,37 +549,6 @@ static jlong JNI_PeerConnectionFactory_GetNativePeerConnectionFactory(
     JNIEnv* jni,
     jlong native_factory) {
   return jlongFromPointer(PeerConnectionFactoryFromJava(native_factory));
-}
-
-static void JNI_PeerConnectionFactory_InjectLoggable(
-    JNIEnv* jni,
-    const jni_zero::JavaRef<jobject>& j_logging,
-    jint nativeSeverity) {
-  std::unique_ptr<JNILogSink>& jni_log_sink = GetStaticObjects().jni_log_sink;
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  // If there is already a LogSink, remove it from LogMessage.
-  if (jni_log_sink) {
-    LogMessage::RemoveLogToStream(jni_log_sink.get());
-  }
-  jni_log_sink = std::make_unique<JNILogSink>(jni, j_logging);
-  LogMessage::AddLogToStream(jni_log_sink.get(),
-                             static_cast<LoggingSeverity>(nativeSeverity));
-  LogMessage::LogToDebug(LS_NONE);
-#pragma clang diagnostic pop
-}
-
-static void JNI_PeerConnectionFactory_DeleteLoggable(JNIEnv* jni) {
-  std::unique_ptr<JNILogSink>& jni_log_sink = GetStaticObjects().jni_log_sink;
-
-  if (jni_log_sink) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    LogMessage::RemoveLogToStream(jni_log_sink.get());
-#pragma clang diagnostic pop
-    jni_log_sink.reset();
-  }
 }
 
 static void JNI_PeerConnectionFactory_PrintStackTrace(JNIEnv* env, jint tid) {

@@ -110,8 +110,6 @@ const char *kRTCFileLoggerRotatingLogPrefix = "rotating_log";
   }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  webrtc::LogMessage::LogThreads(true);
-  webrtc::LogMessage::LogTimestamps(true);
   webrtc::LogMessage::AddLogToStream(_logSink.get(), [self rtcSeverity]);
 #pragma clang diagnostic pop
   _hasStarted = YES;

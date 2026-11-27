@@ -10,6 +10,7 @@
 
 package org.webrtc;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -71,105 +72,6 @@ public class LoggableTest {
 
   @Test
   @SmallTest
-  public void testLoggableSetWithoutError() throws InterruptedException {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_INFO)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-  }
-
-  @Test
-  @SmallTest
-  public void testMessageIsLoggedCorrectly() throws InterruptedException {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_INFO)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should be logged";
-    Logging.d(TAG, msg);
-    assertTrue(mockLoggable.isMessageReceived(msg, Severity.LS_INFO, TAG));
-  }
-
-  @Test
-  @SmallTest
-  public void testLowSeverityIsFiltered() throws InterruptedException {
-    // Set severity to LS_WARNING to filter out LS_INFO and below.
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_WARNING)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should NOT be logged";
-    Logging.d(TAG, msg);
-    assertFalse(mockLoggable.isMessageReceived(msg));
-  }
-
-  @Test
-  @SmallTest
-  public void testLoggableDoesNotReceiveMessagesAfterUnsetting() {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_INFO)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    // Reinitialize without Loggable
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should NOT be logged";
-    Logging.d(TAG, msg);
-    assertFalse(mockLoggable.isMessageReceived(msg));
-  }
-
-  @Test
-  @SmallTest
-  public void testNativeMessageIsLoggedCorrectly() throws InterruptedException {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_INFO)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should be logged";
-    LoggableTestJni.get().logInfoTestMessage(msg);
-    assertTrue(mockLoggable.isMessageReceived(msg, Severity.LS_INFO, NATIVE_FILENAME_TAG));
-  }
-
-  @Test
-  @SmallTest
-  public void testNativeLowSeverityIsFiltered() throws InterruptedException {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_WARNING)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should NOT be logged";
-    LoggableTestJni.get().logInfoTestMessage(msg);
-    assertFalse(mockLoggable.isMessageReceived(msg));
-  }
-
-  @Test
-  @SmallTest
-  public void testNativeLoggableDoesNotReceiveMessagesAfterUnsetting() {
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setInjectableLogger(mockLoggable, Severity.LS_INFO)
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    // Reinitialize without Loggable
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
-                                         .builder(InstrumentationRegistry.getTargetContext())
-                                         .setNativeLibraryName(TestConstants.NATIVE_LIBRARY)
-                                         .createInitializationOptions());
-    String msg = "Message that should NOT be logged";
-    LoggableTestJni.get().logInfoTestMessage(msg);
-    assertFalse(mockLoggable.isMessageReceived(msg));
-  }
-
-  @Test
-  @SmallTest
   public void testLoggingConfigSinkReceivesJavaAndNativeMessages() {
     loadNativeLibraryAndResetLogging();
     try {
@@ -222,6 +124,27 @@ public class LoggableTest {
     }
   }
 
+  @Test
+  @SmallTest
+  @SuppressWarnings("EnumOrdinal")
+  public void testLoggingConfigOptionsAreAppliedToNative() {
+    loadNativeLibraryAndResetLogging();
+    try {
+      assertTrue(Logging.initialize(LoggingConfig.builder()
+                                        .setDebugSeverity(Severity.LS_WARNING)
+                                        .setMinSeverity(Severity.LS_ERROR)
+                                        .setLogThreads(true)
+                                        .setLogTimestamps(true)
+                                        .build()));
+      assertEquals(Severity.LS_WARNING.ordinal(), LoggableTestJni.get().getNativeDebugSeverity());
+      assertEquals(Severity.LS_ERROR.ordinal(), LoggableTestJni.get().getNativeMinSeverity());
+      assertTrue(LoggableTestJni.get().getNativeLogThreads());
+      assertTrue(LoggableTestJni.get().getNativeLogTimestamps());
+    } finally {
+      resetLogging();
+    }
+  }
+
   // Loads the native library and resets logging, so that the test can call Logging.initialize().
   private static void loadNativeLibraryAndResetLogging() {
     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions
@@ -245,5 +168,13 @@ public class LoggableTest {
     void logInfoTestMessage(String message);
 
     void resetLoggingForTesting();
+
+    int getNativeDebugSeverity();
+
+    int getNativeMinSeverity();
+
+    boolean getNativeLogThreads();
+
+    boolean getNativeLogTimestamps();
   }
 }

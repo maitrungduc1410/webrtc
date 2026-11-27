@@ -71,15 +71,8 @@ static const int kMaxLogLineSize = 1024 - 60;
 namespace webrtc {
 namespace {
 
-// Note: `g_min_sev` and `g_dbg_sev` can be changed while running.
+// Note: `g_min_sev` can be changed while running.
 constinit std::atomic<LoggingSeverity> g_min_sev = kDefaultLoggingSeverity;
-constinit std::atomic<LoggingSeverity> g_dbg_sev = kDefaultLoggingSeverity;
-
-// Whether log lines include the elapsed time. Set when a configuration is
-// applied, and by the deprecated LogMessage::LogTimestamps().
-// TODO: bugs.webrtc.org/42234107 - Read GetLoggingConfig().log_timestamp()
-// instead once LogTimestamps() is removed.
-constinit bool g_log_timestamp = false;
 
 // Return the filename portion of the string (that following the last slash).
 const char* FilenameFromPath(const char* file) {
@@ -96,10 +89,9 @@ const char* FilenameFromPath(const char* file) {
 constinit std::atomic<bool> g_reinitialize_for_testing = false;
 
 // Internal helper to manage config state.
-// NOTE: The return value is non-const only while transitioning away from and
-// deprecating legacy global methods that allow modifying the logging config
-// after initialization. Once those methods are removed, this should return a
-// const reference again to ensure lockless read-only access.
+// NOTE: The return value is non-const only so that InitializeLogging() and
+// ResetLoggingForTesting() can replace the configuration. All other code reads
+// it through GetLoggingConfig().
 LoggingConfig& GetOrInitConfig(LoggingConfig* init_config = nullptr,
                                bool* config_applied = nullptr) {
   static absl::NoDestructor<LoggingConfig> config([&]() {
@@ -118,8 +110,8 @@ LoggingConfig& GetOrInitConfig(LoggingConfig* init_config = nullptr,
 // Unlike the LoggingConfig sinks, they are guarded by a lock, which is also
 // held while they are called. That way, calls to these sinks are serialized,
 // and a sink isn't called anymore once it has been removed.
-// The lock also serializes all updates of `g_dbg_sev` and `g_min_sev`, so that
-// concurrent updates don't overwrite each other.
+// The lock also serializes all updates of `g_min_sev`, so that concurrent
+// updates don't overwrite each other.
 class DynamicLogSinks {
  public:
   // Returns the instance, which is created on first use and never destroyed.
@@ -153,9 +145,9 @@ class DynamicLogSinks {
     UpdateMinLogSeverityLocked();
   }
 
-  void SetDebugSeverity(LoggingSeverity severity) {
+  // Updates `g_min_sev` after the logging configuration has been replaced.
+  void UpdateMinLogSeverity() {
     MutexLock lock(&mutex_);
-    g_dbg_sev.store(severity, std::memory_order_relaxed);
     UpdateMinLogSeverityLocked();
   }
 
@@ -183,8 +175,8 @@ class DynamicLogSinks {
   };
 
   void UpdateMinLogSeverityLocked() RTC_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-    LoggingSeverity min_sev = g_dbg_sev.load(std::memory_order_relaxed);
     const LoggingConfig& config = GetLoggingConfig();
+    LoggingSeverity min_sev = config.debug_severity();
     if (!config.sinks().empty()) {
       min_sev = std::min(min_sev, config.min_severity());
     }
@@ -204,11 +196,6 @@ class DynamicLogSinks {
   std::vector<Entry> sinks_ RTC_GUARDED_BY(mutex_);
 };
 
-void ApplyConfigToLogMessage(const LoggingConfig& config) {
-  g_log_timestamp = config.log_timestamp();
-  DynamicLogSinks::Get().SetDebugSeverity(config.debug_severity());
-}
-
 }  // namespace
 
 bool InitializeLogging(LoggingConfig config) {
@@ -221,7 +208,7 @@ bool InitializeLogging(LoggingConfig config) {
     config_applied = true;
   }
   if (config_applied) {
-    ApplyConfigToLogMessage(active);
+    DynamicLogSinks::Get().UpdateMinLogSeverity();
   }
   return config_applied;
 }
@@ -238,7 +225,7 @@ LoggingConfig ResetLoggingForTesting(
   g_reinitialize_for_testing.store(!restore_config.has_value());
   LoggingConfig previous = std::exchange(
       active, std::move(restore_config).value_or(LoggingConfig()));
-  ApplyConfigToLogMessage(active);
+  DynamicLogSinks::Get().UpdateMinLogSeverity();
   return previous;
 }
 
@@ -305,7 +292,7 @@ LogMessage::LogMessage(const char* file,
                        int err) {
   log_line_.set_severity(sev);
   const LoggingConfig& config = GetLoggingConfig();
-  if (g_log_timestamp) {
+  if (config.log_timestamp()) {
     int64_t log_start_time = LogStartTime();
     // Use SystemTimeMillis so that even if tests use fake clocks, the timestamp
     // in log messages represents the real system time.
@@ -365,17 +352,6 @@ LogMessage::LogMessage(const char* file,
   }
 }
 
-#if defined(WEBRTC_ANDROID)
-LogMessage::LogMessage(const char* file,
-                       int line,
-                       LoggingSeverity sev,
-                       const char* tag)
-    : LogMessage(file, line, sev, ERRCTX_NONE, /*err=*/0) {
-  log_line_.set_tag(tag);
-  print_stream_ << tag << ": ";
-}
-#endif
-
 LogMessage::~LogMessage() {
   FinishPrintStream();
 
@@ -383,9 +359,7 @@ LogMessage::~LogMessage() {
 
   const LoggingConfig& config = GetLoggingConfig();
 
-  // Not `config.debug_severity()`, since LogToDebug() can change the debug
-  // severity after initialization.
-  if (log_line_.severity() >= g_dbg_sev.load(std::memory_order_relaxed)) {
+  if (log_line_.severity() >= config.debug_severity()) {
     OutputToDebug(log_line_, config.log_to_stderr());
   }
 
@@ -426,21 +400,6 @@ int64_t LogMessage::LogStartTime() {
 uint32_t LogMessage::WallClockStartTime() {
   static const uint32_t g_start_wallclock = time(nullptr);
   return g_start_wallclock;
-}
-
-bool LogMessage::LogThreads(bool enabled) {
-  LoggingConfig& config = GetOrInitConfig();
-  bool prev = config.log_thread();
-  config.set_log_thread(enabled);
-  return prev;
-}
-
-void LogMessage::LogTimestamps(bool on) {
-  g_log_timestamp = on;
-}
-
-void LogMessage::LogToDebug(LoggingSeverity min_sev) {
-  DynamicLogSinks::Get().SetDebugSeverity(min_sev);
 }
 
 void LogMessage::AddLogToStream(LogSink* stream, LoggingSeverity min_sev) {
@@ -597,11 +556,6 @@ size_t StringArgsSize(const LogArgType* fmt, va_list args) {
       case LogArgType::kEnd:
       case LogArgType::kLogMetadata:
       case LogArgType::kLogMetadataErr:
-#ifdef WEBRTC_ANDROID
-      case LogArgType::kLogMetadataTag:
-#else
-      case LogArgType::kReserved:
-#endif
         // Unexpected types are reported when the message is formatted.
         return size;
     }
@@ -616,7 +570,6 @@ void Log(size_t size_hint, const LogArgType* fmt, ...) {
   va_start(args, fmt);
 
   LogMetadataErr meta;
-  const char* tag = nullptr;
   switch (*fmt) {
     case LogArgType::kLogMetadata: {
       meta = {
@@ -627,16 +580,6 @@ void Log(size_t size_hint, const LogArgType* fmt, ...) {
       meta = va_arg(args, LogMetadataErr);
       break;
     }
-#ifdef WEBRTC_ANDROID
-    case LogArgType::kLogMetadataTag: {
-      const LogMetadataTag tag_meta = va_arg(args, LogMetadataTag);
-      meta = {{nullptr, 0, tag_meta.severity}, ERRCTX_NONE, 0};
-      tag = tag_meta.tag;
-      break;
-    }
-#else
-    case LogArgType::kReserved:
-#endif
     case LogArgType::kEnd:
     case LogArgType::kInt:
     case LogArgType::kLong:
@@ -659,9 +602,6 @@ void Log(size_t size_hint, const LogArgType* fmt, ...) {
 
   LogMessage log_message(meta.meta.File(), meta.meta.Line(),
                          meta.meta.Severity(), meta.err_ctx, meta.err);
-  if (tag) {
-    log_message.AddTag(tag);
-  }
 
   // Add the sizes of the string arguments, which are only known at runtime, so
   // that the message can typically be formatted with a single allocation.
@@ -717,13 +657,7 @@ void Log(size_t size_hint, const LogArgType* fmt, ...) {
         break;
       case LogArgType::kEnd:
       case LogArgType::kLogMetadata:
-      case LogArgType::kLogMetadataErr:
-#ifdef WEBRTC_ANDROID
-      case LogArgType::kLogMetadataTag:
-#else
-      case LogArgType::kReserved:
-#endif
-      {
+      case LogArgType::kLogMetadataErr: {
         RTC_DCHECK_NOTREACHED();
         va_end(args);
         return;

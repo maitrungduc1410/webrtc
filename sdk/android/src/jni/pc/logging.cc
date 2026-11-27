@@ -82,30 +82,6 @@ static jboolean JNI_Logging_Initialize(
   return InitializeLogging(std::move(config));
 }
 
-static void JNI_Logging_EnableLogToDebugOutput(JNIEnv* jni,
-                                               jint nativeSeverity) {
-  if (nativeSeverity >= LS_VERBOSE && nativeSeverity <= LS_NONE) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    LogMessage::LogToDebug(static_cast<LoggingSeverity>(nativeSeverity));
-#pragma clang diagnostic pop
-  }
-}
-
-static void JNI_Logging_EnableLogThreads(JNIEnv* jni) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  LogMessage::LogThreads(true);
-#pragma clang diagnostic pop
-}
-
-static void JNI_Logging_EnableLogTimeStamps(JNIEnv* jni) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  LogMessage::LogTimestamps(true);
-#pragma clang diagnostic pop
-}
-
 static void JNI_Logging_Log(JNIEnv* jni,
                             jint j_severity,
                             const jni_zero::JavaRef<jstring>& j_tag,
@@ -117,7 +93,10 @@ static void JNI_Logging_Log(JNIEnv* jni,
   }
   std::string message = JavaToNativeString(jni, j_message);
   std::string tag = JavaToNativeString(jni, j_tag);
-  RTC_LOG_TAG(severity, tag.c_str()) << message;
+  // `tag` must outlive `log_message`, which refers to it.
+  LogMessage log_message(/*file=*/nullptr, /*line=*/0, severity);
+  log_message.AddTag(tag.c_str());
+  log_message.stream() << message;
 }
 
 }  // namespace jni

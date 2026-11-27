@@ -33,28 +33,12 @@ import org.webrtc.Loggable;
  * don't write log messages to logcat, see LoggingConfig.Builder.setDebugSeverity.
  *
  * Before the native library is loaded, log messages from Java go to java.util.logging.Logger.
- *
- * A custom logger implementing the Loggable interface can be injected along with a Severity. All
- * subsequent log messages will then be redirected to the injected Loggable, except those with a
- * severity lower than the specified severity, which will be discarded.
- *
- * The priority goes:
- * 1. Injected loggable
- * 2. Native logging
- * 3. Fallback logging.
- * Only one method will be used at a time.
- *
- * Injecting a Loggable or using any of the enable... methods requires that the native library is
- * loaded, using PeerConnectionFactory.initialize. These methods are deprecated in favor of
- * Logging.initialize.
  */
 public class Logging {
   private static final String TAG = "Logging";
   private static final Logger fallbackLogger = createFallbackLogger();
   private static final Severity[] severities = Severity.values();
   private static volatile boolean loggingEnabled;
-  @Nullable private static Loggable loggable;
-  private static Severity loggableSeverity;
 
   private static final Object initializationLock = new Object();
 
@@ -73,17 +57,6 @@ public class Logging {
     final Logger fallbackLogger = Logger.getLogger("org.webrtc.Logging");
     fallbackLogger.setLevel(Level.ALL);
     return fallbackLogger;
-  }
-
-  static void injectLoggable(Loggable injectedLoggable, Severity severity) {
-    if (injectedLoggable != null) {
-      loggable = injectedLoggable;
-      loggableSeverity = severity;
-    }
-  }
-
-  static void deleteInjectedLoggable() {
-    loggable = null;
   }
 
   // Keep in sync with webrtc/rtc_base/logging.h:LoggingSeverity.
@@ -174,53 +147,11 @@ public class Logging {
     sink.onLogMessage(message, severities[severity], tag);
   }
 
-  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setLogThreads() instead.
-  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
-  @Deprecated
-  public static void enableLogThreads() {
-    LoggingJni.get().enableLogThreads();
-  }
-
-  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setLogTimestamps() instead.
-  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
-  @Deprecated
-  public static void enableLogTimeStamps() {
-    LoggingJni.get().enableLogTimeStamps();
-  }
-
-  // Enable diagnostic logging for messages of `severity` to the platform debug
-  // output. On Android, the output will be directed to Logcat.
-  // Note: this function starts collecting the output of the RTC_LOG() macros.
-  // Deprecated, use Logging.initialize() with LoggingConfig.Builder.setDebugSeverity() instead.
-  // TODO: bugs.webrtc.org/42234107 - Remove once downstream projects have migrated.
-  // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
-  @Deprecated
-  @SuppressWarnings({"EnumOrdinal", "NoSynchronizedMethodCheck"})
-  public static synchronized void enableLogToDebugOutput(Severity severity) {
-    if (loggable != null) {
-      throw new IllegalStateException(
-          "Logging to native debug output not supported while Loggable is injected. "
-          + "Delete the Loggable before calling this method.");
-    }
-    LoggingJni.get().enableLogToDebugOutput(severity.ordinal());
-    loggingEnabled = true;
-  }
-
   @SuppressWarnings("EnumOrdinal")
   public static void log(Severity severity, String tag, String message) {
     if (tag == null || message == null) {
       throw new IllegalArgumentException("Logging tag or message may not be null.");
     }
-    if (loggable != null) {
-      // Filter log messages below loggableSeverity.
-      if (severity.ordinal() < loggableSeverity.ordinal()) {
-        return;
-      }
-      loggable.onLogMessage(message, severity, tag);
-      return;
-    }
-
-    // Try native logging if no loggable is injected.
     if (loggingEnabled) {
       LoggingJni.get().log(severity.ordinal(), tag, message);
       return;
@@ -289,12 +220,6 @@ public class Logging {
     // The severities are ordinals of Severity, or null to use the native default.
     boolean initialize(Integer debugSeverity, Integer minSeverity, boolean logThreads,
         boolean logTimestamps, Loggable[] sinks);
-
-    void enableLogToDebugOutput(int nativeSeverity);
-
-    void enableLogThreads();
-
-    void enableLogTimeStamps();
 
     void log(int severity, String tag, String message);
   }

@@ -508,7 +508,7 @@ TEST_F(LogTest, CopiedLogLineRefKeepsDefaultLogLine) {
 }
 
 #if defined(WEBRTC_ANDROID)
-TEST_F(LogTest, LogTagSetsTagAndroid) {
+TEST_F(LogTest, AddTagSetsTagAndroid) {
   class TagSink : public LogSink {
    public:
     void OnLogMessage(const LogLineRef& line) override {
@@ -520,7 +520,11 @@ TEST_F(LogTest, LogTagSetsTagAndroid) {
   };
   TagSink& sink = InitializeLoggingWithSink<TagSink>();
 
-  RTC_LOG_TAG(LS_INFO, "my_tag") << "INFO";
+  {
+    LogMessage log_message(/*file=*/nullptr, /*line=*/0, LS_INFO);
+    log_message.AddTag("my_tag");
+    log_message.stream() << "INFO";
+  }
   EXPECT_EQ(sink.tag, "my_tag");
   EXPECT_THAT(sink.default_line, HasSubstr("INFO"));
 }
@@ -694,48 +698,28 @@ TEST_F(LogTest, ResetLoggingForTestingTurnsOffLogTimestamp) {
   EXPECT_TRUE(sink.timestamp->IsMinusInfinity());
 }
 
-// The tests below until RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS() test the
-// deprecated LogMessage::LogToDebug() method.
-// TODO: bugs.webrtc.org/42234107 - Remove them together with the method.
-RTC_PUSH_IGNORING_WDEPRECATED_DECLARATIONS()
-
-TEST_F(LogTest, LogToDebugChangesDebugSeverityAfterInitialization) {
-  LoggingConfig config;
-  config.set_debug_severity(LS_WARNING);
-  ASSERT_TRUE(InitializeLogging(std::move(config)));
-  EXPECT_TRUE(LogMessage::IsNoop(LS_INFO));
-  EXPECT_FALSE(LogMessage::IsNoop(LS_WARNING));
-
-  LogMessage::LogToDebug(LS_INFO);
-  EXPECT_FALSE(LogMessage::IsNoop(LS_INFO));
-
-  LogMessage::LogToDebug(LS_NONE);
-  EXPECT_TRUE(LogMessage::IsNoop(LS_ERROR));
-}
-
 // Limited to Linux, where the debug output is only written to stderr.
 #if defined(WEBRTC_LINUX) && !defined(WEBRTC_ANDROID)
-TEST_F(LogTest, LogToDebugControlsDebugOutputAfterInitialization) {
+TEST_F(LogTest, DebugSeverityControlsDebugOutput) {
   LoggingConfig config;
+  config.set_min_severity(LS_INFO);
   config.set_debug_severity(LS_WARNING);
   config.set_log_to_stderr(true);
-  ASSERT_TRUE(InitializeLogging(std::move(config)));
+  // Keep LS_INFO enabled via a sink so LogMessage::~LogMessage() filters it
+  // against debug_severity() rather than short-circuiting in IsNoop().
+  TestLogSink& sink = InitializeLoggingWithSink(std::move(config));
 
   ::testing::internal::CaptureStderr();
   RTC_LOG(LS_INFO) << "debug-output-1";
-  LogMessage::LogToDebug(LS_INFO);
-  RTC_LOG(LS_INFO) << "debug-output-2";
-  LogMessage::LogToDebug(LS_NONE);
-  RTC_LOG(LS_ERROR) << "debug-output-3";
+  RTC_LOG(LS_WARNING) << "debug-output-2";
   const std::string output = ::testing::internal::GetCapturedStderr();
 
+  EXPECT_THAT(sink.data(), HasSubstr("debug-output-1"));
+  EXPECT_THAT(sink.data(), HasSubstr("debug-output-2"));
   EXPECT_THAT(output, Not(HasSubstr("debug-output-1")));
   EXPECT_THAT(output, HasSubstr("debug-output-2"));
-  EXPECT_THAT(output, Not(HasSubstr("debug-output-3")));
 }
 #endif
-
-RTC_POP_IGNORING_WDEPRECATED_DECLARATIONS()
 
 TEST_F(LogTest, LogQueueNameFromThread) {
   LoggingConfig config;

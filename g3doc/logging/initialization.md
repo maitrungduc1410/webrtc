@@ -57,10 +57,6 @@ builds, so release builds don't write to the debug output unless configured to.
 Depending on the platform, the debug output also goes to logcat (Android) or to
 the debugger (Windows debug builds).
 
-The deprecated `LogMessage::LogToDebug()` changes the minimum severity for the
-debug output at runtime, also after initialization. `GetLoggingConfig()` keeps
-returning the initial value.
-
 ## Log Sinks
 
 A `webrtc::LogSink` receives log messages, for example to write them to a file.
@@ -91,8 +87,8 @@ before any logging occurs via `RTC_LOG` macros.
 If not initialized explicitly, logging initialization will happen **implicitly**
 upon the first logging call (e.g., `RTC_LOG`) or any function that accesses the
 logging configuration, such as `GetLoggingConfig()` or the legacy
-`LogMessage::AddLogToStream()` and `LogMessage::LogToDebug()`. The defaults used
-for implicit initialization are defined in the `LoggingConfig` class, see
+`LogMessage::AddLogToStream()`. The defaults used for implicit initialization
+are defined in the `LoggingConfig` class, see
 [Configuration Options](#configuration-options).
 
 ## Behavior When It Is Too Late
@@ -131,12 +127,9 @@ Logging.initialize(
         .build());
 ```
 
-A sink behaves differently from a `Loggable` that was set with the deprecated
-`setInjectableLogger()`. It doesn't turn off logging to logcat; set the debug
-severity to `LS_NONE` for that. Messages from Java reach the sink as formatted
-log lines instead of the raw message: with the elapsed time and the thread ID if
-those are enabled, and a trailing newline. In both cases, the tag is passed
-separately.
+Messages from Java reach a sink as formatted log lines: with the elapsed time
+and the thread ID if those are enabled, and a trailing newline. The tag is
+passed separately.
 
 On iOS and macOS, call `RTCInitializeLogging()` before any other call into
 WebRTC.
