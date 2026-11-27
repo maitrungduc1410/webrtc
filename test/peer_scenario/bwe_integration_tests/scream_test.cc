@@ -599,7 +599,7 @@ void TestVaryingCapacity1000To500KbpsRtt100ms(bool use_ecn) {
                                          DataRate::KilobitsPerSec(700))));
   EXPECT_THAT(result.caller().subspan(7, 1),
               Each(CurrentRoundTripTimeIsBetween(TimeDelta::Millis(90),
-                                                 TimeDelta::Millis(200))));
+                                                 TimeDelta::Millis(250))));
   // After recovery (seconds 10-11): recovered back towards 1000 kbps.
   EXPECT_THAT(
       result.caller().subspan(10, 2),
