@@ -104,6 +104,9 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
                                     TimeDelta::Millis(100)),
       max_pacing_delay_for_pushback("MaxPacingDelayForPushback",
                                     TimeDelta::Millis(500)),
+      pause_encoder_pacing_delay("PauseEncoderPacingDelay",
+                                 TimeDelta::Millis(100)),
+      resume_when_total_fits_cwnd("ResumeWhenTotalFitsCwnd", true),
       safe_reset_on_route_change("SafeResetOnRouteChange", true) {
   ParseFieldTrial(
       {&min_ref_window,
@@ -169,6 +172,8 @@ ScreamV2Parameters::ScreamV2Parameters(const FieldTrialsView* trials)
        &received_rate_window,
        &min_pacing_delay_for_pushback,
        &max_pacing_delay_for_pushback,
+       &pause_encoder_pacing_delay,
+       &resume_when_total_fits_cwnd,
        &safe_reset_on_route_change},
       trials != nullptr ? trials->Lookup("WebRTC-Bwe-ScreamV2") : "");
 }

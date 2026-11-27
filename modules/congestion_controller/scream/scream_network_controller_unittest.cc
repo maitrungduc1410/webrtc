@@ -989,7 +989,7 @@ TEST(ScreamControllerTest, CwndReduceRatioSetWhenPacerQueueGrowsAndShrinks) {
 }
 
 TEST(ScreamControllerTest,
-     TargetRateSetToZeroWhenCongestedAndQueueExceedsMaxPacingDelay) {
+     TargetRateSetToZeroWhenCongestedAndQueueExceedsPausePacingDelay) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
   Environment env = CreateTestEnvironment({.time = &clock});
   NetworkControllerConfig config(env);
@@ -999,50 +999,119 @@ TEST(ScreamControllerTest,
   scream_controller.OnNetworkAvailability(
       {.at_time = clock.CurrentTime(), .network_available = true});
 
-  // Congestion: data_in_flight (12000 bytes) exceeds max_data_in_flight (~10000
-  // bytes).
+  // Before feedback, max_data_in_flight is 4 * 1280 = 5120 bytes.
+  // Congestion: data_in_flight (6000 bytes) exceeds max_data_in_flight.
   SentPacket sent_packet;
   sent_packet.send_time = clock.CurrentTime();
-  sent_packet.data_in_flight = DataSize::Bytes(12000);
+  sent_packet.data_in_flight = DataSize::Bytes(6000);
   scream_controller.OnSentPacket(sent_packet);
 
   // Starting rate is 1000 kbps, so pacing rate = 1.1 * 1000 kbps = 1100 kbps
-  // (137,500 bytes/sec). Max pacing delay is 500 ms (68,750 bytes). 600 ms
-  // pacing delay = 0.6 * 137,500 = 82,500 bytes.
+  // (137,500 bytes/sec). Pause pacing delay is 100 ms (13,750 bytes).
+  // 150 ms pacing delay = 0.15 * 137,500 = 20,625 bytes (> 100 ms, < 500 ms).
   ProcessInterval msg;
   msg.at_time = clock.CurrentTime();
-  msg.pacer_queue = DataSize::Bytes(82500);
+  msg.pacer_queue = DataSize::Bytes(20625);
 
   NetworkControlUpdate update = scream_controller.OnProcessInterval(msg);
   ASSERT_TRUE(update.target_rate.has_value());
   EXPECT_EQ(update.target_rate->target_rate, DataRate::Zero());
 
-  // Congestion clears (data_in_flight drops to 1000 bytes), but pacer queue is
-  // still at 300 ms (41,250 bytes > min_pacing_delay of 100 ms).
-  // Due to hysteresis, target rate remains zero.
+  // Congestion clears (data_in_flight drops to 2000 bytes), and pacing delay
+  // drops below 100 ms (4000 bytes = ~29 ms), but data_in_flight + pacer_queue
+  // (6000 bytes) still exceeds max_data_in_flight (5120 bytes).
+  // Target rate remains zero until total queued + in-flight fits in cwnd.
   SentPacket clear_congestion;
   clear_congestion.send_time = clock.CurrentTime();
-  clear_congestion.data_in_flight = DataSize::Bytes(1000);
+  clear_congestion.data_in_flight = DataSize::Bytes(2000);
   scream_controller.OnSentPacket(clear_congestion);
 
   ProcessInterval mid_queue_msg;
   mid_queue_msg.at_time = clock.CurrentTime();
-  mid_queue_msg.pacer_queue = DataSize::Bytes(41250);
+  mid_queue_msg.pacer_queue = DataSize::Bytes(4000);
   NetworkControlUpdate update_mid =
       scream_controller.OnProcessInterval(mid_queue_msg);
   if (update_mid.target_rate.has_value()) {
     EXPECT_EQ(update_mid.target_rate->target_rate, DataRate::Zero());
   }
 
-  // Once queue drains below min pacing delay (< 100 ms / 13,750 bytes),
-  // target rate is restored.
+  // Once data_in_flight + pacer_queue (2000 + 3000 = 5000 bytes) drops below
+  // max_data_in_flight (5120 bytes), target rate is restored.
   clock.AdvanceTime(TimeDelta::Millis(100));
   ProcessInterval drain_msg;
   drain_msg.at_time = clock.CurrentTime();
-  drain_msg.pacer_queue = DataSize::Bytes(5000);
+  drain_msg.pacer_queue = DataSize::Bytes(3000);
   NetworkControlUpdate update2 = scream_controller.OnProcessInterval(drain_msg);
   ASSERT_TRUE(update2.target_rate.has_value());
   EXPECT_GT(update2.target_rate->target_rate, DataRate::Zero());
+}
+
+TEST(ScreamControllerTest,
+     ResumesPausedEncoderViaSentPacketsWhenTotalFitsCwnd) {
+  SimulatedClock clock(Timestamp::Seconds(1'234));
+  Environment env = CreateTestEnvironment({.time = &clock});
+  NetworkControllerConfig config(env);
+  config.constraints.starting_rate = DataRate::KilobitsPerSec(1000);
+  config.constraints.max_data_rate = DataRate::KilobitsPerSec(2000);
+  ScreamNetworkController scream_controller(config);
+
+  scream_controller.OnNetworkAvailability(
+      {.at_time = clock.CurrentTime(), .network_available = true});
+
+  // Establish RTT (~200 ms) so ref_window (~25 KB) and max_data_in_flight
+  // (> 37 KB) are larger than 100 ms of pacing queue (~13.75 KB at 1.1 Mbps).
+  CcFeedbackGenerator feedback_generator(
+      {.network_config = {.queue_delay_ms = 100,
+                          .link_capacity = DataRate::KilobitsPerSec(2000)}});
+  DataSize cwnd = DataSize::Zero();
+  for (int i = 0; i < 5; ++i) {
+    TransportPacketsFeedback feedback =
+        feedback_generator.ProcessUntilNextFeedback(
+            DataRate::KilobitsPerSec(1000), clock,
+            [&](const SentPacket& packet) {
+              scream_controller.OnSentPacket(packet);
+            });
+    NetworkControlUpdate fb_update =
+        scream_controller.OnTransportPacketsFeedback(feedback);
+    ASSERT_TRUE(fb_update.congestion_window.has_value());
+    cwnd = *fb_update.congestion_window;
+  }
+  ASSERT_GT(cwnd, DataSize::Bytes(35000));
+
+  // Trigger congestion pause: data_in_flight > cwnd and pacer_queue = 30 KB
+  // (> 100 ms pacing delay).
+  SentPacket congested_packet;
+  congested_packet.send_time = clock.CurrentTime();
+  congested_packet.data_in_flight = cwnd + DataSize::Bytes(5000);
+  scream_controller.OnSentPacket(congested_packet);
+
+  ProcessInterval pause_msg;
+  pause_msg.at_time = clock.CurrentTime();
+  pause_msg.pacer_queue = DataSize::Bytes(30000);
+  NetworkControlUpdate pause_update =
+      scream_controller.OnProcessInterval(pause_msg);
+  ASSERT_TRUE(pause_update.target_rate.has_value());
+  EXPECT_EQ(pause_update.target_rate->target_rate, DataRate::Zero());
+
+  // Drain 12 KB from the pacer via OnSentPacket (leaving 18 KB > 100 ms pacing
+  // delay in the pacer queue) as ACKs free cwnd headroom (data_in_flight =
+  // 10 KB), so 10 KB + 18 KB = 28 KB < cwnd (> 35 KB). Encoder should resume
+  // immediately on OnSentPacket without waiting for OnProcessInterval.
+  NetworkControlUpdate drain_update;
+  for (int i = 0; i < 12; ++i) {
+    clock.AdvanceTime(TimeDelta::Millis(1));
+    SentPacket paced_packet;
+    paced_packet.send_time = clock.CurrentTime();
+    paced_packet.size = DataSize::Bytes(1000);
+    paced_packet.data_in_flight = DataSize::Bytes(10000);
+    NetworkControlUpdate step_update =
+        scream_controller.OnSentPacket(paced_packet);
+    if (step_update.target_rate.has_value()) {
+      drain_update = step_update;
+    }
+  }
+  ASSERT_TRUE(drain_update.target_rate.has_value());
+  EXPECT_GT(drain_update.target_rate->target_rate, DataRate::Zero());
 }
 
 TEST(ScreamControllerTest,
@@ -1074,7 +1143,7 @@ TEST(ScreamControllerTest,
 }
 
 TEST(ScreamControllerTest,
-     TargetRateNotZeroWhenCongestedButQueueBelowMaxPacingDelay) {
+     TargetRateNotZeroWhenCongestedButQueueBelowPausePacingDelay) {
   SimulatedClock clock(Timestamp::Seconds(1'234));
   Environment env = CreateTestEnvironment({.time = &clock});
   NetworkControllerConfig config(env);
@@ -1090,7 +1159,7 @@ TEST(ScreamControllerTest,
   sent_packet.data_in_flight = DataSize::Bytes(12000);
   scream_controller.OnSentPacket(sent_packet);
 
-  // 50 ms pacing delay = 0.05 * 137,500 = 6,875 bytes (< 500 ms).
+  // 50 ms pacing delay = 0.05 * 137,500 = 6,875 bytes (< 100 ms).
   ProcessInterval msg;
   msg.at_time = clock.CurrentTime();
   msg.pacer_queue = DataSize::Bytes(6875);

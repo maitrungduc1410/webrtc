@@ -246,6 +246,13 @@ struct ScreamV2Parameters {
   FieldTrialParameter<TimeDelta> min_pacing_delay_for_pushback;
   // Maximum pacing delay for full cwnd pushback reduction.
   FieldTrialParameter<TimeDelta> max_pacing_delay_for_pushback;
+  // Pacing delay threshold above which the video encoder is paused
+  // (target_rate = 0) when data in flight exceeds max_data_in_flight.
+  FieldTrialParameter<TimeDelta> pause_encoder_pacing_delay;
+  // If true, resumes a congestion-paused encoder once uncongested and
+  // data_in_flight + pacer_queue_size < max_data_in_flight, instead of waiting
+  // for pacing delay to drop below min_pacing_delay_for_pushback.
+  FieldTrialParameter<bool> resume_when_total_fits_cwnd;
 
   // On route change with restart_bwe = true, cap the starting rate to
   // min(current_target_rate, starting_rate).

@@ -149,7 +149,16 @@ NetworkControlUpdate ScreamNetworkController::OnRoundTripTimeUpdate(
 NetworkControlUpdate ScreamNetworkController::OnSentPacket(SentPacket msg) {
   scream_->OnPacketSent(msg.data_in_flight);
   data_in_flight_ = msg.data_in_flight;
+  if (encoder_paused_due_to_congestion_) {
+    // Estimate remaining pacer queue between ProcessInterval updates. Note that
+    // OnSentPacket can also be invoked for audio packets while the video
+    // encoder is paused.
+    pacer_queue_size_ = (pacer_queue_size_ > msg.size)
+                            ? (pacer_queue_size_ - msg.size)
+                            : DataSize::Zero();
+  }
   if (msg.data_in_flight > scream_->max_data_in_flight() ||
+      encoder_paused_due_to_congestion_ ||
       scream_->delay_based_congestion_control().IsQueueDelayDetected()) {
     return CreateUpdate(msg.send_time);
   }
@@ -243,14 +252,19 @@ NetworkControlUpdate ScreamNetworkController::CreateUpdate(Timestamp now) {
   TimeDelta pacing_delay = (pacing_rate > DataRate::Zero())
                                ? (pacer_queue_size_ / pacing_rate)
                                : TimeDelta::Zero();
-  bool is_congested = data_in_flight_ > scream_->max_data_in_flight();
+  DataSize max_data_in_flight = scream_->max_data_in_flight();
+  bool is_congested = data_in_flight_ > max_data_in_flight;
 
-  if (is_congested &&
-      pacing_delay > params_.max_pacing_delay_for_pushback.Get()) {
+  if (is_congested && pacing_delay > params_.pause_encoder_pacing_delay.Get()) {
     encoder_paused_due_to_congestion_ = true;
-  } else if (!is_congested &&
-             pacing_delay < params_.min_pacing_delay_for_pushback.Get()) {
-    encoder_paused_due_to_congestion_ = false;
+  } else if (encoder_paused_due_to_congestion_ && !is_congested) {
+    bool can_resume =
+        params_.resume_when_total_fits_cwnd.Get()
+            ? (data_in_flight_ + pacer_queue_size_ < max_data_in_flight)
+            : (pacing_delay < params_.min_pacing_delay_for_pushback.Get());
+    if (can_resume) {
+      encoder_paused_due_to_congestion_ = false;
+    }
   }
 
   DataRate target_rate = encoder_paused_due_to_congestion_
