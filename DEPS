@@ -15,7 +15,7 @@ vars = {
   # chromium waterfalls. More info at: crbug.com/570091.
   'checkout_configuration': 'default',
   'checkout_instrumented_libraries': 'checkout_linux and checkout_configuration == "default"',
-  'chromium_revision': '3e313a830f17dfb9104ac777e1672c534b96f13b',
+  'chromium_revision': 'b5d426bdfc9ac7869f4972e35851c175f78df201',
 
   # Fetch the prebuilt binaries for llvm-cov and llvm-profdata. Needed to
   # process the raw profiles produced by instrumented targets (built with
@@ -84,13 +84,13 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/ios': {
-    'url': 'https://chromium.googlesource.com/chromium/src/ios@3107c23ea40235eb8181846daa64f849087b816e',
+    'url': 'https://chromium.googlesource.com/chromium/src/ios@29201735b575b94b7f3eafe6e5084c08b19cf3c6',
     'condition': 'checkout_ios',
   },
   'src/testing':
-    'https://chromium.googlesource.com/chromium/src/testing@60d28c3262fe331ebd88e8dc21741babda056ee3',
+    'https://chromium.googlesource.com/chromium/src/testing@7e53670c8d5f75c84936d0040d8059ab8046e6cd',
   'src/third_party':
-    'https://chromium.googlesource.com/chromium/src/third_party@a16d8e9d5cc15bc754421ee7b2e9deb2a0f954e0',
+    'https://chromium.googlesource.com/chromium/src/third_party@6f3ad08b9a0df370c5d91d9fd3c42953ebe1500d',
 
   'src/buildtools/third_party/mold/cipd': {
       'packages': [
@@ -315,31 +315,31 @@ deps = {
     'bucket': 'chromium-browser-clang',
     'objects': [
       {
-        'object_name': 'Linux_x64/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-2-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
-        'sha256sum': '31332199efdde339e5d402f82257650a8706944bfc53c7d0b0c545f63e12f25d',
-        'size_bytes': 285246336,
-        'generation': 1795540675486514,
+        'object_name': 'Linux_x64/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-3-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
+        'sha256sum': 'a1fa36f9dbdb2bf3256ee6a65cfd24af53e875cf09025fa24f7cf4ffa853eeec',
+        'size_bytes': 285369572,
+        'generation': 1795782200318165,
         'condition': 'host_os == "linux" and non_git_source',
       },
       {
-        'object_name': 'Mac/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-2-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
-        'sha256sum': '1355795cf0dceb022d5275d4b8124a3f69c4571937e75450557f8ee4cfd03da5',
-        'size_bytes': 273343364,
-        'generation': 1795540678702341,
+        'object_name': 'Mac/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-3-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
+        'sha256sum': 'b1b8f2cae04931c38be6abc78c66fa031cfd4300362e86dedaa736ccec0bdcd2',
+        'size_bytes': 273423536,
+        'generation': 1795782204249633,
         'condition': 'host_os == "mac" and host_cpu == "x64"',
       },
       {
-        'object_name': 'Mac_arm64/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-2-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
-        'sha256sum': '1295e09ef89b8f6ca09fac6a078437675ef81caf3548085e77f0ffd416380b38',
-        'size_bytes': 257090228,
-        'generation': 1795540681838583,
+        'object_name': 'Mac_arm64/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-3-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
+        'sha256sum': '93487236ec920817f112ee34ba44f77664f886718caa71ab02f8fc1fe60868be',
+        'size_bytes': 257073004,
+        'generation': 1795782208448629,
         'condition': 'host_os == "mac" and host_cpu == "arm64"',
       },
       {
-        'object_name': 'Win/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-2-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
-        'sha256sum': '571031deaa091a0e30604b87d0a293465654eee33280e7114edb1bdf1ca1705e',
-        'size_bytes': 425873176,
-        'generation': 1795540685051205,
+        'object_name': 'Win/rust-toolchain-277240238554297f93fa9ee3c7643dfa03ccbbb4-3-llvmorg-24-init-22088-g7ba4f04e.tar.xz',
+        'sha256sum': 'ef015250dbbe0df21a89daa061662a994888173c29e286b935307f56df9a2d6f',
+        'size_bytes': 425749704,
+        'generation': 1795782212289812,
         'condition': 'host_os == "win"',
       },
     ],
@@ -630,7 +630,7 @@ deps = {
   'src/third_party/libgav1/src':
     Var('chromium_git') + '/codecs/libgav1.git' + '@' + '9f78a5b81409f4880ec0c96cd422851aab9d6d74',
   'src/third_party/perfetto':
-    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + 'f344ac7551794778a7fb87788836a0a5f74524a5',
+    Var('chromium_git') + '/external/github.com/google/perfetto.git' + '@' + '42cd5a93b0f43574e6cf42a075931bd659589948',
   'src/third_party/protobuf-javascript/src':
     Var('chromium_git') + '/external/github.com/protocolbuffers/protobuf-javascript' + '@' + 'eb59fef711c3d090d54b988b99b7c067d6b7e3a8',
   'src/third_party/libvpx/source/libvpx':
@@ -689,7 +689,7 @@ deps = {
     'condition': 'checkout_android',
   },
   'src/tools':
-    'https://chromium.googlesource.com/chromium/src/tools@fafb4a160796fc9a03ca89040b3b84ef98dd6a4f',
+    'https://chromium.googlesource.com/chromium/src/tools@146d2734a15bb17c7ebbaeeaae2d16489f33b91c',
 
   'src/third_party/espresso': {
       'packages': [
